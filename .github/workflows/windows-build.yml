@@ -43,13 +43,16 @@ jobs:
           foreach ($file in $files) {
             if (Test-Path $file) {
               $content = Get-Content $file -Raw
-              $pattern = 'install DLL "$<TARGET_FILE:${BINARY_NAME}>"'
-              if ($content -like "*$pattern*") {
-                $patched = $content -replace [regex]::Escape($pattern), '# patched install command removed for CI'
+              $patternNuget = '################ NuGet intall begin ################[\s\S]*?################ NuGet install end ################'
+              $patternInstall = 'install DLL "$<TARGET_FILE:${BINARY_NAME}>"'
+              $patched = [regex]::Replace($content, $patternNuget, '# patched nuget block removed for CI')
+              $patched = $patched.Replace($patternInstall, '# patched install command removed for CI')
+              if ($patched -ne $content) {
                 Set-Content $file -Value $patched -Encoding UTF8
               }
             }
           }
+          flutter pub get
 
       - name: Build Windows release
         shell: pwsh
