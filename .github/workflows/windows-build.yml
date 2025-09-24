@@ -3,7 +3,7 @@ name: Build Windows Client
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ master, main ]
   pull_request:
 
 jobs:
@@ -52,3 +52,4 @@ jobs:
           name: flutter-build-logs
           path: build-logs/flutter-build.log
           if-no-files-found: error
+
