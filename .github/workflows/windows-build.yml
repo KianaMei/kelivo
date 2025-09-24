@@ -10,7 +10,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     env:
-      FLUTTER_VERSION: "3.29.0"
+      FLUTTER_VERSION: "3.8.1"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,7 +18,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: beta
           flutter-version: ${{ env.FLUTTER_VERSION }}
 
       - name: Show Flutter doctor
@@ -52,4 +52,5 @@ jobs:
           name: flutter-build-logs
           path: build-logs/flutter-build.log
           if-no-files-found: error
+
 
