@@ -27,6 +27,30 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Patch flutter_tts CMake (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $files = @()
+          $pubCache = Join-Path $env:LOCALAPPDATA 'Pub\Cache\hosted\pub.dev'
+          if (Test-Path $pubCache) {
+            $files += Get-ChildItem -Path $pubCache -Filter 'flutter_tts-*' -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+              Join-Path $_.FullName 'windows\CMakeLists.txt'
+            }
+          }
+          $ephemeral = 'windows/flutter/ephemeral/.plugin_symlinks/flutter_tts/windows/CMakeLists.txt'
+          if (Test-Path $ephemeral) { $files += $ephemeral }
+          foreach ($file in $files) {
+            if (Test-Path $file) {
+              $content = Get-Content $file -Raw
+              $pattern = 'install DLL "$<TARGET_FILE:${BINARY_NAME}>"'
+              if ($content -like "*$pattern*") {
+                $patched = $content -replace [regex]::Escape($pattern), '# patched install command removed for CI'
+                Set-Content $file -Value $patched -Encoding UTF8
+              }
+            }
+          }
+
       - name: Build Windows release
         shell: pwsh
         run: |
