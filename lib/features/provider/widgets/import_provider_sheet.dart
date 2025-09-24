@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../scan/pages/qr_scan_page.dart';
+import '../../../utils/platform_capabilities.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../l10n/app_localizations.dart';
@@ -242,6 +243,14 @@ Future<void> showImportProviderSheet(BuildContext context) async {
                       tooltip: l10n.importProviderSheetScanQrTooltip,
                       icon: const Icon(Lucide.Camera),
                       onPressed: () async {
+                        if (!PlatformCapabilities.supportsQrScanner) {
+                          showAppSnackBar(
+                            ctx,
+                            message: 'QR scanning is not supported on this platform yet.',
+                            type: NotificationType.error,
+                          );
+                          return;
+                        }
                         final code = await Navigator.of(ctx).push<String>(
                           MaterialPageRoute(builder: (_) => const QrScanPage()),
                         );
@@ -282,6 +291,14 @@ Future<void> showImportProviderSheet(BuildContext context) async {
                       tooltip: l10n.importProviderSheetFromGalleryTooltip,
                       icon: const Icon(Lucide.Image),
                       onPressed: () async {
+                        if (!PlatformCapabilities.supportsQrScanner) {
+                          showAppSnackBar(
+                            ctx,
+                            message: 'QR scanning is not supported on this platform yet.',
+                            type: NotificationType.error,
+                          );
+                          return;
+                        }
                         try {
                           // pick from gallery and analyze
                           final picker = ImagePicker();

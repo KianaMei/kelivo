@@ -5,6 +5,7 @@ import 'package:archive/archive_io.dart';
 import 'package:xml/xml.dart';
 import 'package:flutter/services.dart';
 import 'package:read_pdf_text/read_pdf_text.dart';
+import '../../../utils/platform_capabilities.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 
 class DocumentTextExtractor {
@@ -13,6 +14,9 @@ class DocumentTextExtractor {
       // Remap old iOS sandbox path if needed
       final fixedPath = SandboxPathResolver.fix(path);
       if (mime == 'application/pdf') {
+        if (!PlatformCapabilities.supportsPdfTextExtraction) {
+          return '[[PDF text extraction plugin not available on this platform]]';
+        }
         try {
           final text = await ReadPdfText.getPDFtext(fixedPath);
           if (text.trim().isNotEmpty) return text;
@@ -65,3 +69,4 @@ class DocumentTextExtractor {
     }
   }
 }
+

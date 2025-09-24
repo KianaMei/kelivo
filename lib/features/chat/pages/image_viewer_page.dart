@@ -8,8 +8,8 @@ import 'package:path/path.dart' as p;
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 import 'package:share_plus/share_plus.dart';
 import 'package:http/http.dart' as http;
-import 'package:open_filex/open_filex.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../utils/system_file_opener.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../l10n/app_localizations.dart';
 
@@ -202,22 +202,22 @@ class _ImageViewerPageState extends State<ImageViewerPage> with TickerProviderSt
         await Share.shareXFiles([XFile(pathToSave)]);
       } on MissingPluginException catch (_) {
         // Fallback: open system chooser by opening file
-        final res = await OpenFilex.open(pathToSave);
+        final res = await openFileWithFallback(pathToSave);
         if (!mounted) return;
-        if (res.type != ResultType.done) {
+        if (!res.success) {
           showAppSnackBar(
             context,
-            message: l10n.imageViewerPageShareFailedOpenFile(res.message ?? res.type.name),
+            message: l10n.imageViewerPageShareFailedOpenFile(res.message ?? 'unsupported'),
             type: NotificationType.error,
           );
         }
       } on PlatformException catch (_) {
-        final res = await OpenFilex.open(pathToSave);
+        final res = await openFileWithFallback(pathToSave);
         if (!mounted) return;
-        if (res.type != ResultType.done) {
+        if (!res.success) {
           showAppSnackBar(
             context,
-            message: l10n.imageViewerPageShareFailedOpenFile(res.message ?? res.type.name),
+            message: l10n.imageViewerPageShareFailedOpenFile(res.message ?? 'unsupported'),
             type: NotificationType.error,
           );
         }

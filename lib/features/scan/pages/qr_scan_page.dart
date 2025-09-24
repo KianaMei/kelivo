@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../utils/platform_capabilities.dart';
 
 class QrScanPage extends StatefulWidget {
   const QrScanPage({super.key});
@@ -17,6 +18,52 @@ class _QrScanPageState extends State<QrScanPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final body = PlatformCapabilities.supportsQrScanner
+        ? Stack(
+            children: [
+              MobileScanner(
+                onDetect: (capture) {
+                  if (_handled) return;
+                  final barcodes = capture.barcodes;
+                  for (final b in barcodes) {
+                    final v = b.rawValue;
+                    if (v != null && v.isNotEmpty) {
+                      _handled = true;
+                      Navigator.of(context).pop(v);
+                      break;
+                    }
+                  }
+                },
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: cs.surface.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      l10n.qrScanPageInstruction,
+                      style: TextStyle(color: cs.onSurface),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          )
+        : Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'QR scanning is not supported on this platform yet.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant),
+              ),
+            ),
+          );
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -25,42 +72,7 @@ class _QrScanPageState extends State<QrScanPage> {
         ),
         title: Text(l10n.qrScanPageTitle),
       ),
-      body: Stack(
-        children: [
-          MobileScanner(
-            onDetect: (capture) {
-              if (_handled) return;
-              final barcodes = capture.barcodes;
-              for (final b in barcodes) {
-                final v = b.rawValue;
-                if (v != null && v.isNotEmpty) {
-                  _handled = true;
-                  Navigator.of(context).pop(v);
-                  break;
-                }
-              }
-            },
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: cs.surface.withOpacity(0.85),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  l10n.qrScanPageInstruction,
-                  style: TextStyle(color: cs.onSurface),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      body: body,
     );
   }
 }
-

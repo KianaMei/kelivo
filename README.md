@@ -49,6 +49,11 @@ English | [简体中文](README_ZH_CN.md)
 - ✅ Android
 - ✅ iOS
 - ✅ Harmony ([kelivo-ohos](https://github.com/Chevey339/kelivo-ohos))
+- 🪟 Windows (desktop preview; QR import scanning and PDF text extraction currently unavailable)
+
+## Windows Notes
+
+Kelivo can be built and run on Windows. Desktop builds disable camera-based QR scanning and surface a helpful message when PDF text extraction is unavailable. File opening operations now fall back to the native Windows handler if the mobile plugin is missing.
 
 ## 🤝 Contribution Guide
 

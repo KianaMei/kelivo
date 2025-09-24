@@ -5,7 +5,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
-import 'package:open_filex/open_filex.dart';
 // import 'package:easy_image_viewer/easy_image_viewer.dart';
 import 'dart:convert';
 import '../pages/image_viewer_page.dart';
@@ -15,6 +14,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/user_provider.dart';
 import 'package:intl/intl.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../utils/system_file_opener.dart';
 import '../../../utils/avatar_cache.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
@@ -654,11 +654,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 );
                                 return;
                               }
-                              final res = await OpenFilex.open(fixed, type: d.mime);
-                              if (res.type != ResultType.done) {
+                              final res = await openFileWithFallback(fixed, mimeType: d.mime);
+                              if (!res.success) {
+                                final detail = res.message ?? 'unsupported';
                                 showAppSnackBar(
                                   context,
-                                  message: l10n.chatMessageWidgetCannotOpenFile(res.message ?? res.type.toString()),
+                                  message: l10n.chatMessageWidgetCannotOpenFile(detail),
                                   type: NotificationType.error,
                                 );
                               }
