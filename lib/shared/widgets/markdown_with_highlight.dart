@@ -1078,7 +1078,7 @@ class AtxHeadingMd extends BlockMd {
       height: h,
       letterSpacing: ls,
       color: cs.onSurface,
-      fontFamilyFallback: kDefaultFontFamilyFallback,
+      fontFamilyFallback: kDefaultFontFamilyFallback(),
     );
   }
 }
@@ -1334,3 +1334,4 @@ class ModernRadioMd extends BlockMd {
     );
   }
 }
+
