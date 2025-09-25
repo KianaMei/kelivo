@@ -52,8 +52,15 @@ jobs:
               }
             }
           }
-          flutter pub get
-
+          # Ensure windowsapp is linked to satisfy WinRT symbols
+          foreach ($file in $files) {
+            if (Test-Path $file) {
+              $raw = Get-Content $file -Raw
+              if ($raw -notmatch 'windowsapp') {
+                Add-Content -Path $file -Value "`ntarget_link_libraries(${PLUGIN_NAME} PRIVATE windowsapp)`n"
+              }
+            }
+          }
       - name: Build Windows release
         shell: pwsh
         run: |
@@ -76,3 +83,5 @@ jobs:
           name: flutter-build-logs
           path: build-logs/flutter-build.log
           if-no-files-found: error
+
+
