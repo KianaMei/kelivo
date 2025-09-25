@@ -57,7 +57,8 @@ jobs:
             if (Test-Path $file) {
               $raw = Get-Content $file -Raw
               if ($raw -notmatch 'windowsapp') {
-                Add-Content -Path $file -Value "`ntarget_link_libraries(${PLUGIN_NAME} PRIVATE windowsapp)`n"
+                $line = 'target_link_libraries(${PLUGIN_NAME} PRIVATE windowsapp)'
+              Add-Content -Path $file -Value ("`n{0}`n" -f $line)
               }
             }
           }
@@ -83,5 +84,6 @@ jobs:
           name: flutter-build-logs
           path: build-logs/flutter-build.log
           if-no-files-found: error
+
 
 
