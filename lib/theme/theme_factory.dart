@@ -46,8 +46,8 @@ List<String> kDefaultFontFamilyFallback() {
   }
 }
 
-TextTheme _withFontFallback(TextTheme base, List<String> fallback) {
-  TextStyle? f(TextStyle? s) => s?.copyWith(fontFamilyFallback: fallback);
+TextTheme _withFontFallback(TextTheme base, List<String> fallback, {String? family}) {
+  TextStyle? f(TextStyle? s) => s?.copyWith(fontFamily: family, fontFamilyFallback: fallback);
   return base.copyWith(
     displayLarge: f(base.displayLarge),
     displayMedium: f(base.displayMedium),
@@ -65,6 +65,20 @@ TextTheme _withFontFallback(TextTheme base, List<String> fallback) {
     labelMedium: f(base.labelMedium),
     labelSmall: f(base.labelSmall),
   );
+}
+
+String? kPrimaryFontFamily() {
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.windows:
+      return 'Microsoft YaHei UI';
+    case TargetPlatform.macOS:
+    case TargetPlatform.iOS:
+      return 'PingFang SC';
+    case TargetPlatform.linux:
+      return 'Noto Sans CJK SC';
+    default:
+      return null;
+  }
 }
 
 // String _hex(Color c) => '#${c.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
@@ -167,8 +181,7 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
   );
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
 
-  final theme = ThemeData(
-    useMaterial3: true,
+  final theme = ThemeData(\n    useMaterial3: true,\n    fontFamily: kPrimaryFontFamily(),
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -209,8 +222,8 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
     ),
   );
   return theme.copyWith(
-    textTheme: _withFontFallback(theme.textTheme, kDefaultFontFamilyFallback()),
-    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback()),
+    textTheme: _withFontFallback(theme.textTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
+    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
   );
 }
 
@@ -219,8 +232,7 @@ ThemeData buildLightThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynam
   final scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
   // Align logging behavior with buildLightTheme so diagnostics are consistent.
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
-  final theme = ThemeData(
-    useMaterial3: true,
+  final theme = ThemeData(\n    useMaterial3: true,\n    fontFamily: kPrimaryFontFamily(),
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -259,8 +271,8 @@ ThemeData buildLightThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynam
     ),
   );
   return theme.copyWith(
-    textTheme: _withFontFallback(theme.textTheme, kDefaultFontFamilyFallback()),
-    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback()),
+    textTheme: _withFontFallback(theme.textTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
+    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
   );
 }
 
@@ -300,8 +312,7 @@ ThemeData buildDarkTheme(ColorScheme? dynamicScheme) {
   );
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
 
-  final theme = ThemeData(
-    useMaterial3: true,
+  final theme = ThemeData(\n    useMaterial3: true,\n    fontFamily: kPrimaryFontFamily(),
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -342,8 +353,8 @@ ThemeData buildDarkTheme(ColorScheme? dynamicScheme) {
     ),
   );
   return theme.copyWith(
-    textTheme: _withFontFallback(theme.textTheme, kDefaultFontFamilyFallback()),
-    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback()),
+    textTheme: _withFontFallback(theme.textTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
+    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
   );
 }
 
@@ -351,8 +362,7 @@ ThemeData buildDarkThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynami
   final scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
   // Align logging behavior with buildDarkTheme so diagnostics are consistent.
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
-  final theme = ThemeData(
-    useMaterial3: true,
+  final theme = ThemeData(\n    useMaterial3: true,\n    fontFamily: kPrimaryFontFamily(),
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -391,8 +401,9 @@ ThemeData buildDarkThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynami
     ),
   );
   return theme.copyWith(
-    textTheme: _withFontFallback(theme.textTheme, kDefaultFontFamilyFallback()),
-    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback()),
+    textTheme: _withFontFallback(theme.textTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
+    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
   );
 }
+
 
