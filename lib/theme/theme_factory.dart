@@ -182,7 +182,9 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
   );
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
 
-  final theme = ThemeData(\n    useMaterial3: true,\n    fontFamily: kPrimaryFontFamily(),
+  final theme = ThemeData(
+    useMaterial3: true,
+    fontFamily: kPrimaryFontFamily(),
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -233,7 +235,9 @@ ThemeData buildLightThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynam
   final scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
   // Align logging behavior with buildLightTheme so diagnostics are consistent.
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
-  final theme = ThemeData(\n    useMaterial3: true,\n    fontFamily: kPrimaryFontFamily(),
+  final theme = ThemeData(
+    useMaterial3: true,
+    fontFamily: kPrimaryFontFamily(),
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -313,7 +317,9 @@ ThemeData buildDarkTheme(ColorScheme? dynamicScheme) {
   );
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
 
-  final theme = ThemeData(\n    useMaterial3: true,\n    fontFamily: kPrimaryFontFamily(),
+  final theme = ThemeData(
+    useMaterial3: true,
+    fontFamily: kPrimaryFontFamily(),
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -363,7 +369,9 @@ ThemeData buildDarkThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynami
   final scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
   // Align logging behavior with buildDarkTheme so diagnostics are consistent.
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
-  final theme = ThemeData(\n    useMaterial3: true,\n    fontFamily: kPrimaryFontFamily(),
+  final theme = ThemeData(
+    useMaterial3: true,
+    fontFamily: kPrimaryFontFamily(),
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     snackBarTheme: SnackBarThemeData(
@@ -406,6 +414,7 @@ ThemeData buildDarkThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynami
     primaryTextTheme: _withFontFallback(theme.primaryTextTheme, kDefaultFontFamilyFallback(), family: kPrimaryFontFamily()),
   );
 }
+
 
 
 
