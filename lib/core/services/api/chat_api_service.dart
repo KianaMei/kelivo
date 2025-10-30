@@ -12,6 +12,18 @@ import '../../services/api_key_manager.dart';
 import 'package:kelivo/secrets/fallback.dart';
 
 class ChatApiService {
+  // 生成东八区时间戳: 年-月-日 时:分:秒
+  static String _timestamp() {
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final year = now.year.toString().padLeft(4, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    final second = now.second.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute:$second';
+  }
+
   static String _apiKeyForRequest(ProviderConfig cfg, String modelId) {
     final orig = _effectiveApiKey(cfg).trim();
     if (orig.isNotEmpty) return orig;
@@ -886,6 +898,28 @@ class ChatApiService {
       }
     }
 
+    try {
+      final timestamp = _timestamp();
+      final logFile = File('c:/mycode/kelivo/debug_tools.log');
+      logFile.writeAsStringSync('[$timestamp] [API Request] URL: $url\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[$timestamp] [API Request] tools param: ${tools?.length ?? 0} tools\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[$timestamp] [API Request] body.tools: ${body['tools']?.length ?? 0} tools\n', mode: FileMode.append);
+      if (body['tools'] != null) {
+        logFile.writeAsStringSync('[$timestamp] [API Request] body.tools content: ${jsonEncode(body['tools'])}\n', mode: FileMode.append);
+      }
+      logFile.writeAsStringSync('[$timestamp] [API Request] Full body: ${jsonEncode(body)}\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[$timestamp] [API Request] useResponseApi: ${config.useResponseApi}\n', mode: FileMode.append);
+    } catch (e) {
+      print('[API Request] Failed to write log: $e');
+    }
+
+    print('[API Request] URL: $url');
+    print('[API Request] tools param: ${tools?.length ?? 0} tools');
+    print('[API Request] body.tools: ${body['tools']?.length ?? 0} tools');
+    if (body['tools'] != null) {
+      print('[API Request] body.tools content: ${jsonEncode(body['tools'])}');
+    }
+
     final request = http.Request('POST', url);
     final headers = <String, String>{
       'Authorization': 'Bearer ${_apiKeyForRequest(config, modelId)}',
@@ -934,7 +968,9 @@ class ChatApiService {
     // Track potential tool calls (OpenAI Chat Completions)
     final Map<int, Map<String, String>> toolAcc = <int, Map<String, String>>{}; // index -> {id,name,args}
     // Track potential tool calls (OpenAI Responses API)
-    final Map<String, Map<String, String>> toolAccResp = <String, Map<String, String>>{}; // id/name -> {name,args}
+    final Map<String, Map<String, String>> toolAccResp = <String, Map<String, String>>{}; // call_id -> {id,name,args}
+    // Map item_id to call_id for Responses API argument accumulation
+    final Map<String, String> itemIdToCallId = <String, String>{}; // item_id -> call_id
     String? finishReason;
 
     await for (final chunk in stream) {
@@ -1298,6 +1334,14 @@ class ChatApiService {
           if (config.useResponseApi == true) {
             // OpenAI /responses SSE types
             final type = json['type'];
+
+            // Log all event types
+            try {
+              final timestamp = _timestamp();
+              final logFile = File('c:/mycode/kelivo/debug_tools.log');
+              logFile.writeAsStringSync('[$timestamp] [Response Event] type: $type, json: ${jsonEncode(json)}\n', mode: FileMode.append);
+            } catch (_) {}
+
             if (type == 'response.output_text.delta') {
               final delta = json['delta'];
               if (delta is String) {
@@ -1307,18 +1351,49 @@ class ChatApiService {
             } else if (type == 'response.reasoning_summary_text.delta') {
               final delta = json['delta'];
               if (delta is String) reasoning = delta;
-            } else if (type is String && type.contains('function_call')) {
-              // Accumulate function call args for Responses API
-              final id = (json['id'] ?? json['call_id'] ?? '').toString();
-              final name = (json['name'] ?? json['function']?['name'] ?? '').toString();
-              final argsDelta = (json['arguments'] ?? json['arguments_delta'] ?? json['delta'] ?? '').toString();
-              if (id.isNotEmpty || name.isNotEmpty) {
-                final key = id.isNotEmpty ? id : name;
-                final entry = toolAccResp.putIfAbsent(key, () => {'name': name, 'args': ''});
-                if (name.isNotEmpty) entry['name'] = name;
-                if (argsDelta.isNotEmpty) entry['args'] = (entry['args'] ?? '') + argsDelta;
+            } else if (type == 'response.output_item.added') {
+              // New output item added (could be function_call, message, etc.)
+              final item = json['item'];
+              if (item is Map && item['type'] == 'function_call') {
+                final callId = (item['call_id'] ?? '').toString();
+                final itemId = (item['id'] ?? '').toString();
+                final name = (item['name'] ?? '').toString();
+                if (callId.isNotEmpty && itemId.isNotEmpty) {
+                  // Map item_id to call_id for later argument accumulation
+                  itemIdToCallId[itemId] = callId;
+                  toolAccResp.putIfAbsent(callId, () => {'id': callId, 'name': name, 'args': ''});
+                }
+              }
+            } else if (type == 'response.function_call_arguments.delta') {
+              // Accumulate function call arguments
+              final itemId = (json['item_id'] ?? '').toString();
+              final delta = (json['delta'] ?? '').toString();
+              if (itemId.isNotEmpty && delta.isNotEmpty) {
+                // Map item_id to call_id
+                final callId = itemIdToCallId[itemId];
+                if (callId != null) {
+                  final entry = toolAccResp[callId];
+                  if (entry != null) {
+                    entry['args'] = (entry['args'] ?? '') + delta;
+                  }
+                }
+              }
+            } else if (type == 'response.function_call_arguments.done') {
+              // Function call arguments complete
+              final itemId = (json['item_id'] ?? '').toString();
+              final args = (json['arguments'] ?? '').toString();
+              if (itemId.isNotEmpty && args.isNotEmpty) {
+                // Map item_id to call_id
+                final callId = itemIdToCallId[itemId];
+                if (callId != null) {
+                  final entry = toolAccResp[callId];
+                  if (entry != null) {
+                    entry['args'] = args; // Use final complete args
+                  }
+                }
               }
             } else if (type == 'response.completed') {
+              // Response fully completed - extract usage
               final u = json['response']?['usage'];
               if (u != null) {
                 final inTok = (u['input_tokens'] ?? 0) as int;
@@ -1326,6 +1401,11 @@ class ChatApiService {
                 usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: inTok, completionTokens: outTok));
                 totalTokens = usage!.totalTokens;
               }
+              
+              // DON'T clear toolAccResp here! Tool calls have already been accumulated through events
+              // (response.output_item.added + response.function_call_arguments.done)
+              // Just extract usage, tool calls are already ready
+              
               // Extract web search citations from final output (Responses API)
               try {
                 final output = json['response']?['output'];
@@ -1368,15 +1448,21 @@ class ChatApiService {
               } catch (_) {}
               // Responses: emit any collected tool calls from previous deltas
               if (onToolCall != null && toolAccResp.isNotEmpty) {
+                try {
+                  final timestamp = _timestamp();
+                  final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                  logFile.writeAsStringSync('[$timestamp] [Tool Execution] toolAccResp: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
+                } catch (_) {}
+
                 final callInfos = <ToolCallInfo>[];
                 final msgs = <Map<String, dynamic>>[];
                 int idx = 0;
                 toolAccResp.forEach((key, m) {
                   Map<String, dynamic> args;
                   try { args = (jsonDecode(m['args'] ?? '{}') as Map).cast<String, dynamic>(); } catch (_) { args = <String, dynamic>{}; }
-                  final id2 = key.isNotEmpty ? key : 'call_$idx';
+                  final id2 = (m['id'] ?? key).isNotEmpty ? (m['id'] ?? key) : 'call_$idx';
                   callInfos.add(ToolCallInfo(id: id2, name: (m['name'] ?? ''), arguments: args));
-                  msgs.add({'__id': id2, '__name': (m['name'] ?? ''), '__args': args});
+                  msgs.add({'__id': id2, '__name': (m['name'] ?? ''), '__args': args, '__callId': m['id'] ?? key});
                   idx += 1;
                 });
                 if (callInfos.isNotEmpty) {
@@ -1384,16 +1470,340 @@ class ChatApiService {
                   yield ChatStreamChunk(content: '', isDone: false, totalTokens: usage?.totalTokens ?? approxTotal, usage: usage, toolCalls: callInfos);
                 }
                 final resultsInfo = <ToolResultInfo>[];
+                final toolOutputs = <Map<String, dynamic>>[];
                 for (final m in msgs) {
                   final nm = m['__name'] as String;
                   final id2 = m['__id'] as String;
+                  final callId = m['__callId'] as String;
                   final args = (m['__args'] as Map<String, dynamic>);
                   final res = await onToolCall(nm, args) ?? '';
                   resultsInfo.add(ToolResultInfo(id: id2, name: nm, arguments: args, content: res));
+                  toolOutputs.add({
+                    'type': 'function_call_output',
+                    'call_id': callId,
+                    'output': res,
+                  });
+
+                  try {
+                    final timestamp = _timestamp();
+                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    logFile.writeAsStringSync('[$timestamp] [Tool Execution] Executed $nm with args $args, result length: ${res.length}\n', mode: FileMode.append);
+                  } catch (_) {}
                 }
                 if (resultsInfo.isNotEmpty) {
                   yield ChatStreamChunk(content: '', isDone: false, totalTokens: usage?.totalTokens ?? 0, usage: usage, toolResults: resultsInfo);
                 }
+
+                // === Tool Calling Loop (like rikkahub) ===
+                // Initialize current messages and system instructions
+                var currentMessages = <Map<String, dynamic>>[];
+                String systemInstructions = '';
+
+                // Extract system messages and build initial message list
+                for (final m in messages) {
+                  final roleRaw = (m['role'] ?? 'user').toString();
+                  if (roleRaw == 'system') {
+                    final content = (m['content'] ?? '').toString();
+                    if (content.isNotEmpty) {
+                      systemInstructions = systemInstructions.isEmpty ? content : (systemInstructions + '\n\n' + content);
+                    }
+                  } else {
+                    currentMessages.add(Map<String, dynamic>.from(m));
+                  }
+                }
+
+                // Tool calling loop (max 256 iterations)
+                for (int stepIndex = 0; stepIndex < 256; stepIndex++) {
+                  try {
+                    final timestamp = _timestamp();
+                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] === Step #$stepIndex ===\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] toolAccResp: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
+                  } catch (_) {}
+
+                  // Check if we have tool calls to process
+                  if (toolAccResp.isEmpty) {
+                    try {
+                      final timestamp = _timestamp();
+                      final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                      logFile.writeAsStringSync('[$timestamp] [Tool Loop] No tool calls, exiting loop\n', mode: FileMode.append);
+                    } catch (_) {}
+                    break;
+                  }
+
+                  // Execute all tool calls
+                  final callInfos = <ToolCallInfo>[];
+                  final toolCallMsgs = <Map<String, dynamic>>[];
+                  final toolOutputs = <Map<String, dynamic>>[];
+                  int idx = 0;
+
+                  toolAccResp.forEach((key, m) {
+                    Map<String, dynamic> args;
+                    try { args = (jsonDecode(m['args'] ?? '{}') as Map).cast<String, dynamic>(); } catch (_) { args = <String, dynamic>{}; }
+                    final id2 = (m['id'] ?? key).isNotEmpty ? (m['id'] ?? key) : 'call_$idx';
+                    callInfos.add(ToolCallInfo(id: id2, name: (m['name'] ?? ''), arguments: args));
+                    toolCallMsgs.add({
+                      '__id': id2,
+                      '__name': (m['name'] ?? ''),
+                      '__args': args,
+                      '__callId': m['id'] ?? key,
+                    });
+                    idx += 1;
+                  });
+
+                  if (callInfos.isNotEmpty) {
+                    final approxTotal = approxPromptTokens + _approxTokensFromChars(approxCompletionChars);
+                    yield ChatStreamChunk(content: '', isDone: false, totalTokens: usage?.totalTokens ?? approxTotal, usage: usage, toolCalls: callInfos);
+                  }
+
+                  // Execute tools
+                  final resultsInfo = <ToolResultInfo>[];
+                  for (final m in toolCallMsgs) {
+                    final nm = m['__name'] as String;
+                    final id2 = m['__id'] as String;
+                    final callId = m['__callId'] as String;
+                    final args = (m['__args'] as Map<String, dynamic>);
+                    final res = await onToolCall(nm, args) ?? '';
+                    resultsInfo.add(ToolResultInfo(id: id2, name: nm, arguments: args, content: res));
+                    toolOutputs.add({
+                      'type': 'function_call_output',
+                      'call_id': callId,
+                      'output': res,
+                    });
+
+                    try {
+                      final timestamp = _timestamp();
+                      final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                      logFile.writeAsStringSync('[$timestamp] [Tool Loop] Executed $nm, result length: ${res.length}\n', mode: FileMode.append);
+                    } catch (_) {}
+                  }
+
+                  if (resultsInfo.isNotEmpty) {
+                    yield ChatStreamChunk(content: '', isDone: false, totalTokens: usage?.totalTokens ?? 0, usage: usage, toolResults: resultsInfo);
+                  }
+
+                  // Build conversation (like rikkahub's buildMessages)
+                  final conversation = <Map<String, dynamic>>[];
+
+                  // Add all current messages
+                  for (final m in currentMessages) {
+                    final roleRaw = (m['role'] ?? 'user').toString();
+                    if (roleRaw == 'system') continue;
+
+                    final content = (m['content'] ?? '').toString();
+                    conversation.add({'role': roleRaw, 'content': content});
+
+                    // If message has tool calls, add them
+                    final toolCalls = m['__toolCalls'] as List?;
+                    if (toolCalls != null && toolCalls.isNotEmpty) {
+                      for (final tc in toolCalls) {
+                        conversation.add({
+                          'type': 'function_call',
+                          'call_id': tc['call_id'],
+                          'name': tc['name'],
+                          'arguments': tc['arguments'],
+                        });
+                      }
+                    }
+
+                    // If message has tool results, add them
+                    final toolResults = m['__toolResults'] as List?;
+                    if (toolResults != null && toolResults.isNotEmpty) {
+                      conversation.addAll(toolResults.cast<Map<String, dynamic>>());
+                    }
+                  }
+
+                  // Add current tool calls
+                  for (final m in toolCallMsgs) {
+                    conversation.add({
+                      'type': 'function_call',
+                      'call_id': m['__callId'],
+                      'name': m['__name'],
+                      'arguments': jsonEncode(m['__args']),
+                    });
+                  }
+
+                  // Add tool outputs
+                  conversation.addAll(toolOutputs);
+
+                  try {
+                    final timestamp = _timestamp();
+                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] Conversation: ${jsonEncode(conversation)}\n', mode: FileMode.append);
+                  } catch (_) {}
+
+                  // Send follow-up request
+                  // Reconstruct tools list from initial tools parameter
+                  final List<Map<String, dynamic>> followUpTools = [];
+                  if (tools != null && tools.isNotEmpty) {
+                    for (final t in tools) {
+                      if (t is Map<String, dynamic>) {
+                        if (t['type'] == 'function' && t['function'] is Map) {
+                          final func = t['function'] as Map<String, dynamic>;
+                          followUpTools.add({
+                            'type': 'function',
+                            'name': func['name'],
+                            if (func['description'] != null) 'description': func['description'],
+                            if (func['parameters'] != null) 'parameters': func['parameters'],
+                          });
+                        } else {
+                          followUpTools.add(Map<String, dynamic>.from(t));
+                        }
+                      }
+                    }
+                  }
+
+                  final followUpBody = {
+                    'model': modelId,
+                    'input': conversation,
+                    'stream': true,
+                    if (systemInstructions.isNotEmpty) 'instructions': systemInstructions,
+                    'reasoning': {'effort': 'high', 'summary': 'detailed'},
+                    if (temperature != null) 'temperature': temperature,
+                    if (topP != null) 'top_p': topP,
+                    if (maxTokens != null) 'max_output_tokens': maxTokens,
+                    if (followUpTools.isNotEmpty) 'tools': followUpTools,
+                    if (followUpTools.isNotEmpty) 'tool_choice': 'auto',
+                  };
+
+                  final followUpReq = http.Request('POST', url);
+                  followUpReq.headers.addAll(headers);
+                  followUpReq.body = jsonEncode(followUpBody);
+
+                  final followUpStream = await client.send(followUpReq);
+
+                  try {
+                    final timestamp = _timestamp();
+                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] Response status: ${followUpStream.statusCode}\n', mode: FileMode.append);
+                  } catch (_) {}
+
+                  // Process follow-up response
+                  final followUpChunks = followUpStream.stream.transform(utf8.decoder);
+                  String followUpBuffer = '';
+                  String followUpContent = ''; // 累积follow-up的文本内容
+
+                  // Clear tool accumulator and itemId mapping for next response
+                  toolAccResp.clear();
+                  itemIdToCallId.clear();
+
+                  await for (final chunk in followUpChunks) {
+                    followUpBuffer += chunk;
+                    final lines = followUpBuffer.split('\n');
+                    followUpBuffer = lines.last;
+
+                    for (int i = 0; i < lines.length - 1; i++) {
+                      final line = lines[i].trim();
+                      if (line.isEmpty || !line.startsWith('data:')) continue;
+                      final data = line.substring(5).trimLeft();
+                      if (data == '[DONE]') continue;
+
+                      try {
+                        final followUpJson = jsonDecode(data);
+                        final followUpType = followUpJson['type'];
+
+                        try {
+                          final timestamp = _timestamp();
+                          final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                          logFile.writeAsStringSync('[$timestamp] [Follow-up Event] type: $followUpType, json: ${jsonEncode(followUpJson)}\n', mode: FileMode.append);
+                        } catch (_) {}
+
+                        // Handle all event types
+                        if (followUpType == 'response.reasoning_summary_text.delta') {
+                          final delta = followUpJson['delta'];
+                          if (delta is String && delta.isNotEmpty) {
+                            yield ChatStreamChunk(content: '', reasoning: delta, isDone: false, totalTokens: totalTokens, usage: usage);
+                          }
+                        } else if (followUpType == 'response.output_text.delta') {
+                          final delta = followUpJson['delta'];
+                          if (delta is String && delta.isNotEmpty) {
+                            followUpContent += delta; // 累积文本
+                            yield ChatStreamChunk(content: delta, isDone: false, totalTokens: totalTokens, usage: usage);
+                          }
+                        } else if (followUpType == 'response.output_item.added') {
+                          final item = followUpJson['item'];
+                          if (item is Map && item['type'] == 'function_call') {
+                            final callId = (item['call_id'] ?? '').toString();
+                            final itemId = (item['id'] ?? '').toString();
+                            final name = (item['name'] ?? '').toString();
+                            if (callId.isNotEmpty && itemId.isNotEmpty) {
+                              // Map item_id to call_id for later argument accumulation
+                              itemIdToCallId[itemId] = callId;
+                              toolAccResp.putIfAbsent(callId, () => {'id': callId, 'name': name, 'args': ''});
+                            }
+                          }
+                        } else if (followUpType == 'response.function_call_arguments.delta') {
+                          final itemId = (followUpJson['item_id'] ?? '').toString();
+                          final delta = (followUpJson['delta'] ?? '').toString();
+                          if (itemId.isNotEmpty && delta.isNotEmpty) {
+                            // Map item_id to call_id
+                            final callId = itemIdToCallId[itemId];
+                            if (callId != null) {
+                              final entry = toolAccResp[callId];
+                              if (entry != null) {
+                                entry['args'] = (entry['args'] ?? '') + delta;
+                              }
+                            }
+                          }
+                        } else if (followUpType == 'response.function_call_arguments.done') {
+                          final itemId = (followUpJson['item_id'] ?? '').toString();
+                          final args = (followUpJson['arguments'] ?? '').toString();
+                          if (itemId.isNotEmpty && args.isNotEmpty) {
+                            // Map item_id to call_id
+                            final callId = itemIdToCallId[itemId];
+                            if (callId != null) {
+                              final entry = toolAccResp[callId];
+                              if (entry != null) {
+                                entry['args'] = args;
+                              }
+                            }
+                          }
+                        } else if (followUpType == 'response.completed') {
+                          final u = followUpJson['response']?['usage'];
+                          if (u != null) {
+                            final inTok = (u['input_tokens'] ?? 0) as int;
+                            final outTok = (u['output_tokens'] ?? 0) as int;
+                            usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: inTok, completionTokens: outTok));
+                            totalTokens = usage!.totalTokens;
+                          }
+                        }
+                      } catch (e) {
+                        try {
+                          final timestamp = _timestamp();
+                          final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                          logFile.writeAsStringSync('[$timestamp] [Tool Loop] Parse error: $e\n', mode: FileMode.append);
+                        } catch (_) {}
+                      }
+                    }
+                  }
+
+                  // Update current messages - 保存累积的文本内容
+                  currentMessages.add({
+                    'role': 'assistant',
+                    'content': followUpContent, // 使用累积的文本而不是空字符串
+                    '__toolCalls': toolCallMsgs.map((m) => {
+                      'call_id': m['__callId'],
+                      'name': m['__name'],
+                      'arguments': jsonEncode(m['__args']),
+                    }).toList(),
+                    '__toolResults': toolOutputs,
+                  });
+
+                  try {
+                    final timestamp = _timestamp();
+                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] After response, toolAccResp: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] Accumulated content length: ${followUpContent.length} chars\n', mode: FileMode.append);
+                  } catch (_) {}
+
+                  // Continue loop if there are more tool calls
+                }
+
+                try {
+                  final timestamp = _timestamp();
+                  final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                  logFile.writeAsStringSync('[$timestamp] [Tool Loop] Exited loop, finishing\n', mode: FileMode.append);
+                } catch (_) {}
               }
               final approxTotal = approxPromptTokens + _approxTokensFromChars(approxCompletionChars);
               yield ChatStreamChunk(
@@ -2400,8 +2810,7 @@ class ChatApiService {
     }
 
     // Fallback: provider closed SSE without sending [DONE]
-    final approxTotal = usage?.totalTokens ?? (approxPromptTokens + _approxTokensFromChars(approxCompletionChars));
-    yield ChatStreamChunk(content: '', isDone: true, totalTokens: approxTotal, usage: usage);
+    yield ChatStreamChunk(content: '', isDone: true, totalTokens: usage?.totalTokens ?? 0, usage: usage);
   }
 
   static Stream<ChatStreamChunk> _sendClaudeStream(
@@ -2747,7 +3156,7 @@ class ChatApiService {
       ProviderConfig config,
       String modelId,
       List<Map<String, dynamic>> messages,
-      {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, List<Map<String, dynamic>>? tools, Future<String> Function(String, Map<String, dynamic>)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
+      {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, List<Map<String, dynamic>>? tools, Future<String> Function(String name, Map<String, dynamic> args)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
       ) async* {
     // Implement SSE streaming via :streamGenerateContent with alt=sse
     // Build endpoint per Vertex vs Gemini
@@ -3211,7 +3620,6 @@ class ChatApiService {
     }
     return null;
   }
-
 }
 
 class _ImageRef {
