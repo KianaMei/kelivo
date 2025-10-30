@@ -78,14 +78,17 @@ try {
   if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
     throw 'flutter CLI not found. Add Flutter to PATH or place SDK under this repo (any folder containing bin\flutter.bat).'
   }
-  flutter --version | Out-Host
+  flutter --version
+  if ($LASTEXITCODE -ne 0) { throw "flutter --version failed with exit code $LASTEXITCODE" }
 
   Write-Section 'Enable Windows desktop'
-  flutter config --enable-windows-desktop | Out-Host
+  flutter config --enable-windows-desktop
+  if ($LASTEXITCODE -ne 0) { throw "flutter config failed with exit code $LASTEXITCODE" }
 
   if ($Clean) {
     Write-Section 'Cleaning build'
-    flutter clean | Out-Host
+    flutter clean
+    if ($LASTEXITCODE -ne 0) { throw "flutter clean failed with exit code $LASTEXITCODE" }
   }
 
   # Back up pubspec in case we need to temporarily modify it
@@ -94,7 +97,8 @@ try {
   $pubspecTempChanged = $false
 
   Write-Section 'Fetching dependencies'
-  flutter pub get | Out-Host
+  flutter pub get
+  if ($LASTEXITCODE -ne 0) { throw "flutter pub get failed with exit code $LASTEXITCODE" }
 
   if ($DisableTts) {
     Write-Section 'Temporarily disabling flutter_tts for Windows'
@@ -108,7 +112,8 @@ try {
       $pubspecTempChanged = $true
       ($new -join "`n") | Set-Content -Path $pubspecPath -NoNewline -Encoding UTF8
       Write-Info 'Re-running flutter pub get after modifying pubspec.yaml'
-      flutter pub get | Out-Host
+      flutter pub get
+      if ($LASTEXITCODE -ne 0) { throw "flutter pub get (after pubspec change) failed with exit code $LASTEXITCODE" }
     } else {
       Write-Info 'No flutter_tts entry found to disable.'
     }
@@ -183,7 +188,8 @@ try {
   }
 
   Write-Section 'Building Windows (release)'
-  flutter build windows --release | Out-Host
+  flutter build windows --release
+  if ($LASTEXITCODE -ne 0) { throw "flutter build windows --release failed with exit code $LASTEXITCODE" }
 
   Write-Section 'Preparing portable package'
   $buildDir = Join-Path $repoRoot 'build/windows/x64/runner/Release'

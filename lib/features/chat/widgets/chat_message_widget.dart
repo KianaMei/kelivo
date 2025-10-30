@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import '../../../core/services/haptics.dart';
 import 'package:flutter/scheduler.dart';
@@ -69,6 +70,10 @@ class ChatMessageWidget extends StatefulWidget {
   final VoidCallback? onToggleTranslation;
   // MCP tool calls/results mixed-in cards
   final List<ToolUIPart>? toolParts;
+  // All messages in conversation for citation searching (RikkaHub style)
+  final List<ChatMessage>? allMessages;
+  // All tool parts from all messages for citation searching
+  final Map<String, List<ToolUIPart>>? allToolParts;
 
   const ChatMessageWidget({
     super.key,
@@ -102,6 +107,8 @@ class ChatMessageWidget extends StatefulWidget {
     this.translationExpanded = true,
     this.onToggleTranslation,
     this.toolParts,
+    this.allMessages,
+    this.allToolParts,
   });
 
   @override
@@ -1257,40 +1264,110 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
   }
 
-  // Try resolve citation id -> url from the latest search_web tool results of this assistant message
+  // RikkaHub style: search ALL messages' tool results for citation id (not just latest)
   void _handleCitationTap(String id) async {
     final l10n = AppLocalizations.of(context)!;
+    
+    // First try searching through all messages (RikkaHub approach)
+    if (widget.allToolParts != null && widget.allToolParts!.isNotEmpty) {
+      // Track if we found the citation to avoid showing "not found" message
+      bool found = false;
+      
+      // Iterate through all messages' tool parts
+      for (final entry in widget.allToolParts!.entries) {
+        if (found) break; // Already found, stop searching
+        
+        final messageId = entry.key;
+        final toolPartsForMessage = entry.value;
+        if (toolPartsForMessage.isEmpty) continue;
+        
+        for (final part in toolPartsForMessage) {
+          if (found) break;
+          
+          // Only check search results
+          if ((part.toolName == 'search_web' || part.toolName == 'builtin_search') && 
+              (part.content?.isNotEmpty ?? false)) {
+            try {
+              final obj = jsonDecode(part.content!) as Map<String, dynamic>;
+              final items = (obj['items'] as List? ?? [])
+                  .whereType<Map<String, dynamic>>()
+                  .toList();
+              
+              // Search for matching ID in this tool's results
+              for (final item in items) {
+                final itemId = item['id']?.toString() ?? '';
+                if (itemId == id) {
+                  final url = item['url']?.toString();
+                  if (url != null && url.isNotEmpty) {
+                    // Found the citation! Try to open it
+                    try {
+                      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                      if (!ok && context.mounted) {
+                        showAppSnackBar(
+                          context,
+                          message: l10n.chatMessageWidgetCannotOpenUrl(url),
+                          type: NotificationType.error,
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        showAppSnackBar(
+                          context,
+                          message: l10n.chatMessageWidgetOpenLinkError,
+                          type: NotificationType.error,
+                        );
+                      }
+                    }
+                    found = true;
+                    break;
+                  }
+                }
+              }
+            } catch (e) {
+              // JSON decode error, skip this part
+              debugPrint('Error parsing tool content: $e');
+            }
+          }
+        }
+      }
+      
+      if (found) return; // Successfully handled the citation
+    }
+    
+    // Fallback: try the original method (search only current message's latest results)
     final items = _latestSearchItems();
     final match = items.cast<Map<String, dynamic>?>().firstWhere(
       (e) => (e?['id']?.toString() ?? '') == id,
       orElse: () => null,
     );
     final url = match?['url']?.toString();
-    if (url == null || url.isEmpty) {
+    
+    if (url != null && url.isNotEmpty) {
+      try {
+        final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        if (!ok && context.mounted) {
+          showAppSnackBar(
+            context,
+            message: l10n.chatMessageWidgetCannotOpenUrl(url),
+            type: NotificationType.error,
+          );
+        }
+      } catch (_) {
+        if (context.mounted) {
+          showAppSnackBar(
+            context,
+            message: l10n.chatMessageWidgetOpenLinkError,
+            type: NotificationType.error,
+          );
+        }
+      }
+    } else {
+      // Citation not found anywhere
       if (context.mounted) {
         showAppSnackBar(
           context,
           message: l10n.chatMessageWidgetCitationNotFound,
           type: NotificationType.warning,
-        );
-      }
-      return;
-    }
-    try {
-      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      if (!ok && context.mounted) {
-        showAppSnackBar(
-          context,
-          message: l10n.chatMessageWidgetCannotOpenUrl(url),
-          type: NotificationType.error,
-        );
-      }
-    } catch (_) {
-      if (context.mounted) {
-        showAppSnackBar(
-          context,
-          message: l10n.chatMessageWidgetOpenLinkError,
-          type: NotificationType.error,
         );
       }
     }

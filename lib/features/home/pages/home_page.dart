@@ -1629,7 +1629,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       final String _cidForStream = assistantMessage.conversationId;
       await _conversationStreams[_cidForStream]?.cancel();
       final _sub = stream.listen(
-            (chunk) async {
+            (ChatStreamChunk chunk) async {
           // Capture reasoning deltas only when reasoning is enabled
           if ((chunk.reasoning ?? '').isNotEmpty && supportsReasoning) {
             if (streamOutput) {
@@ -2550,7 +2550,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     final String _cid = assistantMessage.conversationId;
     await _conversationStreams[_cid]?.cancel();
-    final _sub2 = stream.listen((chunk) async {
+    final _sub2 = stream.listen((ChatStreamChunk chunk) async {
       // Always capture reasoning if provided by model, even when toggle is off
       if ((chunk.reasoning ?? '').isNotEmpty) {
         if (streamOutput) {
@@ -3640,6 +3640,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       ),
                                       child: ChatMessageWidget(
                                   message: message,
+                                  allMessages: messages,
+                                  allToolParts: _toolParts,
+                                  toolParts: message.role == 'assistant' ? _toolParts[message.id] : null,
                                   versionIndex: effectiveIndex,
                                   versionCount: effectiveTotal,
                                   onPrevVersion: (showMsgNav && selectedIdx > 0) ? () async {
@@ -3863,7 +3866,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                   });
                                 }
                               },
-                                  toolParts: message.role == 'assistant' ? _toolParts[message.id] : null,
                                   reasoningSegments: message.role == 'assistant'
                                       ? (() {
                                           final segments = _reasoningSegments[message.id];
@@ -4733,6 +4735,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                                     },
                                                     // Ensure tool call/search/citation cards render on tablets too
                                                     toolParts: message.role == 'assistant' ? _toolParts[message.id] : null,
+                                                    allMessages: messages,
+                                                    allToolParts: _toolParts,
                                                     reasoningSegments: message.role == 'assistant'
                                                         ? (() {
                                                             final segments = _reasoningSegments[message.id];
