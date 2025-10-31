@@ -185,14 +185,23 @@ jobs:
           Write-Host "Disabling flutter_tts plugin for Windows build..."
           $pubspecPath = "pubspec.yaml"
           $content = Get-Content $pubspecPath -Raw
+          
+          # Robustly comment the flutter_tts line (anchor at start-of-line, preserve indent)
+          $updated = [System.Text.RegularExpressions.Regex]::Replace(
+            $content,
+            '^(?<indent>\s*)flutter_tts\s*:(?<rest>.*)$',
+            '${indent}# flutter_tts:${rest}  # Disabled for Windows build',
+            [System.Text.RegularExpressions.RegexOptions]::Multiline
+          )
+          if ($updated -ne $content) {
+            Set-Content $pubspecPath $updated
+            Write-Host "Updated pubspec.yaml (flutter_tts commented)"
+          } else {
+            Write-Host "No flutter_tts line found to comment (already disabled?)"
+          }
 
-          # Comment out flutter_tts dependency
-          $content = $content -replace '(\s+flutter_tts:\s+\^[\d\.]+)', '  # $1  # Disabled for Windows build'
-
-          Set-Content $pubspecPath $content
-          Write-Host "Updated pubspec.yaml"
-
-          # Run pub get again
+          # Ensure stale plugin symlinks are removed then resolve deps
+          flutter clean
           flutter pub get
 
       - name: Build Windows app
