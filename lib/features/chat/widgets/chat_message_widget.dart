@@ -2662,10 +2662,10 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                       ),
                     ],
                   ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                 // Only show basic tooltip info if no rounds data
                 if (widget.rounds == null || widget.rounds!.isEmpty)
                   ...widget.tooltipLines.map((line) {
@@ -2752,8 +2752,7 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                     );
                   }),
                 ],
-              ],
-            ),
+                    ],
                   ),
                 ),
               ),
