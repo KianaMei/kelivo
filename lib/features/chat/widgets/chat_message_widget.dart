@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import '../../../core/services/haptics.dart';
@@ -916,6 +917,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     if (widget.showTokenStats) {
                       final tokenUsage = widget.message.tokenUsage;
                       if (tokenUsage != null) {
+                        // New messages: show detailed input/output breakdown
                         if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
                         // Build token display parts
                         final List<String> tokenParts = [];
@@ -973,9 +975,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           tooltipLines: tooltipLines,
                           hasCache: tokenUsage.cachedTokens > 0,
                           colorScheme: cs,
+                          rounds: tokenUsage.rounds,
                         ));
                       } else if (widget.message.totalTokens != null) {
-                        // Fallback to old totalTokens display
+                        // Old/historical messages: fallback to simple total display
                         if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
                         rowChildren.add(Text(
                           '${widget.message.totalTokens} tokens',
@@ -1315,12 +1318,31 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
   }
 
+  static void _log(String message) {
+    try {
+      final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+      final year = now.year.toString().padLeft(4, '0');
+      final month = now.month.toString().padLeft(2, '0');
+      final day = now.day.toString().padLeft(2, '0');
+      final hour = now.hour.toString().padLeft(2, '0');
+      final minute = now.minute.toString().padLeft(2, '0');
+      final second = now.second.toString().padLeft(2, '0');
+      final timestamp = '$year-$month-$day $hour:$minute:$second';
+      final logFile = File('c:/mycode/kelivo/debug_tools.log');
+      logFile.writeAsStringSync('[$timestamp] $message\n', mode: FileMode.append);
+    } catch (e) {
+      debugPrint('[Log Error] Failed to write log: $e');
+    }
+  }
+  
   // RikkaHub style: search ALL messages' tool results for citation id (not just latest)
   void _handleCitationTap(String id) async {
     final l10n = AppLocalizations.of(context)!;
+    _log('[Citation UI] Tapped citation with id: $id');
     
     // First try searching through all messages (RikkaHub approach)
     if (widget.allToolParts != null && widget.allToolParts!.isNotEmpty) {
+      _log('[Citation UI] Searching through ${widget.allToolParts!.length} messages\' tool parts');
       // Track if we found the citation to avoid showing "not found" message
       bool found = false;
       
@@ -1332,8 +1354,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         final toolPartsForMessage = entry.value;
         if (toolPartsForMessage.isEmpty) continue;
         
+        _log('[Citation UI] Checking message $messageId with ${toolPartsForMessage.length} tool parts');
+        
         for (final part in toolPartsForMessage) {
           if (found) break;
+          
+          _log('[Citation UI] Tool: ${part.toolName}, has content: ${part.content?.isNotEmpty ?? false}');
           
           // Only check search results
           if ((part.toolName == 'search_web' || part.toolName == 'builtin_search') && 
@@ -1344,10 +1370,17 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   .whereType<Map<String, dynamic>>()
                   .toList();
               
+              _log('[Citation UI] Found ${items.length} items in ${part.toolName} result');
+              
               // Search for matching ID in this tool's results
               for (final item in items) {
                 final itemId = item['id']?.toString() ?? '';
+                final itemUrl = item['url']?.toString() ?? '';
+                final itemTitle = item['title']?.toString() ?? '';
+                _log('[Citation UI] Item: id=$itemId, title=$itemTitle, url=$itemUrl');
+                
                 if (itemId == id) {
+                  _log('[Citation UI] ✓ Found matching citation! Opening URL: $itemUrl');
                   final url = item['url']?.toString();
                   if (url != null && url.isNotEmpty) {
                     // Found the citation! Try to open it
@@ -1361,6 +1394,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         );
                       }
                     } catch (e) {
+                      _log('[Citation UI] Error launching URL: $e');
                       if (context.mounted) {
                         showAppSnackBar(
                           context,
@@ -1376,13 +1410,20 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               }
             } catch (e) {
               // JSON decode error, skip this part
-              debugPrint('Error parsing tool content: $e');
+              _log('[Citation UI] Error parsing tool content: $e');
             }
           }
         }
       }
       
-      if (found) return; // Successfully handled the citation
+      if (found) {
+        _log('[Citation UI] Citation found and handled successfully');
+        return; // Successfully handled the citation
+      } else {
+        _log('[Citation UI] Citation not found in allToolParts, trying fallback...');
+      }
+    } else {
+      _log('[Citation UI] No allToolParts available, using fallback method');
     }
     
     // Fallback: try the original method (search only current message's latest results)
@@ -1427,22 +1468,28 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   // Extract items from the last search_web or builtin_search tool result for this assistant message
   List<Map<String, dynamic>> _latestSearchItems() {
     final parts = widget.toolParts ?? const <ToolUIPart>[];
+    _log('[Citation UI] _latestSearchItems: checking ${parts.length} tool parts');
     for (int i = parts.length - 1; i >= 0; i--) {
       final p = parts[i];
+      _log('[Citation UI] Part $i: toolName=${p.toolName}, hasContent=${p.content?.isNotEmpty ?? false}');
       if ((p.toolName == 'search_web' || p.toolName == 'builtin_search') && (p.content?.isNotEmpty ?? false)) {
         try {
           final obj = jsonDecode(p.content!) as Map<String, dynamic>;
           final arr = obj['items'] as List? ?? const <dynamic>[];
-          return [
+          final items = [
             for (final it in arr)
               if (it is Map)
                 it.cast<String, dynamic>()
           ];
-        } catch (_) {
+          _log('[Citation UI] Found ${items.length} items in latest search result');
+          return items;
+        } catch (e) {
+          _log('[Citation UI] Error parsing content: $e');
           return const <Map<String, dynamic>>[];
         }
       }
     }
+    _log('[Citation UI] No search results found in tool parts');
     return const <Map<String, dynamic>>[];
   }
 
@@ -2525,18 +2572,20 @@ class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin 
   }
 }
 
-// Token usage display with hover tooltip
+// Token usage display with hover tooltip and expandable rounds
 class _TokenUsageDisplay extends StatefulWidget {
   final String tokenText;
   final List<String> tooltipLines;
   final bool hasCache;
   final ColorScheme colorScheme;
+  final List<Map<String, int>>? rounds;
 
   const _TokenUsageDisplay({
     required this.tokenText,
     required this.tooltipLines,
     required this.hasCache,
     required this.colorScheme,
+    this.rounds,
   });
 
   @override
@@ -2545,6 +2594,7 @@ class _TokenUsageDisplay extends StatefulWidget {
 
 class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
   bool _isHovering = false;
+  bool _isExpanded = false;
   OverlayEntry? _overlayEntry;
 
   @override
@@ -2577,6 +2627,7 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
           borderRadius: BorderRadius.circular(8),
           color: widget.colorScheme.surface,
           child: Container(
+            constraints: const BoxConstraints(maxWidth: 300),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: widget.colorScheme.surface,
@@ -2595,19 +2646,103 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: widget.tooltipLines.map((line) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    line,
+              children: [
+                // Basic tooltip info
+                ...widget.tooltipLines.map((line) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      line,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: widget.colorScheme.onSurface,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  );
+                }),
+                // Show rounds breakdown if available
+                if (widget.rounds != null && widget.rounds!.length > 1) ...[
+                  const Divider(height: 16),
+                  Text(
+                    '各轮详情 (${widget.rounds!.length} 轮):',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: widget.colorScheme.onSurface,
-                      fontFamily: 'monospace',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: widget.colorScheme.onSurface.withOpacity(0.7),
                     ),
                   ),
-                );
-              }).toList(),
+                  const SizedBox(height: 4),
+                  ...widget.rounds!.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final round = entry.value;
+                    final prompt = round['promptTokens'] ?? 0;
+                    final completion = round['completionTokens'] ?? 0;
+                    final thought = round['thoughtTokens'] ?? 0;
+                    final cached = round['cachedTokens'] ?? 0;
+                    
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '第 ${idx + 1} 轮:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: widget.colorScheme.primary.withOpacity(0.8),
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '  输入↓: $prompt',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: widget.colorScheme.onSurface.withOpacity(0.8),
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                                Text(
+                                  '  输出↑: $completion',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: widget.colorScheme.onSurface.withOpacity(0.8),
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                                if (thought > 0)
+                                  Text(
+                                    '  思考💭: $thought',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: widget.colorScheme.onSurface.withOpacity(0.8),
+                                      fontFamily: 'monospace',
+                                    ),
+                                  ),
+                                if (cached > 0)
+                                  Text(
+                                    '  缓存♻: $cached',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: widget.colorScheme.primary.withOpacity(0.8),
+                                      fontFamily: 'monospace',
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ],
             ),
           ),
         ),
@@ -2629,15 +2764,28 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
         _removeOverlay();
       },
       cursor: SystemMouseCursors.help,
-      child: Text(
-        widget.tokenText,
-        style: TextStyle(
-          fontSize: 11,
-          color: widget.hasCache
-              ? widget.colorScheme.primary.withOpacity(0.7)
-              : widget.colorScheme.onSurface.withOpacity(0.5),
-          fontFamily: 'monospace',
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            widget.tokenText,
+            style: TextStyle(
+              fontSize: 11,
+              color: widget.hasCache
+                  ? widget.colorScheme.primary.withOpacity(0.7)
+                  : widget.colorScheme.onSurface.withOpacity(0.5),
+              fontFamily: 'monospace',
+            ),
+          ),
+          if (widget.rounds != null && widget.rounds!.length > 1) ...[
+            const SizedBox(width: 4),
+            Icon(
+              Icons.info_outline,
+              size: 12,
+              color: widget.colorScheme.primary.withOpacity(0.6),
+            ),
+          ],
+        ],
       ),
     );
   }
