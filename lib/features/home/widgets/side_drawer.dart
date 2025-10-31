@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:characters/characters.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../../../utils/platform_utils.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -1561,39 +1564,36 @@ extension on _SideDrawerState {
   }
 
   Future<void> _pickLocalImage(BuildContext context) async {
-    if (kIsWeb || PlatformUtils.isWindows) {
-      // Windows desktop doesn't support image picker yet
-      await _inputAvatarUrl(context);
-      return;
-    }
-    
     try {
-      final picker = ImagePicker();
-      final result = await PlatformUtils.callPlatformMethod<XFile?>(
-        () => picker.pickImage(
-          source: ImageSource.gallery,
-          maxWidth: 1024,
-          imageQuality: 90,
+      final res = await PlatformUtils.callPlatformMethod<FilePickerResult?>(
+        () => FilePicker.platform.pickFiles(
+          type: FileType.image,
+          allowMultiple: false,
+          withData: true, // ensure bytes on Android SAF
         ),
       );
-      
       if (!mounted) return;
-      if (result != null) {
-        await context.read<UserProvider>().setAvatarFilePath(result.path);
+      if (res == null || res.files.isEmpty) return;
+      final f = res.files.first;
+      Uint8List? bytes = f.bytes;
+      String? path = f.path;
+      if (bytes == null && (path == null || path.isEmpty)) {
+        // Nothing to use
         return;
       }
-    } catch (e) {
-      // Gracefully degrade when plugin channel isn't available or permission denied.
-      if (!mounted) return;
-      final l10n = AppLocalizations.of(context)!;
-      showAppSnackBar(
-        context,
-        message: l10n.sideDrawerGalleryOpenError,
-        type: NotificationType.error,
-      );
-      await _inputAvatarUrl(context);
+      if (bytes == null && path != null) {
+        try { bytes = await File(path).readAsBytes(); } catch (_) {}
+      }
+      if (bytes == null) return;
+
+      // Write to a temp file and let provider persist it
+      final tmpDir = await getTemporaryDirectory();
+      final ext = _extFromName(f.name);
+      final tmpFile = File('${tmpDir.path}/picked_avatar_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      await tmpFile.writeAsBytes(bytes);
+      await context.read<UserProvider>().setAvatarFilePath(tmpFile.path);
       return;
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
       showAppSnackBar(
@@ -1602,8 +1602,16 @@ extension on _SideDrawerState {
         type: NotificationType.error,
       );
       await _inputAvatarUrl(context);
-      return;
     }
+  }
+
+  String _extFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'jpg';
+    if (lower.endsWith('.png')) return 'png';
+    if (lower.endsWith('.webp')) return 'webp';
+    if (lower.endsWith('.gif')) return 'gif';
+    return 'jpg';
   }
   Future<void> _editUserName(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;

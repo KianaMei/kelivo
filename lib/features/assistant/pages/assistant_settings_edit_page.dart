@@ -10,7 +10,10 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:characters/characters.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
@@ -1401,17 +1404,27 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
 
   Future<void> _pickBackground(BuildContext context, Assistant a) async {
     try {
-      final picker = ImagePicker();
-      final XFile? file = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        imageQuality: 85,
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
       );
-      if (file != null) {
-        await context.read<AssistantProvider>().updateAssistant(
-          a.copyWith(background: file.path),
-        );
+      if (res == null || res.files.isEmpty) return;
+      final f = res.files.first;
+      Uint8List? bytes = f.bytes;
+      String? path = f.path;
+      if (bytes == null && (path == null || path.isEmpty)) return;
+      if (bytes == null && path != null) {
+        try { bytes = await File(path).readAsBytes(); } catch (_) {}
       }
+      if (bytes == null) return;
+      final tmp = await getTemporaryDirectory();
+      final ext = _extFromName(f.name);
+      final tmpFile = File('${tmp.path}/assistant_bg_${a.id}_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      await tmpFile.writeAsBytes(bytes);
+      await context.read<AssistantProvider>().updateAssistant(
+        a.copyWith(background: tmpFile.path),
+      );
     } catch (_) {}
   }
 
@@ -2768,24 +2781,30 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
   }
 
   Future<void> _pickLocalImage(BuildContext context, Assistant a) async {
-    if (kIsWeb) {
-      await _inputAvatarUrl(context, a);
-      return;
-    }
     try {
-      final picker = ImagePicker();
-      final XFile? file = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        imageQuality: 90,
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
       );
       if (!mounted) return;
-      if (file != null) {
-        await context.read<AssistantProvider>().updateAssistant(
-          a.copyWith(avatar: file.path),
-        );
-        return;
+      if (res == null || res.files.isEmpty) return;
+      final f = res.files.first;
+      Uint8List? bytes = f.bytes;
+      String? path = f.path;
+      if (bytes == null && (path == null || path.isEmpty)) return;
+      if (bytes == null && path != null) {
+        try { bytes = await File(path).readAsBytes(); } catch (_) {}
       }
+      if (bytes == null) return;
+      final tmp = await getTemporaryDirectory();
+      final ext = _extFromName(f.name);
+      final tmpFile = File('${tmp.path}/assistant_avatar_${a.id}_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      await tmpFile.writeAsBytes(bytes);
+      await context.read<AssistantProvider>().updateAssistant(
+        a.copyWith(avatar: tmpFile.path),
+      );
+      return;
     } on PlatformException catch (e) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
@@ -2807,6 +2826,15 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
       await _inputAvatarUrl(context, a);
       return;
     }
+  }
+
+  String _extFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'jpg';
+    if (lower.endsWith('.png')) return 'png';
+    if (lower.endsWith('.webp')) return 'webp';
+    if (lower.endsWith('.gif')) return 'gif';
+    return 'jpg';
   }
 }
 
