@@ -358,6 +358,17 @@
   "reasoningBudgetSheetHeavySubtitle": "使用大量推理来回答问题，适合复杂问题",
   "reasoningBudgetSheetCustomLabel": "自定义推理预算 (tokens)",
   "reasoningBudgetSheetCustomHint": "例如：2048 (-1 自动，0 关闭)",
+  "maxTokensSheetTitle": "最大输出长度",
+  "maxTokensSheetCurrentValue": "当前值",
+  "maxTokensSheetUnlimited": "无限制",
+  "maxTokensSheetDescription": "设置模型单次回复的最大 token 数量。设为 0 表示不限制（使用模型默认值）。当前 API 最大支持: {maxLimit}",
+  "@maxTokensSheetDescription": {
+    "placeholders": {
+      "maxLimit": {
+        "type": "String"
+      }
+    }
+  },
   "chatMessageWidgetFileNotFound": "文件不存在: {fileName}",
   "chatMessageWidgetCannotOpenFile": "无法打开文件: {message}",
   "chatMessageWidgetOpenFileError": "打开文件失败: {error}",
@@ -463,6 +474,7 @@
   "chatInputBarSelectModelTooltip": "选择模型",
   "chatInputBarOnlineSearchTooltip": "联网搜索",
   "chatInputBarReasoningStrengthTooltip": "思维链强度",
+  "chatInputBarMaxTokensTooltip": "最大输出长度",
   "chatInputBarMcpServersTooltip": "MCP服务器",
   "chatInputBarMoreTooltip": "更多",
   "chatInputBarInsertNewline": "换行",

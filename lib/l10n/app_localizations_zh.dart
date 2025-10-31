@@ -960,6 +960,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reasoningBudgetSheetCustomHint => '例如：2048 (-1 自动，0 关闭)';
 
   @override
+  String get maxTokensSheetTitle => '最大输出长度';
+
+  @override
+  String get maxTokensSheetCurrentValue => '当前值';
+
+  @override
+  String get maxTokensSheetUnlimited => '无限制';
+
+  @override
+  String maxTokensSheetDescription(String maxLimit) {
+    return '设置模型单次回复的最大 token 数量。设为 0 表示不限制（使用模型默认值）。当前 API 最大支持: $maxLimit';
+  }
+
+  @override
   String chatMessageWidgetFileNotFound(String fileName) {
     return '文件不存在: $fileName';
   }
@@ -1304,6 +1318,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatInputBarReasoningStrengthTooltip => '思维链强度';
+
+  @override
+  String get chatInputBarMaxTokensTooltip => '最大输出长度';
 
   @override
   String get chatInputBarMcpServersTooltip => 'MCP服务器';

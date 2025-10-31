@@ -40,6 +40,7 @@ import '../../assistant/widgets/mcp_assistant_sheet.dart';
 import '../../mcp/pages/mcp_page.dart';
 import '../../provider/pages/providers_page.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
+import '../../chat/widgets/max_tokens_sheet.dart';
 import '../../search/widgets/search_settings_sheet.dart';
 import '../widgets/mini_map_sheet.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -1570,10 +1571,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
         // Replace extremely long inline base64 images with local files to avoid jank
         final processedContent = await MarkdownMediaSanitizer.replaceInlineBase64Images(fullContent);
+        // Serialize token usage for new messages
+        final tokenUsageJson = usage != null ? jsonEncode({
+          'promptTokens': usage!.promptTokens,
+          'completionTokens': usage!.completionTokens,
+          'cachedTokens': usage!.cachedTokens,
+          'thoughtTokens': usage!.thoughtTokens,
+          'totalTokens': usage!.totalTokens,
+          if (usage!.rounds != null) 'rounds': usage!.rounds,
+        }) : null;
         await _chatService.updateMessage(
           assistantMessage.id,
           content: processedContent,
-          totalTokens: totalTokens,
+          totalTokens: null, // Don't save totalTokens for new messages
+          tokenUsageJson: tokenUsageJson,
           isStreaming: false,
         );
         if (!mounted) return;
@@ -1582,7 +1593,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           if (index != -1) {
             _messages[index] = _messages[index].copyWith(
               content: processedContent,
-              totalTokens: totalTokens,
+              totalTokens: null, // Don't save totalTokens for new messages
+              tokenUsageJson: tokenUsageJson,
               isStreaming: false,
             );
           }
@@ -1835,12 +1847,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             }
           } else {
             fullContent += chunk.content;
-            if (chunk.totalTokens > 0) {
-              totalTokens = chunk.totalTokens;
-            }
+            // if (chunk.totalTokens > 0) { // DEPRECATED
+            //   totalTokens = chunk.totalTokens;
+            // }
             if (chunk.usage != null) {
               usage = (usage ?? const TokenUsage()).merge(chunk.usage!);
-              totalTokens = usage!.totalTokens;
+              // totalTokens = usage!.totalTokens; // DEPRECATED
             }
 
             if (streamOutput) {
@@ -1889,7 +1901,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   if (index != -1) {
                     _messages[index] = _messages[index].copyWith(
                       content: fullContent,
-                      totalTokens: totalTokens,
+                      // totalTokens: totalTokens, // DEPRECATED
                     );
                   }
                 });
@@ -1899,7 +1911,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               await _chatService.updateMessage(
                 assistantMessage.id,
                 content: fullContent,
-                totalTokens: totalTokens,
+                // totalTokens: totalTokens, // DEPRECATED
               );
 
               // 滚动到底部显示新内容（仅在未处于用户滚动延迟阶段时）
@@ -1918,7 +1930,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           await _chatService.updateMessage(
             assistantMessage.id,
             content: displayContent,
-            totalTokens: totalTokens,
+            // totalTokens: totalTokens, // DEPRECATED
             isStreaming: false,
           );
 
@@ -1929,7 +1941,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               _messages[index] = _messages[index].copyWith(
                 content: displayContent,
                 isStreaming: false,
-                totalTokens: totalTokens,
+                // totalTokens: totalTokens, // DEPRECATED
               );
             }
           });
@@ -1995,7 +2007,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       await _chatService.updateMessage(
         assistantMessage.id,
         content: displayContent,
-        totalTokens: totalTokens,
+        // totalTokens: totalTokens, // DEPRECATED
         isStreaming: false,
       );
 
@@ -2005,7 +2017,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           _messages[index] = _messages[index].copyWith(
             content: displayContent,
             isStreaming: false,
-            totalTokens: totalTokens,
+            // totalTokens: totalTokens, // DEPRECATED
           );
         }
       });
@@ -2512,10 +2524,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         'cachedTokens': usage!.cachedTokens,
         'thoughtTokens': usage!.thoughtTokens,
         'totalTokens': usage!.totalTokens,
+        if (usage!.rounds != null) 'rounds': usage!.rounds,
       }) : null;
       await _chatService.updateMessage(assistantMessage.id, 
         content: processedContent, 
-        totalTokens: totalTokens, 
+        totalTokens: null, // Don't save totalTokens for new messages
         tokenUsageJson: tokenUsageJson,
         isStreaming: false
       );
@@ -2525,7 +2538,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         if (index != -1) {
           _messages[index] = _messages[index].copyWith(
             content: processedContent, 
-            totalTokens: totalTokens, 
+            totalTokens: null, // Don't save totalTokens for new messages
             tokenUsageJson: tokenUsageJson,
             isStreaming: false
           );
@@ -2692,11 +2705,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
       if (chunk.usage != null) {
         usage = (usage ?? const TokenUsage()).merge(chunk.usage!);
-        totalTokens = usage!.totalTokens;
+        // totalTokens = usage!.totalTokens; // DEPRECATED
       }
 
       if (chunk.isDone) {
-        if (chunk.totalTokens > 0) totalTokens = chunk.totalTokens;
+        // if (chunk.totalTokens > 0) totalTokens = chunk.totalTokens; // DEPRECATED
         await finish();
         // If non-streaming, write buffered reasoning once
         if (!streamOutput && _bufferedReasoning2.isNotEmpty) {
@@ -2723,10 +2736,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       // When regenerate fails, persist error text into this assistant bubble
       final errText = '${AppLocalizations.of(context)!.generationInterrupted}: $e';
       final displayContent = fullContent.isNotEmpty ? fullContent : errText;
+      final tokenUsageJson = usage != null ? jsonEncode({
+        'promptTokens': usage!.promptTokens,
+        'completionTokens': usage!.completionTokens,
+        'cachedTokens': usage!.cachedTokens,
+        'thoughtTokens': usage!.thoughtTokens,
+        'totalTokens': usage!.totalTokens,
+        if (usage!.rounds != null) 'rounds': usage!.rounds,
+      }) : null;
       await _chatService.updateMessage(
         assistantMessage.id,
         content: displayContent,
-        totalTokens: totalTokens,
+        totalTokens: null,
+        tokenUsageJson: tokenUsageJson,
         isStreaming: false,
       );
 
@@ -2737,7 +2759,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             _messages[index] = _messages[index].copyWith(
               content: displayContent,
               isStreaming: false,
-              totalTokens: totalTokens,
+              totalTokens: null,
+              tokenUsageJson: tokenUsageJson,
             );
           }
         });
@@ -4029,6 +4052,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         supportsReasoning: (pk != null && mid != null)
                             ? _isReasoningModel(pk, mid)
                             : false,
+                        onConfigureMaxTokens: () async {
+                          await showMaxTokensSheet(context);
+                        },
+                        maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
                         onOpenSearch: () => showSearchSettingsSheet(context),
                         onSend: (text) {
                           _sendMessage(text);
@@ -4917,6 +4944,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     },
                                     reasoningActive: _isReasoningEnabled((context.watch<AssistantProvider>().currentAssistant?.thinkingBudget) ?? settings.thinkingBudget),
                                     supportsReasoning: (pk != null && mid != null) ? _isReasoningModel(pk, mid) : false,
+                                    onConfigureMaxTokens: () async {
+                                      await showMaxTokensSheet(context);
+                                    },
+                                    maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
                                     onOpenSearch: () => showSearchSettingsSheet(context),
                                     onSend: (text) {
                                       _sendMessage(text);
