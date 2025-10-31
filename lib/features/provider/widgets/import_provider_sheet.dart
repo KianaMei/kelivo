@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../scan/pages/qr_scan_page.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -15,6 +17,15 @@ class _ImportResult {
   final String key;
   final ProviderConfig cfg;
   _ImportResult(this.key, this.cfg);
+}
+
+String _extFromName(String name) {
+  final lower = name.toLowerCase();
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'jpg';
+  if (lower.endsWith('.png')) return 'png';
+  if (lower.endsWith('.webp')) return 'webp';
+  if (lower.endsWith('.gif')) return 'gif';
+  return 'jpg';
 }
 
 List<_ImportResult> _decodeChatBoxJson(BuildContext context, String s) {
@@ -352,12 +363,25 @@ Future<void> showImportProviderSheet(BuildContext context) async {
                           semanticLabel: l10n.importProviderSheetFromGalleryTooltip,
                           onTap: () async {
                             try {
-                              // pick from gallery and analyze
-                              final picker = ImagePicker();
-                              final img = await picker.pickImage(source: ImageSource.gallery);
-                              if (img == null) return;
+                              // pick image file and analyze QR
+                              final res = await FilePicker.platform.pickFiles(
+                                type: FileType.image,
+                                allowMultiple: false,
+                                withData: true,
+                              );
+                              if (res == null || res.files.isEmpty) return;
+                              final f = res.files.first;
+                              String? path = f.path;
+                              if (path == null || path.isEmpty) {
+                                // write bytes to a temp file for analyzer
+                                final tmp = await getTemporaryDirectory();
+                                final ext = _extFromName(f.name);
+                                final tempFile = File('${tmp.path}/qr_${DateTime.now().millisecondsSinceEpoch}.$ext');
+                                await tempFile.writeAsBytes(f.bytes!);
+                                path = tempFile.path;
+                              }
                               final scanner = MobileScannerController();
-                              final result = await scanner.analyzeImage(img.path);
+                              final result = await scanner.analyzeImage(path);
                               String? code;
                               if (result != null) {
                                 try {
