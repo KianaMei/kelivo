@@ -944,7 +944,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
                         // If we have rounds data, show each round (without totals)
                         if (tokenUsage.rounds != null && tokenUsage.rounds!.isNotEmpty) {
-                          tooltipLines.add('各轮详情 (${tokenUsage.rounds!.length} 轮):');
+                          // Only show individual rounds, no totals
                           for (int i = 0; i < tokenUsage.rounds!.length; i++) {
                             final round = tokenUsage.rounds![i];
                             final roundNum = i + 1;
@@ -2623,60 +2623,66 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
     final size = renderBox.size;
 
     _overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        left: offset.dx,
-        top: offset.dy + size.height + 4,
-        child: Material(
-          elevation: 4,
-          borderRadius: BorderRadius.circular(8),
-          color: widget.colorScheme.surface,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 300),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: widget.colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: widget.colorScheme.outline.withOpacity(0.2),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+      builder: (context) => Stack(
+        children: [
+          // Transparent background to capture taps outside the card (for mobile)
+          GestureDetector(
+            onTap: _handleOutsideTap,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              color: Colors.transparent,
             ),
+          ),
+          // The actual token info card
+          Positioned(
+            left: offset.dx,
+            top: offset.dy + size.height + 4,
+            child: GestureDetector(
+              onTap: () {
+                // Prevent taps on the card itself from closing it
+              },
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(8),
+                color: widget.colorScheme.surface,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 300),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: widget.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: widget.colorScheme.outline.withOpacity(0.2),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Basic tooltip info
-                ...widget.tooltipLines.map((line) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Text(
-                      line,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: widget.colorScheme.onSurface,
-                        fontFamily: 'monospace',
+                // Only show basic tooltip info if no rounds data
+                if (widget.rounds == null || widget.rounds!.isEmpty)
+                  ...widget.tooltipLines.map((line) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        line,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: widget.colorScheme.onSurface,
+                          fontFamily: 'monospace',
+                        ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
                 // Show rounds breakdown if available
-                if (widget.rounds != null && widget.rounds!.length > 1) ...[
-                  const Divider(height: 16),
-                  Text(
-                    '各轮详情 (${widget.rounds!.length} 轮):',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: widget.colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
+                if (widget.rounds != null && widget.rounds!.isNotEmpty) ...[
                   ...widget.rounds!.asMap().entries.map((entry) {
                     final idx = entry.key;
                     final round = entry.value;
@@ -2684,9 +2690,9 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                     final completion = round['completionTokens'] ?? 0;
                     final thought = round['thoughtTokens'] ?? 0;
                     final cached = round['cachedTokens'] ?? 0;
-                    
+
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -2748,8 +2754,12 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                 ],
               ],
             ),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
 
@@ -2813,5 +2823,12 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
         child: content,
       ),
     );
+  }
+
+  // Handle taps outside the overlay to close it (for mobile)
+  void _handleOutsideTap() {
+    if (_overlayEntry != null) {
+      _removeOverlay();
+    }
   }
 }
