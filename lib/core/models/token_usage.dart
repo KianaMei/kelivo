@@ -25,6 +25,12 @@ class TokenUsage {
 
     // Only add a new round if other has non-zero tokens
     if (other.promptTokens > 0 || other.completionTokens > 0) {
+      // If this is an update to an existing round (streaming), replace the last round
+      // Otherwise, add a new round
+      final shouldReplaceLastRound = newRounds.isNotEmpty &&
+          other.promptTokens <= (newRounds.last['promptTokens'] ?? 0) + 100 &&
+          other.completionTokens >= (newRounds.last['completionTokens'] ?? 0);
+
       final roundData = {
         'promptTokens': other.promptTokens,
         'completionTokens': other.completionTokens,
@@ -32,11 +38,16 @@ class TokenUsage {
         'thoughtTokens': other.thoughtTokens,
       };
 
-      // Always add as a new round (each API call is a separate round)
-      newRounds.add(roundData);
+      if (shouldReplaceLastRound) {
+        newRounds[newRounds.length - 1] = roundData;
+      } else if (newRounds.isEmpty ||
+                 other.promptTokens != (newRounds.last['promptTokens'] ?? 0) ||
+                 other.completionTokens != (newRounds.last['completionTokens'] ?? 0)) {
+        newRounds.add(roundData);
+      }
     }
 
-    // Calculate totals by summing all rounds
+    // Calculate totals by summing all rounds (not using cumulative API values)
     int prompt = 0;
     int completion = 0;
     int cached = 0;
