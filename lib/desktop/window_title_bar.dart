@@ -63,39 +63,32 @@ class _WindowTitleBarState extends State<WindowTitleBar> with WindowListener {
           ),
         ),
       ),
-      child: Row(
-        children: [
-          // Draggable area on the left side
-          Expanded(
-            child: DragToMoveArea(
-              child: Row(
-                children: [
-                  const SizedBox(width: 6),
-                  ...widget.leftChildren,
-                ],
+      child: DragToMoveArea(
+        child: Row(
+          children: [
+            const SizedBox(width: 6),
+            ...widget.leftChildren,
+            const Spacer(),
+            WindowCaptionButton.minimize(
+              brightness: brightness,
+              onPressed: () => windowManager.minimize(),
+            ),
+            if (_isMaximized)
+              WindowCaptionButton.unmaximize(
+                brightness: brightness,
+                onPressed: () => windowManager.unmaximize(),
+              )
+            else
+              WindowCaptionButton.maximize(
+                brightness: brightness,
+                onPressed: () => windowManager.maximize(),
               ),
-            ),
-          ),
-          // Window control buttons (not draggable)
-          WindowCaptionButton.minimize(
-            brightness: brightness,
-            onPressed: () => windowManager.minimize(),
-          ),
-          if (_isMaximized)
-            WindowCaptionButton.unmaximize(
+            WindowCaptionButton.close(
               brightness: brightness,
-              onPressed: () => windowManager.unmaximize(),
-            )
-          else
-            WindowCaptionButton.maximize(
-              brightness: brightness,
-              onPressed: () => windowManager.maximize(),
+              onPressed: () => windowManager.close(),
             ),
-          WindowCaptionButton.close(
-            brightness: brightness,
-            onPressed: () => windowManager.close(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

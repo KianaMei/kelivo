@@ -42,6 +42,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.24.0'
           cache: true
 
       - name: Flutter doctor
@@ -49,11 +50,6 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
-
-      - name: Generate required files
-        run: |
-          echo "Generating Hive adapters and other generated files..."
-          flutter pub run build_runner build --delete-conflicting-outputs || echo "Build runner completed with warnings"
 
       - name: Clean old signing files
         run: |
