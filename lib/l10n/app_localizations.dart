@@ -1961,6 +1961,30 @@ abstract class AppLocalizations {
   /// **'e.g. 2048 (-1 auto, 0 off)'**
   String get reasoningBudgetSheetCustomHint;
 
+  /// No description provided for @maxTokensSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Max Output Length'**
+  String get maxTokensSheetTitle;
+
+  /// No description provided for @maxTokensSheetCurrentValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Value'**
+  String get maxTokensSheetCurrentValue;
+
+  /// No description provided for @maxTokensSheetUnlimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlimited'**
+  String get maxTokensSheetUnlimited;
+
+  /// No description provided for @maxTokensSheetDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Set the maximum number of tokens for a single model response. Set to 0 for unlimited (use model default). Current API maximum: {maxLimit}'**
+  String maxTokensSheetDescription(String maxLimit);
+
   /// No description provided for @chatMessageWidgetFileNotFound.
   ///
   /// In en, this message translates to:
@@ -2584,6 +2608,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reasoning Strength'**
   String get chatInputBarReasoningStrengthTooltip;
+
+  /// No description provided for @chatInputBarMaxTokensTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Max Output Length'**
+  String get chatInputBarMaxTokensTooltip;
 
   /// No description provided for @chatInputBarMcpServersTooltip.
   ///
