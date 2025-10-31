@@ -946,29 +946,30 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           for (int i = 0; i < tokenUsage.rounds!.length; i++) {
                             final round = tokenUsage.rounds![i];
                             final roundNum = i + 1;
-                            tooltipLines.add('--- 第 $roundNum 轮 ---');
-                            tooltipLines.add('  输入: ${round['promptTokens'] ?? 0}');
-                            tooltipLines.add('  输出: ${round['completionTokens'] ?? 0}');
+                            tooltipLines.add('第 $roundNum 轮:');
+                            tooltipLines.add('  ${round['promptTokens'] ?? 0}↓');
+                            tooltipLines.add('  ${round['completionTokens'] ?? 0}↑');
                             if ((round['thoughtTokens'] ?? 0) > 0) {
-                              tooltipLines.add('  思考: ${round['thoughtTokens']}');
+                              tooltipLines.add('  ${round['thoughtTokens']}💭');
                             }
                             if ((round['cachedTokens'] ?? 0) > 0) {
-                              tooltipLines.add('  缓存: ${round['cachedTokens']}');
+                              tooltipLines.add('  ${round['cachedTokens']}♻');
                             }
                           }
-                          tooltipLines.add('--- 总计 ---');
+                          tooltipLines.add('');
                         }
 
-                        // Always show totals
-                        tooltipLines.add('输入: ${tokenUsage.promptTokens}');
-                        tooltipLines.add('输出: ${tokenUsage.completionTokens}');
+                        // Always show summary
+                        tooltipLines.add('总计:');
+                        tooltipLines.add('  ${tokenUsage.promptTokens}↓');
+                        tooltipLines.add('  ${tokenUsage.completionTokens}↑');
                         if (tokenUsage.thoughtTokens > 0) {
-                          tooltipLines.add('思考: ${tokenUsage.thoughtTokens}');
+                          tooltipLines.add('  ${tokenUsage.thoughtTokens}💭');
                         }
                         if (tokenUsage.cachedTokens > 0) {
-                          tooltipLines.add('缓存: ${tokenUsage.cachedTokens}');
+                          tooltipLines.add('  ${tokenUsage.cachedTokens}♻');
                         }
-                        tooltipLines.add('总计: ${tokenUsage.totalTokens}');
+                        tooltipLines.add('  = ${tokenUsage.totalTokens}');
 
                         rowChildren.add(_TokenUsageDisplay(
                           tokenText: tokenText,
