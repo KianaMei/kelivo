@@ -42,8 +42,8 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          # Use a Flutter version that bundles Dart >= 3.7 (required by mcp_client)
-          flutter-version: '3.29.3'
+          # Use latest stable that includes Dart >= 3.7 (mcp_client requirement)
+          flutter-version: '3.35.7'
           cache: true
 
       - name: Flutter doctor
