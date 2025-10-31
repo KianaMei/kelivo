@@ -4058,12 +4058,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         onConfigureMaxTokens: () async {
                           await showMaxTokensSheet(context);
                         },
-<<<<<<< HEAD
                         onConfigureToolLoop: () async {
                           await showToolLoopSheet(context);
                         },
-=======
->>>>>>> 53538ad54e69043852d5ae39a4f6457d34b8054d
                         maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
                         onOpenSearch: () => showSearchSettingsSheet(context),
                         onSend: (text) {
@@ -4956,12 +4953,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     onConfigureMaxTokens: () async {
                                       await showMaxTokensSheet(context);
                                     },
-<<<<<<< HEAD
                                     onConfigureToolLoop: () async {
                                       await showToolLoopSheet(context);
                                     },
-=======
->>>>>>> 53538ad54e69043852d5ae39a4f6457d34b8054d
                                     maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
                                     onOpenSearch: () => showSearchSettingsSheet(context),
                                     onSend: (text) {
