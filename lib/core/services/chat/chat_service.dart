@@ -579,6 +579,7 @@ class ChatService extends ChangeNotifier {
         modelId: src.modelId,
         providerId: src.providerId,
         totalTokens: src.totalTokens,
+        tokenUsageJson: src.tokenUsageJson,
         conversationId: convo.id,
         isStreaming: false,
         reasoningText: src.reasoningText,

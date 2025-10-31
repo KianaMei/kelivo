@@ -747,7 +747,7 @@ class ChatApiService {
         if (instructions.isNotEmpty) 'instructions': instructions,
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'top_p': topP,
-        if (maxTokens != null) 'max_output_tokens': maxTokens,
+        if (maxTokens != null && maxTokens > 0) 'max_output_tokens': maxTokens,
         if (toolList.isNotEmpty) 'tools': toolList,
         if (toolList.isNotEmpty) 'tool_choice': 'auto',
         if (isReasoning && effort != 'off')
@@ -811,7 +811,7 @@ class ChatApiService {
         'stream': true,
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'top_p': topP,
-        if (maxTokens != null) 'max_tokens': maxTokens,
+        if (maxTokens != null && maxTokens > 0) 'max_tokens': maxTokens,
         if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
         if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
         if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
@@ -901,23 +901,16 @@ class ChatApiService {
     try {
       final timestamp = _timestamp();
       final logFile = File('c:/mycode/kelivo/debug_tools.log');
-      logFile.writeAsStringSync('[$timestamp] [API Request] URL: $url\n', mode: FileMode.append);
-      logFile.writeAsStringSync('[$timestamp] [API Request] tools param: ${tools?.length ?? 0} tools\n', mode: FileMode.append);
-      logFile.writeAsStringSync('[$timestamp] [API Request] body.tools: ${body['tools']?.length ?? 0} tools\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[\$timestamp] [API Request] URL: \$url\\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[\$timestamp] [API Request] tools param: \${tools?.length ?? 0} tools\\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[\$timestamp] [API Request] body.tools: \${body['tools']?.length ?? 0} tools\\n', mode: FileMode.append);
       if (body['tools'] != null) {
-        logFile.writeAsStringSync('[$timestamp] [API Request] body.tools content: ${jsonEncode(body['tools'])}\n', mode: FileMode.append);
+        logFile.writeAsStringSync('[\$timestamp] [API Request] body.tools content: \${jsonEncode(body['tools'])}\\n', mode: FileMode.append);
       }
-      logFile.writeAsStringSync('[$timestamp] [API Request] Full body: ${jsonEncode(body)}\n', mode: FileMode.append);
-      logFile.writeAsStringSync('[$timestamp] [API Request] useResponseApi: ${config.useResponseApi}\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[\$timestamp] [API Request] Full body: \${jsonEncode(body)}\\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[\$timestamp] [API Request] useResponseApi: \${config.useResponseApi}\\n', mode: FileMode.append);
     } catch (e) {
-      print('[API Request] Failed to write log: $e');
-    }
-
-    print('[API Request] URL: $url');
-    print('[API Request] tools param: ${tools?.length ?? 0} tools');
-    print('[API Request] body.tools: ${body['tools']?.length ?? 0} tools');
-    if (body['tools'] != null) {
-      print('[API Request] body.tools content: ${jsonEncode(body['tools'])}');
+      // Log write failed, silently continue
     }
 
     final request = http.Request('POST', url);
@@ -1048,7 +1041,7 @@ class ChatApiService {
                 'stream': true,
                 if (temperature != null) 'temperature': temperature,
                 if (topP != null) 'top_p': topP,
-                if (maxTokens != null) 'max_tokens': maxTokens,
+                if (maxTokens != null && maxTokens > 0) 'max_tokens': maxTokens,
                 if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                 if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                 if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
@@ -1661,7 +1654,7 @@ class ChatApiService {
                     'reasoning': {'effort': 'high', 'summary': 'detailed'},
                     if (temperature != null) 'temperature': temperature,
                     if (topP != null) 'top_p': topP,
-                    if (maxTokens != null) 'max_output_tokens': maxTokens,
+                    if (maxTokens != null && maxTokens > 0) 'max_output_tokens': maxTokens,
                     if (followUpTools.isNotEmpty) 'tools': followUpTools,
                     if (followUpTools.isNotEmpty) 'tool_choice': 'auto',
                   };
@@ -2078,7 +2071,7 @@ class ChatApiService {
                 'stream': true,
                 if (temperature != null) 'temperature': temperature,
                 if (topP != null) 'top_p': topP,
-                if (maxTokens != null) 'max_tokens': maxTokens,
+                if (maxTokens != null && maxTokens > 0) 'max_tokens': maxTokens,
                 if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                 if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                 if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
@@ -2410,7 +2403,7 @@ class ChatApiService {
                     'stream': true,
                     if (temperature != null) 'temperature': temperature,
                     if (topP != null) 'top_p': topP,
-                    if (maxTokens != null) 'max_tokens': maxTokens,
+                    if (maxTokens != null && maxTokens > 0) 'max_tokens': maxTokens,
                     if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                     if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                     if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
@@ -3324,7 +3317,7 @@ class ChatApiService {
       final gen = <String, dynamic>{
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'topP': topP,
-        if (maxTokens != null) 'maxOutputTokens': maxTokens,
+        if (maxTokens != null && maxTokens > 0) 'maxOutputTokens': maxTokens,
         // Enable IMAGE+TEXT output modalities when model is configured to output images
         if (wantsImageOutput) 'responseModalities': ['TEXT', 'IMAGE'],
         if (isReasoning)

@@ -47,6 +47,7 @@ class ChatInputBar extends StatefulWidget {
     this.onOpenSearch,
     this.onMore,
     this.onConfigureReasoning,
+    this.onConfigureMaxTokens,
     this.moreOpen = false,
     this.focusNode,
     this.modelIcon,
@@ -55,6 +56,7 @@ class ChatInputBar extends StatefulWidget {
     this.loading = false,
     this.reasoningActive = false,
     this.supportsReasoning = true,
+    this.maxTokensConfigured = false,
     this.showMcpButton = false,
     this.mcpActive = false,
     this.searchEnabled = false,
@@ -83,6 +85,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onOpenSearch;
   final VoidCallback? onMore;
   final VoidCallback? onConfigureReasoning;
+  final VoidCallback? onConfigureMaxTokens;
   final bool moreOpen;
   final FocusNode? focusNode;
   final Widget? modelIcon;
@@ -91,6 +94,7 @@ class ChatInputBar extends StatefulWidget {
   final bool loading;
   final bool reasoningActive;
   final bool supportsReasoning;
+  final bool maxTokensConfigured;
   final bool showMcpButton;
   final bool mcpActive;
   final bool searchEnabled;
@@ -713,6 +717,15 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                   height: 20,
                                   colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
                                 ),
+                              ),
+                            ],
+                            if (widget.onConfigureMaxTokens != null) ...[
+                              const SizedBox(width: 8),
+                              _CompactIconButton(
+                                tooltip: AppLocalizations.of(context)!.chatInputBarMaxTokensTooltip,
+                                icon: Lucide.FileText,
+                                active: widget.maxTokensConfigured,
+                                onTap: widget.onConfigureMaxTokens,
                               ),
                             ],
                             if (widget.showMcpButton) ...[
