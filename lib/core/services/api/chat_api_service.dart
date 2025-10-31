@@ -238,6 +238,7 @@ class ChatApiService {
     double? temperature,
     double? topP,
     int? maxTokens,
+    int maxToolLoopIterations = 10,
     List<Map<String, dynamic>>? tools,
     Future<String> Function(String name, Map<String, dynamic> args)? onToolCall,
     Map<String, String>? extraHeaders,
@@ -258,6 +259,7 @@ class ChatApiService {
           temperature: temperature,
           topP: topP,
           maxTokens: maxTokens,
+          maxToolLoopIterations: maxToolLoopIterations,
           tools: tools,
           onToolCall: onToolCall,
           extraHeaders: extraHeaders,
@@ -274,6 +276,7 @@ class ChatApiService {
           temperature: temperature,
           topP: topP,
           maxTokens: maxTokens,
+          maxToolLoopIterations: maxToolLoopIterations,
           tools: tools,
           onToolCall: onToolCall,
           extraHeaders: extraHeaders,
@@ -290,6 +293,7 @@ class ChatApiService {
           temperature: temperature,
           topP: topP,
           maxTokens: maxTokens,
+          maxToolLoopIterations: maxToolLoopIterations,
           tools: tools,
           onToolCall: onToolCall,
           extraHeaders: extraHeaders,
@@ -599,7 +603,7 @@ class ChatApiService {
       ProviderConfig config,
       String modelId,
       List<Map<String, dynamic>> messages,
-      {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, List<Map<String, dynamic>>? tools, Future<String> Function(String, Map<String, dynamic>)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
+      {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, int maxToolLoopIterations = 10, List<Map<String, dynamic>>? tools, Future<String> Function(String, Map<String, dynamic>)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
       ) async* {
     final base = config.baseUrl.endsWith('/')
         ? config.baseUrl.substring(0, config.baseUrl.length - 1)
@@ -747,14 +751,17 @@ class ChatApiService {
         if (instructions.isNotEmpty) 'instructions': instructions,
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'top_p': topP,
-        if (maxTokens != null) 'max_output_tokens': maxTokens,
+        if (maxTokens != null && maxTokens > 0) 'max_output_tokens': maxTokens,
         if (toolList.isNotEmpty) 'tools': toolList,
         if (toolList.isNotEmpty) 'tool_choice': 'auto',
         if (isReasoning && effort != 'off')
           'reasoning': {
-            'summary': 'auto',
+            'summary': 'detailed',  // 固定使用 detailed
             if (effort != 'auto') 'effort': effort,
           },
+        'text': {
+          'verbosity': 'high',  // 固定使用 high
+        },
       };
       // Append include parameter if we opted into sources via overrides
       try {
@@ -811,7 +818,7 @@ class ChatApiService {
         'stream': true,
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'top_p': topP,
-        if (maxTokens != null) 'max_tokens': maxTokens,
+        if (maxTokens != null && maxTokens > 0) 'max_tokens': maxTokens,
         if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
         if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
         if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
@@ -898,28 +905,6 @@ class ChatApiService {
       }
     }
 
-    try {
-      final timestamp = _timestamp();
-      final logFile = File('c:/mycode/kelivo/debug_tools.log');
-      logFile.writeAsStringSync('[$timestamp] [API Request] URL: $url\n', mode: FileMode.append);
-      logFile.writeAsStringSync('[$timestamp] [API Request] tools param: ${tools?.length ?? 0} tools\n', mode: FileMode.append);
-      logFile.writeAsStringSync('[$timestamp] [API Request] body.tools: ${body['tools']?.length ?? 0} tools\n', mode: FileMode.append);
-      if (body['tools'] != null) {
-        logFile.writeAsStringSync('[$timestamp] [API Request] body.tools content: ${jsonEncode(body['tools'])}\n', mode: FileMode.append);
-      }
-      logFile.writeAsStringSync('[$timestamp] [API Request] Full body: ${jsonEncode(body)}\n', mode: FileMode.append);
-      logFile.writeAsStringSync('[$timestamp] [API Request] useResponseApi: ${config.useResponseApi}\n', mode: FileMode.append);
-    } catch (e) {
-      print('[API Request] Failed to write log: $e');
-    }
-
-    print('[API Request] URL: $url');
-    print('[API Request] tools param: ${tools?.length ?? 0} tools');
-    print('[API Request] body.tools: ${body['tools']?.length ?? 0} tools');
-    if (body['tools'] != null) {
-      print('[API Request] body.tools content: ${jsonEncode(body['tools'])}');
-    }
-
     final request = http.Request('POST', url);
     final headers = <String, String>{
       'Authorization': 'Bearer ${_apiKeyForRequest(config, modelId)}',
@@ -949,9 +934,71 @@ class ChatApiService {
     }
     request.body = jsonEncode(body);
 
+    // 记录完整的请求信息
+    try {
+      final timestamp = _timestamp();
+      final logFile = File('c:/mycode/kelivo/debug_api.log');
+      final separator = '=' * 80;
+
+      logFile.writeAsStringSync('\n$separator\n', mode: FileMode.append);
+      logFile.writeAsStringSync('[$timestamp] API REQUEST\n', mode: FileMode.append);
+      logFile.writeAsStringSync('$separator\n', mode: FileMode.append);
+      logFile.writeAsStringSync('URL: $url\n', mode: FileMode.append);
+      logFile.writeAsStringSync('Method: POST\n\n', mode: FileMode.append);
+
+      logFile.writeAsStringSync('Headers:\n', mode: FileMode.append);
+      headers.forEach((key, value) {
+        // 隐藏敏感的 API Key
+        if (key == 'Authorization') {
+          logFile.writeAsStringSync('  $key: Bearer ***\n', mode: FileMode.append);
+        } else {
+          logFile.writeAsStringSync('  $key: $value\n', mode: FileMode.append);
+        }
+      });
+
+      logFile.writeAsStringSync('\nPayload:\n', mode: FileMode.append);
+      // 格式化 JSON 输出
+      final encoder = JsonEncoder.withIndent('  ');
+      final prettyBody = encoder.convert(body);
+      logFile.writeAsStringSync('$prettyBody\n', mode: FileMode.append);
+      logFile.writeAsStringSync('$separator\n', mode: FileMode.append);
+    } catch (e) {
+      // 日志写入失败,静默继续
+    }
+
     final response = await client.send(request);
+
+    // 记录响应状态
+    try {
+      final timestamp = _timestamp();
+      final logFile = File('c:/mycode/kelivo/debug_api.log');
+      final separator = '=' * 80;
+
+      logFile.writeAsStringSync('\n[$timestamp] API RESPONSE\n', mode: FileMode.append);
+      logFile.writeAsStringSync('$separator\n', mode: FileMode.append);
+      logFile.writeAsStringSync('Status Code: ${response.statusCode}\n', mode: FileMode.append);
+      logFile.writeAsStringSync('Response Headers:\n', mode: FileMode.append);
+      response.headers.forEach((key, value) {
+        logFile.writeAsStringSync('  $key: $value\n', mode: FileMode.append);
+      });
+      logFile.writeAsStringSync('\nResponse Body (streaming):\n', mode: FileMode.append);
+    } catch (e) {
+      // 日志写入失败,静默继续
+    }
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final errorBody = await response.stream.bytesToString();
+
+      // 记录错误响应
+      try {
+        final timestamp = _timestamp();
+        final logFile = File('c:/mycode/kelivo/debug_api.log');
+        logFile.writeAsStringSync('[$timestamp] ERROR Response Body:\n$errorBody\n', mode: FileMode.append);
+        logFile.writeAsStringSync('${'=' * 80}\n\n', mode: FileMode.append);
+      } catch (e) {
+        // 日志写入失败,静默继续
+      }
+
       throw HttpException('HTTP ${response.statusCode}: $errorBody');
     }
 
@@ -973,7 +1020,13 @@ class ChatApiService {
     final Map<String, String> itemIdToCallId = <String, String>{}; // item_id -> call_id
     String? finishReason;
 
+    // 用于累积完整响应内容
+    final List<String> responseChunks = [];
+
     await for (final chunk in stream) {
+      // 记录每个接收到的chunk
+      responseChunks.add(chunk);
+
       buffer += chunk;
       final lines = buffer.split('\n');
       buffer = lines.last;
@@ -983,6 +1036,15 @@ class ChatApiService {
         if (line.isEmpty || !line.startsWith('data:')) continue;
 
         final data = line.substring(5).trimLeft();
+
+        // 记录每个SSE事件
+        try {
+          final timestamp = _timestamp();
+          final logFile = File('c:/mycode/kelivo/debug_api.log');
+          logFile.writeAsStringSync('[$timestamp] SSE: $line\n', mode: FileMode.append);
+        } catch (e) {
+          // 日志写入失败,静默继续
+        }
         if (data == '[DONE]') {
           // If model streamed tool_calls but didn't include finish_reason on prior chunks,
           // execute tool flow now and start follow-up request.
@@ -1048,7 +1110,7 @@ class ChatApiService {
                 'stream': true,
                 if (temperature != null) 'temperature': temperature,
                 if (topP != null) 'top_p': topP,
-                if (maxTokens != null) 'max_tokens': maxTokens,
+                if (maxTokens != null && maxTokens > 0) 'max_tokens': maxTokens,
                 if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                 if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                 if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
@@ -1512,12 +1574,14 @@ class ChatApiService {
                   }
                 }
 
-                // Tool calling loop (max 256 iterations)
-                for (int stepIndex = 0; stepIndex < 256; stepIndex++) {
+                // Tool calling loop (max iterations to prevent infinite loops)
+                for (int stepIndex = 0; stepIndex < maxToolLoopIterations; stepIndex++) {
                   try {
                     final timestamp = _timestamp();
                     final logFile = File('c:/mycode/kelivo/debug_tools.log');
-                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] === Step #$stepIndex ===\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] ========================================\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] === Step #$stepIndex (max $maxToolLoopIterations) ===\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] toolAccResp count: ${toolAccResp.length}\n', mode: FileMode.append);
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop] toolAccResp: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
                   } catch (_) {}
 
@@ -1526,7 +1590,18 @@ class ChatApiService {
                     try {
                       final timestamp = _timestamp();
                       final logFile = File('c:/mycode/kelivo/debug_tools.log');
-                      logFile.writeAsStringSync('[$timestamp] [Tool Loop] No tool calls, exiting loop\n', mode: FileMode.append);
+                      logFile.writeAsStringSync('[$timestamp] [Tool Loop] ✓ No tool calls, exiting loop normally\n', mode: FileMode.append);
+                    } catch (_) {}
+                    break;
+                  }
+
+                  // Safety check: if we've reached max iterations, log warning and break
+                  if (stepIndex >= maxToolLoopIterations - 1) {
+                    try {
+                      final timestamp = _timestamp();
+                      final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                      logFile.writeAsStringSync('[$timestamp] [Tool Loop] ⚠️ WARNING: Reached max iterations ($maxToolLoopIterations), forcing exit to prevent infinite loop\n', mode: FileMode.append);
+                      logFile.writeAsStringSync('[$timestamp] [Tool Loop] ⚠️ Remaining tool calls will be ignored: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
                     } catch (_) {}
                     break;
                   }
@@ -1661,7 +1736,7 @@ class ChatApiService {
                     'reasoning': {'effort': 'high', 'summary': 'detailed'},
                     if (temperature != null) 'temperature': temperature,
                     if (topP != null) 'top_p': topP,
-                    if (maxTokens != null) 'max_output_tokens': maxTokens,
+                    if (maxTokens != null && maxTokens > 0) 'max_output_tokens': maxTokens,
                     if (followUpTools.isNotEmpty) 'tools': followUpTools,
                     if (followUpTools.isNotEmpty) 'tool_choice': 'auto',
                   };
@@ -1705,18 +1780,34 @@ class ChatApiService {
                         try {
                           final timestamp = _timestamp();
                           final logFile = File('c:/mycode/kelivo/debug_tools.log');
-                          logFile.writeAsStringSync('[$timestamp] [Follow-up Event] type: $followUpType, json: ${jsonEncode(followUpJson)}\n', mode: FileMode.append);
+                          logFile.writeAsStringSync('[$timestamp] [Follow-up Event] type: $followUpType\n', mode: FileMode.append);
+                          // Only log full JSON for important events to reduce log size
+                          if (followUpType == 'response.output_item.added' ||
+                              followUpType == 'response.function_call_arguments.done' ||
+                              followUpType == 'response.completed') {
+                            logFile.writeAsStringSync('[$timestamp] [Follow-up Event] json: ${jsonEncode(followUpJson)}\n', mode: FileMode.append);
+                          }
                         } catch (_) {}
 
                         // Handle all event types
                         if (followUpType == 'response.reasoning_summary_text.delta') {
                           final delta = followUpJson['delta'];
                           if (delta is String && delta.isNotEmpty) {
+                            try {
+                              final timestamp = _timestamp();
+                              final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                              logFile.writeAsStringSync('[$timestamp] [Follow-up Event] 🧠 Reasoning delta: ${delta.length} chars\n', mode: FileMode.append);
+                            } catch (_) {}
                             yield ChatStreamChunk(content: '', reasoning: delta, isDone: false, totalTokens: totalTokens, usage: usage);
                           }
                         } else if (followUpType == 'response.output_text.delta') {
                           final delta = followUpJson['delta'];
                           if (delta is String && delta.isNotEmpty) {
+                            try {
+                              final timestamp = _timestamp();
+                              final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                              logFile.writeAsStringSync('[$timestamp] [Follow-up Event] 📝 Output text delta: "${delta.substring(0, delta.length > 50 ? 50 : delta.length)}${delta.length > 50 ? '...' : ''}"\n', mode: FileMode.append);
+                            } catch (_) {}
                             followUpContent += delta; // 累积文本
                             yield ChatStreamChunk(content: delta, isDone: false, totalTokens: totalTokens, usage: usage);
                           }
@@ -1727,6 +1818,11 @@ class ChatApiService {
                             final itemId = (item['id'] ?? '').toString();
                             final name = (item['name'] ?? '').toString();
                             if (callId.isNotEmpty && itemId.isNotEmpty) {
+                              try {
+                                final timestamp = _timestamp();
+                                final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                                logFile.writeAsStringSync('[$timestamp] [Follow-up Event] 🔧 New tool call added: $name (callId: $callId, itemId: $itemId)\n', mode: FileMode.append);
+                              } catch (_) {}
                               // Map item_id to call_id for later argument accumulation
                               itemIdToCallId[itemId] = callId;
                               toolAccResp.putIfAbsent(callId, () => {'id': callId, 'name': name, 'args': ''});
@@ -1755,6 +1851,12 @@ class ChatApiService {
                               final entry = toolAccResp[callId];
                               if (entry != null) {
                                 entry['args'] = args;
+                                try {
+                                  final timestamp = _timestamp();
+                                  final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                                  final toolName = entry['name'] ?? 'unknown';
+                                  logFile.writeAsStringSync('[$timestamp] [Follow-up Event] ✓ Tool arguments complete: $toolName, args: ${args.substring(0, args.length > 100 ? 100 : args.length)}${args.length > 100 ? '...' : ''}\n', mode: FileMode.append);
+                                } catch (_) {}
                               }
                             }
                           }
@@ -1765,6 +1867,11 @@ class ChatApiService {
                             final outTok = (u['output_tokens'] ?? 0) as int;
                             usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: inTok, completionTokens: outTok));
                             totalTokens = usage!.totalTokens;
+                            try {
+                              final timestamp = _timestamp();
+                              final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                              logFile.writeAsStringSync('[$timestamp] [Follow-up Event] ✓ Response completed, tokens: input=$inTok, output=$outTok, total=$totalTokens\n', mode: FileMode.append);
+                            } catch (_) {}
                           }
                         }
                       } catch (e) {
@@ -1792,8 +1899,11 @@ class ChatApiService {
                   try {
                     final timestamp = _timestamp();
                     final logFile = File('c:/mycode/kelivo/debug_tools.log');
-                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] After response, toolAccResp: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
-                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] Accumulated content length: ${followUpContent.length} chars\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop] After follow-up response:\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop]   - New toolAccResp count: ${toolAccResp.length}\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop]   - New toolAccResp: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop]   - Accumulated content length: ${followUpContent.length} chars\n', mode: FileMode.append);
+                    logFile.writeAsStringSync('[$timestamp] [Tool Loop]   - Will continue loop: ${toolAccResp.isNotEmpty}\n', mode: FileMode.append);
                   } catch (_) {}
 
                   // Continue loop if there are more tool calls
@@ -1802,7 +1912,9 @@ class ChatApiService {
                 try {
                   final timestamp = _timestamp();
                   final logFile = File('c:/mycode/kelivo/debug_tools.log');
-                  logFile.writeAsStringSync('[$timestamp] [Tool Loop] Exited loop, finishing\n', mode: FileMode.append);
+                  logFile.writeAsStringSync('[$timestamp] [Tool Loop] ========================================\n', mode: FileMode.append);
+                  logFile.writeAsStringSync('[$timestamp] [Tool Loop] ✓ Exited loop, finishing stream\n', mode: FileMode.append);
+                  logFile.writeAsStringSync('[$timestamp] [Tool Loop] ========================================\n', mode: FileMode.append);
                 } catch (_) {}
               }
               final approxTotal = approxPromptTokens + _approxTokensFromChars(approxCompletionChars);
@@ -2078,7 +2190,7 @@ class ChatApiService {
                 'stream': true,
                 if (temperature != null) 'temperature': temperature,
                 if (topP != null) 'top_p': topP,
-                if (maxTokens != null) 'max_tokens': maxTokens,
+                if (maxTokens != null && maxTokens > 0) 'max_tokens': maxTokens,
                 if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                 if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                 if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
@@ -2410,7 +2522,7 @@ class ChatApiService {
                     'stream': true,
                     if (temperature != null) 'temperature': temperature,
                     if (topP != null) 'top_p': topP,
-                    if (maxTokens != null) 'max_tokens': maxTokens,
+                    if (maxTokens != null && maxTokens > 0) 'max_tokens': maxTokens,
                     if (isReasoning && effort != 'off' && effort != 'auto') 'reasoning_effort': effort,
                     if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
                     if (tools != null && tools.isNotEmpty) 'tool_choice': 'auto',
@@ -2809,6 +2921,29 @@ class ChatApiService {
       }
     }
 
+    // 记录完整响应总结
+    try {
+      final timestamp = _timestamp();
+      final logFile = File('c:/mycode/kelivo/debug_api.log');
+      final separator = '=' * 80;
+
+      logFile.writeAsStringSync('\n[$timestamp] RESPONSE SUMMARY\n', mode: FileMode.append);
+      logFile.writeAsStringSync('$separator\n', mode: FileMode.append);
+      logFile.writeAsStringSync('Total Chunks Received: ${responseChunks.length}\n', mode: FileMode.append);
+      logFile.writeAsStringSync('Total Tokens: ${usage?.totalTokens ?? 0}\n', mode: FileMode.append);
+      if (usage != null) {
+        logFile.writeAsStringSync('Prompt Tokens: ${usage.promptTokens}\n', mode: FileMode.append);
+        logFile.writeAsStringSync('Completion Tokens: ${usage.completionTokens}\n', mode: FileMode.append);
+        if (usage.cachedTokens > 0) {
+          logFile.writeAsStringSync('Cached Tokens: ${usage.cachedTokens}\n', mode: FileMode.append);
+        }
+      }
+      logFile.writeAsStringSync('Finish Reason: ${finishReason ?? "N/A"}\n', mode: FileMode.append);
+      logFile.writeAsStringSync('$separator\n\n', mode: FileMode.append);
+    } catch (e) {
+      // 日志写入失败,静默继续
+    }
+
     // Fallback: provider closed SSE without sending [DONE]
     yield ChatStreamChunk(content: '', isDone: true, totalTokens: usage?.totalTokens ?? 0, usage: usage);
   }
@@ -2818,7 +2953,7 @@ class ChatApiService {
       ProviderConfig config,
       String modelId,
       List<Map<String, dynamic>> messages,
-      {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, List<Map<String, dynamic>>? tools, Future<String> Function(String, Map<String, dynamic>)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
+      {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, int maxToolLoopIterations = 10, List<Map<String, dynamic>>? tools, Future<String> Function(String, Map<String, dynamic>)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
       ) async* {
     final base = config.baseUrl.endsWith('/')
         ? config.baseUrl.substring(0, config.baseUrl.length - 1)
@@ -3156,7 +3291,7 @@ class ChatApiService {
       ProviderConfig config,
       String modelId,
       List<Map<String, dynamic>> messages,
-      {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, List<Map<String, dynamic>>? tools, Future<String> Function(String name, Map<String, dynamic> args)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
+      {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, int maxToolLoopIterations = 10, List<Map<String, dynamic>>? tools, Future<String> Function(String name, Map<String, dynamic> args)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
       ) async* {
     // Implement SSE streaming via :streamGenerateContent with alt=sse
     // Build endpoint per Vertex vs Gemini
@@ -3324,7 +3459,7 @@ class ChatApiService {
       final gen = <String, dynamic>{
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'topP': topP,
-        if (maxTokens != null) 'maxOutputTokens': maxTokens,
+        if (maxTokens != null && maxTokens > 0) 'maxOutputTokens': maxTokens,
         // Enable IMAGE+TEXT output modalities when model is configured to output images
         if (wantsImageOutput) 'responseModalities': ['TEXT', 'IMAGE'],
         if (isReasoning)

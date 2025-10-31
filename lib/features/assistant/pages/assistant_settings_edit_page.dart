@@ -835,7 +835,6 @@ class _BasicSettingsTab extends StatefulWidget {
 class _BasicSettingsTabState extends State<_BasicSettingsTab> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _thinkingCtrl;
-  late final TextEditingController _maxTokensCtrl;
   late final TextEditingController _backgroundCtrl;
 
   @override
@@ -847,7 +846,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     _thinkingCtrl = TextEditingController(
       text: a.thinkingBudget?.toString() ?? '',
     );
-    _maxTokensCtrl = TextEditingController(text: a.maxTokens?.toString() ?? '');
     _backgroundCtrl = TextEditingController(text: a.background ?? '');
   }
 
@@ -859,7 +857,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
       final a = ap.getById(widget.assistantId)!;
       _nameCtrl.text = a.name;
       _thinkingCtrl.text = a.thinkingBudget?.toString() ?? '';
-      _maxTokensCtrl.text = a.maxTokens?.toString() ?? '';
       _backgroundCtrl.text = a.background ?? '';
     }
   }
@@ -868,7 +865,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
   void dispose() {
     _nameCtrl.dispose();
     _thinkingCtrl.dispose();
-    _maxTokensCtrl.dispose();
     _backgroundCtrl.dispose();
     super.dispose();
   }
@@ -1696,101 +1692,321 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
   }
 
   Future<void> _showMaxTokensSheet(BuildContext context, Assistant a) async {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController(text: a.maxTokens?.toString() ?? '');
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 12,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-            ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _MaxTokensSheetForAssistant(assistant: a),
+    );
+  }
+}
+
+// Max Tokens Sheet for Assistant Settings (with slider)
+class _MaxTokensSheetForAssistant extends StatefulWidget {
+  const _MaxTokensSheetForAssistant({required this.assistant});
+  final Assistant assistant;
+
+  @override
+  State<_MaxTokensSheetForAssistant> createState() => _MaxTokensSheetForAssistantState();
+}
+
+class _MaxTokensSheetForAssistantState extends State<_MaxTokensSheetForAssistant> {
+  late int _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = widget.assistant.maxTokens ?? 0;
+  }
+
+  int _getMaxLimit() {
+    final settings = context.read<SettingsProvider>();
+    final providerKey = widget.assistant.chatModelProvider ?? settings.currentModelProvider;
+    final modelId = widget.assistant.chatModelId ?? settings.currentModelId;
+
+    if (providerKey == null || modelId == null) return 128000;
+
+    final cfg = settings.getProviderConfig(providerKey);
+    if (cfg == null) return 128000;
+
+    final kind = ProviderConfig.classify(cfg.id, explicitType: cfg.providerType);
+
+    if (kind == ProviderKind.claude) {
+      return 64000;
+    } else if (kind == ProviderKind.google) {
+      return 65535;
+    } else {
+      return 128000;
+    }
+  }
+
+  void _updateValue(int newValue) {
+    setState(() => _value = newValue);
+    context.read<AssistantProvider>().updateAssistant(
+          widget.assistant.copyWith(maxTokens: newValue),
+        );
+  }
+
+  String _formatValue(int value) {
+    final l10n = AppLocalizations.of(context)!;
+    if (value == 0) {
+      return l10n.maxTokensSheetUnlimited;
+    } else if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(value % 1000 == 0 ? 0 : 1)}K';
+    } else {
+      return value.toString();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final maxHeight = MediaQuery.of(context).size.height * 0.8;
+    final maxLimit = _getMaxLimit();
+
+    return SafeArea(
+      top: false,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Drag handle
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999)),
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: cs.onSurface.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                const SizedBox(height: 12),
-                // Header with Close (X) and Save buttons
-                Row(
-                  children: [
-                    _TactileIconButton(
-                      icon: Lucide.X,
-                      color: cs.onSurface,
-                      size: 20,
-                      onTap: () => Navigator.of(ctx).pop(),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          l10n.assistantEditMaxTokensTitle,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                const SizedBox(height: 20),
+
+                // Title
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Icon(Lucide.FileText, size: 20, color: cs.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.maxTokensSheetTitle,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
                         ),
                       ),
-                    ),
-                    _TactileRow(
-                      onTap: () {
-                        final val = int.tryParse(controller.text.trim());
-                        context.read<AssistantProvider>().updateAssistant(
-                          a.copyWith(
-                            maxTokens: val,
-                            clearMaxTokens: controller.text.trim().isEmpty,
-                          ),
-                        );
-                        Navigator.of(ctx).pop();
-                      },
-                      pressedScale: 0.95,
-                      builder: (pressed) {
-                        final color = pressed ? cs.primary.withOpacity(0.7) : cs.primary;
-                        return Text(
-                          l10n.assistantSettingsAddSheetSave, // "Save"
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: l10n.assistantEditMaxTokensHint,
-                    filled: true,
-                    fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+
+                // Current value display
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        l10n.maxTokensSheetCurrentValue,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: cs.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                      Text(
+                        _formatValue(_value),
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(l10n.assistantEditMaxTokensDescription, style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12)),
+
+                // Slider
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      activeTrackColor: cs.primary,
+                      inactiveTrackColor: cs.primary.withOpacity(0.2),
+                      thumbColor: cs.primary,
+                      overlayColor: cs.primary.withOpacity(0.2),
+                      trackHeight: 4,
+                    ),
+                    child: Slider(
+                      value: _value.toDouble(),
+                      min: 0,
+                      max: maxLimit.toDouble(),
+                      divisions: maxLimit ~/ 1000,
+                      onChanged: (v) {
+                        Haptics.light();
+                        _updateValue(v.round());
+                      },
+                    ),
+                  ),
+                ),
+
+                // Range labels
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        l10n.maxTokensSheetUnlimited,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: cs.onSurface.withOpacity(0.5),
+                        ),
+                      ),
+                      Text(
+                        _formatValue(maxLimit),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: cs.onSurface.withOpacity(0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Description
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    l10n.maxTokensSheetDescription(_formatValue(maxLimit)),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: cs.onSurface.withOpacity(0.6),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Quick presets
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _PresetChipForAssistant(
+                        label: l10n.maxTokensSheetUnlimited,
+                        value: 0,
+                        currentValue: _value,
+                        onTap: () {
+                          Haptics.light();
+                          _updateValue(0);
+                        },
+                      ),
+                      _PresetChipForAssistant(
+                        label: '4K',
+                        value: 4000,
+                        currentValue: _value,
+                        onTap: () {
+                          Haptics.light();
+                          _updateValue(4000);
+                        },
+                      ),
+                      _PresetChipForAssistant(
+                        label: '8K',
+                        value: 8000,
+                        currentValue: _value,
+                        onTap: () {
+                          Haptics.light();
+                          _updateValue(8000);
+                        },
+                      ),
+                      _PresetChipForAssistant(
+                        label: '16K',
+                        value: 16000,
+                        currentValue: _value,
+                        onTap: () {
+                          Haptics.light();
+                          _updateValue(16000);
+                        },
+                      ),
+                      _PresetChipForAssistant(
+                        label: '32K',
+                        value: 32000,
+                        currentValue: _value,
+                        onTap: () {
+                          Haptics.light();
+                          _updateValue(32000);
+                        },
+                      ),
+                      if (maxLimit >= 64000)
+                        _PresetChipForAssistant(
+                          label: '64K',
+                          value: 64000,
+                          currentValue: _value,
+                          onTap: () {
+                            Haptics.light();
+                            _updateValue(64000);
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+}
+
+class _PresetChipForAssistant extends StatelessWidget {
+  const _PresetChipForAssistant({
+    required this.label,
+    required this.value,
+    required this.currentValue,
+    required this.onTap,
+  });
+
+  final String label;
+  final int value;
+  final int currentValue;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isSelected = currentValue == value;
+
+    return IosCardPress(
+      borderRadius: BorderRadius.circular(12),
+      baseColor: isSelected ? cs.primary.withOpacity(0.12) : cs.surface,
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.7),
+        ),
+      ),
     );
   }
 }

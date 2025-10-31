@@ -47,6 +47,8 @@ class ChatInputBar extends StatefulWidget {
     this.onOpenSearch,
     this.onMore,
     this.onConfigureReasoning,
+    this.onConfigureMaxTokens,
+    this.onConfigureToolLoop,
     this.moreOpen = false,
     this.focusNode,
     this.modelIcon,
@@ -55,6 +57,7 @@ class ChatInputBar extends StatefulWidget {
     this.loading = false,
     this.reasoningActive = false,
     this.supportsReasoning = true,
+    this.maxTokensConfigured = false,
     this.showMcpButton = false,
     this.mcpActive = false,
     this.searchEnabled = false,
@@ -83,6 +86,8 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onOpenSearch;
   final VoidCallback? onMore;
   final VoidCallback? onConfigureReasoning;
+  final VoidCallback? onConfigureMaxTokens;
+  final VoidCallback? onConfigureToolLoop;
   final bool moreOpen;
   final FocusNode? focusNode;
   final Widget? modelIcon;
@@ -91,6 +96,7 @@ class ChatInputBar extends StatefulWidget {
   final bool loading;
   final bool reasoningActive;
   final bool supportsReasoning;
+  final bool maxTokensConfigured;
   final bool showMcpButton;
   final bool mcpActive;
   final bool searchEnabled;
@@ -715,6 +721,15 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 ),
                               ),
                             ],
+                            if (widget.onConfigureMaxTokens != null) ...[
+                              const SizedBox(width: 8),
+                              _CompactIconButton(
+                                tooltip: AppLocalizations.of(context)!.chatInputBarMaxTokensTooltip,
+                                icon: Lucide.FileText,
+                                active: widget.maxTokensConfigured,
+                                onTap: widget.onConfigureMaxTokens,
+                              ),
+                            ],
                             if (widget.showMcpButton) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -736,7 +751,17 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 // ),
                               ),
                             ],
-                            // Quick Phrase button placed immediately to the right of MCP
+                            // Tool Loop button placed immediately to the right of MCP
+                            if (widget.onConfigureToolLoop != null) ...[
+                              const SizedBox(width: 8),
+                              _CompactIconButton(
+                                tooltip: '工具循环次数',
+                                icon: Lucide.RefreshCw,
+                                active: false,
+                                onTap: widget.onConfigureToolLoop,
+                              ),
+                            ],
+                            // Quick Phrase button placed immediately to the right of Tool Loop
                             if (widget.showQuickPhraseButton && widget.onQuickPhrase != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(

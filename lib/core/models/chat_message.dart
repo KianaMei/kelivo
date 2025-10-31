@@ -181,12 +181,15 @@ class ChatMessage extends HiveObject {
     if (tokenUsageJson == null || tokenUsageJson!.isEmpty) return null;
     try {
       final json = jsonDecode(tokenUsageJson!) as Map<String, dynamic>;
+      final roundsList = json['rounds'] as List?;
+      final rounds = roundsList?.map((r) => (r as Map).cast<String, int>()).toList();
       return TokenUsage(
         promptTokens: json['promptTokens'] as int? ?? 0,
         completionTokens: json['completionTokens'] as int? ?? 0,
         cachedTokens: json['cachedTokens'] as int? ?? 0,
         thoughtTokens: json['thoughtTokens'] as int? ?? 0,
         totalTokens: json['totalTokens'] as int? ?? 0,
+        rounds: rounds,
       );
     } catch (_) {
       return null;

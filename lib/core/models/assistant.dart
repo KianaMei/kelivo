@@ -14,6 +14,7 @@ class Assistant {
   final bool streamOutput; // streaming responses
   final int? thinkingBudget; // null = use global/default; 0=off; >0 tokens budget
   final int? maxTokens; // null = unlimited
+  final int maxToolLoopIterations; // max tool calling loop iterations (default: 10)
   final String systemPrompt;
   final String messageTemplate; // e.g. "{{ message }}"
   final List<String> mcpServerIds; // bound MCP server IDs
@@ -40,6 +41,7 @@ class Assistant {
     this.streamOutput = true,
     this.thinkingBudget,
     this.maxTokens,
+    this.maxToolLoopIterations = 10,
     this.systemPrompt = '',
     this.messageTemplate = '{{ message }}',
     this.mcpServerIds = const <String>[],
@@ -65,6 +67,7 @@ class Assistant {
     bool? streamOutput,
     int? thinkingBudget,
     int? maxTokens,
+    int? maxToolLoopIterations,
     String? systemPrompt,
     String? messageTemplate,
     List<String>? mcpServerIds,
@@ -96,6 +99,7 @@ class Assistant {
       streamOutput: streamOutput ?? this.streamOutput,
       thinkingBudget: clearThinkingBudget ? null : (thinkingBudget ?? this.thinkingBudget),
       maxTokens: clearMaxTokens ? null : (maxTokens ?? this.maxTokens),
+      maxToolLoopIterations: maxToolLoopIterations ?? this.maxToolLoopIterations,
       systemPrompt: systemPrompt ?? this.systemPrompt,
       messageTemplate: messageTemplate ?? this.messageTemplate,
       mcpServerIds: mcpServerIds ?? this.mcpServerIds,
@@ -123,6 +127,7 @@ class Assistant {
         'streamOutput': streamOutput,
         'thinkingBudget': thinkingBudget,
         'maxTokens': maxTokens,
+        'maxToolLoopIterations': maxToolLoopIterations,
         'systemPrompt': systemPrompt,
         'messageTemplate': messageTemplate,
         'mcpServerIds': mcpServerIds,
@@ -148,6 +153,7 @@ class Assistant {
         streamOutput: json['streamOutput'] as bool? ?? true,
         thinkingBudget: (json['thinkingBudget'] as num?)?.toInt(),
         maxTokens: (json['maxTokens'] as num?)?.toInt(),
+        maxToolLoopIterations: (json['maxToolLoopIterations'] as num?)?.toInt() ?? 10,
         systemPrompt: (json['systemPrompt'] as String?) ?? '',
         messageTemplate: (json['messageTemplate'] as String?) ?? '{{ message }}',
         mcpServerIds: (json['mcpServerIds'] as List?)?.cast<String>() ?? const <String>[],

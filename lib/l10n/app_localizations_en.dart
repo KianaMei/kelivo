@@ -986,6 +986,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reasoningBudgetSheetCustomHint => 'e.g. 2048 (-1 auto, 0 off)';
 
   @override
+  String get maxTokensSheetTitle => 'Max Output Length';
+
+  @override
+  String get maxTokensSheetCurrentValue => 'Current Value';
+
+  @override
+  String get maxTokensSheetUnlimited => 'Unlimited';
+
+  @override
+  String maxTokensSheetDescription(String maxLimit) {
+    return 'Set the maximum number of tokens for a single model response. Set to 0 for unlimited (use model default). Current API maximum: $maxLimit';
+  }
+
+  @override
   String chatMessageWidgetFileNotFound(String fileName) {
     return 'File not found: $fileName';
   }
@@ -1343,6 +1357,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatInputBarReasoningStrengthTooltip => 'Reasoning Strength';
+
+  @override
+  String get chatInputBarMaxTokensTooltip => 'Max Output Length';
 
   @override
   String get chatInputBarMcpServersTooltip => 'MCP Servers';

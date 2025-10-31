@@ -780,12 +780,26 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     visualDensity: VisualDensity.compact,
                     iconSize: 16,
                   ),
-                  IconButton(
-                    icon: Icon(Lucide.Ellipsis, size: 16),
-                    onPressed: widget.onMore,
-                    tooltip: l10n.chatMessageWidgetMoreTooltip,
-                    visualDensity: VisualDensity.compact,
-                    iconSize: 16,
+                  Builder(
+                    builder: (btnContext) {
+                      return IconButton(
+                        icon: Icon(Lucide.Ellipsis, size: 16),
+                        onPressed: widget.onMore == null ? null : () {
+                          // Get button position before calling onMore
+                          final renderBox = btnContext.findRenderObject() as RenderBox?;
+                          if (renderBox != null) {
+                            final offset = renderBox.localToGlobal(Offset.zero);
+                            final size = renderBox.size;
+                            // Set position to right-center of button (let menu auto-position above/below)
+                            DesktopMenuAnchor.setPosition(Offset(offset.dx + size.width, offset.dy + size.height / 2));
+                          }
+                          widget.onMore!();
+                        },
+                        tooltip: l10n.chatMessageWidgetMoreTooltip,
+                        visualDensity: VisualDensity.compact,
+                        iconSize: 16,
+                      );
+                    },
                   ),
                 ],
                 if (showVersionSwitcher) ...[
@@ -923,13 +937,36 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         final String tokenText = tokenParts.join(' ');
 
                         // Build detailed tooltip lines
-                        final List<String> tooltipLines = [
-                          '输入: ${tokenUsage.promptTokens}',
-                          '输出: ${tokenUsage.completionTokens}',
-                          if (tokenUsage.thoughtTokens > 0) '思考: ${tokenUsage.thoughtTokens}',
-                          if (tokenUsage.cachedTokens > 0) '缓存: ${tokenUsage.cachedTokens}',
-                          '总计: ${tokenUsage.totalTokens}',
-                        ];
+                        final List<String> tooltipLines = [];
+
+                        // If we have rounds data, show each round
+                        if (tokenUsage.rounds != null && tokenUsage.rounds!.isNotEmpty) {
+                          for (int i = 0; i < tokenUsage.rounds!.length; i++) {
+                            final round = tokenUsage.rounds![i];
+                            final roundNum = i + 1;
+                            tooltipLines.add('--- 第 $roundNum 轮 ---');
+                            tooltipLines.add('  输入: ${round['promptTokens'] ?? 0}');
+                            tooltipLines.add('  输出: ${round['completionTokens'] ?? 0}');
+                            if ((round['thoughtTokens'] ?? 0) > 0) {
+                              tooltipLines.add('  思考: ${round['thoughtTokens']}');
+                            }
+                            if ((round['cachedTokens'] ?? 0) > 0) {
+                              tooltipLines.add('  缓存: ${round['cachedTokens']}');
+                            }
+                          }
+                          tooltipLines.add('--- 总计 ---');
+                        }
+
+                        // Always show totals
+                        tooltipLines.add('输入: ${tokenUsage.promptTokens}');
+                        tooltipLines.add('输出: ${tokenUsage.completionTokens}');
+                        if (tokenUsage.thoughtTokens > 0) {
+                          tooltipLines.add('思考: ${tokenUsage.thoughtTokens}');
+                        }
+                        if (tokenUsage.cachedTokens > 0) {
+                          tooltipLines.add('缓存: ${tokenUsage.cachedTokens}');
+                        }
+                        tooltipLines.add('总计: ${tokenUsage.totalTokens}');
 
                         rowChildren.add(_TokenUsageDisplay(
                           tokenText: tokenText,
@@ -1240,12 +1277,26 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   visualDensity: VisualDensity.compact,
                   iconSize: 16,
                 ),
-                IconButton(
-                  icon: Icon(Lucide.Ellipsis, size: 16),
-                  onPressed: widget.onMore,
-                  tooltip: l10n.chatMessageWidgetMoreTooltip,
-                  visualDensity: VisualDensity.compact,
-                  iconSize: 16,
+                Builder(
+                  builder: (btnContext) {
+                    return IconButton(
+                      icon: Icon(Lucide.Ellipsis, size: 16),
+                      onPressed: widget.onMore == null ? null : () {
+                        // Get button position before calling onMore
+                        final renderBox = btnContext.findRenderObject() as RenderBox?;
+                        if (renderBox != null) {
+                          final offset = renderBox.localToGlobal(Offset.zero);
+                          final size = renderBox.size;
+                          // Set position to right-center of button (let menu auto-position above/below)
+                          DesktopMenuAnchor.setPosition(Offset(offset.dx + size.width, offset.dy + size.height / 2));
+                        }
+                        widget.onMore!();
+                      },
+                      tooltip: l10n.chatMessageWidgetMoreTooltip,
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 16,
+                    );
+                  },
                 ),
                 if ((widget.versionCount ?? 1) > 1) ...[
                   const SizedBox(width: 6),
