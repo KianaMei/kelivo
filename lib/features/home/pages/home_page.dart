@@ -51,7 +51,7 @@ import '../../../utils/brand_assets.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'dart:ui' as ui;
-import 'package:image_picker/image_picker.dart';
+import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io' show File, Directory;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -968,53 +968,33 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _onPickPhotos() async {
-    if (PlatformUtils.isWindows) {
-      // Windows doesn't support image picker yet, fallback to file picker
-      await _onPickFiles();
-      return;
-    }
-    
+    // Use FilePicker for all platforms (Android uses SAF), limited to images
     try {
-      final picker = ImagePicker();
-      final files = await PlatformUtils.callPlatformMethod(
-        () => picker.pickMultiImage(),
-        fallback: <XFile>[],
+      final res = await PlatformUtils.callPlatformMethod<FilePickerResult?>(
+        () => FilePicker.platform.pickFiles(
+          allowMultiple: true,
+          type: FileType.image,
+          withData: false,
+        ),
       );
-      
-      if (files == null || files.isEmpty) return;
+      if (res == null || res.files.isEmpty) return;
+      final files = res.files
+          .where((f) => (f.path ?? '').isNotEmpty)
+          .map((f) => XFile(f.path!))
+          .toList(growable: false);
       final paths = await _copyPickedFiles(files);
       if (paths.isNotEmpty) {
         _mediaController.addImages(paths);
         if (!_isUserScrolling) _scrollToBottomSoon();
       }
     } catch (e) {
-      debugPrint('Error picking photos: $e');
+      debugPrint('Error picking images with FilePicker: $e');
     }
   }
 
   Future<void> _onPickCamera() async {
-    if (!PlatformUtils.supportsCamera) {
-      // Fallback to file picker on unsupported platforms
-      await _onPickFiles();
-      return;
-    }
-    
-    try {
-      final picker = ImagePicker();
-      final file = await PlatformUtils.callPlatformMethod(
-        () => picker.pickImage(source: ImageSource.camera),
-        fallback: null,
-      );
-      
-      if (file == null) return;
-      final paths = await _copyPickedFiles([file]);
-      if (paths.isNotEmpty) {
-        _mediaController.addImages(paths);
-        if (!_isUserScrolling) _scrollToBottomSoon();
-      }
-    } catch (e) {
-      debugPrint('Error picking from camera: $e');
-    }
+    // Unify behavior: also open image file picker instead of camera
+    await _onPickPhotos();
   }
 
   String _inferMimeByExtension(String name) {
