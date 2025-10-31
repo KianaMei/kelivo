@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -2596,6 +2597,7 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
   bool _isHovering = false;
   bool _isExpanded = false;
   OverlayEntry? _overlayEntry;
+  Timer? _autoHideTimer;
 
   @override
   void dispose() {
@@ -2606,6 +2608,8 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
   void _removeOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
+    _autoHideTimer?.cancel();
+    _autoHideTimer = null;
   }
 
   void _showOverlay(BuildContext context) {
@@ -2754,17 +2758,8 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) {
-        setState(() => _isHovering = true);
-        _showOverlay(context);
-      },
-      onExit: (_) {
-        setState(() => _isHovering = false);
-        _removeOverlay();
-      },
-      cursor: SystemMouseCursors.help,
-      child: Row(
+    // Support both desktop hover and mobile tap/long-press.
+    final content = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
@@ -2786,6 +2781,36 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
             ),
           ],
         ],
+      );
+
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _isHovering = true);
+        _showOverlay(context);
+      },
+      onExit: (_) {
+        setState(() => _isHovering = false);
+        _removeOverlay();
+      },
+      cursor: SystemMouseCursors.help,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          // Toggle overlay on tap (mobile friendly). Auto-hide after a short delay.
+          if (_overlayEntry == null) {
+            _showOverlay(context);
+            _autoHideTimer?.cancel();
+            _autoHideTimer = Timer(const Duration(seconds: 3), _removeOverlay);
+          } else {
+            _removeOverlay();
+          }
+        },
+        onLongPress: () {
+          if (_overlayEntry == null) {
+            _showOverlay(context);
+          }
+        },
+        child: content,
       ),
     );
   }
