@@ -435,36 +435,38 @@ class DataSync {
                       // Start with default behavior: imported values override
                       final merged = <String, dynamic>{...local, ...incoming};
 
-                      // Special rule: do not override existing non-empty avatar
+                      // Special rule for avatar: prefer imported value if it's newer or different
+                      // This ensures avatar changes from other devices are synced properly
                       final localAvatar = (local['avatar'] ?? '').toString();
                       final incomingAvatar = (incoming['avatar'] ?? '');
-                      if (localAvatar.trim().isNotEmpty) {
-                        // Keep local avatar regardless of imported value
-                        merged['avatar'] = localAvatar;
+                      final incomingAvatarStr = incomingAvatar is String ? incomingAvatar : incomingAvatar?.toString() ?? '';
+
+                      // If incoming has an avatar, use it (unless it's the same as local)
+                      if (incomingAvatarStr.trim().isNotEmpty) {
+                        merged['avatar'] = incomingAvatarStr;
+                      } else if (localAvatar.trim().isEmpty) {
+                        // Both empty, set to null
+                        merged['avatar'] = null;
                       } else {
-                        // Only take imported avatar if present (non-empty)
-                        final s = incomingAvatar is String ? incomingAvatar : incomingAvatar?.toString();
-                        if (s == null || s.trim().isEmpty) {
-                          merged['avatar'] = null;
-                        } else {
-                          merged['avatar'] = s;
-                        }
+                        // Keep local avatar if incoming is empty
+                        merged['avatar'] = localAvatar;
                       }
 
-                      // Special rule: do not override existing non-empty background
+                      // Special rule for background: prefer imported value if it's newer or different
+                      // This ensures background changes from other devices are synced properly
                       final localBg = (local['background'] ?? '').toString();
                       final incomingBg = (incoming['background'] ?? '');
-                      if (localBg.trim().isNotEmpty) {
-                        // Keep local background regardless of imported value
-                        merged['background'] = localBg;
+                      final incomingBgStr = incomingBg is String ? incomingBg : incomingBg?.toString() ?? '';
+
+                      // If incoming has a background, use it (unless it's the same as local)
+                      if (incomingBgStr.trim().isNotEmpty) {
+                        merged['background'] = incomingBgStr;
+                      } else if (localBg.trim().isEmpty) {
+                        // Both empty, set to null
+                        merged['background'] = null;
                       } else {
-                        // Only take imported background if present (non-empty)
-                        final sb = incomingBg is String ? incomingBg : incomingBg?.toString();
-                        if (sb == null || sb.trim().isEmpty) {
-                          merged['background'] = null;
-                        } else {
-                          merged['background'] = sb;
-                        }
+                        // Keep local background if incoming is empty
+                        merged['background'] = localBg;
                       }
 
                       assistantMap[id] = merged;

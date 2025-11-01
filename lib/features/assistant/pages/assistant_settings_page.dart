@@ -567,7 +567,8 @@ class _AssistantAvatar extends StatelessWidget {
             );
           },
         );
-        } else if (!kIsWeb && (av.startsWith('/') || av.contains(':'))) {
+      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':'))) {
+        // Local file path - use SandboxPathResolver to handle cross-device paths
         final fixed = SandboxPathResolver.fix(av);
         return ClipOval(
           child: Image(
@@ -575,6 +576,7 @@ class _AssistantAvatar extends StatelessWidget {
             width: size,
             height: size,
             fit: BoxFit.cover,
+            errorBuilder: (c, e, s) => _initial(cs),
           ),
         );
       } else {
