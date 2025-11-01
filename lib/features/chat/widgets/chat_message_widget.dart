@@ -2649,10 +2649,10 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                   // Prevent taps on the card itself from closing it
                 },
                 child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(8),
-                color: widget.colorScheme.surface,
-                child: Container(
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(8),
+                  color: widget.colorScheme.surface,
+                  child: Container(
                   constraints: const BoxConstraints(maxWidth: 300),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
@@ -2760,6 +2760,7 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                         }),
                       ],
                     ],
+                    ),
                   ),
                 ),
               ),
