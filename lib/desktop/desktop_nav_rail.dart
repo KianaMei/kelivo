@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:characters/characters.dart';
 import '../l10n/app_localizations.dart';
 import '../core/providers/user_provider.dart';
+import '../core/providers/assistant_provider.dart';
 import '../core/providers/settings_provider.dart';
 import 'user_profile_dialog.dart';
 import '../icons/lucide_adapter.dart' as lucide;
@@ -62,7 +63,13 @@ class DesktopNavRail extends StatelessWidget {
           const Spacer(),
           _ThemeCycleButton(),
           const SizedBox(height: 8),
-          _CircleAction(tooltip: l10n.desktopNavSettingsTooltip, icon: lucide.Lucide.Settings, onTap: onTapSettings, size: 40, iconSize: 18),
+          _CircleAction(
+            tooltip: l10n.desktopNavSettingsTooltip,
+            icon: lucide.Lucide.Settings,
+            onTap: onTapSettings,
+            size: 40,
+            iconSize: 18,
+          ),
           const SizedBox(height: 12),
         ],
       ),
@@ -76,7 +83,6 @@ class _UserAvatarButton extends StatefulWidget {
 }
 
 class _UserAvatarButtonState extends State<_UserAvatarButton> {
-
   @override
   Widget build(BuildContext context) {
     final up = context.watch<UserProvider>();
@@ -88,20 +94,45 @@ class _UserAvatarButtonState extends State<_UserAvatarButton> {
       avatar = Container(
         width: 36,
         height: 36,
-        decoration: BoxDecoration(color: cs.primary.withOpacity(0.15), shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: cs.primary.withOpacity(0.15),
+          shape: BoxShape.circle,
+        ),
         alignment: Alignment.center,
-        child: Text(value, style: const TextStyle(fontSize: 18, decoration: TextDecoration.none)),
+        child: Text(
+          value,
+          style: const TextStyle(fontSize: 18, decoration: TextDecoration.none),
+        ),
       );
     } else if (type == 'url' && value != null && value.isNotEmpty) {
       avatar = ClipOval(
-        child: Image.network(value, width: 36, height: 36, fit: BoxFit.cover, errorBuilder: (_, __, ___) {
-          return _initialAvatar(up.name, cs);
-        }),
+        child: Image.network(
+          value,
+          width: 36,
+          height: 36,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) {
+            return _initialAvatar(up.name, cs);
+          },
+        ),
       );
     } else if (type == 'file' && value != null && value.isNotEmpty) {
-      // Local file path
-      avatar = ClipOval(
-        child: Image(image: FileImage(File(value)), width: 36, height: 36, fit: BoxFit.cover),
+      avatar = FutureBuilder<String?>(
+        future: AssistantProvider.resolveToAbsolutePath(value),
+        builder: (ctx, snap) {
+          final path = snap.data;
+          if (path != null && File(path).existsSync()) {
+            return ClipOval(
+              child: Image(
+                image: FileImage(File(path)),
+                width: 36,
+                height: 36,
+                fit: BoxFit.cover,
+              ),
+            );
+          }
+          return _initialAvatar(up.name, cs);
+        },
       );
     } else {
       avatar = _initialAvatar(up.name, cs);
@@ -129,9 +160,19 @@ class _UserAvatarButtonState extends State<_UserAvatarButton> {
     return Container(
       width: 36,
       height: 36,
-      decoration: BoxDecoration(color: cs.primary.withOpacity(0.15), shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: cs.primary.withOpacity(0.15),
+        shape: BoxShape.circle,
+      ),
       alignment: Alignment.center,
-      child: Text(letter, style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, decoration: TextDecoration.none)),
+      child: Text(
+        letter,
+        style: TextStyle(
+          color: cs.primary,
+          fontWeight: FontWeight.w700,
+          decoration: TextDecoration.none,
+        ),
+      ),
     );
   }
 
@@ -139,7 +180,14 @@ class _UserAvatarButtonState extends State<_UserAvatarButton> {
 }
 
 class _CircleAction extends StatelessWidget {
-  const _CircleAction({required this.icon, required this.onTap, required this.tooltip, this.size = 44, this.iconSize = 20, this.iconColor});
+  const _CircleAction({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+    this.size = 44,
+    this.iconSize = 20,
+    this.iconColor,
+  });
   final IconData icon;
   final VoidCallback onTap;
   final String tooltip;

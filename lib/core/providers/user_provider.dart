@@ -1,21 +1,25 @@
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import '../../utils/sandbox_path_resolver.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../utils/avatar_cache.dart';
+import '../../utils/sandbox_path_resolver.dart';
 
 class UserProvider extends ChangeNotifier {
   static const String _prefsUserNameKey = 'user_name';
-  static const String _prefsAvatarTypeKey = 'avatar_type'; // emoji | url | file | null
+  static const String _prefsAvatarTypeKey =
+      'avatar_type'; // emoji | url | file | null
   static const String _prefsAvatarValueKey = 'avatar_value';
 
   String _name = 'User';
-  String get name => _name;
   bool _hasSavedName = false;
-
   String? _avatarType; // 'emoji', 'url', 'file'
   String? _avatarValue;
+
+  String get name => _name;
   String? get avatarType => _avatarType;
   String? get avatarValue => _avatarValue;
 
@@ -25,28 +29,39 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final n = prefs.getString(_prefsUserNameKey);
-    if (n != null && n.isNotEmpty) {
-      _name = n;
+    final savedName = prefs.getString(_prefsUserNameKey);
+    if (savedName != null && savedName.isNotEmpty) {
+      _name = savedName;
       _hasSavedName = true;
       notifyListeners();
     }
+
     _avatarType = prefs.getString(_prefsAvatarTypeKey);
     final rawAvatar = prefs.getString(_prefsAvatarValueKey);
-    _avatarValue = rawAvatar == null ? null : SandboxPathResolver.fix(rawAvatar);
-    // Only notify if avatar exists; otherwise rely on name notify above
+    if (_avatarType == 'file' &&
+        rawAvatar != null &&
+        rawAvatar.trim().isNotEmpty) {
+      final normalized = await _normalizeStoredAvatarValue(rawAvatar);
+      _avatarValue = normalized;
+      if (normalized != rawAvatar) {
+        await prefs.setString(_prefsAvatarValueKey, normalized);
+      }
+    } else {
+      final trimmed = rawAvatar?.trim();
+      _avatarValue = (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+    }
+
     if (_avatarType != null && _avatarValue != null) {
       notifyListeners();
     }
   }
 
-  // Set localized default name if user hasn't saved a custom one
   void setDefaultNameIfUnset(String localizedDefaultName) {
     if (_hasSavedName) return;
-    final v = localizedDefaultName.trim();
-    if (v.isEmpty) return;
-    if (_name != v) {
-      _name = v;
+    final trimmed = localizedDefaultName.trim();
+    if (trimmed.isEmpty) return;
+    if (_name != trimmed) {
+      _name = trimmed;
       notifyListeners();
     }
   }
@@ -61,10 +76,10 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> setAvatarEmoji(String emoji) async {
-    final e = emoji.trim();
-    if (e.isEmpty) return;
+    final trimmed = emoji.trim();
+    if (trimmed.isEmpty) return;
     _avatarType = 'emoji';
-    _avatarValue = e;
+    _avatarValue = trimmed;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsAvatarTypeKey, _avatarType!);
@@ -72,64 +87,75 @@ class UserProvider extends ChangeNotifier {
   }
 
   Future<void> setAvatarUrl(String url) async {
-    final u = url.trim();
-    if (u.isEmpty) return;
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return;
     _avatarType = 'url';
-    _avatarValue = u;
+    _avatarValue = trimmed;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsAvatarTypeKey, _avatarType!);
     await prefs.setString(_prefsAvatarValueKey, _avatarValue!);
-    // Prefetch to enable offline display later
-    try { await AvatarCache.getPath(u); } catch (_) {}
+    try {
+      await AvatarCache.getPath(trimmed);
+    } catch (_) {}
   }
 
   Future<void> setAvatarFilePath(String path) async {
-    final p = path.trim();
-    if (p.isEmpty) return;
-    final fixedInput = SandboxPathResolver.fix(p);
-    // Copy the picked image into app persistent storage so it survives reinstall/update
+    final trimmed = path.trim();
+    if (trimmed.isEmpty) return;
+    final fixedInput = SandboxPathResolver.fix(trimmed);
     try {
       final src = File(fixedInput);
       if (!await src.exists()) return;
-      final dir = await getApplicationDocumentsDirectory();
-      final avatars = Directory('${dir.path}/avatars');
-      if (!await avatars.exists()) {
-        await avatars.create(recursive: true);
+
+      final docs = await getApplicationDocumentsDirectory();
+      final avatarsDir = Directory(p.join(docs.path, 'avatars'));
+      if (!await avatarsDir.exists()) {
+        await avatarsDir.create(recursive: true);
       }
+
       String ext = '';
       final dot = fixedInput.lastIndexOf('.');
-      if (dot != -1 && dot < p.length - 1) {
+      if (dot != -1 && dot < fixedInput.length - 1) {
         ext = fixedInput.substring(dot + 1).toLowerCase();
-        // Basic sanitize
         if (ext.length > 6) ext = 'jpg';
       } else {
         ext = 'jpg';
       }
+
       final filename = 'avatar_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      final dest = File('${avatars.path}/$filename');
+      final dest = File(p.join(avatarsDir.path, filename));
       await src.copy(dest.path);
 
-      // Optionally clean old local avatar if it was stored inside our avatars folder
       if (_avatarType == 'file' && _avatarValue != null) {
         try {
-          final old = File(_avatarValue!);
-          if (old.path.contains('/avatars/') && await old.exists()) {
-            await old.delete();
+          final resolved = await _resolveAvatarAbsolutePath(_avatarValue!);
+          if (resolved != null) {
+            final normalizedResolved = p.normalize(resolved);
+            final normalizedAvatarsDir = p.normalize(avatarsDir.path);
+            if (p.isWithin(normalizedAvatarsDir, normalizedResolved)) {
+              final old = File(normalizedResolved);
+              if (await old.exists()) {
+                await old.delete();
+              }
+            }
           }
         } catch (_) {}
       }
 
       _avatarType = 'file';
-      _avatarValue = dest.path;
+      final relPath = p
+          .relative(dest.path, from: docs.path)
+          .replaceAll('\\', '/');
+      _avatarValue = relPath;
       notifyListeners();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsAvatarTypeKey, _avatarType!);
       await prefs.setString(_prefsAvatarValueKey, _avatarValue!);
     } catch (_) {
-      // Fallback to original path if copy fails (may still be temporary)
+      final normalized = await _normalizeStoredAvatarValue(fixedInput);
       _avatarType = 'file';
-      _avatarValue = fixedInput;
+      _avatarValue = normalized;
       notifyListeners();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsAvatarTypeKey, _avatarType!);
@@ -144,5 +170,35 @@ class UserProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefsAvatarTypeKey);
     await prefs.remove(_prefsAvatarValueKey);
+  }
+
+  Future<String> _normalizeStoredAvatarValue(String raw) async {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (!trimmed.startsWith('/') && !trimmed.contains(':')) {
+      return trimmed.replaceAll('\\', '/');
+    }
+
+    final fixed = SandboxPathResolver.fix(trimmed);
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final normalizedDocs = p.normalize(docs.path);
+      final normalizedFile = p.normalize(fixed);
+      final rel = p.relative(normalizedFile, from: normalizedDocs);
+      if (!rel.startsWith('..') && !p.isAbsolute(rel)) {
+        return rel.replaceAll('\\', '/');
+      }
+    } catch (_) {}
+    return fixed;
+  }
+
+  Future<String?> _resolveAvatarAbsolutePath(String value) async {
+    if (value.isEmpty) return null;
+    if (value.startsWith('http')) return null;
+    if (value.startsWith('/') || value.contains(':')) {
+      return SandboxPathResolver.fix(value);
+    }
+    final docs = await getApplicationDocumentsDirectory();
+    return p.join(docs.path, value);
   }
 }
