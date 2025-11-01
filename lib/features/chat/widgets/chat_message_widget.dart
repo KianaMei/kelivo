@@ -597,18 +597,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                 if (parsed.text.isNotEmpty)
-                  SelectionArea(
-                    child: Text(
-                      parsed.text,
-                      style: TextStyle(
-                        fontSize: 15.5, // ~112% larger default for user text
-                        height: 1.4,
-                        color: cs.onSurface,
-                        // // Keep user text slightly bolder on non‑iOS; normal on iOS
-                        // fontWeight: Theme.of(context).platform == TargetPlatform.iOS
-                        //     ? FontWeight.w400
-                        //     : FontWeight.w500,
-                      ),
+                  Text(
+                    parsed.text,
+                    style: TextStyle(
+                      fontSize: 15.5, // ~112% larger default for user text
+                      height: 1.4,
+                      color: cs.onSurface,
+                      // // Keep user text slightly bolder on non‑iOS; normal on iOS
+                      // fontWeight: Theme.of(context).platform == TargetPlatform.iOS
+                      //     ? FontWeight.w400
+                      //     : FontWeight.w500,
                     ),
                   ),
                 if (parsed.images.isNotEmpty) ...[
@@ -743,7 +741,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                   const SizedBox(width: 6),
                                   ConstrainedBox(
                                     constraints: const BoxConstraints(maxWidth: 180),
-                                    child: SelectableText(d.fileName, maxLines: 1),
+                                    child: Text(d.fileName, overflow: TextOverflow.ellipsis),
                                   ),
                                 ],
                               ),
