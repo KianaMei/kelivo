@@ -2596,6 +2596,7 @@ class _TokenUsageDisplay extends StatefulWidget {
 class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
   bool _isHovering = false;
   bool _isExpanded = false;
+  bool _isHoveringCard = false; // Track if hovering over the card itself
   OverlayEntry? _overlayEntry;
   Timer? _autoHideTimer;
 
@@ -2610,7 +2611,10 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
     _overlayEntry = null;
     _autoHideTimer?.cancel();
     _autoHideTimer = null;
-    setState(() => _isExpanded = false);
+    setState(() {
+      _isExpanded = false;
+      _isHoveringCard = false;
+    });
   }
 
   void _showOverlay(BuildContext context) {
@@ -2643,6 +2647,15 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
             child: MouseRegion(
               onEnter: (_) {
                 // Keep overlay open when hovering over the card itself
+                setState(() => _isHoveringCard = true);
+              },
+              onExit: (_) {
+                // Mark that we left the card
+                setState(() => _isHoveringCard = false);
+                // Close overlay if we're not hovering over the trigger either
+                if (!_isHovering && !_isExpanded) {
+                  _removeOverlay();
+                }
               },
               child: GestureDetector(
                 onTap: () {
@@ -2810,10 +2823,13 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
       },
       onExit: (_) {
         setState(() => _isHovering = false);
-        if (!_isExpanded) {
-          // Only remove overlay on exit if not explicitly expanded (tapped)
-          _removeOverlay();
-        }
+        // Use a small delay to allow mouse to move to the card
+        Future.delayed(const Duration(milliseconds: 50), () {
+          // Only close if we're not hovering over the card and not explicitly expanded
+          if (!_isHoveringCard && !_isExpanded && _overlayEntry != null) {
+            _removeOverlay();
+          }
+        });
       },
       cursor: SystemMouseCursors.help,
       child: GestureDetector(
