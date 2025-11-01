@@ -2683,98 +2683,100 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Only show basic tooltip info if no rounds data
-                      if (widget.rounds == null || widget.rounds!.isEmpty)
-                        ...widget.tooltipLines.map((line) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Text(
-                              line,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: widget.colorScheme.onSurface,
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                          );
-                        }),
-                      // Show rounds breakdown if available
-                      if (widget.rounds != null && widget.rounds!.isNotEmpty) ...[
-                        ...widget.rounds!.asMap().entries.map((entry) {
-                          final idx = entry.key;
-                          final round = entry.value;
-                          final prompt = round['promptTokens'] ?? 0;
-                          final completion = round['completionTokens'] ?? 0;
-                          final thought = round['thoughtTokens'] ?? 0;
-                          final cached = round['cachedTokens'] ?? 0;
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '第 ${idx + 1} 轮:',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: widget.colorScheme.primary.withOpacity(0.8),
-                                    fontFamily: 'monospace',
-                                  ),
+                  child: SelectionArea(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Only show basic tooltip info if no rounds data
+                        if (widget.rounds == null || widget.rounds!.isEmpty)
+                          ...widget.tooltipLines.map((line) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Text(
+                                line,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: widget.colorScheme.onSurface,
+                                  fontFamily: 'monospace',
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 8),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '  输入↓: $prompt',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: widget.colorScheme.onSurface.withOpacity(0.8),
-                                          fontFamily: 'monospace',
-                                        ),
-                                      ),
-                                      Text(
-                                        '  输出↑: $completion',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: widget.colorScheme.onSurface.withOpacity(0.8),
-                                          fontFamily: 'monospace',
-                                        ),
-                                      ),
-                                      if (thought > 0)
+                              ),
+                            );
+                          }),
+                        // Show rounds breakdown if available
+                        if (widget.rounds != null && widget.rounds!.isNotEmpty) ...[
+                          ...widget.rounds!.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final round = entry.value;
+                            final prompt = round['promptTokens'] ?? 0;
+                            final completion = round['completionTokens'] ?? 0;
+                            final thought = round['thoughtTokens'] ?? 0;
+                            final cached = round['cachedTokens'] ?? 0;
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '第 ${idx + 1} 轮:',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: widget.colorScheme.primary.withOpacity(0.8),
+                                      fontFamily: 'monospace',
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
                                         Text(
-                                          '  思考💭: $thought',
+                                          '  输入↓: $prompt',
                                           style: TextStyle(
                                             fontSize: 11,
                                             color: widget.colorScheme.onSurface.withOpacity(0.8),
                                             fontFamily: 'monospace',
                                           ),
                                         ),
-                                      if (cached > 0)
                                         Text(
-                                          '  缓存♻: $cached',
+                                          '  输出↑: $completion',
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: widget.colorScheme.primary.withOpacity(0.8),
+                                            color: widget.colorScheme.onSurface.withOpacity(0.8),
                                             fontFamily: 'monospace',
                                           ),
                                         ),
-                                    ],
+                                        if (thought > 0)
+                                          Text(
+                                            '  思考💭: $thought',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: widget.colorScheme.onSurface.withOpacity(0.8),
+                                              fontFamily: 'monospace',
+                                            ),
+                                          ),
+                                        if (cached > 0)
+                                          Text(
+                                            '  缓存♻: $cached',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: widget.colorScheme.primary.withOpacity(0.8),
+                                              fontFamily: 'monospace',
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
                       ],
-                    ],
                     ),
+                  ),
                   ),
                 ),
               ),
