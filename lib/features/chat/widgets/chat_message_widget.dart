@@ -2610,6 +2610,7 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
     _overlayEntry = null;
     _autoHideTimer?.cancel();
     _autoHideTimer = null;
+    setState(() => _isExpanded = false);
   }
 
   void _showOverlay(BuildContext context) {
@@ -2625,23 +2626,29 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
     _overlayEntry = OverlayEntry(
       builder: (context) => Stack(
         children: [
-          // Transparent background to capture taps outside the card (for mobile)
-          GestureDetector(
-            onTap: _handleOutsideTap,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              color: Colors.transparent,
+          // Transparent background to capture taps outside the card (for mobile only)
+          // Don't use this for desktop as it interferes with MouseRegion hover detection
+          if (_isExpanded) // Only show background when explicitly tapped (mobile)
+            GestureDetector(
+              onTap: _handleOutsideTap,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                color: Colors.transparent,
+              ),
             ),
-          ),
           // The actual token info card
           Positioned(
             left: offset.dx,
             top: offset.dy + size.height + 4,
-            child: GestureDetector(
-              onTap: () {
-                // Prevent taps on the card itself from closing it
+            child: MouseRegion(
+              onEnter: (_) {
+                // Keep overlay open when hovering over the card itself
               },
-              child: Material(
+              child: GestureDetector(
+                onTap: () {
+                  // Prevent taps on the card itself from closing it
+                },
+                child: Material(
                 elevation: 4,
                 borderRadius: BorderRadius.circular(8),
                 color: widget.colorScheme.surface,
@@ -2794,12 +2801,18 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
 
     return MouseRegion(
       onEnter: (_) {
-        setState(() => _isHovering = true);
+        setState(() {
+          _isHovering = true;
+          _isExpanded = false; // Hover doesn't need background layer
+        });
         _showOverlay(context);
       },
       onExit: (_) {
         setState(() => _isHovering = false);
-        _removeOverlay();
+        if (!_isExpanded) {
+          // Only remove overlay on exit if not explicitly expanded (tapped)
+          _removeOverlay();
+        }
       },
       cursor: SystemMouseCursors.help,
       child: GestureDetector(
@@ -2807,15 +2820,21 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
         onTap: () {
           // Toggle overlay on tap (mobile friendly). Auto-hide after a short delay.
           if (_overlayEntry == null) {
+            setState(() => _isExpanded = true); // Mark as explicitly expanded
             _showOverlay(context);
             _autoHideTimer?.cancel();
-            _autoHideTimer = Timer(const Duration(seconds: 3), _removeOverlay);
+            _autoHideTimer = Timer(const Duration(seconds: 3), () {
+              setState(() => _isExpanded = false);
+              _removeOverlay();
+            });
           } else {
+            setState(() => _isExpanded = false);
             _removeOverlay();
           }
         },
         onLongPress: () {
           if (_overlayEntry == null) {
+            setState(() => _isExpanded = true); // Mark as explicitly expanded
             _showOverlay(context);
           }
         },
