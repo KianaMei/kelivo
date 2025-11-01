@@ -126,6 +126,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
   final Map<LogicalKeyboardKey, Timer?> _repeatTimers = {};
   static const Duration _repeatInitialDelay = Duration(milliseconds: 300);
   static const Duration _repeatPeriod = Duration(milliseconds: 35);
+  // Collapse toggle for a subset of quick-action buttons (tool loop / camera / learning / mini-map).
+  // Default collapsed as requested.
+  bool _extraActionsCollapsed = true;
 
   void _addImages(List<String> paths) {
     if (paths.isEmpty) return;
@@ -751,16 +754,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 // ),
                               ),
                             ],
-                            // Tool Loop button placed immediately to the right of MCP
-                            if (widget.onConfigureToolLoop != null) ...[
-                              const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: '工具循环次数',
-                                icon: Lucide.RefreshCw,
-                                active: false,
-                                onTap: widget.onConfigureToolLoop,
-                              ),
-                            ],
+                            //（已调整到最右端折叠区）
                             // Quick Phrase button placed immediately to the right of Tool Loop
                             if (widget.showQuickPhraseButton && widget.onQuickPhrase != null) ...[
                               const SizedBox(width: 8),
@@ -771,14 +765,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onLongPress: widget.onLongPressQuickPhrase,
                               ),
                             ],
-                            if (widget.onPickCamera != null) ...[
-                              const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.bottomToolsSheetCamera,
-                                icon: Lucide.Camera,
-                                onTap: widget.onPickCamera,
-                              ),
-                            ],
+                            //（已调整到最右端折叠区）
                             if (widget.onPickPhotos != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -795,16 +782,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onUploadFiles,
                               ),
                             ],
-                            if (widget.onToggleLearningMode != null) ...[
-                              const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.bottomToolsSheetLearningMode,
-                                icon: Lucide.BookOpenText,
-                                active: widget.learningModeActive,
-                                onTap: widget.onToggleLearningMode,
-                                onLongPress: widget.onLongPressLearning,
-                              ),
-                            ],
+                            //（已调整到最右端折叠区）
                             if (widget.onClearContext != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -813,13 +791,50 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onClearContext,
                               ),
                             ],
-                            if (widget.showMiniMapButton) ...[
-                              const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.miniMapTooltip,
-                                icon: Lucide.Map,
-                                onTap: widget.onOpenMiniMap,
-                              ),
+                            //（已调整到最右端折叠区）
+                            // Collapse toggle 放在图标区域的最右侧；展开时在其右边动态追加折叠组图标
+                            const SizedBox(width: 8),
+                            _CompactIconButton(
+                              tooltip: _extraActionsCollapsed ? '展开更多' : '收起',
+                              icon: _extraActionsCollapsed ? Lucide.ChevronRight : Lucide.ChevronLeft,
+                              onTap: () => setState(() => _extraActionsCollapsed = !_extraActionsCollapsed),
+                            ),
+                            if (!_extraActionsCollapsed) ...[
+                              if (widget.onConfigureToolLoop != null) ...[
+                                const SizedBox(width: 8),
+                                _CompactIconButton(
+                                  tooltip: '工具循环次数',
+                                  icon: Lucide.RefreshCw,
+                                  active: false,
+                                  onTap: widget.onConfigureToolLoop,
+                                ),
+                              ],
+                              if (widget.onPickCamera != null) ...[
+                                const SizedBox(width: 8),
+                                _CompactIconButton(
+                                  tooltip: AppLocalizations.of(context)!.bottomToolsSheetCamera,
+                                  icon: Lucide.Camera,
+                                  onTap: widget.onPickCamera,
+                                ),
+                              ],
+                              if (widget.onToggleLearningMode != null) ...[
+                                const SizedBox(width: 8),
+                                _CompactIconButton(
+                                  tooltip: AppLocalizations.of(context)!.bottomToolsSheetLearningMode,
+                                  icon: Lucide.BookOpenText,
+                                  active: widget.learningModeActive,
+                                  onTap: widget.onToggleLearningMode,
+                                  onLongPress: widget.onLongPressLearning,
+                                ),
+                              ],
+                              if (widget.showMiniMapButton) ...[
+                                const SizedBox(width: 8),
+                                _CompactIconButton(
+                                  tooltip: AppLocalizations.of(context)!.miniMapTooltip,
+                                  icon: Lucide.Map,
+                                  onTap: widget.onOpenMiniMap,
+                                ),
+                              ],
                             ],
                           ],
                         ),

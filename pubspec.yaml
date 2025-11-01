@@ -66,6 +66,11 @@ dependencies:
   share_plus: ^11.1.0
   pretty_qr_code: ^3.5.0
   mobile_scanner: ^7.0.1
+  # Capture photos from device camera (Android/Windows via federated implementation)
+  camera: ^0.10.5+9
+  camera_windows: ^0.2.1
+  # Request runtime camera permission where needed
+  permission_handler: ^11.3.1
   mcp_client: ^1.0.2
   flutter_highlight: ^0.7.0
   syncfusion_flutter_sliders: ^30.2.6
