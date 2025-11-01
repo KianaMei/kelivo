@@ -32,11 +32,19 @@ class AssistantProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_assistantsKey);
     if (raw != null && raw.isNotEmpty) {
+      final loaded = Assistant.decodeList(raw);
+      // Normalize avatar and background paths for cross-platform compatibility
+      final normalized = await Future.wait(
+        loaded.map((a) async => await _normalizeAssistantPaths(a)),
+      );
       _assistants
         ..clear()
-        ..addAll(Assistant.decodeList(raw));
-      // Note: Paths are stored as relative paths (avatars/xxx.jpg)
-      // They will be resolved to absolute paths when needed for display
+        ..addAll(normalized);
+      // Save normalized paths if any changed
+      final normalizedJson = Assistant.encodeList(_assistants);
+      if (normalizedJson != raw) {
+        await prefs.setString(_assistantsKey, normalizedJson);
+      }
     }
     // Do not create defaults here because localization is not available.
     // Defaults will be ensured later via ensureDefaults(context).
@@ -48,6 +56,86 @@ class AssistantProvider extends ChangeNotifier {
       _currentAssistantId = null;
     }
     notifyListeners();
+  }
+
+  /// Normalize avatar and background paths to relative paths for cross-platform sync
+  Future<Assistant> _normalizeAssistantPaths(Assistant a) async {
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final avatarsDir = Directory('${docs.path}/avatars');
+      final imagesDir = Directory('${docs.path}/images');
+
+      String? normalizedAvatar = a.avatar;
+      String? normalizedBackground = a.background;
+
+      // Normalize avatar path
+      if (a.avatar != null && a.avatar!.trim().isNotEmpty) {
+        final av = a.avatar!.trim();
+        // If it's a local absolute path, try to convert to relative
+        if ((av.startsWith('/') || av.contains(':')) && !av.startsWith('http')) {
+          final fixedPath = SandboxPathResolver.fix(av);
+          final normalizedFixed = fixedPath.replaceAll('\\', '/');
+          final normalizedDocs = docs.path.replaceAll('\\', '/');
+
+          if (normalizedFixed.startsWith(normalizedDocs)) {
+            // Convert to relative path
+            final rel = normalizedFixed.substring(normalizedDocs.length + 1);
+            normalizedAvatar = rel;
+          } else if (File(fixedPath).existsSync() && await avatarsDir.exists()) {
+            // File exists but not under docs - copy it to avatars/
+            try {
+              final filename = 'assistant_${a.id}_${DateTime.now().millisecondsSinceEpoch}${_getExtension(fixedPath)}';
+              final dest = File('${avatarsDir.path}/$filename');
+              await File(fixedPath).copy(dest.path);
+              normalizedAvatar = 'avatars/$filename';
+            } catch (_) {}
+          }
+        } else {
+          // Already relative, ensure forward slashes
+          normalizedAvatar = av.replaceAll('\\', '/');
+        }
+      }
+
+      // Normalize background path
+      if (a.background != null && a.background!.trim().isNotEmpty) {
+        final bg = a.background!.trim();
+        if ((bg.startsWith('/') || bg.contains(':')) && !bg.startsWith('http')) {
+          final fixedPath = SandboxPathResolver.fix(bg);
+          final normalizedFixed = fixedPath.replaceAll('\\', '/');
+          final normalizedDocs = docs.path.replaceAll('\\', '/');
+
+          if (normalizedFixed.startsWith(normalizedDocs)) {
+            final rel = normalizedFixed.substring(normalizedDocs.length + 1);
+            normalizedBackground = rel;
+          } else if (File(fixedPath).existsSync() && await imagesDir.exists()) {
+            try {
+              final filename = 'background_${a.id}_${DateTime.now().millisecondsSinceEpoch}${_getExtension(fixedPath)}';
+              final dest = File('${imagesDir.path}/$filename');
+              await File(fixedPath).copy(dest.path);
+              normalizedBackground = 'images/$filename';
+            } catch (_) {}
+          }
+        } else {
+          normalizedBackground = bg.replaceAll('\\', '/');
+        }
+      }
+
+      if (normalizedAvatar != a.avatar || normalizedBackground != a.background) {
+        return a.copyWith(
+          avatar: normalizedAvatar,
+          background: normalizedBackground,
+        );
+      }
+    } catch (_) {}
+    return a;
+  }
+
+  String _getExtension(String path) {
+    final dot = path.lastIndexOf('.');
+    if (dot != -1 && dot < path.length - 1) {
+      return path.substring(dot);
+    }
+    return '.jpg';
   }
 
   Assistant _defaultAssistant(AppLocalizations l10n) => Assistant(
@@ -140,8 +228,9 @@ class AssistantProvider extends ChangeNotifier {
       final prevRaw = (prev.avatar ?? '').trim();
       final changed = raw != prevRaw;
       final isLocalPath = raw.isNotEmpty && (raw.startsWith('/') || raw.contains(':')) && !raw.startsWith('http');
-      // Skip if it's already under our avatars folder
-      if (changed && isLocalPath && !raw.contains('/avatars/')) {
+      // Skip if it's already under our avatars folder (check both / and \ separators)
+      final normalizedRaw = raw.replaceAll('\\', '/');
+      if (changed && isLocalPath && !normalizedRaw.contains('avatars/')) {
         final fixedInput = SandboxPathResolver.fix(raw);
         final src = File(fixedInput);
         if (await src.exists()) {
@@ -190,7 +279,9 @@ class AssistantProvider extends ChangeNotifier {
       final prevBgRaw = (prev.background ?? '').trim();
       final bgChanged = bgRaw != prevBgRaw;
       final bgIsLocal = bgRaw.isNotEmpty && (bgRaw.startsWith('/') || bgRaw.contains(':')) && !bgRaw.startsWith('http');
-      if (bgChanged && bgIsLocal && !bgRaw.contains('/images/')) {
+      // Skip if it's already under our images folder (check both / and \ separators)
+      final normalizedBgRaw = bgRaw.replaceAll('\\', '/');
+      if (bgChanged && bgIsLocal && !normalizedBgRaw.contains('images/')) {
         final fixedBg = SandboxPathResolver.fix(bgRaw);
         final srcBg = File(fixedBg);
         if (await srcBg.exists()) {
