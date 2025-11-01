@@ -131,15 +131,24 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             );
           },
         );
-      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':'))) {
-        final fixed = SandboxPathResolver.fix(av);
-        avatar = ClipOval(
-          child: Image(
-            image: FileImage(File(fixed)),
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-          ),
+      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':') || av.contains('/'))) {
+        // Resolve absolute path for both absolute and relative (avatars/...) cases
+        avatar = FutureBuilder<String?>(
+          future: AssistantProvider.resolveToAbsolutePath(av),
+          builder: (ctx, snap) {
+            final path = snap.data;
+            if (path != null && File(path).existsSync()) {
+              return ClipOval(
+                child: Image(
+                  image: FileImage(File(path)),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                ),
+              );
+            }
+            return _assistantInitialAvatar(cs, name, size);
+          },
         );
       } else {
         avatar = _assistantEmojiAvatar(cs, av, size);
@@ -1559,20 +1568,20 @@ extension on _SideDrawerState {
       '馃檹',
       '馃挭',
       '馃敟',
-      '鉁?,
+      '✅',
       '馃専',
       '馃挕',
       '馃帀',
       '馃帄',
       '馃巿',
       '馃寛',
-      '鈽€锔?,
+      '☀️',
       '馃寵',
-      '猸?,
-      '鈿?,
+      '⭐',
+      '⚡',
       '鈽侊笍',
       '鉂勶笍',
-      '馃導锔?,
+      '🖥️',
       '馃崕',
       '馃崐',
       '馃崑',
@@ -1601,10 +1610,10 @@ extension on _SideDrawerState {
       '馃崺',
       '馃崼',
       '馃嵒',
-      '鈽?,
+      '☕',
       '馃',
       '馃イ',
-      '鈿?,
+      '⚽',
       '馃弨',
       '馃張',
       '馃幘',
@@ -1618,16 +1627,16 @@ extension on _SideDrawerState {
       '鉁忥笍',
       '馃捈',
       '馃捇',
-      '馃枼锔?,
+      '🗂️',
       '馃摫',
-      '馃洨锔?,
+      '📡',
       '鉁堬笍',
       '馃殫',
       '馃殨',
       '馃殭',
       '馃殞',
       '馃殌',
-      '馃洶锔?,
+      '🛸',
       '馃',
       '馃珋',
       '馃拪',
@@ -2351,97 +2360,3 @@ class _LoadingDotState extends State<_LoadingDot>
     );
   }
 }
-
-  // Assistant avatar renderer (v2) that supports relative paths like avatars/xxx.jpg
-  Widget _assistantAvatar2(
-    BuildContext context,
-    Assistant? a, {
-    double size = 28,
-    VoidCallback? onTap,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final av = a?.avatar?.trim() ?? '';
-    final name = a?.name ?? '';
-
-    Widget avatar;
-    if (av.isNotEmpty) {
-      if (av.startsWith('http')) {
-        avatar = FutureBuilder<String?>(
-          future: AvatarCache.getPath(av),
-          builder: (ctx, snap) {
-            final p = snap.data;
-            if (p != null && !kIsWeb && File(p).existsSync()) {
-              return ClipOval(
-                child: Image(
-                  image: FileImage(File(p)),
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                ),
-              );
-            }
-            if (p != null && kIsWeb && p.startsWith('data:')) {
-              return ClipOval(
-                child: Image.network(p, width: size, height: size, fit: BoxFit.cover),
-              );
-            }
-            return ClipOval(
-              child: Image.network(
-                av,
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => _assistantInitialAvatar(cs, name, size),
-              ),
-            );
-          },
-        );
-      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':') || av.contains('/'))) {
-        // Resolve absolute path for both absolute and relative (avatars/...) cases
-        avatar = FutureBuilder<String?>(
-          future: AssistantProvider.resolveToAbsolutePath(av),
-          builder: (ctx, snap) {
-            final path = snap.data;
-            if (path != null && File(path).existsSync()) {
-              return ClipOval(
-                child: Image(
-                  image: FileImage(File(path)),
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                ),
-              );
-            }
-            return _assistantInitialAvatar(cs, name, size);
-          },
-        );
-      } else {
-        avatar = _assistantEmojiAvatar(cs, av, size);
-      }
-    } else {
-      avatar = _assistantInitialAvatar(cs, name, size);
-    }
-
-    final child = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: isDark ? Colors.white24 : Colors.black12,
-          width: 0.5,
-        ),
-      ),
-      child: avatar,
-    );
-
-    if (onTap == null) return child;
-
-    return InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: child,
-    );
-  }
-
