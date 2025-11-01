@@ -335,7 +335,7 @@ class DataSync {
   Future<File> exportToFile(WebDavConfig cfg) => prepareBackupFile(cfg);
 
   Future<void> restoreFromLocalFile(File file, WebDavConfig cfg, {RestoreMode mode = RestoreMode.overwrite}) async {
-    if (!await file.exists()) throw Exception('备份文件不存�?);
+    if (!await file.exists()) throw Exception('备份文件不存在');
     await _restoreFromBackupFile(file, cfg, mode: mode);
   }
 
