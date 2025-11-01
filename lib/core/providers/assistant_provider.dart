@@ -140,8 +140,9 @@ class AssistantProvider extends ChangeNotifier {
       final prevRaw = (prev.avatar ?? '').trim();
       final changed = raw != prevRaw;
       final isLocalPath = raw.isNotEmpty && (raw.startsWith('/') || raw.contains(':')) && !raw.startsWith('http');
-      // Skip if it's already under our avatars folder
-      if (changed && isLocalPath && !raw.contains('/avatars/')) {
+      // Skip if it's already under our avatars folder (normalize path separators for cross-platform check)
+      final normalizedRaw = raw.replaceAll('\\', '/');
+      if (changed && isLocalPath && !normalizedRaw.contains('avatars/')) {
         final fixedInput = SandboxPathResolver.fix(raw);
         final src = File(fixedInput);
         if (await src.exists()) {
@@ -190,7 +191,9 @@ class AssistantProvider extends ChangeNotifier {
       final prevBgRaw = (prev.background ?? '').trim();
       final bgChanged = bgRaw != prevBgRaw;
       final bgIsLocal = bgRaw.isNotEmpty && (bgRaw.startsWith('/') || bgRaw.contains(':')) && !bgRaw.startsWith('http');
-      if (bgChanged && bgIsLocal && !bgRaw.contains('/images/')) {
+      // Skip if it's already under our images folder (normalize path separators for cross-platform check)
+      final normalizedBgRaw = bgRaw.replaceAll('\\', '/');
+      if (bgChanged && bgIsLocal && !normalizedBgRaw.contains('images/')) {
         final fixedBg = SandboxPathResolver.fix(bgRaw);
         final srcBg = File(fixedBg);
         if (await srcBg.exists()) {
