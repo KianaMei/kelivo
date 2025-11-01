@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:characters/characters.dart';
@@ -81,7 +81,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   final ScrollController _listController = ScrollController();
 
   // Assistant avatar renderer shared across drawer views
-  Widget _assistantAvatar(
+  Widget _assistantAvatar2(
     BuildContext context,
     Assistant? a, {
     double size = 28,
@@ -581,7 +581,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    final textBase = isDark ? Colors.white : Colors.black; // 纯黑（白天），夜间自动适配
+    final textBase = isDark ? Colors.white : Colors.black; // 绾粦锛堢櫧澶╋級锛屽闂磋嚜鍔ㄩ€傞厤
     final chatService = context.watch<ChatService>();
     final ap = context.watch<AssistantProvider>();
     final currentAssistantId = ap.currentAssistantId;
@@ -752,7 +752,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 1. 搜索框 + 历史按钮（固定头部）
+                    // 1. 鎼滅储妗?+ 鍘嗗彶鎸夐挳锛堝浐瀹氬ご閮級
                     Row(
                       children: [
                         Expanded(
@@ -795,7 +795,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // 历史按钮（圆形，无水波纹）
+                        // 鍘嗗彶鎸夐挳锛堝渾褰紝鏃犳按娉㈢汗锛?
                         SizedBox(
                           width: 45,
                           height: 45,
@@ -829,7 +829,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
                     const SizedBox(height: 12),
 
-                    // 当前助手区域（固定）
+                    // 褰撳墠鍔╂墜鍖哄煙锛堝浐瀹氾級
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
                       child: KeyedSubtree(
@@ -859,7 +859,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
                           child: Row(
                             children: [
-                              _assistantAvatar(
+                              _assistantAvatar2(
                                 context,
                                 ap.currentAssistant,
                                 size: 32,
@@ -895,7 +895,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       ),
                     ),
 
-                    // 注意：内联助手列表已移动至下方可滚动区域
+                    // 娉ㄦ剰锛氬唴鑱斿姪鎵嬪垪琛ㄥ凡绉诲姩鑷充笅鏂瑰彲婊氬姩鍖哄煙
                   ],
                 ),
               ),
@@ -916,9 +916,9 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     16,
                   ),
                   children: [
-                    // 助手列表（内联、与话题一体滚动）
-                    // 要求：助手列表仅淡入/淡出；下方话题区域需要被顺滑推开
-                    // 方案：外层 AnimatedSize 负责高度过渡（推开下方内容），内层 AnimatedSwitcher 仅做淡入淡出
+                    // 鍔╂墜鍒楄〃锛堝唴鑱斻€佷笌璇濋涓€浣撴粴鍔級
+                    // 瑕佹眰锛氬姪鎵嬪垪琛ㄤ粎娣″叆/娣″嚭锛涗笅鏂硅瘽棰樺尯鍩熼渶瑕佽椤烘粦鎺ㄥ紑
+                    // 鏂规锛氬灞?AnimatedSize 璐熻矗楂樺害杩囨浮锛堟帹寮€涓嬫柟鍐呭锛夛紝鍐呭眰 AnimatedSwitcher 浠呭仛娣″叆娣″嚭
                     AnimatedSize(
                       duration: const Duration(milliseconds: 260),
                       curve: Curves.easeInOutCubic,
@@ -987,7 +987,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                                   ),
                                               child: Row(
                                                 children: [
-                                                  _assistantAvatar(
+                                                  _assistantAvatar2(
                                                     context,
                                                     a,
                                                     size: 32,
@@ -1128,7 +1128,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                         );
                       },
                     ),
-                    // 3. 聊天记录区（按日期分组，最近在前；垂直列表）
+                    // 3. 鑱婂ぉ璁板綍鍖猴紙鎸夋棩鏈熷垎缁勶紝鏈€杩戝湪鍓嶏紱鍨傜洿鍒楄〃锛?
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 260),
                       switchInCurve: Curves.easeOutCubic,
@@ -1265,7 +1265,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       Row(
                         children: [
                           const SizedBox(width: 6),
-                          // 用户头像（可点击更换）—移除水波纹
+                          // 鐢ㄦ埛澶村儚锛堝彲鐐瑰嚮鏇存崲锛夆€旂Щ闄ゆ按娉㈢汗
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () => _editAvatar(context),
@@ -1276,7 +1276,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                             ),
                           ),
                           const SizedBox(width: 20),
-                          // 用户名称（可点击编辑，垂直居中）
+                          // 鐢ㄦ埛鍚嶇О锛堝彲鐐瑰嚮缂栬緫锛屽瀭鐩村眳涓級
                           Expanded(
                             child: IosCardPress(
                               borderRadius: BorderRadius.circular(6),
@@ -1304,7 +1304,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // 设置按钮（圆形，无水波纹）
+                          // 璁剧疆鎸夐挳锛堝渾褰紝鏃犳按娉㈢汗锛?
                           SizedBox(
                             width: 45,
                             height: 45,
@@ -1535,118 +1535,118 @@ extension on _SideDrawerState {
     }
 
     final List<String> quick = const [
-      '😀',
-      '😁',
-      '😂',
-      '🤣',
-      '😃',
-      '😄',
-      '😅',
-      '😊',
-      '😍',
-      '😘',
-      '😗',
-      '😙',
-      '😚',
-      '🙂',
-      '🤗',
-      '🤩',
-      '🫶',
-      '🤝',
-      '👍',
-      '👎',
-      '👋',
-      '🙏',
-      '💪',
-      '🔥',
-      '✨',
-      '🌟',
-      '💡',
-      '🎉',
-      '🎊',
-      '🎈',
-      '🌈',
-      '☀️',
-      '🌙',
-      '⭐',
-      '⚡',
-      '☁️',
-      '❄️',
-      '🌧️',
-      '🍎',
-      '🍊',
-      '🍋',
-      '🍉',
-      '🍇',
-      '🍓',
-      '🍒',
-      '🍑',
-      '🥭',
-      '🍍',
-      '🥝',
-      '🍅',
-      '🥕',
-      '🌽',
-      '🍞',
-      '🧀',
-      '🍔',
-      '🍟',
-      '🍕',
-      '🌮',
-      '🌯',
-      '🍣',
-      '🍜',
-      '🍰',
-      '🍪',
-      '🍩',
-      '🍫',
-      '🍻',
-      '☕',
-      '🧋',
-      '🥤',
-      '⚽',
-      '🏀',
-      '🏈',
-      '🎾',
-      '🏐',
-      '🎮',
-      '🎧',
-      '🎸',
-      '🎹',
-      '🎺',
-      '📚',
-      '✏️',
-      '💼',
-      '💻',
-      '🖥️',
-      '📱',
-      '🛩️',
-      '✈️',
-      '🚗',
-      '🚕',
-      '🚙',
-      '🚌',
-      '🚀',
-      '🛰️',
-      '🧠',
-      '🫀',
-      '💊',
-      '🩺',
-      '🐶',
-      '🐱',
-      '🐭',
-      '🐹',
-      '🐰',
-      '🦊',
-      '🐻',
-      '🐼',
-      '🐨',
-      '🐯',
-      '🦁',
-      '🐮',
-      '🐷',
-      '🐸',
-      '🐵',
+      '馃榾',
+      '馃榿',
+      '馃槀',
+      '馃ぃ',
+      '馃槂',
+      '馃槃',
+      '馃槄',
+      '馃槉',
+      '馃槏',
+      '馃槝',
+      '馃槜',
+      '馃槞',
+      '馃槡',
+      '馃檪',
+      '馃',
+      '馃ぉ',
+      '馃',
+      '馃',
+      '馃憤',
+      '馃憥',
+      '馃憢',
+      '馃檹',
+      '馃挭',
+      '馃敟',
+      '鉁?,
+      '馃専',
+      '馃挕',
+      '馃帀',
+      '馃帄',
+      '馃巿',
+      '馃寛',
+      '鈽€锔?,
+      '馃寵',
+      '猸?,
+      '鈿?,
+      '鈽侊笍',
+      '鉂勶笍',
+      '馃導锔?,
+      '馃崕',
+      '馃崐',
+      '馃崑',
+      '馃崏',
+      '馃崌',
+      '馃崜',
+      '馃崚',
+      '馃崙',
+      '馃キ',
+      '馃崓',
+      '馃',
+      '馃崊',
+      '馃',
+      '馃尳',
+      '馃崬',
+      '馃',
+      '馃崝',
+      '馃崯',
+      '馃崟',
+      '馃尞',
+      '馃尟',
+      '馃崳',
+      '馃崪',
+      '馃嵃',
+      '馃崻',
+      '馃崺',
+      '馃崼',
+      '馃嵒',
+      '鈽?,
+      '馃',
+      '馃イ',
+      '鈿?,
+      '馃弨',
+      '馃張',
+      '馃幘',
+      '馃彁',
+      '馃幃',
+      '馃帶',
+      '馃幐',
+      '馃幑',
+      '馃幒',
+      '馃摎',
+      '鉁忥笍',
+      '馃捈',
+      '馃捇',
+      '馃枼锔?,
+      '馃摫',
+      '馃洨锔?,
+      '鉁堬笍',
+      '馃殫',
+      '馃殨',
+      '馃殭',
+      '馃殞',
+      '馃殌',
+      '馃洶锔?,
+      '馃',
+      '馃珋',
+      '馃拪',
+      '馃┖',
+      '馃惗',
+      '馃惐',
+      '馃惌',
+      '馃惞',
+      '馃惏',
+      '馃',
+      '馃惢',
+      '馃惣',
+      '馃惃',
+      '馃惎',
+      '馃',
+      '馃惍',
+      '馃惙',
+      '馃惛',
+      '馃惖',
     ];
     return showDialog<String>(
       context: context,
@@ -1682,7 +1682,7 @@ extension on _SideDrawerState {
                       alignment: Alignment.center,
                       child: Text(
                         value.isEmpty
-                            ? '🙂'
+                            ? '馃檪'
                             : value.characters.take(1).toString(),
                         style: const TextStyle(fontSize: 40),
                       ),
@@ -2351,3 +2351,97 @@ class _LoadingDotState extends State<_LoadingDot>
     );
   }
 }
+
+  // Assistant avatar renderer (v2) that supports relative paths like avatars/xxx.jpg
+  Widget _assistantAvatar2(
+    BuildContext context,
+    Assistant? a, {
+    double size = 28,
+    VoidCallback? onTap,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final av = a?.avatar?.trim() ?? '';
+    final name = a?.name ?? '';
+
+    Widget avatar;
+    if (av.isNotEmpty) {
+      if (av.startsWith('http')) {
+        avatar = FutureBuilder<String?>(
+          future: AvatarCache.getPath(av),
+          builder: (ctx, snap) {
+            final p = snap.data;
+            if (p != null && !kIsWeb && File(p).existsSync()) {
+              return ClipOval(
+                child: Image(
+                  image: FileImage(File(p)),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                ),
+              );
+            }
+            if (p != null && kIsWeb && p.startsWith('data:')) {
+              return ClipOval(
+                child: Image.network(p, width: size, height: size, fit: BoxFit.cover),
+              );
+            }
+            return ClipOval(
+              child: Image.network(
+                av,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (c, e, s) => _assistantInitialAvatar(cs, name, size),
+              ),
+            );
+          },
+        );
+      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':') || av.contains('/'))) {
+        // Resolve absolute path for both absolute and relative (avatars/...) cases
+        avatar = FutureBuilder<String?>(
+          future: AssistantProvider.resolveToAbsolutePath(av),
+          builder: (ctx, snap) {
+            final path = snap.data;
+            if (path != null && File(path).existsSync()) {
+              return ClipOval(
+                child: Image(
+                  image: FileImage(File(path)),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                ),
+              );
+            }
+            return _assistantInitialAvatar(cs, name, size);
+          },
+        );
+      } else {
+        avatar = _assistantEmojiAvatar(cs, av, size);
+      }
+    } else {
+      avatar = _assistantInitialAvatar(cs, name, size);
+    }
+
+    final child = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isDark ? Colors.white24 : Colors.black12,
+          width: 0.5,
+        ),
+      ),
+      child: avatar,
+    );
+
+    if (onTap == null) return child;
+
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: child,
+    );
+  }
+
