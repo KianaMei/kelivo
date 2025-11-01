@@ -32,21 +32,11 @@ class AssistantProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_assistantsKey);
     if (raw != null && raw.isNotEmpty) {
-      final loaded = Assistant.decodeList(raw);
       _assistants
         ..clear()
-        ..addAll(loaded.map((a) {
-          // Fix avatar and background paths for cross-device compatibility (like UserProvider does)
-          final fixedAvatar = a.avatar != null ? SandboxPathResolver.fix(a.avatar!) : null;
-          final fixedBackground = a.background != null ? SandboxPathResolver.fix(a.background!) : null;
-          if (fixedAvatar != a.avatar || fixedBackground != a.background) {
-            return a.copyWith(
-              avatar: fixedAvatar,
-              background: fixedBackground,
-            );
-          }
-          return a;
-        }));
+        ..addAll(Assistant.decodeList(raw));
+      // Note: Paths are stored as relative paths (avatars/xxx.jpg)
+      // They will be resolved to absolute paths when needed for display
     }
     // Do not create defaults here because localization is not available.
     // Defaults will be ensured later via ensureDefaults(context).
@@ -172,19 +162,21 @@ class AssistantProvider extends ChangeNotifier {
           final dest = File('${avatarsDir.path}/$filename');
           await src.copy(dest.path);
 
-          // Optionally remove old stored avatar if it lives in our avatars folder
-          if (prevRaw.isNotEmpty && prevRaw.contains('/avatars/')) {
+          // Optionally remove old stored avatar
+          if (prevRaw.isNotEmpty) {
             try {
-              final fixedPrev = SandboxPathResolver.fix(prevRaw);
-              final old = File(fixedPrev);
-              if (await old.exists() && old.path != dest.path) {
-                await old.delete();
+              final oldAbsPath = await resolveToAbsolutePath(prevRaw);
+              if (oldAbsPath != null) {
+                final old = File(oldAbsPath);
+                if (await old.exists() && old.path != dest.path) {
+                  await old.delete();
+                }
               }
             } catch (_) {}
           }
 
-          // Store absolute path (like user avatar does)
-          next = updated.copyWith(avatar: dest.path);
+          // Store RELATIVE path for cross-platform compatibility
+          next = updated.copyWith(avatar: 'avatars/$filename');
         }
       }
 
@@ -219,27 +211,31 @@ class AssistantProvider extends ChangeNotifier {
           final destBg = File('${imagesDir.path}/$filename');
           await srcBg.copy(destBg.path);
 
-          // Clean old stored background if it lived in images/
-          if (prevBgRaw.isNotEmpty && prevBgRaw.contains('/images/')) {
+          // Clean old stored background
+          if (prevBgRaw.isNotEmpty) {
             try {
-              final fixedPrev = SandboxPathResolver.fix(prevBgRaw);
-              final oldBg = File(fixedPrev);
-              if (await oldBg.exists() && oldBg.path != destBg.path) {
-                await oldBg.delete();
+              final oldAbsPath = await resolveToAbsolutePath(prevBgRaw);
+              if (oldAbsPath != null) {
+                final oldBg = File(oldAbsPath);
+                if (await oldBg.exists() && oldBg.path != destBg.path) {
+                  await oldBg.delete();
+                }
               }
             } catch (_) {}
           }
 
-          // Store absolute path (consistent with avatar handling)
-          next = next.copyWith(background: destBg.path);
+          // Store RELATIVE path for cross-platform compatibility
+          next = next.copyWith(background: 'images/$filename');
         }
-      } else if (bgChanged && bgRaw.isEmpty && prevBgRaw.contains('/images/')) {
+      } else if (bgChanged && bgRaw.isEmpty && prevBgRaw.isNotEmpty) {
         // If background cleared, optionally remove previous stored file
         try {
-          final fixedPrev = SandboxPathResolver.fix(prevBgRaw);
-          final oldBg = File(fixedPrev);
-          if (await oldBg.exists()) {
-            await oldBg.delete();
+          final oldAbsPath = await resolveToAbsolutePath(prevBgRaw);
+          if (oldAbsPath != null) {
+            final oldBg = File(oldAbsPath);
+            if (await oldBg.exists()) {
+              await oldBg.delete();
+            }
           }
         } catch (_) {}
       }
@@ -250,6 +246,22 @@ class AssistantProvider extends ChangeNotifier {
     _assistants[idx] = next;
     await _persist();
     notifyListeners();
+  }
+
+  /// Convert path to absolute path for file operations
+  /// Handles both relative paths (avatars/xxx.jpg) and absolute paths
+  static Future<String?> resolveToAbsolutePath(String path) async {
+    if (path.isEmpty) return null;
+    if (path.startsWith('http')) return null; // Skip URLs
+
+    // If it's a relative path (doesn't start with / or contain :), prepend documents directory
+    if (!path.startsWith('/') && !path.contains(':')) {
+      final docs = await getApplicationDocumentsDirectory();
+      return '${docs.path}/$path';
+    }
+
+    // Already absolute - use SandboxPathResolver for iOS compatibility
+    return SandboxPathResolver.fix(path);
   }
 
   Future<void> deleteAssistant(String id) async {
