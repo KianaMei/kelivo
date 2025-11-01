@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/assistant.dart';
-import 'dart:io' show File;
+import 'dart:io' show File, Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:characters/characters.dart';
 import 'assistant_settings_edit_page.dart';
@@ -31,6 +31,7 @@ class AssistantSettingsPage extends StatelessWidget {
     final bodyContent = ReorderableListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
       itemCount: assistants.length,
+      buildDefaultDragHandles: false, // Disable default drag handles
       onReorder: (oldIndex, newIndex) async {
         if (newIndex > oldIndex) newIndex -= 1;
         // Immediately update UI for smooth experience
@@ -63,16 +64,38 @@ class AssistantSettingsPage extends StatelessWidget {
             index: index,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _AssistantCard(item: item),
+              child: _AssistantCard(item: item, index: index),
             ),
           ),
         );
       },
     );
 
-    // If embedded, return body content directly without Scaffold
+    // If embedded, return body content with floating action button
     if (embedded) {
-      return bodyContent;
+      return Stack(
+        children: [
+          bodyContent,
+          // Floating action button for adding new assistant
+          Positioned(
+            right: 24,
+            bottom: 24,
+            child: FloatingActionButton(
+              onPressed: () async {
+                final name = await _showAddAssistantSheet(context);
+                if (name == null) return;
+                final id = await context.read<AssistantProvider>().addAssistant(name: name.trim(), context: context);
+                if (!context.mounted) return;
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => AssistantSettingsEditPage(assistantId: id)),
+                );
+              },
+              tooltip: l10n.assistantSettingsAddSheetSave,
+              child: Icon(Lucide.Plus),
+            ),
+          ),
+        ],
+      );
     }
 
     // Otherwise, return full page with Scaffold and AppBar
@@ -115,8 +138,9 @@ class AssistantSettingsPage extends StatelessWidget {
 }
 
 class _AssistantCard extends StatelessWidget {
-  const _AssistantCard({required this.item});
+  const _AssistantCard({required this.item, required this.index});
   final Assistant item;
+  final int index;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +149,74 @@ class _AssistantCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final baseBg = isDark ? Colors.white10 : Colors.white.withOpacity(0.96);
+
+    Widget cardContent = Container(
+      decoration: BoxDecoration(
+        color: baseBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(isDark ? 0.12 : 0.08), width: 0.8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _AssistantAvatar(item: item, size: 44),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (item.systemPrompt.trim().isEmpty
+                            ? l10n.assistantSettingsNoPromptPlaceholder
+                            : item.systemPrompt),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.7), height: 1.25),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!item.deletable)
+                  _TagPill(text: l10n.assistantSettingsDefaultTag, color: cs.primary),
+                const SizedBox(width: 8),
+                ReorderableDragStartListener(
+                  index: index,
+                  child: Icon(
+                    Lucide.GripHorizontal,
+                    size: 20,
+                    color: cs.onSurface.withOpacity(0.3),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Wrap with right-click menu for desktop platforms
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      cardContent = GestureDetector(
+        onSecondaryTapDown: (details) {
+          _showContextMenu(context, details.globalPosition, l10n);
+        },
+        child: cardContent,
+      );
+    }
+
     final content = _TactileCard(
       onTap: () {
         Navigator.of(context).push(
@@ -132,58 +224,14 @@ class _AssistantCard extends StatelessWidget {
         );
       },
       builder: (pressed, overlay) {
-        return Container(
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
-            color: Color.alphaBlend(overlay, baseBg),
+            color: Color.alphaBlend(overlay, Colors.transparent),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(isDark ? 0.12 : 0.08), width: 0.8),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _AssistantAvatar(item: item, size: 44),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  item.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                              if (!item.deletable)
-                                _TagPill(text: l10n.assistantSettingsDefaultTag, color: cs.primary),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            (item.systemPrompt.trim().isEmpty
-                                ? l10n.assistantSettingsNoPromptPlaceholder
-                                : item.systemPrompt),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.7), height: 1.25),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          child: cardContent,
         );
       },
     );
@@ -244,6 +292,55 @@ class _AssistantCard extends StatelessWidget {
     final first = String.fromCharCode(trimmed.runes.first);
     return first.toUpperCase();
   }
+
+  Future<void> _showContextMenu(BuildContext context, Offset position, AppLocalizations l10n) async {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    final result = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 0, 0),
+        Rect.fromLTWH(0, 0, overlay.size.width, overlay.size.height),
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Lucide.Pencil, size: 18),
+              const SizedBox(width: 12),
+              Text(l10n.assistantSettingsEditButton),
+            ],
+          ),
+        ),
+        if (item.deletable)
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Lucide.Trash2, size: 18, color: Theme.of(context).colorScheme.error),
+                const SizedBox(width: 12),
+                Text(
+                  l10n.assistantSettingsDeleteButton,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (result == 'edit') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => AssistantSettingsEditPage(assistantId: item.id)),
+      );
+    } else if (result == 'delete') {
+      final ok = await _confirmDelete(context, l10n);
+      if (ok == true) {
+        await context.read<AssistantProvider>().deleteAssistant(item.id);
+      }
+    }
+  }
 }
 
 // --- iOS-style tactile helpers ---
@@ -287,7 +384,7 @@ class _TactileCard extends StatefulWidget {
 
 class _TactileCardState extends State<_TactileCard> {
   bool _pressed = false;
-  void _set(bool v){ if (_pressed!=v) setState(()=>_pressed=v);} 
+  void _set(bool v){ if (_pressed!=v) setState(()=>_pressed=v);}
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
