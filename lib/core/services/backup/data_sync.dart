@@ -20,6 +20,49 @@ import '../chat/chat_service.dart';
 class DataSync {
   final ChatService chatService;
   DataSync({required this.chatService});
+  // Normalize file path to use POSIX separators for ZIP entries
+  String _toArchivePath(String base, String rel) {
+    final r = rel.replaceAll('\\\\', '/');
+    final rr = r.startsWith('./') ? r.substring(2) : r;
+    return base.isEmpty ? rr : (base.endsWith('/') ? base + rr : '$base/' + rr);
+  }
+
+  // Normalize assistant avatar/background paths for cross-platform restore
+  List<Map<String, dynamic>> _normalizeAssistantsForCrossPlatform(List<dynamic> arr) {
+    String? _normOne(String? raw, {required String folder}) {
+      if (raw == null) return null;
+      var s = raw.trim();
+      if (s.isEmpty) return null;
+      final lower = s.toLowerCase();
+      if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('data:')) return s;
+      s = s.replaceAll('\\\\', '/');
+      final idx = s.indexOf('/' + folder + '/');
+      if (idx >= 0) {
+        final tail = s.substring(idx + 1);
+        final parts = tail.split('/');
+        if (parts.isNotEmpty) {
+          final name = parts.lastWhere((e) => e.isNotEmpty, orElse: () => parts.last);
+          return '$folder/$name';
+        }
+      }
+      if (!s.startsWith('/') && !s.contains(':')) {
+        return s.replaceAll('\\\\', '/');
+      }
+      final m = RegExp(r'([^/\\]+\.(png|jpg|jpeg|webp|gif|bmp|ico))', caseSensitive: false).firstMatch(s);
+      if (m != null) { return '$folder/${m.group(1)}'; }
+      return s;
+    }
+    final out = <Map<String, dynamic>>[];
+    for (final a in arr) {
+      if (a is Map) {
+        final m = Map<String, dynamic>.from(a);
+        m['avatar'] = _normOne((m['avatar'] ?? '')?.toString(), folder: 'avatars');
+        m['background'] = _normOne((m['background'] ?? '')?.toString(), folder: 'images');
+        out.add(m);
+      }
+    }
+    return out;
+  }
 
   // ===== WebDAV helpers =====
   Uri _collectionUri(WebDavConfig cfg) {
@@ -137,7 +180,7 @@ class DataSync {
           if (ent is File) {
             final rel = p.relative(ent.path, from: uploadDir.path);
             final fileBytes = await ent.readAsBytes();
-            final archiveFile = ArchiveFile(p.join('upload', rel), fileBytes.length, fileBytes);
+            final archiveFile = ArchiveFile(_toArchivePath('upload', rel), fileBytes.length, fileBytes);
             archive.addFile(archiveFile);
           }
         }
@@ -151,7 +194,7 @@ class DataSync {
           if (ent is File) {
             final rel = p.relative(ent.path, from: avatarsDir.path);
             final fileBytes = await ent.readAsBytes();
-            final archiveFile = ArchiveFile(p.join('avatars', rel), fileBytes.length, fileBytes);
+            final archiveFile = ArchiveFile(_toArchivePath('avatars', rel), fileBytes.length, fileBytes);
             archive.addFile(archiveFile);
           }
         }
@@ -165,7 +208,7 @@ class DataSync {
           if (ent is File) {
             final rel = p.relative(ent.path, from: imagesDir.path);
             final fileBytes = await ent.readAsBytes();
-            final archiveFile = ArchiveFile(p.join('images', rel), fileBytes.length, fileBytes);
+            final archiveFile = ArchiveFile(_toArchivePath('images', rel), fileBytes.length, fileBytes);
             archive.addFile(archiveFile);
           }
         }
@@ -292,7 +335,7 @@ class DataSync {
   Future<File> exportToFile(WebDavConfig cfg) => prepareBackupFile(cfg);
 
   Future<void> restoreFromLocalFile(File file, WebDavConfig cfg, {RestoreMode mode = RestoreMode.overwrite}) async {
-    if (!await file.exists()) throw Exception('备份文件不存在');
+    if (!await file.exists()) throw Exception('备份文件不存�?);
     await _restoreFromBackupFile(file, cfg, mode: mode);
   }
 
@@ -364,7 +407,7 @@ class DataSync {
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
     for (final entry in archive) {
-      final outPath = p.join(extractDir.path, entry.name);
+      final outPath = p.join(extractDir.path, (entry.name ?? '').toString().replaceAll('\\\\','/'));
       if (entry.isFile) {
         final outFile = File(outPath)..createSync(recursive: true);
         outFile.writeAsBytesSync(entry.content as List<int>);
@@ -379,7 +422,17 @@ class DataSync {
       try {
         final txt = await settingsFile.readAsString();
         final map = jsonDecode(txt) as Map<String, dynamic>;
-        final prefs = await SharedPreferencesAsync.instance;
+        final prefs = await SharedPreferencesAsync.instance;        // Normalize assistants_v1 for cross-platform before writing
+        if (map.containsKey('assistants_v1')) {
+          try {
+            final raw = map['assistants_v1'];
+            if (raw is String && raw.isNotEmpty) {
+              final arr = jsonDecode(raw) as List<dynamic>;
+              final norm = _normalizeAssistantsForCrossPlatform(arr);
+              map['assistants_v1'] = jsonEncode(norm);
+            }
+          } catch (_) {}
+        }
         if (mode == RestoreMode.overwrite) {
           // For overwrite mode, restore all settings
           await prefs.restore(map);
@@ -743,7 +796,17 @@ class DataSync {
     if (settingsTxt != null) {
       try {
         final map = jsonDecode(settingsTxt) as Map<String, dynamic>;
-        final prefs = await SharedPreferencesAsync.instance;
+        final prefs = await SharedPreferencesAsync.instance;        // Normalize assistants_v1 for cross-platform before writing
+        if (map.containsKey('assistants_v1')) {
+          try {
+            final raw = map['assistants_v1'];
+            if (raw is String && raw.isNotEmpty) {
+              final arr = jsonDecode(raw) as List<dynamic>;
+              final norm = _normalizeAssistantsForCrossPlatform(arr);
+              map['assistants_v1'] = jsonEncode(norm);
+            }
+          } catch (_) {}
+        }
         if (mode == RestoreMode.overwrite) {
           await prefs.restore(map);
         } else {
@@ -838,3 +901,5 @@ class SharedPreferencesAsync {
     }
   }
 }
+
+
