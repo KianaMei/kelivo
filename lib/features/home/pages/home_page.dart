@@ -41,6 +41,7 @@ import '../../mcp/pages/mcp_page.dart';
 import '../../provider/pages/providers_page.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
 import '../../chat/widgets/max_tokens_sheet.dart';
+import '../../camera/pages/camera_capture_page.dart';
 import '../../chat/widgets/tool_loop_sheet.dart';
 import '../../search/widgets/search_settings_sheet.dart';
 import '../widgets/mini_map_sheet.dart';
@@ -993,8 +994,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _onPickCamera() async {
-    // Unify behavior: also open image file picker instead of camera
-    await _onPickPhotos();
+    // Open camera capture page (Android: back camera; Windows: first camera)
+    try {
+      final path = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => const CameraCapturePage()),
+      );
+      if (path == null || path.isEmpty) return;
+      // Normalize to XFile and persist under Documents/upload just like picker
+      final files = <XFile>[XFile(path)];
+      final saved = await _copyPickedFiles(files);
+      if (saved.isNotEmpty) {
+        _mediaController.addImages(saved);
+        if (!_isUserScrolling) _scrollToBottomSoon();
+      }
+    } catch (e) {
+      debugPrint('Camera capture failed: $e');
+    }
   }
 
   String _inferMimeByExtension(String name) {
