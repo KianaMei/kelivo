@@ -597,16 +597,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                 if (parsed.text.isNotEmpty)
-                  Text(
-                    parsed.text,
-                    style: TextStyle(
-                      fontSize: 15.5, // ~112% larger default for user text
-                      height: 1.4,
-                      color: cs.onSurface,
-                      // // Keep user text slightly bolder on non‑iOS; normal on iOS
-                      // fontWeight: Theme.of(context).platform == TargetPlatform.iOS
-                      //     ? FontWeight.w400
-                      //     : FontWeight.w500,
+                  SelectionArea(
+                    child: Text(
+                      parsed.text,
+                      style: TextStyle(
+                        fontSize: 15.5, // ~112% larger default for user text
+                        height: 1.4,
+                        color: cs.onSurface,
+                        // // Keep user text slightly bolder on non‑iOS; normal on iOS
+                        // fontWeight: Theme.of(context).platform == TargetPlatform.iOS
+                        //     ? FontWeight.w400
+                        //     : FontWeight.w500,
+                      ),
                     ),
                   ),
                 if (parsed.images.isNotEmpty) ...[
@@ -741,7 +743,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                   const SizedBox(width: 6),
                                   ConstrainedBox(
                                     constraints: const BoxConstraints(maxWidth: 180),
-                                    child: Text(d.fileName, overflow: TextOverflow.ellipsis),
+                                    child: SelectableText(d.fileName, maxLines: 1),
                                   ),
                                 ],
                               ),
@@ -2331,9 +2333,11 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
 // 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
     Widget body = Padding(
       padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-      child: MarkdownWithCodeHighlight(
-        text: display.isNotEmpty ? display : '…',
-        baseStyle: baseStyle,
+      child: SelectionArea(
+        child: MarkdownWithCodeHighlight(
+          text: display.isNotEmpty ? display : '…',
+          baseStyle: baseStyle,
+        ),
       ),
     );
 
@@ -2371,9 +2375,11 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
               child: SingleChildScrollView(
                 controller: _scroll,
                 physics: const BouncingScrollPhysics(),
-                child: MarkdownWithCodeHighlight(
-                  text: display.isNotEmpty ? display : '…',
-                  baseStyle: baseStyle,
+                child: SelectionArea(
+                  child: MarkdownWithCodeHighlight(
+                    text: display.isNotEmpty ? display : '…',
+                    baseStyle: baseStyle,
+                  ),
                 ),
               ),
             ),
@@ -2381,9 +2387,11 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
               : SingleChildScrollView(
             controller: _scroll,
             physics: const NeverScrollableScrollPhysics(),
-            child: MarkdownWithCodeHighlight(
-              text: display.isNotEmpty ? display : '…',
-              baseStyle: baseStyle,
+            child: SelectionArea(
+              child: MarkdownWithCodeHighlight(
+                text: display.isNotEmpty ? display : '…',
+                baseStyle: baseStyle,
+              ),
             ),
           ),
         ),
