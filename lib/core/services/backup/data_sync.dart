@@ -48,9 +48,15 @@ class DataSync {
       if (!s.startsWith('/') && !s.contains(':')) {
         return s.replaceAll('\\\\', '/');
       }
-      final m = RegExp(r'([^/\\]+\.(png|jpg|jpeg|webp|gif|bmp|ico))', caseSensitive: false).firstMatch(s);
-      if (m != null) { return '$folder/${m.group(1)}'; }
-      return s;
+      // Fallback: extract filename from any path format (Windows/Unix/mixed)
+      // Split by both / and \ to handle all cases
+      final allParts = s.split(RegExp(r'[/\\]'));
+      final filename = allParts.lastWhere((p) => p.trim().isNotEmpty, orElse: () => '');
+      if (filename.isNotEmpty && filename.contains('.')) {
+        return '$folder/$filename';
+      }
+      // Last resort: if nothing works, return null to avoid storing invalid paths
+      return null;
     }
     final out = <Map<String, dynamic>>[];
     for (final a in arr) {
