@@ -577,27 +577,25 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             ],
           ),
           const SizedBox(height: 8),
-          // Message content (long-press for context menu)
-          GestureDetector(
-            onLongPressStart: (_) => _showUserContextMenu(),
-            behavior: HitTestBehavior.translucent,
-            child: Container(
-              key: _userBubbleKey,
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
-              ),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? cs.primary.withOpacity(0.15)
-                    : cs.primary.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                if (parsed.text.isNotEmpty)
-                  Text(
+          // Message content (selectable text)
+          Container(
+            key: _userBubbleKey,
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.75,
+            ),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? cs.primary.withOpacity(0.15)
+                  : cs.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+              if (parsed.text.isNotEmpty)
+                SelectionArea(
+                  child: Text(
                     parsed.text,
                     style: TextStyle(
                       fontSize: 15.5, // ~112% larger default for user text
@@ -609,6 +607,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       //     : FontWeight.w500,
                     ),
                   ),
+                ),
                 if (parsed.images.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Builder(builder: (context) {
@@ -755,7 +754,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 ],
               ),
             ),
-          ),
           if (showUserActions || showVersionSwitcher) ...[
             SizedBox(height: showUserActions ? 4 : 6),
             Row(
