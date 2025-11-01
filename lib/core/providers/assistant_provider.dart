@@ -32,9 +32,21 @@ class AssistantProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_assistantsKey);
     if (raw != null && raw.isNotEmpty) {
+      final loaded = Assistant.decodeList(raw);
       _assistants
         ..clear()
-        ..addAll(Assistant.decodeList(raw));
+        ..addAll(loaded.map((a) {
+          // Fix avatar and background paths for cross-device compatibility (like UserProvider does)
+          final fixedAvatar = a.avatar != null ? SandboxPathResolver.fix(a.avatar!) : null;
+          final fixedBackground = a.background != null ? SandboxPathResolver.fix(a.background!) : null;
+          if (fixedAvatar != a.avatar || fixedBackground != a.background) {
+            return a.copyWith(
+              avatar: fixedAvatar,
+              background: fixedBackground,
+            );
+          }
+          return a;
+        }));
     }
     // Do not create defaults here because localization is not available.
     // Defaults will be ensured later via ensureDefaults(context).
@@ -163,13 +175,15 @@ class AssistantProvider extends ChangeNotifier {
           // Optionally remove old stored avatar if it lives in our avatars folder
           if (prevRaw.isNotEmpty && prevRaw.contains('/avatars/')) {
             try {
-              final old = File(prevRaw);
+              final fixedPrev = SandboxPathResolver.fix(prevRaw);
+              final old = File(fixedPrev);
               if (await old.exists() && old.path != dest.path) {
                 await old.delete();
               }
             } catch (_) {}
           }
 
+          // Store absolute path (like user avatar does)
           next = updated.copyWith(avatar: dest.path);
         }
       }
@@ -208,19 +222,22 @@ class AssistantProvider extends ChangeNotifier {
           // Clean old stored background if it lived in images/
           if (prevBgRaw.isNotEmpty && prevBgRaw.contains('/images/')) {
             try {
-              final oldBg = File(prevBgRaw);
+              final fixedPrev = SandboxPathResolver.fix(prevBgRaw);
+              final oldBg = File(fixedPrev);
               if (await oldBg.exists() && oldBg.path != destBg.path) {
                 await oldBg.delete();
               }
             } catch (_) {}
           }
 
+          // Store absolute path (consistent with avatar handling)
           next = next.copyWith(background: destBg.path);
         }
       } else if (bgChanged && bgRaw.isEmpty && prevBgRaw.contains('/images/')) {
         // If background cleared, optionally remove previous stored file
         try {
-          final oldBg = File(prevBgRaw);
+          final fixedPrev = SandboxPathResolver.fix(prevBgRaw);
+          final oldBg = File(fixedPrev);
           if (await oldBg.exists()) {
             await oldBg.delete();
           }
