@@ -2598,7 +2598,6 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
   bool _isExpanded = false;
   bool _isHoveringCard = false; // Track if hovering over the card itself
   OverlayEntry? _overlayEntry;
-  Timer? _autoHideTimer;
 
   @override
   void dispose() {
@@ -2609,8 +2608,6 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
   void _removeOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    _autoHideTimer?.cancel();
-    _autoHideTimer = null;
     setState(() {
       _isExpanded = false;
       _isHoveringCard = false;
@@ -2835,15 +2832,11 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          // Toggle overlay on tap (mobile friendly). Auto-hide after a short delay.
+          // Toggle overlay on tap (mobile friendly)
+          // Only close by tapping outside, no auto-hide
           if (_overlayEntry == null) {
             setState(() => _isExpanded = true); // Mark as explicitly expanded
             _showOverlay(context);
-            _autoHideTimer?.cancel();
-            _autoHideTimer = Timer(const Duration(seconds: 3), () {
-              setState(() => _isExpanded = false);
-              _removeOverlay();
-            });
           } else {
             setState(() => _isExpanded = false);
             _removeOverlay();
