@@ -1592,11 +1592,21 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           },
         );
       }
-      if (!kIsWeb && (av.startsWith('/') || av.contains(':'))) {
-        final fixed = SandboxPathResolver.fix(av);
-        return ClipOval(
-          child: Image.file(File(fixed), width: 32, height: 32, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _assistantInitial(cs)),
+      if (!kIsWeb && (av.startsWith('/') || av.contains(':') || av.contains('/'))) {
+        return FutureBuilder<String?>(
+          future: AssistantProvider.resolveToAbsolutePath(av),
+          builder: (ctx, snap) {
+            if (!snap.hasData || snap.data == null) return _assistantInitial(cs);
+            return ClipOval(
+              child: Image.file(
+                File(snap.data!),
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _assistantInitial(cs),
+              ),
+            );
+          },
         );
       }
       // treat as emoji or single char label

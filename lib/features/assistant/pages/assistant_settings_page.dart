@@ -567,17 +567,23 @@ class _AssistantAvatar extends StatelessWidget {
             );
           },
         );
-      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':'))) {
-        // Local file path - use SandboxPathResolver to handle cross-device paths
-        final fixed = SandboxPathResolver.fix(av);
-        return ClipOval(
-          child: Image(
-            image: FileImage(File(fixed)),
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            errorBuilder: (c, e, s) => _initial(cs),
-          ),
+      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':') || av.contains('/'))) {
+        // Local file path (absolute or relative)
+        return FutureBuilder<String?>(
+          future: AssistantProvider.resolveToAbsolutePath(av),
+          builder: (ctx, snap) {
+            if (!snap.hasData || snap.data == null) return _initial(cs);
+            final absPath = snap.data!;
+            return ClipOval(
+              child: Image(
+                image: FileImage(File(absPath)),
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (c, e, s) => _initial(cs),
+              ),
+            );
+          },
         );
       } else {
         return _emoji(cs, av);
