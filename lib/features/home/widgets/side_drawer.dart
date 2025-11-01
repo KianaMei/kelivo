@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:characters/characters.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
@@ -57,7 +58,8 @@ class SideDrawer extends StatefulWidget {
   final VoidCallback? onNewConversation;
   final ValueNotifier<int>? closePickerTicker;
   final Set<String> loadingConversationIds;
-  final bool embedded; // when true, render as a fixed side panel instead of a Drawer
+  final bool
+  embedded; // when true, render as a fixed side panel instead of a Drawer
   final double? embeddedWidth; // optional explicit width for embedded mode
   final bool showBottomBar; // desktop can hide this bottom area
 
@@ -66,7 +68,10 @@ class SideDrawer extends StatefulWidget {
 }
 
 class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
-  bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
+  bool get _isDesktop =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   final GlobalKey _assistantTileKey = GlobalKey();
@@ -76,67 +81,73 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   final ScrollController _listController = ScrollController();
 
   // Assistant avatar renderer shared across drawer views
-  Widget _assistantAvatar(BuildContext context, Assistant? a, {double size = 28, VoidCallback? onTap}) {
+  Widget _assistantAvatar(
+    BuildContext context,
+    Assistant? a, {
+    double size = 28,
+    VoidCallback? onTap,
+  }) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final av = a?.avatar?.trim() ?? '';
     final name = a?.name ?? '';
-    
+
     Widget avatar;
-      if (av.isNotEmpty) {
-        if (av.startsWith('http')) {
-          avatar = FutureBuilder<String?>(
-            future: AvatarCache.getPath(av),
-            builder: (ctx, snap) {
-              final p = snap.data;
-              if (p != null && !kIsWeb && File(p).existsSync()) {
-                return ClipOval(
-                  child: Image(
-                    image: FileImage(File(p)),
-                    width: size,
-                    height: size,
-                    fit: BoxFit.cover,
-                  ),
-                );
-              }
-              if (p != null && kIsWeb && p.startsWith('data:')) {
-                return ClipOval(
-                  child: Image.network(
-                    p,
-                    width: size,
-                    height: size,
-                    fit: BoxFit.cover,
-                  ),
-                );
-              }
+    if (av.isNotEmpty) {
+      if (av.startsWith('http')) {
+        avatar = FutureBuilder<String?>(
+          future: AvatarCache.getPath(av),
+          builder: (ctx, snap) {
+            final p = snap.data;
+            if (p != null && !kIsWeb && File(p).existsSync()) {
               return ClipOval(
-                child: Image.network(
-                  av,
+                child: Image(
+                  image: FileImage(File(p)),
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => _assistantInitialAvatar(cs, name, size),
                 ),
               );
-            },
-          );
-        } else if (!kIsWeb && (av.startsWith('/') || av.contains(':'))) {
-          final fixed = SandboxPathResolver.fix(av);
-          avatar = ClipOval(
-            child: Image(
-              image: FileImage(File(fixed)),
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-            ),
-          );
-        } else {
-          avatar = _assistantEmojiAvatar(cs, av, size);
-        }
+            }
+            if (p != null && kIsWeb && p.startsWith('data:')) {
+              return ClipOval(
+                child: Image.network(
+                  p,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                ),
+              );
+            }
+            return ClipOval(
+              child: Image.network(
+                av,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder:
+                    (c, e, s) => _assistantInitialAvatar(cs, name, size),
+              ),
+            );
+          },
+        );
+      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':'))) {
+        final fixed = SandboxPathResolver.fix(av);
+        avatar = ClipOval(
+          child: Image(
+            image: FileImage(File(fixed)),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          ),
+        );
       } else {
-        avatar = _assistantInitialAvatar(cs, name, size);
+        avatar = _assistantEmojiAvatar(cs, av, size);
       }
-    
+    } else {
+      avatar = _assistantInitialAvatar(cs, name, size);
+    }
+
     // Add border
     final child = Container(
       width: size,
@@ -190,7 +201,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
-      child: Text(emoji.characters.take(1).toString(), style: TextStyle(fontSize: size * 0.5)),
+      child: Text(
+        emoji.characters.take(1).toString(),
+        style: TextStyle(fontSize: size * 0.5),
+      ),
     );
   }
 
@@ -206,11 +220,16 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     // Update check moved to app startup (main.dart)
   }
 
-  void _showChatMenu(BuildContext context, ChatItem chat, {Offset? anchor}) async {
+  void _showChatMenu(
+    BuildContext context,
+    ChatItem chat, {
+    Offset? anchor,
+  }) async {
     final l10n = AppLocalizations.of(context)!;
     final chatService = context.read<ChatService>();
     final isPinned = chatService.getConversation(chat.id)?.isPinned ?? false;
-    final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+    final isDesktop =
+        defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
 
@@ -224,24 +243,31 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           DesktopContextMenuItem(
             icon: Lucide.Edit,
             label: l10n.sideDrawerMenuRename,
-            onTap: () async { await _renameChat(context, chat); },
+            onTap: () async {
+              await _renameChat(context, chat);
+            },
           ),
           DesktopContextMenuItem(
             icon: Lucide.Pin,
             label: isPinned ? l10n.sideDrawerMenuUnpin : l10n.sideDrawerMenuPin,
-            onTap: () async { await chatService.togglePinConversation(chat.id); },
+            onTap: () async {
+              await chatService.togglePinConversation(chat.id);
+            },
           ),
           DesktopContextMenuItem(
             icon: Lucide.RefreshCw,
             label: l10n.sideDrawerMenuRegenerateTitle,
-            onTap: () async { await _regenerateTitle(context, chat.id); },
+            onTap: () async {
+              await _regenerateTitle(context, chat.id);
+            },
           ),
           DesktopContextMenuItem(
             icon: Lucide.Trash2,
             label: l10n.sideDrawerMenuDelete,
             danger: true,
             onTap: () async {
-              final deletingCurrent = chatService.currentConversationId == chat.id;
+              final deletingCurrent =
+                  chatService.currentConversationId == chat.id;
               await chatService.deleteConversation(chat.id);
               showAppSnackBar(
                 context,
@@ -249,7 +275,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 type: NotificationType.success,
                 duration: const Duration(seconds: 3),
               );
-              if (deletingCurrent || chatService.currentConversationId == null) {
+              if (deletingCurrent ||
+                  chatService.currentConversationId == null) {
                 widget.onNewConversation?.call();
               }
               Navigator.of(context).maybePop();
@@ -270,7 +297,12 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         final maxH = MediaQuery.of(ctx).size.height * 0.8;
-        Widget row({required IconData icon, required String label, Color? color, required Future<void> Function() action}) {
+        Widget row({
+          required IconData icon,
+          required String label,
+          Color? color,
+          required Future<void> Function() action,
+        }) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: SizedBox(
@@ -293,7 +325,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     Expanded(
                       child: Text(
                         label,
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: color ?? cs.onSurface),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: color ?? cs.onSurface,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -304,6 +340,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             ),
           );
         }
+
         return SafeArea(
           top: false,
           child: ConstrainedBox(
@@ -329,24 +366,34 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     row(
                       icon: Lucide.Edit,
                       label: l10n.sideDrawerMenuRename,
-                      action: () async { _renameChat(context, chat); },
+                      action: () async {
+                        _renameChat(context, chat);
+                      },
                     ),
                     row(
                       icon: Lucide.Pin,
-                      label: isPinned ? l10n.sideDrawerMenuUnpin : l10n.sideDrawerMenuPin,
-                      action: () async { await chatService.togglePinConversation(chat.id); },
+                      label:
+                          isPinned
+                              ? l10n.sideDrawerMenuUnpin
+                              : l10n.sideDrawerMenuPin,
+                      action: () async {
+                        await chatService.togglePinConversation(chat.id);
+                      },
                     ),
                     row(
                       icon: Lucide.RefreshCw,
                       label: l10n.sideDrawerMenuRegenerateTitle,
-                      action: () async { await _regenerateTitle(context, chat.id); },
+                      action: () async {
+                        await _regenerateTitle(context, chat.id);
+                      },
                     ),
                     row(
                       icon: Lucide.Trash,
                       label: l10n.sideDrawerMenuDelete,
                       color: Colors.redAccent,
                       action: () async {
-                        final deletingCurrent = chatService.currentConversationId == chat.id;
+                        final deletingCurrent =
+                            chatService.currentConversationId == chat.id;
                         await chatService.deleteConversation(chat.id);
                         showAppSnackBar(
                           context,
@@ -354,7 +401,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           type: NotificationType.success,
                           duration: const Duration(seconds: 3),
                         );
-                        if (deletingCurrent || chatService.currentConversationId == null) {
+                        if (deletingCurrent ||
+                            chatService.currentConversationId == null) {
                           widget.onNewConversation?.call();
                         }
                         Navigator.of(context).maybePop();
@@ -382,9 +430,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: InputDecoration(
-              hintText: l10n.sideDrawerRenameHint,
-            ),
+            decoration: InputDecoration(hintText: l10n.sideDrawerRenameHint),
             onSubmitted: (_) => Navigator.of(ctx).pop(true),
           ),
           actions: [
@@ -401,28 +447,48 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       },
     );
     if (ok == true) {
-      await context.read<ChatService>().renameConversation(chat.id, controller.text.trim());
+      await context.read<ChatService>().renameConversation(
+        chat.id,
+        controller.text.trim(),
+      );
     }
   }
 
-  Future<void> _regenerateTitle(BuildContext context, String conversationId) async {
+  Future<void> _regenerateTitle(
+    BuildContext context,
+    String conversationId,
+  ) async {
     final settings = context.read<SettingsProvider>();
     final chatService = context.read<ChatService>();
     final convo = chatService.getConversation(conversationId);
     if (convo == null) return;
     // Decide model
-    final provKey = settings.titleModelProvider ?? settings.currentModelProvider;
+    final provKey =
+        settings.titleModelProvider ?? settings.currentModelProvider;
     final mdlId = settings.titleModelId ?? settings.currentModelId;
     if (provKey == null || mdlId == null) return;
     final cfg = settings.getProviderConfig(provKey);
     // Content
     final msgs = chatService.getMessages(conversationId);
-    final joined = msgs.where((m) => m.content.isNotEmpty).map((m) => '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}').join('\n\n');
+    final joined = msgs
+        .where((m) => m.content.isNotEmpty)
+        .map(
+          (m) =>
+              '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}',
+        )
+        .join('\n\n');
     final content = joined.length > 3000 ? joined.substring(0, 3000) : joined;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final prompt = settings.titlePrompt.replaceAll('{locale}', locale).replaceAll('{content}', content);
+    final prompt = settings.titlePrompt
+        .replaceAll('{locale}', locale)
+        .replaceAll('{content}', content);
     try {
-      final title = (await ChatApiService.generateText(config: cfg, modelId: mdlId, prompt: prompt)).trim();
+      final title =
+          (await ChatApiService.generateText(
+            config: cfg,
+            modelId: mdlId,
+            prompt: prompt,
+          )).trim();
       if (title.isNotEmpty) {
         await chatService.renameConversation(conversationId, title);
       }
@@ -464,7 +530,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     _closeAssistantPicker();
   }
 
-
   String _greeting(BuildContext context) {
     final hour = DateTime.now().hour;
     final l10n = AppLocalizations.of(context)!;
@@ -483,7 +548,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     if (diff == 0) return l10n.sideDrawerDateToday;
     if (diff == 1) return l10n.sideDrawerDateYesterday;
     final sameYear = now.year == date.year;
-    final pattern = sameYear ? l10n.sideDrawerDateShortPattern : l10n.sideDrawerDateFullPattern;
+    final pattern =
+        sameYear
+            ? l10n.sideDrawerDateShortPattern
+            : l10n.sideDrawerDateFullPattern;
     final fmt = DateFormat(pattern);
     return fmt.format(date);
   }
@@ -497,14 +565,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       map.putIfAbsent(d, () => []).add(c);
     }
     // sort groups by date desc (recent first)
-    final keys = map.keys.toList()
-      ..sort((a, b) => b.compareTo(a));
+    final keys = map.keys.toList()..sort((a, b) => b.compareTo(a));
     return [
       for (final k in keys)
         _ChatGroup(
           label: _dateLabel(context, k),
           items: (map[k]!..sort((a, b) => b.created.compareTo(a.created)))!,
-        )
+        ),
     ];
   }
 
@@ -518,25 +585,43 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final chatService = context.watch<ChatService>();
     final ap = context.watch<AssistantProvider>();
     final currentAssistantId = ap.currentAssistantId;
-    final conversations = chatService
-        .getAllConversations()
-        .where((c) => c.assistantId == currentAssistantId || c.assistantId == null)
-        .toList();
+    final conversations =
+        chatService
+            .getAllConversations()
+            .where(
+              (c) =>
+                  c.assistantId == currentAssistantId || c.assistantId == null,
+            )
+            .toList();
     // Use last-activity time (updatedAt) for ordering and grouping
-    final all = conversations
-        .map((c) => ChatItem(id: c.id, title: c.title, created: c.updatedAt))
-        .toList();
+    final all =
+        conversations
+            .map(
+              (c) => ChatItem(id: c.id, title: c.title, created: c.updatedAt),
+            )
+            .toList();
 
-    final base = _query.trim().isEmpty
-        ? all
-        : all.where((c) => c.title.toLowerCase().contains(_query.toLowerCase())).toList();
-    final pinnedList = base
-        .where((c) => (chatService.getConversation(c.id)?.isPinned ?? false))
-        .toList()
-      ..sort((a, b) => b.created.compareTo(a.created));
-    final rest = base
-        .where((c) => !(chatService.getConversation(c.id)?.isPinned ?? false))
-        .toList();
+    final base =
+        _query.trim().isEmpty
+            ? all
+            : all
+                .where(
+                  (c) => c.title.toLowerCase().contains(_query.toLowerCase()),
+                )
+                .toList();
+    final pinnedList =
+        base
+            .where(
+              (c) => (chatService.getConversation(c.id)?.isPinned ?? false),
+            )
+            .toList()
+          ..sort((a, b) => b.created.compareTo(a.created));
+    final rest =
+        base
+            .where(
+              (c) => !(chatService.getConversation(c.id)?.isPinned ?? false),
+            )
+            .toList();
     final groups = _groupByDate(context, rest);
 
     // Avatar renderer: emoji / url / file / default initial
@@ -552,10 +637,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
-          child: Text(
-            value,
-            style: TextStyle(fontSize: size * 0.5),
-          ),
+          child: Text(value, style: TextStyle(fontSize: size * 0.5)),
         );
       }
       if (type == 'url' && value != null && value.isNotEmpty) {
@@ -579,29 +661,62 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => Container(
-                  width: size,
-                  height: size,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text('?', style: TextStyle(color: cs.primary, fontSize: size * 0.42, fontWeight: FontWeight.w700)),
-                ),
+                errorBuilder:
+                    (c, e, s) => Container(
+                      width: size,
+                      height: size,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '?',
+                        style: TextStyle(
+                          color: cs.primary,
+                          fontSize: size * 0.42,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
               ),
             );
           },
         );
       }
       if (type == 'file' && value != null && value.isNotEmpty && !kIsWeb) {
-        return ClipOval(
-          child: Image(
-            image: FileImage(File(value)),
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-          ),
+        return FutureBuilder<String?>(
+          future: AssistantProvider.resolveToAbsolutePath(value),
+          builder: (ctx, snap) {
+            final path = snap.data;
+            if (path != null && File(path).existsSync()) {
+              return ClipOval(
+                child: Image(
+                  image: FileImage(File(path)),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                ),
+              );
+            }
+            return Container(
+              width: size,
+              height: size,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: cs.primary.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '?',
+                style: TextStyle(
+                  color: cs.primary,
+                  fontSize: size * 0.42,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            );
+          },
         );
       }
       // default: initial
@@ -628,458 +743,622 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final inner = SafeArea(
       child: Stack(
         children: [
-            // Main column content
-            Column(
-              children: [
-            // Fixed header + search
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 1. 搜索框 + 历史按钮（固定头部）
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: AppLocalizations.of(context)!.sideDrawerSearchHint,
-                            filled: true,
-                            fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(50),
-                              borderSide: BorderSide(color: Colors.transparent),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(50),
-                              borderSide: BorderSide(color: Colors.transparent),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(50),
-                              borderSide: BorderSide(color: Colors.transparent),
-                            ),
-                          ),
-                          style: TextStyle(color: textBase, fontSize: 14),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // 历史按钮（圆形，无水波纹）
-                      SizedBox(
-                        width: 45,
-                        height: 45,
-                        child: Center(
-                          child: IosIconButton(
-                            size: 22,
-                            color: textBase,
-                            icon: Lucide.History,
-                            padding: const EdgeInsets.all(10),
-                            onTap: () async {
-                              final selectedId = await Navigator.of(context).push<String>(
-                                MaterialPageRoute(builder: (_) => ChatHistoryPage(assistantId: currentAssistantId)),
-                              );
-                              if (selectedId != null && selectedId.isNotEmpty) {
-                                widget.onSelectConversation?.call(selectedId);
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-                  
-                  // 当前助手区域（固定）
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: KeyedSubtree(
-                      key: _assistantTileKey,
-                      child: IosCardPress(
-                        baseColor: widget.embedded ? Colors.transparent : cs.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: _toggleAssistantPicker,
-                        onLongPress: () {
-                          _closeAssistantPicker();
-                          final id = context.read<AssistantProvider>().currentAssistantId;
-                          if (id != null) {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => AssistantSettingsEditPage(assistantId: id)),
-                            );
-                          }
-                        },
-                        padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
-                        child: Row(
-                          children: [
-                            _assistantAvatar(
-                              context,
-                              ap.currentAssistant,
-                              size: 32,
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                (ap.currentAssistant?.name ?? widget.assistantName),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: textBase),
+          // Main column content
+          Column(
+            children: [
+              // Fixed header + search
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 1. 搜索框 + 历史按钮（固定头部）
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText:
+                                  AppLocalizations.of(
+                                    context,
+                                  )!.sideDrawerSearchHint,
+                              filled: true,
+                              fillColor:
+                                  isDark
+                                      ? Colors.white10
+                                      : const Color(0xFFF2F3F5),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(50),
+                                borderSide: BorderSide(
+                                  color: Colors.transparent,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(50),
+                                borderSide: BorderSide(
+                                  color: Colors.transparent,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(50),
+                                borderSide: BorderSide(
+                                  color: Colors.transparent,
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            AnimatedRotation(
-                              turns: _assistantsExpanded ? 0.5 : 0.0,
-                              duration: const Duration(milliseconds: 350),
-                              curve: Curves.easeOutCubic,
-                              child: Icon(
-                                Lucide.ChevronDown,
-                                size: 18,
-                                color: textBase.withOpacity(0.7),
-                              ),
-                            ),
-                          ],
+                            style: TextStyle(color: textBase, fontSize: 14),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-
-                  // 注意：内联助手列表已移动至下方可滚动区域
-                ],
-              ),
-            ),
-
-            // Scrollable conversation list below fixed header
-            Expanded(
-              child: ListView(
-                controller: _listController,
-                // Reduce side paddings to extend tile backgrounds while
-                // keeping text position unchanged (compensated in tile padding)
-                padding: EdgeInsets.fromLTRB(
-                  10,
-                  (context.watch<SettingsProvider>().showChatListDate || _assistantsExpanded) ? 4 : 10,
-                  10,
-                  16,
-                ),
-                children: [
-                  // 助手列表（内联、与话题一体滚动）
-                  // 要求：助手列表仅淡入/淡出；下方话题区域需要被顺滑推开
-                  // 方案：外层 AnimatedSize 负责高度过渡（推开下方内容），内层 AnimatedSwitcher 仅做淡入淡出
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeInOutCubic,
-                    alignment: Alignment.topCenter,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-                      child: !_assistantsExpanded
-                          ? const SizedBox.shrink()
-                          : Builder(
-                              key: const ValueKey('assistants-inline'),
-                              builder: (context) {
-                                final ap2 = context.watch<AssistantProvider>();
-                                final assistants = ap2.assistants;
-                                final isDark2 = Theme.of(context).brightness == Brightness.dark;
-                                final textBase2 = isDark2 ? Colors.white : Colors.black;
-                                return Padding(
-                                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
-                                  child: ListView.builder(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    itemCount: assistants.length,
-                                    itemBuilder: (ctx, i) {
-                                      final a = assistants[i];
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                                        child: IosCardPress(
-                                          baseColor: widget.embedded ? Colors.transparent : Theme.of(context).colorScheme.surface,
-                                          borderRadius: BorderRadius.circular(16),
-                                          haptics: false,
-                                          onTap: () => _handleSelectAssistant(a),
-                                          padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
-                                          child: Row(
-                                            children: [
-                                              _assistantAvatar(context, a, size: 32),
-                                              const SizedBox(width: 16),
-                                              Expanded(
-                                                child: Text(
-                                                  a.name,
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: textBase2),
-                                                ),
-                                              ),
-                                              IosIconButton(
-                                                size: 18,
-                                                color: textBase2.withOpacity(0.7),
-                                                icon: Lucide.Pencil,
-                                                padding: const EdgeInsets.all(8),
-                                                onTap: () => _openAssistantSettings(a.id),
-                                              ),
-                                            ],
-                                          ),
+                        const SizedBox(width: 8),
+                        // 历史按钮（圆形，无水波纹）
+                        SizedBox(
+                          width: 45,
+                          height: 45,
+                          child: Center(
+                            child: IosIconButton(
+                              size: 22,
+                              color: textBase,
+                              icon: Lucide.History,
+                              padding: const EdgeInsets.all(10),
+                              onTap: () async {
+                                final selectedId = await Navigator.of(
+                                  context,
+                                ).push<String>(
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => ChatHistoryPage(
+                                          assistantId: currentAssistantId,
                                         ),
-                                      );
-                                    },
                                   ),
                                 );
+                                if (selectedId != null &&
+                                    selectedId.isNotEmpty) {
+                                  widget.onSelectConversation?.call(selectedId);
+                                }
                               },
                             ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  // Update banner under search box
-                  Builder(builder: (context) {
-                    final settings = context.watch<SettingsProvider>();
-                    final upd = context.watch<UpdateProvider>();
-                    if (!settings.showAppUpdates) return const SizedBox.shrink();
-                    final info = upd.available;
-                    if (upd.checking && info == null) {
-                      return const SizedBox.shrink();
-                    }
-                    if (info == null) return const SizedBox.shrink();
-                    final url = info.bestDownloadUrl();
-                    if (url == null || url.isEmpty) return const SizedBox.shrink();
-                    final ver = info.version;
-                    final build = info.build;
-                    final l10n = AppLocalizations.of(context)!;
-                    final title = build != null
-                        ? l10n.sideDrawerUpdateTitleWithBuild(ver, build)
-                        : l10n.sideDrawerUpdateTitle(ver);
-                    final cs2 = Theme.of(context).colorScheme;
-                    final isDark2 = Theme.of(context).brightness == Brightness.dark;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Material(
-                        color: isDark2 ? Colors.white10 : const Color(0xFFF2F3F5),
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () async {
-                            final uri = Uri.parse(url);
-                            try {
-                              // Defer to url_launcher
-                              // ignore: deprecated_member_use
-                              await launchUrl(uri);
-                            } catch (_) {
-                              // Fallback: copy to clipboard
-                              Clipboard.setData(ClipboardData(text: url));
-                              showAppSnackBar(
-                                context,
-                                message: l10n.sideDrawerLinkCopied,
-                                type: NotificationType.success,
+
+                    const SizedBox(height: 12),
+
+                    // 当前助手区域（固定）
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: KeyedSubtree(
+                        key: _assistantTileKey,
+                        child: IosCardPress(
+                          baseColor:
+                              widget.embedded ? Colors.transparent : cs.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: _toggleAssistantPicker,
+                          onLongPress: () {
+                            _closeAssistantPicker();
+                            final id =
+                                context
+                                    .read<AssistantProvider>()
+                                    .currentAssistantId;
+                            if (id != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => AssistantSettingsEditPage(
+                                        assistantId: id,
+                                      ),
+                                ),
                               );
                             }
                           },
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(Lucide.BadgeInfo, size: 18, color: cs2.primary),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        title,
-                                        style: const TextStyle(fontWeight: FontWeight.w700),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if ((info.notes ?? '').trim().isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    info.notes!,
-                                    style: TextStyle(fontSize: 13, color: cs2.onSurface.withOpacity(0.8)),
+                          padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
+                          child: Row(
+                            children: [
+                              _assistantAvatar(
+                                context,
+                                ap.currentAssistant,
+                                size: 32,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  (ap.currentAssistant?.name ??
+                                      widget.assistantName),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: textBase,
                                   ),
-                                ],
-                              ],
-                            ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              AnimatedRotation(
+                                turns: _assistantsExpanded ? 0.5 : 0.0,
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                                child: Icon(
+                                  Lucide.ChevronDown,
+                                  size: 18,
+                                  color: textBase.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    );
-                  }),
-                  // 3. 聊天记录区（按日期分组，最近在前；垂直列表）
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeOutCubic,
-                    transitionBuilder: (child, anim) => FadeTransition(
-                      opacity: anim,
-                      child: SlideTransition(
-                        position: Tween<Offset>(begin: const Offset(0, 0.03), end: Offset.zero)
-                            .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-                        child: child,
+                    ),
+
+                    // 注意：内联助手列表已移动至下方可滚动区域
+                  ],
+                ),
+              ),
+
+              // Scrollable conversation list below fixed header
+              Expanded(
+                child: ListView(
+                  controller: _listController,
+                  // Reduce side paddings to extend tile backgrounds while
+                  // keeping text position unchanged (compensated in tile padding)
+                  padding: EdgeInsets.fromLTRB(
+                    10,
+                    (context.watch<SettingsProvider>().showChatListDate ||
+                            _assistantsExpanded)
+                        ? 4
+                        : 10,
+                    10,
+                    16,
+                  ),
+                  children: [
+                    // 助手列表（内联、与话题一体滚动）
+                    // 要求：助手列表仅淡入/淡出；下方话题区域需要被顺滑推开
+                    // 方案：外层 AnimatedSize 负责高度过渡（推开下方内容），内层 AnimatedSwitcher 仅做淡入淡出
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeInOutCubic,
+                      alignment: Alignment.topCenter,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder:
+                            (child, animation) => FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            ),
+                        child:
+                            !_assistantsExpanded
+                                ? const SizedBox.shrink()
+                                : Builder(
+                                  key: const ValueKey('assistants-inline'),
+                                  builder: (context) {
+                                    final ap2 =
+                                        context.watch<AssistantProvider>();
+                                    final assistants = ap2.assistants;
+                                    final isDark2 =
+                                        Theme.of(context).brightness ==
+                                        Brightness.dark;
+                                    final textBase2 =
+                                        isDark2 ? Colors.white : Colors.black;
+                                    return Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        6,
+                                        6,
+                                        6,
+                                        8,
+                                      ),
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        itemCount: assistants.length,
+                                        itemBuilder: (ctx, i) {
+                                          final a = assistants[i];
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 4,
+                                            ),
+                                            child: IosCardPress(
+                                              baseColor:
+                                                  widget.embedded
+                                                      ? Colors.transparent
+                                                      : Theme.of(
+                                                        context,
+                                                      ).colorScheme.surface,
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              haptics: false,
+                                              onTap:
+                                                  () =>
+                                                      _handleSelectAssistant(a),
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                    4,
+                                                    6,
+                                                    12,
+                                                    6,
+                                                  ),
+                                              child: Row(
+                                                children: [
+                                                  _assistantAvatar(
+                                                    context,
+                                                    a,
+                                                    size: 32,
+                                                  ),
+                                                  const SizedBox(width: 16),
+                                                  Expanded(
+                                                    child: Text(
+                                                      a.name,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontSize: 15,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                        color: textBase2,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  IosIconButton(
+                                                    size: 18,
+                                                    color: textBase2
+                                                        .withOpacity(0.7),
+                                                    icon: Lucide.Pencil,
+                                                    padding:
+                                                        const EdgeInsets.all(8),
+                                                    onTap:
+                                                        () =>
+                                                            _openAssistantSettings(
+                                                              a.id,
+                                                            ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      key: ValueKey('${_query}_${groups.length}_${pinnedList.length}'),
-                      children: [
-                        if (pinnedList.isNotEmpty) ...[
-                          Padding(
-                            // Keep label text aligned with tiles (8 outer + 16 inner = 24)
-                            padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
-                            child: Text(
-                              AppLocalizations.of(context)!.sideDrawerPinnedLabel,
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: cs.primary),
+                    // Update banner under search box
+                    Builder(
+                      builder: (context) {
+                        final settings = context.watch<SettingsProvider>();
+                        final upd = context.watch<UpdateProvider>();
+                        if (!settings.showAppUpdates)
+                          return const SizedBox.shrink();
+                        final info = upd.available;
+                        if (upd.checking && info == null) {
+                          return const SizedBox.shrink();
+                        }
+                        if (info == null) return const SizedBox.shrink();
+                        final url = info.bestDownloadUrl();
+                        if (url == null || url.isEmpty)
+                          return const SizedBox.shrink();
+                        final ver = info.version;
+                        final build = info.build;
+                        final l10n = AppLocalizations.of(context)!;
+                        final title =
+                            build != null
+                                ? l10n.sideDrawerUpdateTitleWithBuild(
+                                  ver,
+                                  build,
+                                )
+                                : l10n.sideDrawerUpdateTitle(ver);
+                        final cs2 = Theme.of(context).colorScheme;
+                        final isDark2 =
+                            Theme.of(context).brightness == Brightness.dark;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Material(
+                            color:
+                                isDark2
+                                    ? Colors.white10
+                                    : const Color(0xFFF2F3F5),
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () async {
+                                final uri = Uri.parse(url);
+                                try {
+                                  // Defer to url_launcher
+                                  // ignore: deprecated_member_use
+                                  await launchUrl(uri);
+                                } catch (_) {
+                                  // Fallback: copy to clipboard
+                                  Clipboard.setData(ClipboardData(text: url));
+                                  showAppSnackBar(
+                                    context,
+                                    message: l10n.sideDrawerLinkCopied,
+                                    type: NotificationType.success,
+                                  );
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Lucide.BadgeInfo,
+                                          size: 18,
+                                          color: cs2.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            title,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if ((info.notes ?? '')
+                                        .trim()
+                                        .isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        info.notes!,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: cs2.onSurface.withOpacity(0.8),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                          Column(
-                            children: [
-                              for (final chat in pinnedList)
-                                _ChatTile(
-                                  chat: chat,
-                                  textColor: textBase,
-                                  selected: chat.id == chatService.currentConversationId,
-                                  loading: widget.loadingConversationIds.contains(chat.id),
-                                  onTap: () => widget.onSelectConversation?.call(chat.id),
-                                  onLongPress: () => _showChatMenu(context, chat),
-                                  onSecondaryTap: (pos) => _showChatMenu(context, chat, anchor: pos),
+                        );
+                      },
+                    ),
+                    // 3. 聊天记录区（按日期分组，最近在前；垂直列表）
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 260),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeOutCubic,
+                      transitionBuilder:
+                          (child, anim) => FadeTransition(
+                            opacity: anim,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.03),
+                                end: Offset.zero,
+                              ).animate(
+                                CurvedAnimation(
+                                  parent: anim,
+                                  curve: Curves.easeOutCubic,
                                 ),
-                            ],
+                              ),
+                              child: child,
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                        ],
-                        for (final group in groups) ...[
-                          if (context.watch<SettingsProvider>().showChatListDate)
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        key: ValueKey(
+                          '${_query}_${groups.length}_${pinnedList.length}',
+                        ),
+                        children: [
+                          if (pinnedList.isNotEmpty) ...[
                             Padding(
                               // Keep label text aligned with tiles (8 outer + 16 inner = 24)
                               padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
                               child: Text(
-                                group.label,
-                                textAlign: TextAlign.left,
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: cs.primary),
-                              ),
-                            ),
-                          Column(
-                            children: [
-                              for (final chat in group.items)
-                                _ChatTile(
-                                  chat: chat,
-                                  textColor: textBase,
-                                  selected: chat.id == chatService.currentConversationId,
-                                  loading: widget.loadingConversationIds.contains(chat.id),
-                                  onTap: () => widget.onSelectConversation?.call(chat.id),
-                                  onLongPress: () => _showChatMenu(context, chat),
-                                  onSecondaryTap: (pos) => _showChatMenu(context, chat, anchor: pos),
-                                ),
-                            ],
-                          ),
-                          if (context.watch<SettingsProvider>().showChatListDate)
-                            const SizedBox(height: 8),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            if (widget.showBottomBar) Container(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              decoration: BoxDecoration(
-                color: widget.embedded ? Colors.transparent : cs.surface,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      const SizedBox(width: 6),
-                      // 用户头像（可点击更换）—移除水波纹
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => _editAvatar(context),
-                        child: avatarWidget(
-                          widget.userName,
-                          context.watch<UserProvider>(),
-                          size: 40,
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      // 用户名称（可点击编辑，垂直居中）
-                      Expanded(
-                        child: IosCardPress(
-                          borderRadius: BorderRadius.circular(6),
-                          baseColor: Colors.transparent,
-                          onTap: () => _editUserName(context),
-                          padding: const EdgeInsets.symmetric(horizontal: 0),
-                          child: SizedBox(
-                            height: 45,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                widget.userName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                AppLocalizations.of(
+                                  context,
+                                )!.sideDrawerPinnedLabel,
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: textBase,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: cs.primary,
+                                ),
+                              ),
+                            ),
+                            Column(
+                              children: [
+                                for (final chat in pinnedList)
+                                  _ChatTile(
+                                    chat: chat,
+                                    textColor: textBase,
+                                    selected:
+                                        chat.id ==
+                                        chatService.currentConversationId,
+                                    loading: widget.loadingConversationIds
+                                        .contains(chat.id),
+                                    onTap:
+                                        () => widget.onSelectConversation?.call(
+                                          chat.id,
+                                        ),
+                                    onLongPress:
+                                        () => _showChatMenu(context, chat),
+                                    onSecondaryTap:
+                                        (pos) => _showChatMenu(
+                                          context,
+                                          chat,
+                                          anchor: pos,
+                                        ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          for (final group in groups) ...[
+                            if (context
+                                .watch<SettingsProvider>()
+                                .showChatListDate)
+                              Padding(
+                                // Keep label text aligned with tiles (8 outer + 16 inner = 24)
+                                padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
+                                child: Text(
+                                  group.label,
+                                  textAlign: TextAlign.left,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: cs.primary,
+                                  ),
+                                ),
+                              ),
+                            Column(
+                              children: [
+                                for (final chat in group.items)
+                                  _ChatTile(
+                                    chat: chat,
+                                    textColor: textBase,
+                                    selected:
+                                        chat.id ==
+                                        chatService.currentConversationId,
+                                    loading: widget.loadingConversationIds
+                                        .contains(chat.id),
+                                    onTap:
+                                        () => widget.onSelectConversation?.call(
+                                          chat.id,
+                                        ),
+                                    onLongPress:
+                                        () => _showChatMenu(context, chat),
+                                    onSecondaryTap:
+                                        (pos) => _showChatMenu(
+                                          context,
+                                          chat,
+                                          anchor: pos,
+                                        ),
+                                  ),
+                              ],
+                            ),
+                            if (context
+                                .watch<SettingsProvider>()
+                                .showChatListDate)
+                              const SizedBox(height: 8),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (widget.showBottomBar)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                  decoration: BoxDecoration(
+                    color: widget.embedded ? Colors.transparent : cs.surface,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const SizedBox(width: 6),
+                          // 用户头像（可点击更换）—移除水波纹
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _editAvatar(context),
+                            child: avatarWidget(
+                              widget.userName,
+                              context.watch<UserProvider>(),
+                              size: 40,
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          // 用户名称（可点击编辑，垂直居中）
+                          Expanded(
+                            child: IosCardPress(
+                              borderRadius: BorderRadius.circular(6),
+                              baseColor: Colors.transparent,
+                              onTap: () => _editUserName(context),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 0,
+                              ),
+                              child: SizedBox(
+                                height: 45,
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    widget.userName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: textBase,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // 设置按钮（圆形，无水波纹）
-                      SizedBox(
-                        width: 45,
-                        height: 45,
-                        child: Center(
-                          child: IosIconButton(
-                            size: 22,
-                            color: textBase,
-                            icon: Lucide.Settings,
-                            padding: const EdgeInsets.all(10),
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (_) => const SettingsPage()),
-                              );
-                            },
+                          const SizedBox(width: 8),
+                          // 设置按钮（圆形，无水波纹）
+                          SizedBox(
+                            width: 45,
+                            height: 45,
+                            child: Center(
+                              child: IosIconButton(
+                                size: 22,
+                                color: textBase,
+                                icon: Lucide.Settings,
+                                padding: const EdgeInsets.all(10),
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => const SettingsPage(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-              ],
-            ),
+                ),
+            ],
+          ),
 
-            // iOS-style blur/fade effect above user area
-            if (!widget.embedded)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 62, // Approximate height of user area
-                child: IgnorePointer(
-                  child: Container(
-                    height: 20,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          cs.surface.withOpacity(0.0),
-                          cs.surface.withOpacity(0.8),
-                          cs.surface.withOpacity(1.0),
-                        ],
-                        stops: const [0.0, 0.6, 1.0],
-                      ),
+          // iOS-style blur/fade effect above user area
+          if (!widget.embedded)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 62, // Approximate height of user area
+              child: IgnorePointer(
+                child: Container(
+                  height: 20,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        cs.surface.withOpacity(0.0),
+                        cs.surface.withOpacity(0.8),
+                        cs.surface.withOpacity(1.0),
+                      ],
+                      stops: const [0.0, 0.6, 1.0],
                     ),
                   ),
                 ),
               ),
-          ],
-        ),
-      );
+            ),
+        ],
+      ),
+    );
 
     if (widget.embedded) {
       return ClipRect(
@@ -1087,10 +1366,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Material(
             color: cs.surface.withOpacity(0.60),
-            child: SizedBox(
-              width: widget.embeddedWidth ?? 300,
-              child: inner,
-            ),
+            child: SizedBox(width: widget.embeddedWidth ?? 300, child: inner),
           ),
         ),
       );
@@ -1143,10 +1419,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   void _openAssistantSettings(String id) {
     _closeAssistantPicker();
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AssistantSettingsEditPage(assistantId: id)),
+      MaterialPageRoute(
+        builder: (_) => AssistantSettingsEditPage(assistantId: id),
+      ),
     );
   }
-
 }
 
 extension on _SideDrawerState {
@@ -1180,12 +1457,19 @@ extension on _SideDrawerState {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                  child: Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ),
             ),
           );
         }
+
         return SafeArea(
           top: false,
           child: ConstrainedBox(
@@ -1208,16 +1492,26 @@ extension on _SideDrawerState {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    row(l10n.sideDrawerChooseImage, () async { await _pickLocalImage(context); }),
+                    row(l10n.sideDrawerChooseImage, () async {
+                      await _pickLocalImage(context);
+                    }),
                     row(l10n.sideDrawerChooseEmoji, () async {
                       final emoji = await _pickEmoji(context);
                       if (emoji != null) {
-                        await context.read<UserProvider>().setAvatarEmoji(emoji);
+                        await context.read<UserProvider>().setAvatarEmoji(
+                          emoji,
+                        );
                       }
                     }),
-                    row(l10n.sideDrawerEnterLink, () async { await _inputAvatarUrl(context); }),
-                    row(l10n.sideDrawerImportFromQQ, () async { await _inputQQAvatar(context); }),
-                    row(l10n.sideDrawerReset, () async { await context.read<UserProvider>().resetAvatar(); }),
+                    row(l10n.sideDrawerEnterLink, () async {
+                      await _inputAvatarUrl(context);
+                    }),
+                    row(l10n.sideDrawerImportFromQQ, () async {
+                      await _inputQQAvatar(context);
+                    }),
+                    row(l10n.sideDrawerReset, () async {
+                      await context.read<UserProvider>().resetAvatar();
+                    }),
                     const SizedBox(height: 4),
                   ],
                 ),
@@ -1239,116 +1533,257 @@ extension on _SideDrawerState {
       final trimmed = s.characters.take(1).toString().trim();
       return trimmed.isNotEmpty && trimmed == s.trim();
     }
+
     final List<String> quick = const [
-      '😀','😁','😂','🤣','😃','😄','😅','😊','😍','😘','😗','😙','😚','🙂','🤗','🤩','🫶','🤝','👍','👎','👋','🙏','💪','🔥','✨','🌟','💡','🎉','🎊','🎈','🌈','☀️','🌙','⭐','⚡','☁️','❄️','🌧️','🍎','🍊','🍋','🍉','🍇','🍓','🍒','🍑','🥭','🍍','🥝','🍅','🥕','🌽','🍞','🧀','🍔','🍟','🍕','🌮','🌯','🍣','🍜','🍰','🍪','🍩','🍫','🍻','☕','🧋','🥤','⚽','🏀','🏈','🎾','🏐','🎮','🎧','🎸','🎹','🎺','📚','✏️','💼','💻','🖥️','📱','🛩️','✈️','🚗','🚕','🚙','🚌','🚀','🛰️','🧠','🫀','💊','🩺','🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵'
+      '😀',
+      '😁',
+      '😂',
+      '🤣',
+      '😃',
+      '😄',
+      '😅',
+      '😊',
+      '😍',
+      '😘',
+      '😗',
+      '😙',
+      '😚',
+      '🙂',
+      '🤗',
+      '🤩',
+      '🫶',
+      '🤝',
+      '👍',
+      '👎',
+      '👋',
+      '🙏',
+      '💪',
+      '🔥',
+      '✨',
+      '🌟',
+      '💡',
+      '🎉',
+      '🎊',
+      '🎈',
+      '🌈',
+      '☀️',
+      '🌙',
+      '⭐',
+      '⚡',
+      '☁️',
+      '❄️',
+      '🌧️',
+      '🍎',
+      '🍊',
+      '🍋',
+      '🍉',
+      '🍇',
+      '🍓',
+      '🍒',
+      '🍑',
+      '🥭',
+      '🍍',
+      '🥝',
+      '🍅',
+      '🥕',
+      '🌽',
+      '🍞',
+      '🧀',
+      '🍔',
+      '🍟',
+      '🍕',
+      '🌮',
+      '🌯',
+      '🍣',
+      '🍜',
+      '🍰',
+      '🍪',
+      '🍩',
+      '🍫',
+      '🍻',
+      '☕',
+      '🧋',
+      '🥤',
+      '⚽',
+      '🏀',
+      '🏈',
+      '🎾',
+      '🏐',
+      '🎮',
+      '🎧',
+      '🎸',
+      '🎹',
+      '🎺',
+      '📚',
+      '✏️',
+      '💼',
+      '💻',
+      '🖥️',
+      '📱',
+      '🛩️',
+      '✈️',
+      '🚗',
+      '🚕',
+      '🚙',
+      '🚌',
+      '🚀',
+      '🛰️',
+      '🧠',
+      '🫀',
+      '💊',
+      '🩺',
+      '🐶',
+      '🐱',
+      '🐭',
+      '🐹',
+      '🐰',
+      '🦊',
+      '🐻',
+      '🐼',
+      '🐨',
+      '🐯',
+      '🦁',
+      '🐮',
+      '🐷',
+      '🐸',
+      '🐵',
     ];
     return showDialog<String>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          // Revert to non-scrollable dialog but cap grid height
-          // based on available height when keyboard is visible.
-          final media = MediaQuery.of(ctx);
-          final avail = media.size.height - media.viewInsets.bottom;
-          final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
-          return AlertDialog(
-            scrollable: true,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            backgroundColor: cs.surface,
-            title: Text(l10n.sideDrawerEmojiDialogTitle),
-            content: SizedBox(
-              width: 360,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: cs.primary.withOpacity(0.08),
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(value.isEmpty ? '🙂' : value.characters.take(1).toString(), style: const TextStyle(fontSize: 40)),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    onChanged: (v) => setLocal(() => value = v),
-                    onSubmitted: (_) {
-                      if (validGrapheme(value)) Navigator.of(ctx).pop(value.characters.take(1).toString());
-                    },
-                    decoration: InputDecoration(
-                      hintText: l10n.sideDrawerEmojiDialogHint,
-                      filled: true,
-                      fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.transparent),
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            // Revert to non-scrollable dialog but cap grid height
+            // based on available height when keyboard is visible.
+            final media = MediaQuery.of(ctx);
+            final avail = media.size.height - media.viewInsets.bottom;
+            final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
+            return AlertDialog(
+              scrollable: true,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              backgroundColor: cs.surface,
+              title: Text(l10n.sideDrawerEmojiDialogTitle),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withOpacity(0.08),
+                        shape: BoxShape.circle,
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.transparent),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
+                      alignment: Alignment.center,
+                      child: Text(
+                        value.isEmpty
+                            ? '🙂'
+                            : value.characters.take(1).toString(),
+                        style: const TextStyle(fontSize: 40),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: gridHeight,
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 8,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                      ),
-                      itemCount: quick.length,
-                      itemBuilder: (c, i) {
-                        final e = quick[i];
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () => Navigator.of(ctx).pop(e),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: cs.primary.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(e, style: const TextStyle(fontSize: 20)),
-                          ),
-                        );
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      onChanged: (v) => setLocal(() => value = v),
+                      onSubmitted: (_) {
+                        if (validGrapheme(value))
+                          Navigator.of(
+                            ctx,
+                          ).pop(value.characters.take(1).toString());
                       },
+                      decoration: InputDecoration(
+                        hintText: l10n.sideDrawerEmojiDialogHint,
+                        filled: true,
+                        fillColor:
+                            Theme.of(ctx).brightness == Brightness.dark
+                                ? Colors.white10
+                                : const Color(0xFFF2F3F5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.transparent),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.transparent),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: cs.primary.withOpacity(0.4),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(l10n.sideDrawerCancel),
-              ),
-              TextButton(
-                onPressed: validGrapheme(value) ? () => Navigator.of(ctx).pop(value.characters.take(1).toString()) : null,
-                child: Text(
-                  l10n.sideDrawerSave,
-                  style: TextStyle(
-                    color: validGrapheme(value) ? cs.primary : cs.onSurface.withOpacity(0.38),
-                    fontWeight: FontWeight.w600,
-                  ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: gridHeight,
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 8,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                            ),
+                        itemCount: quick.length,
+                        itemBuilder: (c, i) {
+                          final e = quick[i];
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.of(ctx).pop(e),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: cs.primary.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                e,
+                                style: const TextStyle(fontSize: 20),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          );
-        });
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(l10n.sideDrawerCancel),
+                ),
+                TextButton(
+                  onPressed:
+                      validGrapheme(value)
+                          ? () => Navigator.of(
+                            ctx,
+                          ).pop(value.characters.take(1).toString())
+                          : null,
+                  child: Text(
+                    l10n.sideDrawerSave,
+                    style: TextStyle(
+                      color:
+                          validGrapheme(value)
+                              ? cs.primary
+                              : cs.onSurface.withOpacity(0.38),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
       },
     );
   }
@@ -1360,56 +1795,68 @@ extension on _SideDrawerState {
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        bool valid(String s) => s.trim().startsWith('http://') || s.trim().startsWith('https://');
+        bool valid(String s) =>
+            s.trim().startsWith('http://') || s.trim().startsWith('https://');
         String value = '';
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            backgroundColor: cs.surface,
-            title: Text(l10n.sideDrawerImageUrlDialogTitle),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: l10n.sideDrawerImageUrlDialogHint,
-                filled: true,
-                fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.transparent),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.transparent),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
-                ),
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              onChanged: (v) => setLocal(() => value = v),
-              onSubmitted: (_) {
-                if (valid(value)) Navigator.of(ctx).pop(true);
-              },
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(l10n.sideDrawerCancel),
-              ),
-              TextButton(
-                onPressed: valid(value) ? () => Navigator.of(ctx).pop(true) : null,
-                child: Text(
-                  l10n.sideDrawerSave,
-                  style: TextStyle(
-                    color: valid(value) ? cs.primary : cs.onSurface.withOpacity(0.38),
-                    fontWeight: FontWeight.w600,
+              backgroundColor: cs.surface,
+              title: Text(l10n.sideDrawerImageUrlDialogTitle),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: l10n.sideDrawerImageUrlDialogHint,
+                  filled: true,
+                  fillColor:
+                      Theme.of(ctx).brightness == Brightness.dark
+                          ? Colors.white10
+                          : const Color(0xFFF2F3F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.transparent),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.transparent),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
                   ),
                 ),
+                onChanged: (v) => setLocal(() => value = v),
+                onSubmitted: (_) {
+                  if (valid(value)) Navigator.of(ctx).pop(true);
+                },
               ),
-            ],
-          );
-        });
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(l10n.sideDrawerCancel),
+                ),
+                TextButton(
+                  onPressed:
+                      valid(value) ? () => Navigator.of(ctx).pop(true) : null,
+                  child: Text(
+                    l10n.sideDrawerSave,
+                    style: TextStyle(
+                      color:
+                          valid(value)
+                              ? cs.primary
+                              : cs.onSurface.withOpacity(0.38),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
       },
     );
     if (ok == true) {
@@ -1451,14 +1898,22 @@ extension on _SideDrawerState {
             [5, 6, 7, 8],
             [9],
           ];
-          final firstWeights = <int>[128, 4, 2, 1]; // ratio only; ensures 1-2 > 3-4 > 5-8 > 9
+          final firstWeights = <int>[
+            128,
+            4,
+            2,
+            1,
+          ]; // ratio only; ensures 1-2 > 3-4 > 5-8 > 9
           final firstTotal = firstWeights.fold<int>(0, (a, b) => a + b);
           int r2 = rnd.nextInt(firstTotal) + 1;
           int idx = 0;
           int a2 = 0;
           for (int i = 0; i < firstGroups.length; i++) {
             a2 += firstWeights[i];
-            if (r2 <= a2) { idx = i; break; }
+            if (r2 <= a2) {
+              idx = i;
+              break;
+            }
           }
           final group = firstGroups[idx];
           sb.write(group[rnd.nextInt(group.length)]);
@@ -1467,97 +1922,119 @@ extension on _SideDrawerState {
           }
           return sb.toString();
         }
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            backgroundColor: cs.surface,
-            title: Text(l10n.sideDrawerQQAvatarDialogTitle),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: l10n.sideDrawerQQAvatarInputHint,
-                filled: true,
-                fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.transparent),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.transparent),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
-                ),
+
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-              onChanged: (v) => setLocal(() => value = v),
-              onSubmitted: (_) {
-                if (valid(value)) Navigator.of(ctx).pop(true);
-              },
-            ),
-            actionsAlignment: MainAxisAlignment.spaceBetween,
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  // Try multiple times until a valid avatar is fetched
-                  const int maxTries = 20;
-                  bool applied = false;
-                  for (int i = 0; i < maxTries; i++) {
-                    final qq = randomQQ();
-                    // debugPrint(qq);
-                    final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=' + qq + '&spec=100';
-                    try {
-                      final resp = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-                      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
-                        await context.read<UserProvider>().setAvatarUrl(url);
-                        applied = true;
-                        break;
-                      }
-                    } catch (_) {}
-                  }
-                  if (applied) {
-                    if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop(false);
-                  } else {
-                    showAppSnackBar(
-                      context,
-                      message: l10n.sideDrawerQQAvatarFetchFailed,
-                      type: NotificationType.error,
-                    );
-                  }
-                },
-                child: Text(l10n.sideDrawerRandomQQ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(false),
-                    child: Text(l10n.sideDrawerCancel),
+              backgroundColor: cs.surface,
+              title: Text(l10n.sideDrawerQQAvatarDialogTitle),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: l10n.sideDrawerQQAvatarInputHint,
+                  filled: true,
+                  fillColor:
+                      Theme.of(ctx).brightness == Brightness.dark
+                          ? Colors.white10
+                          : const Color(0xFFF2F3F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.transparent),
                   ),
-                  TextButton(
-                    onPressed: valid(value) ? () => Navigator.of(ctx).pop(true) : null,
-                    child: Text(
-                      l10n.sideDrawerSave,
-                      style: TextStyle(
-                        color: valid(value) ? cs.primary : cs.onSurface.withOpacity(0.38),
-                        fontWeight: FontWeight.w600,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.transparent),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
+                  ),
+                ),
+                onChanged: (v) => setLocal(() => value = v),
+                onSubmitted: (_) {
+                  if (valid(value)) Navigator.of(ctx).pop(true);
+                },
+              ),
+              actionsAlignment: MainAxisAlignment.spaceBetween,
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    // Try multiple times until a valid avatar is fetched
+                    const int maxTries = 20;
+                    bool applied = false;
+                    for (int i = 0; i < maxTries; i++) {
+                      final qq = randomQQ();
+                      // debugPrint(qq);
+                      final url =
+                          'https://q2.qlogo.cn/headimg_dl?dst_uin=' +
+                          qq +
+                          '&spec=100';
+                      try {
+                        final resp = await http
+                            .get(Uri.parse(url))
+                            .timeout(const Duration(seconds: 5));
+                        if (resp.statusCode == 200 &&
+                            resp.bodyBytes.isNotEmpty) {
+                          await context.read<UserProvider>().setAvatarUrl(url);
+                          applied = true;
+                          break;
+                        }
+                      } catch (_) {}
+                    }
+                    if (applied) {
+                      if (Navigator.of(ctx).canPop())
+                        Navigator.of(ctx).pop(false);
+                    } else {
+                      showAppSnackBar(
+                        context,
+                        message: l10n.sideDrawerQQAvatarFetchFailed,
+                        type: NotificationType.error,
+                      );
+                    }
+                  },
+                  child: Text(l10n.sideDrawerRandomQQ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      child: Text(l10n.sideDrawerCancel),
+                    ),
+                    TextButton(
+                      onPressed:
+                          valid(value)
+                              ? () => Navigator.of(ctx).pop(true)
+                              : null,
+                      child: Text(
+                        l10n.sideDrawerSave,
+                        style: TextStyle(
+                          color:
+                              valid(value)
+                                  ? cs.primary
+                                  : cs.onSurface.withOpacity(0.38),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          );
-        });
+                  ],
+                ),
+              ],
+            );
+          },
+        );
       },
     );
     if (ok == true) {
       final qq = controller.text.trim();
       if (qq.isNotEmpty) {
-        final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=' + qq + '&spec=100';
+        final url =
+            'https://q2.qlogo.cn/headimg_dl?dst_uin=' + qq + '&spec=100';
         await context.read<UserProvider>().setAvatarUrl(url);
       }
     }
@@ -1582,14 +2059,18 @@ extension on _SideDrawerState {
         return;
       }
       if (bytes == null && path != null) {
-        try { bytes = await File(path).readAsBytes(); } catch (_) {}
+        try {
+          bytes = await File(path).readAsBytes();
+        } catch (_) {}
       }
       if (bytes == null) return;
 
       // Write to a temp file and let provider persist it
       final tmpDir = await getTemporaryDirectory();
       final ext = _extFromName(f.name);
-      final tmpFile = File('${tmpDir.path}/picked_avatar_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      final tmpFile = File(
+        '${tmpDir.path}/picked_avatar_${DateTime.now().millisecondsSinceEpoch}.$ext',
+      );
       await tmpFile.writeAsBytes(bytes);
       await context.read<UserProvider>().setAvatarFilePath(tmpFile.path);
       return;
@@ -1613,6 +2094,7 @@ extension on _SideDrawerState {
     if (lower.endsWith('.gif')) return 'gif';
     return 'jpg';
   }
+
   Future<void> _editUserName(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final initial = widget.userName;
@@ -1628,7 +2110,9 @@ extension on _SideDrawerState {
         return StatefulBuilder(
           builder: (ctx, setLocal) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               backgroundColor: cs.surface,
               title: Text(l10n.sideDrawerSetNicknameTitle),
               content: Column(
@@ -1649,7 +2133,8 @@ extension on _SideDrawerState {
                       labelText: l10n.sideDrawerNicknameLabel,
                       hintText: l10n.sideDrawerNicknameHint,
                       filled: true,
-                      fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                      fillColor:
+                          isDark ? Colors.white10 : const Color(0xFFF2F3F5),
                       counterText: '',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -1661,16 +2146,24 @@ extension on _SideDrawerState {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
+                        borderSide: BorderSide(
+                          color: cs.primary.withOpacity(0.4),
+                        ),
                       ),
                     ),
-                    style: TextStyle(fontSize: 15, color: Theme.of(ctx).textTheme.bodyMedium?.color),
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Theme.of(ctx).textTheme.bodyMedium?.color,
+                    ),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
                       '${value.trim().length}/$maxLen',
-                      style: TextStyle(color: cs.onSurface.withOpacity(0.45), fontSize: 12),
+                      style: TextStyle(
+                        color: cs.onSurface.withOpacity(0.45),
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -1681,11 +2174,15 @@ extension on _SideDrawerState {
                   child: Text(l10n.sideDrawerCancel),
                 ),
                 TextButton(
-                  onPressed: valid(value) ? () => Navigator.of(ctx).pop(true) : null,
+                  onPressed:
+                      valid(value) ? () => Navigator.of(ctx).pop(true) : null,
                   child: Text(
                     l10n.sideDrawerSave,
                     style: TextStyle(
-                      color: valid(value) ? cs.primary : cs.onSurface.withOpacity(0.38),
+                      color:
+                          valid(value)
+                              ? cs.primary
+                              : cs.onSurface.withOpacity(0.38),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1736,22 +2233,30 @@ class _ChatTile extends StatefulWidget {
 
 class _ChatTileState extends State<_ChatTile> {
   bool _hovered = false;
-  bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
+  bool get _isDesktop =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final embedded = context.findAncestorWidgetOfExactType<SideDrawer>()?.embedded ?? false;
+    final embedded =
+        context.findAncestorWidgetOfExactType<SideDrawer>()?.embedded ?? false;
     final Color tileColor;
     if (embedded) {
       // In tablet embedded mode, keep selected highlight, others transparent
-      tileColor = widget.selected ? cs.primary.withOpacity(0.16) : Colors.transparent;
+      tileColor =
+          widget.selected ? cs.primary.withOpacity(0.16) : Colors.transparent;
     } else {
       tileColor = widget.selected ? cs.primary.withOpacity(0.12) : cs.surface;
     }
-    final base = _isDesktop && !widget.selected && _hovered
-        ? (embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9))
-        : tileColor;
+    final base =
+        _isDesktop && !widget.selected && _hovered
+            ? (embedded
+                ? cs.primary.withOpacity(0.08)
+                : cs.surface.withOpacity(0.9))
+            : tileColor;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: GestureDetector(
@@ -1765,17 +2270,22 @@ class _ChatTileState extends State<_ChatTile> {
           widget.onLongPress?.call();
         },
         child: MouseRegion(
-          onEnter: (_) { if (_isDesktop) setState(() => _hovered = true); },
-          onExit: (_) { if (_isDesktop) setState(() => _hovered = false); },
-          cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        child: IosCardPress(
-          baseColor: base,
-          borderRadius: BorderRadius.circular(16),
-          haptics: false,
-          onTap: widget.onTap,
-          onLongPress: _isDesktop ? null : widget.onLongPress,
-          padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-          child: Row(
+          onEnter: (_) {
+            if (_isDesktop) setState(() => _hovered = true);
+          },
+          onExit: (_) {
+            if (_isDesktop) setState(() => _hovered = false);
+          },
+          cursor:
+              _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          child: IosCardPress(
+            baseColor: base,
+            borderRadius: BorderRadius.circular(16),
+            haptics: false,
+            onTap: widget.onTap,
+            onLongPress: _isDesktop ? null : widget.onLongPress,
+            padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+            child: Row(
               children: [
                 Expanded(
                   child: Text(
@@ -1807,14 +2317,18 @@ class _LoadingDot extends StatefulWidget {
   State<_LoadingDot> createState() => _LoadingDotState();
 }
 
-class _LoadingDotState extends State<_LoadingDot> with SingleTickerProviderStateMixin {
+class _LoadingDotState extends State<_LoadingDot>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _anim;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
     _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
   }
 

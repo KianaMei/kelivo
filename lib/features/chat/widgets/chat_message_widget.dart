@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import '../../../core/services/haptics.dart';
 import 'package:flutter/scheduler.dart';
 import '../../../shared/widgets/ios_tactile.dart';
@@ -120,7 +121,10 @@ class ChatMessageWidget extends StatefulWidget {
 
 class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   // Match vendor inline thinking blocks: <think>...</think> (or until end)
-  static final RegExp THINKING_REGEX = RegExp(r"<think>([\s\S]*?)(?:</think>|$)", dotAll: true);
+  static final RegExp THINKING_REGEX = RegExp(
+    r"<think>([\s\S]*?)(?:</think>|$)",
+    dotAll: true,
+  );
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
   final ScrollController _reasoningScroll = ScrollController();
   bool _tickActive = false;
@@ -163,8 +167,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         .map((m) => (m.group(1) ?? '').trim())
         .where((s) => s.isNotEmpty)
         .join('\n\n');
-    final usingInlineThinkNew = (widget.reasoningText == null || widget.reasoningText!.isEmpty) && newExtracted.isNotEmpty;
-    final loadingNew = usingInlineThinkNew && widget.message.isStreaming && !widget.message.content.contains('</think>');
+    final usingInlineThinkNew =
+        (widget.reasoningText == null || widget.reasoningText!.isEmpty) &&
+        newExtracted.isNotEmpty;
+    final loadingNew =
+        usingInlineThinkNew &&
+        widget.message.isStreaming &&
+        !widget.message.content.contains('</think>');
 
     bool loadingOld = false;
     if (oldWidget != null) {
@@ -173,8 +182,14 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           .map((m) => (m.group(1) ?? '').trim())
           .where((s) => s.isNotEmpty)
           .join('\n\n');
-      final usingInlineThinkOld = (oldWidget.reasoningText == null || oldWidget.reasoningText!.isEmpty) && oldExtracted.isNotEmpty;
-      loadingOld = usingInlineThinkOld && oldWidget.message.isStreaming && !oldWidget.message.content.contains('</think>');
+      final usingInlineThinkOld =
+          (oldWidget.reasoningText == null ||
+              oldWidget.reasoningText!.isEmpty) &&
+          oldExtracted.isNotEmpty;
+      loadingOld =
+          usingInlineThinkOld &&
+          oldWidget.message.isStreaming &&
+          !oldWidget.message.content.contains('</think>');
     }
 
     // Persist last loading to assist other checks
@@ -185,7 +200,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     // If finished now (not loading), inline think is used, and auto-collapse is on
     // Only collapse when user hasn't manually toggled; also if we don't yet have a chosen state.
     final finishedNow = usingInlineThinkNew && !loadingNew;
-    final justFinished = oldWidget != null ? (loadingOld && finishedNow) : finishedNow;
+    final justFinished =
+        oldWidget != null ? (loadingOld && finishedNow) : finishedNow;
 
     if (autoCollapse && finishedNow && justFinished) {
       if (!_inlineThinkManuallyToggled || _inlineThinkExpanded == null) {
@@ -195,7 +211,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     }
 
     // On first mount where already finished and no user choice yet, honor autoCollapse
-    if (oldWidget == null && usingInlineThinkNew && !loadingNew && _inlineThinkExpanded == null) {
+    if (oldWidget == null &&
+        usingInlineThinkNew &&
+        !loadingNew &&
+        _inlineThinkExpanded == null) {
       if (autoCollapse) {
         if (mounted) setState(() => _inlineThinkExpanded = false);
       } else {
@@ -205,7 +224,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }
 
   void _syncTicker() {
-    final loading = widget.reasoningStartAt != null && widget.reasoningFinishedAt == null;
+    final loading =
+        widget.reasoningStartAt != null && widget.reasoningFinishedAt == null;
     _tickActive = loading;
     if (loading) {
       if (!_ticker.isActive) _ticker.start();
@@ -234,14 +254,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       }
     }
 
-    final inferred = ModelRegistry.infer(ModelInfo(id: modelId, displayName: modelId));
+    final inferred = ModelRegistry.infer(
+      ModelInfo(id: modelId, displayName: modelId),
+    );
     final fallback = inferred.displayName.trim();
     return fallback.isNotEmpty ? fallback : modelId;
   }
 
   @override
   void dispose() {
-    try { _userMenuOverlay?.remove(); } catch (_) {}
+    try {
+      _userMenuOverlay?.remove();
+    } catch (_) {}
     _userMenuOverlay = null;
     _ticker.dispose();
     _reasoningScroll.dispose();
@@ -249,14 +273,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }
 
   void _removeUserMenuOverlay() {
-    try { _userMenuOverlay?.remove(); } catch (_) {}
+    try {
+      _userMenuOverlay?.remove();
+    } catch (_) {}
     _userMenuOverlay = null;
     if (mounted && _userMenuActive) setState(() => _userMenuActive = false);
   }
 
   void _showUserContextMenu() {
     // Haptic feedback (optional)
-    try { Haptics.light(); } catch (_) {}
+    try {
+      Haptics.light();
+    } catch (_) {}
 
     final box = _userBubbleKey.currentContext?.findRenderObject() as RenderBox?;
     final overlay = Overlay.of(context);
@@ -266,7 +294,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final bubbleTopLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox);
     final bubbleSize = box.size;
     final screenSize = overlayBox.size;
-    final insets = MediaQuery.of(context).padding; // status bar / gesture insets
+    final insets =
+        MediaQuery.of(context).padding; // status bar / gesture insets
     final safeLeft = insets.left + 12;
     final safeRight = insets.right + 12;
     final safeTop = insets.top + 12;
@@ -287,7 +316,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
     // Decide above vs below using safe area
     final availableAbove = bubbleTopLeft.dy - gap - safeTop;
-    final availableBelow = (screenSize.height - safeBottom) - (bubbleTopLeft.dy + bubbleSize.height + gap);
+    final availableBelow =
+        (screenSize.height - safeBottom) -
+        (bubbleTopLeft.dy + bubbleSize.height + gap);
     final bool canPlaceAbove = availableAbove >= estMenuHeight;
     final bool canPlaceBelow = availableBelow >= estMenuHeight;
 
@@ -301,9 +332,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       placeAbove = availableAbove > availableBelow;
     }
 
-    double y = placeAbove
-        ? (bubbleTopLeft.dy - estMenuHeight - gap)
-        : (bubbleTopLeft.dy + bubbleSize.height + gap);
+    double y =
+        placeAbove
+            ? (bubbleTopLeft.dy - estMenuHeight - gap)
+            : (bubbleTopLeft.dy + bubbleSize.height + gap);
 
     // Clamp vertically to remain fully visible within safe area
     final double minY = safeTop;
@@ -336,14 +368,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? const Color(0xFF1C1C1E).withOpacity(0.66)
-                            : Colors.white.withOpacity(0.66),
+                        color:
+                            isDark
+                                ? const Color(0xFF1C1C1E).withOpacity(0.66)
+                                : Colors.white.withOpacity(0.66),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.08)
-                              : cs.outlineVariant.withOpacity(0.2),
+                          color:
+                              isDark
+                                  ? Colors.white.withOpacity(0.08)
+                                  : cs.outlineVariant.withOpacity(0.2),
                           width: 1,
                         ),
                       ),
@@ -352,50 +386,54 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                      _MenuItem(
-                        icon: Lucide.Copy,
-                        label: l10n.shareProviderSheetCopyButton,
-                        onTap: () async {
-                          Navigator.of(ctx).pop();
-                          if (widget.onCopy != null) {
-                            widget.onCopy!.call();
-                          } else {
-                            await Clipboard.setData(ClipboardData(text: widget.message.content));
-                            if (mounted) {
-                              showAppSnackBar(
-                                context,
-                                message: l10n.chatMessageWidgetCopiedToClipboard,
-                                type: NotificationType.success,
-                              );
-                            }
-                          }
-                        },
-                      ),
-                      _MenuItem(
-                        icon: Lucide.Pencil,
-                        label: l10n.messageMoreSheetEdit,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          (widget.onEdit ?? widget.onMore)?.call();
-                        },
-                      ),
-                      _MenuItem(
-                        icon: Lucide.Trash2,
-                        danger: true,
-                        label: l10n.messageMoreSheetDelete,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          (widget.onDelete ?? widget.onMore)?.call();
-                        },
-                      ),
-                    ],
+                            _MenuItem(
+                              icon: Lucide.Copy,
+                              label: l10n.shareProviderSheetCopyButton,
+                              onTap: () async {
+                                Navigator.of(ctx).pop();
+                                if (widget.onCopy != null) {
+                                  widget.onCopy!.call();
+                                } else {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: widget.message.content),
+                                  );
+                                  if (mounted) {
+                                    showAppSnackBar(
+                                      context,
+                                      message:
+                                          l10n.chatMessageWidgetCopiedToClipboard,
+                                      type: NotificationType.success,
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                            _MenuItem(
+                              icon: Lucide.Pencil,
+                              label: l10n.messageMoreSheetEdit,
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                (widget.onEdit ?? widget.onMore)?.call();
+                              },
+                            ),
+                            _MenuItem(
+                              icon: Lucide.Trash2,
+                              danger: true,
+                              label: l10n.messageMoreSheetDelete,
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                (widget.onDelete ?? widget.onMore)?.call();
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          )],
+          ],
         );
       },
     ).whenComplete(() {
@@ -406,14 +444,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   Widget _buildUserAvatar(UserProvider userProvider, ColorScheme cs) {
     Widget avatarContent;
 
-    if (userProvider.avatarType == 'emoji' && userProvider.avatarValue != null) {
+    if (userProvider.avatarType == 'emoji' &&
+        userProvider.avatarValue != null) {
       avatarContent = Center(
         child: Text(
           userProvider.avatarValue!,
           style: const TextStyle(fontSize: 18),
         ),
       );
-    } else if (userProvider.avatarType == 'url' && userProvider.avatarValue != null) {
+    } else if (userProvider.avatarType == 'url' &&
+        userProvider.avatarValue != null) {
       final url = userProvider.avatarValue!;
       avatarContent = FutureBuilder<String?>(
         future: AvatarCache.getPath(url),
@@ -456,40 +496,45 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 width: 32,
                 height: 32,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  Lucide.User,
-                  size: 18,
-                  color: cs.primary,
-                ),
+                errorBuilder:
+                    (context, error, stackTrace) =>
+                        Icon(Lucide.User, size: 18, color: cs.primary),
               ),
             ),
           );
         },
       );
-    } else if (userProvider.avatarType == 'file' && userProvider.avatarValue != null && !kIsWeb) {
-      avatarContent = SizedBox(
-        width: 32,
-        height: 32,
-        child: ClipOval(
-          child: Image.file(
-            File(SandboxPathResolver.fix(userProvider.avatarValue!)),
-            width: 32,
-            height: 32,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Icon(
-              Lucide.User,
-              size: 18,
-              color: cs.primary,
-            ),
-          ),
+    } else if (userProvider.avatarType == 'file' &&
+        userProvider.avatarValue != null &&
+        !kIsWeb) {
+      avatarContent = FutureBuilder<String?>(
+        future: AssistantProvider.resolveToAbsolutePath(
+          userProvider.avatarValue!,
         ),
+        builder: (ctx, snap) {
+          final path = snap.data;
+          if (path != null && File(path).existsSync()) {
+            return SizedBox(
+              width: 32,
+              height: 32,
+              child: ClipOval(
+                child: Image.file(
+                  File(path),
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.cover,
+                  errorBuilder:
+                      (context, error, stackTrace) =>
+                          Icon(Lucide.User, size: 18, color: cs.primary),
+                ),
+              ),
+            );
+          }
+          return Icon(Lucide.User, size: 18, color: cs.primary);
+        },
       );
     } else {
-      avatarContent = Icon(
-        Lucide.User,
-        size: 18,
-        color: cs.primary,
-      );
+      avatarContent = Icon(Lucide.User, size: 18, color: cs.primary);
     }
 
     return Container(
@@ -586,175 +631,233 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             ),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isDark
-                  ? cs.primary.withOpacity(0.15)
-                  : cs.primary.withOpacity(0.08),
+              color:
+                  isDark
+                      ? cs.primary.withOpacity(0.15)
+                      : cs.primary.withOpacity(0.08),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-              if (parsed.text.isNotEmpty)
-                SelectionArea(
-                  child: Text(
-                    parsed.text,
-                    style: TextStyle(
-                      fontSize: 15.5, // ~112% larger default for user text
-                      height: 1.4,
-                      color: cs.onSurface,
-                      // // Keep user text slightly bolder on non‑iOS; normal on iOS
-                      // fontWeight: Theme.of(context).platform == TargetPlatform.iOS
-                      //     ? FontWeight.w400
-                      //     : FontWeight.w500,
+                if (parsed.text.isNotEmpty)
+                  SelectionArea(
+                    child: Text(
+                      parsed.text,
+                      style: TextStyle(
+                        fontSize: 15.5, // ~112% larger default for user text
+                        height: 1.4,
+                        color: cs.onSurface,
+                        // // Keep user text slightly bolder on non‑iOS; normal on iOS
+                        // fontWeight: Theme.of(context).platform == TargetPlatform.iOS
+                        //     ? FontWeight.w400
+                        //     : FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
                 if (parsed.images.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Builder(builder: (context) {
-                    final imgs = parsed.images;
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: imgs.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final p = entry.value;
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              Navigator.of(context).push(PageRouteBuilder(
-                                pageBuilder: (_, __, ___) => ImageViewerPage(images: imgs, initialIndex: idx),
-                                transitionDuration: const Duration(milliseconds: 360),
-                                reverseTransitionDuration: const Duration(milliseconds: 280),
-                                transitionsBuilder: (context, anim, sec, child) {
-                                  final curved = CurvedAnimation(
-                                    parent: anim,
-                                    curve: Curves.easeOutCubic,
-                                    reverseCurve: Curves.easeInCubic,
-                                  );
-                                  return FadeTransition(
-                                    opacity: curved,
-                                    child: SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(0, 0.02), // subtle upward drift
-                                        end: Offset.zero,
-                                      ).animate(curved),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                              ));
-                            },
-                            borderRadius: BorderRadius.circular(8),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Hero(
-                                tag: 'img:$p',
-                                child: kIsWeb
-                                    ? Container(
-                                        width: 96,
-                                        height: 96,
-                                        color: Colors.black12,
-                                        child: const Icon(Icons.image_not_supported),
-                                      )
-                                    : Image.file(
-                                        File(SandboxPathResolver.fix(p)),
-                                        width: 96,
-                                        height: 96,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Container(
-                                          width: 96,
-                                          height: 96,
-                                          color: Colors.black12,
-                                          child: const Icon(Icons.broken_image),
+                  Builder(
+                    builder: (context) {
+                      final imgs = parsed.images;
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children:
+                            imgs.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final p = entry.value;
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      PageRouteBuilder(
+                                        pageBuilder:
+                                            (_, __, ___) => ImageViewerPage(
+                                              images: imgs,
+                                              initialIndex: idx,
+                                            ),
+                                        transitionDuration: const Duration(
+                                          milliseconds: 360,
                                         ),
+                                        reverseTransitionDuration:
+                                            const Duration(milliseconds: 280),
+                                        transitionsBuilder: (
+                                          context,
+                                          anim,
+                                          sec,
+                                          child,
+                                        ) {
+                                          final curved = CurvedAnimation(
+                                            parent: anim,
+                                            curve: Curves.easeOutCubic,
+                                            reverseCurve: Curves.easeInCubic,
+                                          );
+                                          return FadeTransition(
+                                            opacity: curved,
+                                            child: SlideTransition(
+                                              position: Tween<Offset>(
+                                                begin: const Offset(
+                                                  0,
+                                                  0.02,
+                                                ), // subtle upward drift
+                                                end: Offset.zero,
+                                              ).animate(curved),
+                                              child: child,
+                                            ),
+                                          );
+                                        },
                                       ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  }),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Hero(
+                                      tag: 'img:$p',
+                                      child:
+                                          kIsWeb
+                                              ? Container(
+                                                width: 96,
+                                                height: 96,
+                                                color: Colors.black12,
+                                                child: const Icon(
+                                                  Icons.image_not_supported,
+                                                ),
+                                              )
+                                              : Image.file(
+                                                File(
+                                                  SandboxPathResolver.fix(p),
+                                                ),
+                                                width: 96,
+                                                height: 96,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (_, __, ___) => Container(
+                                                      width: 96,
+                                                      height: 96,
+                                                      color: Colors.black12,
+                                                      child: const Icon(
+                                                        Icons.broken_image,
+                                                      ),
+                                                    ),
+                                              ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                      );
+                    },
+                  ),
                 ],
                 if (parsed.docs.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: parsed.docs.map((d) {
-                      return Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(10),
-                          overlayColor: MaterialStateProperty.resolveWith(
-                                (states) => cs.primary.withOpacity(states.contains(MaterialState.pressed) ? 0.14 : 0.08),
-                          ),
-                          splashColor: cs.primary.withOpacity(0.18),
-                          onTap: () async {
-                            try {
-                              final fixed = SandboxPathResolver.fix(d.path);
-                              final f = File(fixed);
-                              if (!(await f.exists())) {
-                                showAppSnackBar(
-                                  context,
-                                  message: l10n.chatMessageWidgetFileNotFound(d.fileName),
-                                  type: NotificationType.error,
-                                );
-                                return;
-                              }
-                              final res = await PlatformUtils.callPlatformMethod(
-                                () => OpenFilex.open(fixed, type: d.mime),
-                                fallback: OpenResult(
-                                  type: ResultType.error,
-                                  message: 'File opening not supported on this platform',
-                                ),
-                              );
-                              
-                              if (res != null && res.type != ResultType.done) {
-                                showAppSnackBar(
-                                  context,
-                                  message: l10n.chatMessageWidgetCannotOpenFile(res.message ?? res.type.toString()),
-                                  type: NotificationType.error,
-                                );
-                              }
-                            } catch (e) {
-                              showAppSnackBar(
-                                context,
-                                message: l10n.chatMessageWidgetOpenFileError(e.toString()),
-                                type: NotificationType.error,
-                              );
-                            }
-                          },
-                          child: Ink(
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white12 : cs.surface,
+                    children:
+                        parsed.docs.map((d) {
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
                               borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.insert_drive_file, size: 16),
-                                  const SizedBox(width: 6),
-                                  ConstrainedBox(
-                                    constraints: const BoxConstraints(maxWidth: 180),
-                                    child: Text(d.fileName, overflow: TextOverflow.ellipsis),
+                              overlayColor: MaterialStateProperty.resolveWith(
+                                (states) => cs.primary.withOpacity(
+                                  states.contains(MaterialState.pressed)
+                                      ? 0.14
+                                      : 0.08,
+                                ),
+                              ),
+                              splashColor: cs.primary.withOpacity(0.18),
+                              onTap: () async {
+                                try {
+                                  final fixed = SandboxPathResolver.fix(d.path);
+                                  final f = File(fixed);
+                                  if (!(await f.exists())) {
+                                    showAppSnackBar(
+                                      context,
+                                      message: l10n
+                                          .chatMessageWidgetFileNotFound(
+                                            d.fileName,
+                                          ),
+                                      type: NotificationType.error,
+                                    );
+                                    return;
+                                  }
+                                  final res =
+                                      await PlatformUtils.callPlatformMethod(
+                                        () =>
+                                            OpenFilex.open(fixed, type: d.mime),
+                                        fallback: OpenResult(
+                                          type: ResultType.error,
+                                          message:
+                                              'File opening not supported on this platform',
+                                        ),
+                                      );
+
+                                  if (res != null &&
+                                      res.type != ResultType.done) {
+                                    showAppSnackBar(
+                                      context,
+                                      message: l10n
+                                          .chatMessageWidgetCannotOpenFile(
+                                            res.message ?? res.type.toString(),
+                                          ),
+                                      type: NotificationType.error,
+                                    );
+                                  }
+                                } catch (e) {
+                                  showAppSnackBar(
+                                    context,
+                                    message: l10n
+                                        .chatMessageWidgetOpenFileError(
+                                          e.toString(),
+                                        ),
+                                    type: NotificationType.error,
+                                  );
+                                }
+                              },
+                              child: Ink(
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.white12 : cs.surface,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
                                   ),
-                                ],
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.insert_drive_file,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 180,
+                                        ),
+                                        child: Text(
+                                          d.fileName,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                          );
+                        }).toList(),
                   ),
                 ],
-                ],
-              ),
+              ],
             ),
+          ),
           if (showUserActions || showVersionSwitcher) ...[
             SizedBox(height: showUserActions ? 4 : 6),
             Row(
@@ -763,14 +866,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 if (showUserActions) ...[
                   IconButton(
                     icon: Icon(Lucide.Copy, size: 16),
-                    onPressed: widget.onCopy ?? () {
-                      Clipboard.setData(ClipboardData(text: widget.message.content));
-                      showAppSnackBar(
-                        context,
-                        message: l10n.chatMessageWidgetCopiedToClipboard,
-                        type: NotificationType.success,
-                      );
-                    },
+                    onPressed:
+                        widget.onCopy ??
+                        () {
+                          Clipboard.setData(
+                            ClipboardData(text: widget.message.content),
+                          );
+                          showAppSnackBar(
+                            context,
+                            message: l10n.chatMessageWidgetCopiedToClipboard,
+                            type: NotificationType.success,
+                          );
+                        },
                     visualDensity: VisualDensity.compact,
                     iconSize: 16,
                   ),
@@ -785,17 +892,29 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     builder: (btnContext) {
                       return IconButton(
                         icon: Icon(Lucide.Ellipsis, size: 16),
-                        onPressed: widget.onMore == null ? null : () {
-                          // Get button position before calling onMore
-                          final renderBox = btnContext.findRenderObject() as RenderBox?;
-                          if (renderBox != null) {
-                            final offset = renderBox.localToGlobal(Offset.zero);
-                            final size = renderBox.size;
-                            // Set position to right-center of button (let menu auto-position above/below)
-                            DesktopMenuAnchor.setPosition(Offset(offset.dx + size.width, offset.dy + size.height / 2));
-                          }
-                          widget.onMore!();
-                        },
+                        onPressed:
+                            widget.onMore == null
+                                ? null
+                                : () {
+                                  // Get button position before calling onMore
+                                  final renderBox =
+                                      btnContext.findRenderObject()
+                                          as RenderBox?;
+                                  if (renderBox != null) {
+                                    final offset = renderBox.localToGlobal(
+                                      Offset.zero,
+                                    );
+                                    final size = renderBox.size;
+                                    // Set position to right-center of button (let menu auto-position above/below)
+                                    DesktopMenuAnchor.setPosition(
+                                      Offset(
+                                        offset.dx + size.width,
+                                        offset.dy + size.height / 2,
+                                      ),
+                                    );
+                                  }
+                                  widget.onMore!();
+                                },
                         tooltip: l10n.chatMessageWidgetMoreTooltip,
                         visualDensity: VisualDensity.compact,
                         iconSize: 16,
@@ -862,9 +981,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         .where((s) => s.isNotEmpty)
         .join('\n\n');
     // Remove all <think> blocks from the visible assistant content
-    final contentWithoutThink = extractedThinking.isNotEmpty
-        ? widget.message.content.replaceAll(THINKING_REGEX, '').trim()
-        : widget.message.content;
+    final contentWithoutThink =
+        extractedThinking.isNotEmpty
+            ? widget.message.content.replaceAll(THINKING_REGEX, '').trim()
+            : widget.message.content;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -878,15 +998,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 _buildAssistantAvatar(cs),
                 const SizedBox(width: 8),
               ] else if (widget.showModelIcon) ...[
-                widget.modelIcon ?? Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: cs.secondary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Lucide.Bot, size: 18, color: cs.secondary),
-                ),
+                widget.modelIcon ??
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: cs.secondary.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Lucide.Bot, size: 18, color: cs.secondary),
+                    ),
                 const SizedBox(width: 8),
               ],
               Column(
@@ -895,7 +1016,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   if (settings.showModelNameTimestamp)
                     Text(
                       widget.useAssistantAvatar
-                          ? (widget.assistantName?.trim().isNotEmpty == true ? widget.assistantName!.trim() : 'Assistant')
+                          ? (widget.assistantName?.trim().isNotEmpty == true
+                              ? widget.assistantName!.trim()
+                              : 'Assistant')
                           : _resolveModelDisplayName(settings),
                       style: TextStyle(
                         fontSize: 13,
@@ -903,103 +1026,133 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         color: cs.onSurface.withOpacity(0.7),
                       ),
                     ),
-                  Builder(builder: (context) {
-                    final List<Widget> rowChildren = [];
-                    if (settings.showModelNameTimestamp) {
-                      rowChildren.add(Text(
-                        _dateFormat.format(widget.message.timestamp),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurface.withOpacity(0.5),
-                        ),
-                      ));
-                    }
-                    if (widget.showTokenStats) {
-                      final tokenUsage = widget.message.tokenUsage;
-                      if (tokenUsage != null) {
-                        // New messages: show detailed input/output breakdown
-                        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
-                        // Build token display parts
-                        final List<String> tokenParts = [];
-
-                        // Always show input and output
-                        tokenParts.add('${tokenUsage.promptTokens}↓');
-                        tokenParts.add('${tokenUsage.completionTokens}↑');
-
-                        // Only show thinking tokens if present
-                        if (tokenUsage.thoughtTokens > 0) {
-                          tokenParts.add('${tokenUsage.thoughtTokens}💭');
-                        }
-
-                        // Only show cached tokens if present
-                        if (tokenUsage.cachedTokens > 0) {
-                          tokenParts.add('${tokenUsage.cachedTokens}♻');
-                        }
-
-                        final String tokenText = tokenParts.join(' ');
-
-                        // Build detailed tooltip lines
-                        final List<String> tooltipLines = [];
-
-                        // If we have rounds data, show each round (without totals)
-                        if (tokenUsage.rounds != null && tokenUsage.rounds!.isNotEmpty) {
-                          // Only show individual rounds, no totals
-                          for (int i = 0; i < tokenUsage.rounds!.length; i++) {
-                            final round = tokenUsage.rounds![i];
-                            final roundNum = i + 1;
-                            tooltipLines.add('第 $roundNum 轮:');
-                            tooltipLines.add('  输入: ${round['promptTokens'] ?? 0}');
-                            tooltipLines.add('  输出: ${round['completionTokens'] ?? 0}');
-                            if ((round['thoughtTokens'] ?? 0) > 0) {
-                              tooltipLines.add('  思考: ${round['thoughtTokens']}');
-                            }
-                            if ((round['cachedTokens'] ?? 0) > 0) {
-                              tooltipLines.add('  缓存: ${round['cachedTokens']}');
-                            }
-                          }
-                        } else {
-                          // If no rounds data, show totals in tooltip
-                          tooltipLines.add('输入: ${tokenUsage.promptTokens}');
-                          tooltipLines.add('输出: ${tokenUsage.completionTokens}');
-                          if (tokenUsage.thoughtTokens > 0) {
-                            tooltipLines.add('思考: ${tokenUsage.thoughtTokens}');
-                          }
-                          if (tokenUsage.cachedTokens > 0) {
-                            tooltipLines.add('缓存: ${tokenUsage.cachedTokens}');
-                          }
-                          tooltipLines.add('总计: ${tokenUsage.totalTokens}');
-                        }
-
-                        rowChildren.add(_TokenUsageDisplay(
-                          tokenText: tokenText,
-                          tooltipLines: tooltipLines,
-                          hasCache: tokenUsage.cachedTokens > 0,
-                          colorScheme: cs,
-                          rounds: tokenUsage.rounds,
-                        ));
-                      } else if (widget.message.totalTokens != null) {
-                        // Old/historical messages: fallback to simple total display
-                        if (rowChildren.isNotEmpty) rowChildren.add(const SizedBox(width: 8));
-                        rowChildren.add(Text(
-                          '${widget.message.totalTokens} tokens',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: cs.onSurface.withOpacity(0.5),
+                  Builder(
+                    builder: (context) {
+                      final List<Widget> rowChildren = [];
+                      if (settings.showModelNameTimestamp) {
+                        rowChildren.add(
+                          Text(
+                            _dateFormat.format(widget.message.timestamp),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: cs.onSurface.withOpacity(0.5),
+                            ),
                           ),
-                        ));
+                        );
                       }
-                    }
-                    return rowChildren.isNotEmpty
-                        ? Row(children: rowChildren)
-                        : const SizedBox.shrink();
-                  }),
+                      if (widget.showTokenStats) {
+                        final tokenUsage = widget.message.tokenUsage;
+                        if (tokenUsage != null) {
+                          // New messages: show detailed input/output breakdown
+                          if (rowChildren.isNotEmpty)
+                            rowChildren.add(const SizedBox(width: 8));
+                          // Build token display parts
+                          final List<String> tokenParts = [];
+
+                          // Always show input and output
+                          tokenParts.add('${tokenUsage.promptTokens}↓');
+                          tokenParts.add('${tokenUsage.completionTokens}↑');
+
+                          // Only show thinking tokens if present
+                          if (tokenUsage.thoughtTokens > 0) {
+                            tokenParts.add('${tokenUsage.thoughtTokens}💭');
+                          }
+
+                          // Only show cached tokens if present
+                          if (tokenUsage.cachedTokens > 0) {
+                            tokenParts.add('${tokenUsage.cachedTokens}♻');
+                          }
+
+                          final String tokenText = tokenParts.join(' ');
+
+                          // Build detailed tooltip lines
+                          final List<String> tooltipLines = [];
+
+                          // If we have rounds data, show each round (without totals)
+                          if (tokenUsage.rounds != null &&
+                              tokenUsage.rounds!.isNotEmpty) {
+                            // Only show individual rounds, no totals
+                            for (
+                              int i = 0;
+                              i < tokenUsage.rounds!.length;
+                              i++
+                            ) {
+                              final round = tokenUsage.rounds![i];
+                              final roundNum = i + 1;
+                              tooltipLines.add('第 $roundNum 轮:');
+                              tooltipLines.add(
+                                '  输入: ${round['promptTokens'] ?? 0}',
+                              );
+                              tooltipLines.add(
+                                '  输出: ${round['completionTokens'] ?? 0}',
+                              );
+                              if ((round['thoughtTokens'] ?? 0) > 0) {
+                                tooltipLines.add(
+                                  '  思考: ${round['thoughtTokens']}',
+                                );
+                              }
+                              if ((round['cachedTokens'] ?? 0) > 0) {
+                                tooltipLines.add(
+                                  '  缓存: ${round['cachedTokens']}',
+                                );
+                              }
+                            }
+                          } else {
+                            // If no rounds data, show totals in tooltip
+                            tooltipLines.add('输入: ${tokenUsage.promptTokens}');
+                            tooltipLines.add(
+                              '输出: ${tokenUsage.completionTokens}',
+                            );
+                            if (tokenUsage.thoughtTokens > 0) {
+                              tooltipLines.add(
+                                '思考: ${tokenUsage.thoughtTokens}',
+                              );
+                            }
+                            if (tokenUsage.cachedTokens > 0) {
+                              tooltipLines.add(
+                                '缓存: ${tokenUsage.cachedTokens}',
+                              );
+                            }
+                            tooltipLines.add('总计: ${tokenUsage.totalTokens}');
+                          }
+
+                          rowChildren.add(
+                            _TokenUsageDisplay(
+                              tokenText: tokenText,
+                              tooltipLines: tooltipLines,
+                              hasCache: tokenUsage.cachedTokens > 0,
+                              colorScheme: cs,
+                              rounds: tokenUsage.rounds,
+                            ),
+                          );
+                        } else if (widget.message.totalTokens != null) {
+                          // Old/historical messages: fallback to simple total display
+                          if (rowChildren.isNotEmpty)
+                            rowChildren.add(const SizedBox(width: 8));
+                          rowChildren.add(
+                            Text(
+                              '${widget.message.totalTokens} tokens',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: cs.onSurface.withOpacity(0.5),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                      return rowChildren.isNotEmpty
+                          ? Row(children: rowChildren)
+                          : const SizedBox.shrink();
+                    },
+                  ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 8),
           // Mixed reasoning and tool sections
-          if (widget.reasoningSegments != null && widget.reasoningSegments!.isNotEmpty) ...[
+          if (widget.reasoningSegments != null &&
+              widget.reasoningSegments!.isNotEmpty) ...[
             // Build mixed content using tool index ranges carried by segments
             ...() {
               final List<Widget> mixedContent = [];
@@ -1028,9 +1181,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
                 // Determine tool range mapped to this segment: [start, end)
                 int start = seg.toolStartIndex;
-                final int end = (i < segments.length - 1)
-                    ? segments[i + 1].toolStartIndex
-                    : tools.length;
+                final int end =
+                    (i < segments.length - 1)
+                        ? segments[i + 1].toolStartIndex
+                        : tools.length;
 
                 // Clamp to bounds and ensure non-decreasing
                 if (start < 0) start = 0;
@@ -1055,21 +1209,36 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             // Fallback to old behavior if no reasoning segments
             // Reasoning preview (if provided) — also support inline <think> blocks
             ...() {
-              final hasProvidedReasoning = (widget.reasoningText != null && widget.reasoningText!.isNotEmpty) || widget.reasoningLoading;
+              final hasProvidedReasoning =
+                  (widget.reasoningText != null &&
+                      widget.reasoningText!.isNotEmpty) ||
+                  widget.reasoningLoading;
               final effectiveReasoningText =
-                  (widget.reasoningText != null && widget.reasoningText!.isNotEmpty)
+                  (widget.reasoningText != null &&
+                          widget.reasoningText!.isNotEmpty)
                       ? widget.reasoningText!
                       : extractedThinking;
-              final shouldShowReasoning = hasProvidedReasoning || effectiveReasoningText.isNotEmpty;
+              final shouldShowReasoning =
+                  hasProvidedReasoning || effectiveReasoningText.isNotEmpty;
               if (!shouldShowReasoning) return const <Widget>[];
 
               // If using inline <think>, expand by default and treat as loading when streaming until </think> appears
-              final usingInlineThink = (widget.reasoningText == null || widget.reasoningText!.isEmpty) && extractedThinking.isNotEmpty;
-              final effectiveExpanded = usingInlineThink ? (_inlineThinkExpanded ?? true) : widget.reasoningExpanded;
-              final collapsedNow = usingInlineThink && (_inlineThinkExpanded == false);
-              final effectiveLoading = usingInlineThink
-                  ? (widget.message.isStreaming && !widget.message.content.contains('</think>') && !collapsedNow)
-                  : (widget.reasoningFinishedAt == null);
+              final usingInlineThink =
+                  (widget.reasoningText == null ||
+                      widget.reasoningText!.isEmpty) &&
+                  extractedThinking.isNotEmpty;
+              final effectiveExpanded =
+                  usingInlineThink
+                      ? (_inlineThinkExpanded ?? true)
+                      : widget.reasoningExpanded;
+              final collapsedNow =
+                  usingInlineThink && (_inlineThinkExpanded == false);
+              final effectiveLoading =
+                  usingInlineThink
+                      ? (widget.message.isStreaming &&
+                          !widget.message.content.contains('</think>') &&
+                          !collapsedNow)
+                      : (widget.reasoningFinishedAt == null);
 
               return <Widget>[
                 _ReasoningSection(
@@ -1077,25 +1246,38 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   expanded: effectiveExpanded,
                   loading: effectiveLoading,
                   startAt: usingInlineThink ? null : widget.reasoningStartAt,
-                  finishedAt: usingInlineThink ? null : widget.reasoningFinishedAt,
-                  onToggle: usingInlineThink
-                      ? () => setState(() { _inlineThinkExpanded = !(_inlineThinkExpanded ?? true); _inlineThinkManuallyToggled = true; })
-                      : widget.onToggleReasoning,
+                  finishedAt:
+                      usingInlineThink ? null : widget.reasoningFinishedAt,
+                  onToggle:
+                      usingInlineThink
+                          ? () => setState(() {
+                            _inlineThinkExpanded =
+                                !(_inlineThinkExpanded ?? true);
+                            _inlineThinkManuallyToggled = true;
+                          })
+                          : widget.onToggleReasoning,
                 ),
                 const SizedBox(height: 8),
               ];
             }(),
             // Tool call placeholders before content 隐藏内置搜索工具卡片
-            if ((widget.toolParts ?? const <ToolUIPart>[]).where((p) => p.toolName != 'builtin_search').isNotEmpty) ...[
+            if ((widget.toolParts ?? const <ToolUIPart>[])
+                .where((p) => p.toolName != 'builtin_search')
+                .isNotEmpty) ...[
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: widget.toolParts!
-                    .where((p) => p.toolName != 'builtin_search') // 隐藏内置搜索工具卡片
-                    .map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ToolCallItem(part: p),
-                ))
-                    .toList(),
+                children:
+                    widget.toolParts!
+                        .where(
+                          (p) => p.toolName != 'builtin_search',
+                        ) // 隐藏内置搜索工具卡片
+                        .map(
+                          (p) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _ToolCallItem(part: p),
+                          ),
+                        )
+                        .toList(),
               ),
               const SizedBox(height: 8),
             ],
@@ -1103,125 +1285,171 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           // Message content with markdown support (fill available width)
           Container(
             width: double.infinity,
-            child: widget.message.isStreaming && contentWithoutThink.isEmpty
-                ? AnimatedLoadingText(
-                    text: l10n.chatMessageWidgetThinking,
-                    textStyle: TextStyle(
-                      fontSize: 14,
-                      color: cs.onSurface.withOpacity(0.6),
-                      fontStyle: FontStyle.italic,
-                    ),
-                    dotSize: 8,
-                    dotGap: 3,
-                    style: LoadingTextStyle.modern, // 可以切换为 shimmer, pulse, typewriter, modern
-                  )
-                : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                SelectionArea(
-                  child: DefaultTextStyle.merge(
-                    style: const TextStyle(fontSize: 15.7, height: 1.5),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: double.infinity),
-                      child: MarkdownWithCodeHighlight(
-                        text: contentWithoutThink,
-                        onCitationTap: (id) => _handleCitationTap(id),
+            child:
+                widget.message.isStreaming && contentWithoutThink.isEmpty
+                    ? AnimatedLoadingText(
+                      text: l10n.chatMessageWidgetThinking,
+                      textStyle: TextStyle(
+                        fontSize: 14,
+                        color: cs.onSurface.withOpacity(0.6),
+                        fontStyle: FontStyle.italic,
                       ),
-                    ),
-                  ),
-                ),
-                // Inline sources removed; show a summary card at bottom instead
-                if (widget.message.isStreaming)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: DotsTypingIndicator(color: cs.primary, dotSize: 7, gap: 3),
-                  ),
-                // Translation section (collapsible)
-                if (widget.message.translation != null && widget.message.translation!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      // Match reasoning section background; no border
-                      color: Theme.of(context).colorScheme.primaryContainer
-                          .withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.25 : 0.30),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: AnimatedSize(
-                      duration: const Duration(milliseconds: 300),
-                      curve: const Cubic(0.2, 0.8, 0.2, 1),
-                      alignment: Alignment.topCenter,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          InkWell(
-                            onTap: widget.onToggleTranslation,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              child: Row(
+                      dotSize: 8,
+                      dotGap: 3,
+                      style:
+                          LoadingTextStyle
+                              .modern, // 可以切换为 shimmer, pulse, typewriter, modern
+                    )
+                    : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SelectionArea(
+                          child: DefaultTextStyle.merge(
+                            style: const TextStyle(fontSize: 15.7, height: 1.5),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                maxWidth: double.infinity,
+                              ),
+                              child: MarkdownWithCodeHighlight(
+                                text: contentWithoutThink,
+                                onCitationTap: (id) => _handleCitationTap(id),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Inline sources removed; show a summary card at bottom instead
+                        if (widget.message.isStreaming)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: DotsTypingIndicator(
+                              color: cs.primary,
+                              dotSize: 7,
+                              gap: 3,
+                            ),
+                          ),
+                        // Translation section (collapsible)
+                        if (widget.message.translation != null &&
+                            widget.message.translation!.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              // Match reasoning section background; no border
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primaryContainer.withOpacity(
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? 0.25
+                                    : 0.30,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: AnimatedSize(
+                              duration: const Duration(milliseconds: 300),
+                              curve: const Cubic(0.2, 0.8, 0.2, 1),
+                              alignment: Alignment.topCenter,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    Lucide.Languages,
-                                    size: 16,
-                                    color: cs.secondary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    l10n.chatMessageWidgetTranslation,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: cs.secondary,
+                                  InkWell(
+                                    onTap: widget.onToggleTranslation,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 8,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Lucide.Languages,
+                                            size: 16,
+                                            color: cs.secondary,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            l10n.chatMessageWidgetTranslation,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: cs.secondary,
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                          Icon(
+                                            widget.translationExpanded
+                                                ? Lucide.ChevronDown
+                                                : Lucide.ChevronRight,
+                                            size: 18,
+                                            color: cs.secondary,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                  const Spacer(),
-                                  Icon(
-                                    widget.translationExpanded
-                                        ? Lucide.ChevronDown
-                                        : Lucide.ChevronRight,
-                                    size: 18,
-                                    color: cs.secondary,
-                                  ),
+                                  if (widget.translationExpanded) ...[
+                                    const SizedBox(height: 8),
+                                    if (widget.message.translation ==
+                                        l10n.chatMessageWidgetTranslating)
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          8,
+                                          2,
+                                          8,
+                                          6,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            _LoadingIndicator(),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              l10n.chatMessageWidgetTranslating,
+                                              style: TextStyle(
+                                                fontSize: 15.5,
+                                                color: cs.onSurface.withOpacity(
+                                                  0.5,
+                                                ),
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          8,
+                                          2,
+                                          8,
+                                          6,
+                                        ),
+                                        child: SelectionArea(
+                                          child: DefaultTextStyle.merge(
+                                            style: const TextStyle(
+                                              fontSize: 15.5,
+                                              height: 1.4,
+                                            ),
+                                            child: MarkdownWithCodeHighlight(
+                                              text: widget.message.translation!,
+                                              onCitationTap:
+                                                  (id) =>
+                                                      _handleCitationTap(id),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ],
                               ),
                             ),
                           ),
-                          if (widget.translationExpanded) ...[
-                            const SizedBox(height: 8),
-                            if (widget.message.translation == l10n.chatMessageWidgetTranslating)
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-                                child: Row(
-                                  children: [
-                                    _LoadingIndicator(),
-                                    const SizedBox(width: 8),
-                                    Text(l10n.chatMessageWidgetTranslating, style: TextStyle(fontSize: 15.5, color: cs.onSurface.withOpacity(0.5), fontStyle: FontStyle.italic)),
-                                  ],
-                                ),
-                              )
-                            else
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-                                child: SelectionArea(
-                                  child: DefaultTextStyle.merge(
-                                    style: const TextStyle(fontSize: 15.5, height: 1.4),
-                                    child: MarkdownWithCodeHighlight(
-                                      text: widget.message.translation!,
-                                      onCitationTap: (id) => _handleCitationTap(id),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
                         ],
-                      ),
+                      ],
                     ),
-                  ),
-                ],
-              ],
-            ),
           ),
           // Sources summary card (tap to open full citations)
           if (_latestSearchItems().isNotEmpty) ...[
@@ -1238,14 +1466,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               children: [
                 IconButton(
                   icon: Icon(Lucide.Copy, size: 16),
-                  onPressed: widget.onCopy ?? () {
-                    Clipboard.setData(ClipboardData(text: widget.message.content));
-                    showAppSnackBar(
-                      context,
-                      message: l10n.chatMessageWidgetCopiedToClipboard,
-                      type: NotificationType.success,
-                    );
-                  },
+                  onPressed:
+                      widget.onCopy ??
+                      () {
+                        Clipboard.setData(
+                          ClipboardData(text: widget.message.content),
+                        );
+                        showAppSnackBar(
+                          context,
+                          message: l10n.chatMessageWidgetCopiedToClipboard,
+                          type: NotificationType.success,
+                        );
+                      },
                   visualDensity: VisualDensity.compact,
                   iconSize: 16,
                 ),
@@ -1257,21 +1489,32 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   iconSize: 16,
                 ),
                 Consumer<TtsProvider>(
-                  builder: (context, tts, _) => IconButton(
-                    icon: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
-                      child: Icon(
-                        tts.isSpeaking ? Lucide.CircleStop : Lucide.Volume2,
-                        key: ValueKey(tts.isSpeaking ? 'stop' : 'speak'),
-                        size: 16,
+                  builder:
+                      (context, tts, _) => IconButton(
+                        icon: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder:
+                              (child, anim) => ScaleTransition(
+                                scale: anim,
+                                child: FadeTransition(
+                                  opacity: anim,
+                                  child: child,
+                                ),
+                              ),
+                          child: Icon(
+                            tts.isSpeaking ? Lucide.CircleStop : Lucide.Volume2,
+                            key: ValueKey(tts.isSpeaking ? 'stop' : 'speak'),
+                            size: 16,
+                          ),
+                        ),
+                        onPressed: widget.onSpeak,
+                        tooltip:
+                            tts.isSpeaking
+                                ? l10n.chatMessageWidgetStopTooltip
+                                : l10n.chatMessageWidgetSpeakTooltip,
+                        visualDensity: VisualDensity.compact,
+                        iconSize: 16,
                       ),
-                    ),
-                    onPressed: widget.onSpeak,
-                    tooltip: tts.isSpeaking ? l10n.chatMessageWidgetStopTooltip : l10n.chatMessageWidgetSpeakTooltip,
-                    visualDensity: VisualDensity.compact,
-                    iconSize: 16,
-                  ),
                 ),
                 IconButton(
                   icon: Icon(Lucide.Languages, size: 16),
@@ -1284,17 +1527,28 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   builder: (btnContext) {
                     return IconButton(
                       icon: Icon(Lucide.Ellipsis, size: 16),
-                      onPressed: widget.onMore == null ? null : () {
-                        // Get button position before calling onMore
-                        final renderBox = btnContext.findRenderObject() as RenderBox?;
-                        if (renderBox != null) {
-                          final offset = renderBox.localToGlobal(Offset.zero);
-                          final size = renderBox.size;
-                          // Set position to right-center of button (let menu auto-position above/below)
-                          DesktopMenuAnchor.setPosition(Offset(offset.dx + size.width, offset.dy + size.height / 2));
-                        }
-                        widget.onMore!();
-                      },
+                      onPressed:
+                          widget.onMore == null
+                              ? null
+                              : () {
+                                // Get button position before calling onMore
+                                final renderBox =
+                                    btnContext.findRenderObject() as RenderBox?;
+                                if (renderBox != null) {
+                                  final offset = renderBox.localToGlobal(
+                                    Offset.zero,
+                                  );
+                                  final size = renderBox.size;
+                                  // Set position to right-center of button (let menu auto-position above/below)
+                                  DesktopMenuAnchor.setPosition(
+                                    Offset(
+                                      offset.dx + size.width,
+                                      offset.dy + size.height / 2,
+                                    ),
+                                  );
+                                }
+                                widget.onMore!();
+                              },
                       tooltip: l10n.chatMessageWidgetMoreTooltip,
                       visualDensity: VisualDensity.compact,
                       iconSize: 16,
@@ -1329,63 +1583,83 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       final second = now.second.toString().padLeft(2, '0');
       final timestamp = '$year-$month-$day $hour:$minute:$second';
       final logFile = File('c:/mycode/kelivo/debug_tools.log');
-      logFile.writeAsStringSync('[$timestamp] $message\n', mode: FileMode.append);
+      logFile.writeAsStringSync(
+        '[$timestamp] $message\n',
+        mode: FileMode.append,
+      );
     } catch (e) {
       debugPrint('[Log Error] Failed to write log: $e');
     }
   }
-  
+
   // RikkaHub style: search ALL messages' tool results for citation id (not just latest)
   void _handleCitationTap(String id) async {
     final l10n = AppLocalizations.of(context)!;
     _log('[Citation UI] Tapped citation with id: $id');
-    
+
     // First try searching through all messages (RikkaHub approach)
     if (widget.allToolParts != null && widget.allToolParts!.isNotEmpty) {
-      _log('[Citation UI] Searching through ${widget.allToolParts!.length} messages\' tool parts');
+      _log(
+        '[Citation UI] Searching through ${widget.allToolParts!.length} messages\' tool parts',
+      );
       // Track if we found the citation to avoid showing "not found" message
       bool found = false;
-      
+
       // Iterate through all messages' tool parts
       for (final entry in widget.allToolParts!.entries) {
         if (found) break; // Already found, stop searching
-        
+
         final messageId = entry.key;
         final toolPartsForMessage = entry.value;
         if (toolPartsForMessage.isEmpty) continue;
-        
-        _log('[Citation UI] Checking message $messageId with ${toolPartsForMessage.length} tool parts');
-        
+
+        _log(
+          '[Citation UI] Checking message $messageId with ${toolPartsForMessage.length} tool parts',
+        );
+
         for (final part in toolPartsForMessage) {
           if (found) break;
-          
-          _log('[Citation UI] Tool: ${part.toolName}, has content: ${part.content?.isNotEmpty ?? false}');
-          
+
+          _log(
+            '[Citation UI] Tool: ${part.toolName}, has content: ${part.content?.isNotEmpty ?? false}',
+          );
+
           // Only check search results
-          if ((part.toolName == 'search_web' || part.toolName == 'builtin_search') && 
+          if ((part.toolName == 'search_web' ||
+                  part.toolName == 'builtin_search') &&
               (part.content?.isNotEmpty ?? false)) {
             try {
               final obj = jsonDecode(part.content!) as Map<String, dynamic>;
-              final items = (obj['items'] as List? ?? [])
-                  .whereType<Map<String, dynamic>>()
-                  .toList();
-              
-              _log('[Citation UI] Found ${items.length} items in ${part.toolName} result');
-              
+              final items =
+                  (obj['items'] as List? ?? [])
+                      .whereType<Map<String, dynamic>>()
+                      .toList();
+
+              _log(
+                '[Citation UI] Found ${items.length} items in ${part.toolName} result',
+              );
+
               // Search for matching ID in this tool's results
               for (final item in items) {
                 final itemId = item['id']?.toString() ?? '';
                 final itemUrl = item['url']?.toString() ?? '';
                 final itemTitle = item['title']?.toString() ?? '';
-                _log('[Citation UI] Item: id=$itemId, title=$itemTitle, url=$itemUrl');
-                
+                _log(
+                  '[Citation UI] Item: id=$itemId, title=$itemTitle, url=$itemUrl',
+                );
+
                 if (itemId == id) {
-                  _log('[Citation UI] ✓ Found matching citation! Opening URL: $itemUrl');
+                  _log(
+                    '[Citation UI] ✓ Found matching citation! Opening URL: $itemUrl',
+                  );
                   final url = item['url']?.toString();
                   if (url != null && url.isNotEmpty) {
                     // Found the citation! Try to open it
                     try {
-                      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                      final ok = await launchUrl(
+                        Uri.parse(url),
+                        mode: LaunchMode.externalApplication,
+                      );
                       if (!ok && context.mounted) {
                         showAppSnackBar(
                           context,
@@ -1415,17 +1689,19 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           }
         }
       }
-      
+
       if (found) {
         _log('[Citation UI] Citation found and handled successfully');
         return; // Successfully handled the citation
       } else {
-        _log('[Citation UI] Citation not found in allToolParts, trying fallback...');
+        _log(
+          '[Citation UI] Citation not found in allToolParts, trying fallback...',
+        );
       }
     } else {
       _log('[Citation UI] No allToolParts available, using fallback method');
     }
-    
+
     // Fallback: try the original method (search only current message's latest results)
     final items = _latestSearchItems();
     final match = items.cast<Map<String, dynamic>?>().firstWhere(
@@ -1433,10 +1709,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       orElse: () => null,
     );
     final url = match?['url']?.toString();
-    
+
     if (url != null && url.isNotEmpty) {
       try {
-        final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        final ok = await launchUrl(
+          Uri.parse(url),
+          mode: LaunchMode.externalApplication,
+        );
         if (!ok && context.mounted) {
           showAppSnackBar(
             context,
@@ -1468,20 +1747,26 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   // Extract items from the last search_web or builtin_search tool result for this assistant message
   List<Map<String, dynamic>> _latestSearchItems() {
     final parts = widget.toolParts ?? const <ToolUIPart>[];
-    _log('[Citation UI] _latestSearchItems: checking ${parts.length} tool parts');
+    _log(
+      '[Citation UI] _latestSearchItems: checking ${parts.length} tool parts',
+    );
     for (int i = parts.length - 1; i >= 0; i--) {
       final p = parts[i];
-      _log('[Citation UI] Part $i: toolName=${p.toolName}, hasContent=${p.content?.isNotEmpty ?? false}');
-      if ((p.toolName == 'search_web' || p.toolName == 'builtin_search') && (p.content?.isNotEmpty ?? false)) {
+      _log(
+        '[Citation UI] Part $i: toolName=${p.toolName}, hasContent=${p.content?.isNotEmpty ?? false}',
+      );
+      if ((p.toolName == 'search_web' || p.toolName == 'builtin_search') &&
+          (p.content?.isNotEmpty ?? false)) {
         try {
           final obj = jsonDecode(p.content!) as Map<String, dynamic>;
           final arr = obj['items'] as List? ?? const <dynamic>[];
           final items = [
             for (final it in arr)
-              if (it is Map)
-                it.cast<String, dynamic>()
+              if (it is Map) it.cast<String, dynamic>(),
           ];
-          _log('[Citation UI] Found ${items.length} items in latest search result');
+          _log(
+            '[Citation UI] Found ${items.length} items in latest search result',
+          );
           return items;
         } catch (e) {
           _log('[Citation UI] Error parsing content: $e');
@@ -1520,7 +1805,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       Expanded(
                         child: Text(
                           l10n.chatMessageWidgetCitationsTitle(items.length),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
@@ -1535,7 +1823,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           children: [
                             for (int i = 0; i < items.length; i++)
                               _SourceRow(
-                                index: (items[i]['index'] ?? (i + 1)).toString(),
+                                index:
+                                    (items[i]['index'] ?? (i + 1)).toString(),
                                 title: (items[i]['title'] ?? '').toString(),
                                 url: (items[i]['url'] ?? '').toString(),
                               ),
@@ -1593,11 +1882,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           },
         );
       }
-      if (!kIsWeb && (av.startsWith('/') || av.contains(':') || av.contains('/'))) {
+      if (!kIsWeb &&
+          (av.startsWith('/') || av.contains(':') || av.contains('/'))) {
         return FutureBuilder<String?>(
           future: AssistantProvider.resolveToAbsolutePath(av),
           builder: (ctx, snap) {
-            if (!snap.hasData || snap.data == null) return _assistantInitial(cs);
+            if (!snap.hasData || snap.data == null)
+              return _assistantInitial(cs);
             return ClipOval(
               child: Image.file(
                 File(snap.data!),
@@ -1614,9 +1905,15 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       return Container(
         width: 32,
         height: 32,
-        decoration: BoxDecoration(color: cs.primary.withOpacity(0.1), shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: cs.primary.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
         alignment: Alignment.center,
-        child: Text(av.characters.take(1).toString(), style: const TextStyle(fontSize: 18)),
+        child: Text(
+          av.characters.take(1).toString(),
+          style: const TextStyle(fontSize: 18),
+        ),
       );
     }
     return _assistantInitial(cs);
@@ -1628,9 +1925,15 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     return Container(
       width: 32,
       height: 32,
-      decoration: BoxDecoration(color: cs.primary.withOpacity(0.1), shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: cs.primary.withOpacity(0.1),
+        shape: BoxShape.circle,
+      ),
       alignment: Alignment.center,
-      child: Text(ch, style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700)),
+      child: Text(
+        ch,
+        style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700),
+      ),
     );
   }
 
@@ -1658,7 +1961,9 @@ class _AnimatedPopupState extends State<_AnimatedPopup> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(() { _opacity = 1.0; });
+      setState(() {
+        _opacity = 1.0;
+      });
     });
   }
 
@@ -1674,7 +1979,12 @@ class _AnimatedPopupState extends State<_AnimatedPopup> {
 }
 
 class _MenuItem extends StatelessWidget {
-  const _MenuItem({required this.icon, required this.label, this.onTap, this.danger = false});
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.danger = false,
+  });
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -1690,7 +2000,9 @@ class _MenuItem extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          try { Haptics.light(); } catch (_) {}
+          try {
+            Haptics.light();
+          } catch (_) {}
           onTap?.call();
         },
         overlayColor: MaterialStatePropertyAll(cs.primary.withOpacity(0.06)),
@@ -1702,7 +2014,9 @@ class _MenuItem extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: ic),
               const SizedBox(width: 10),
-              Expanded(child: Text(label, style: TextStyle(fontSize: 14.5, color: fg))),
+              Expanded(
+                child: Text(label, style: TextStyle(fontSize: 14.5, color: fg)),
+              ),
             ],
           ),
         ),
@@ -1712,7 +2026,12 @@ class _MenuItem extends StatelessWidget {
 }
 
 class _BranchSelector extends StatelessWidget {
-  const _BranchSelector({required this.index, required this.total, this.onPrev, this.onNext});
+  const _BranchSelector({
+    required this.index,
+    required this.total,
+    this.onPrev,
+    this.onNext,
+  });
   final int index; // zero-based
   final int total;
   final VoidCallback? onPrev;
@@ -1729,15 +2048,30 @@ class _BranchSelector extends StatelessWidget {
         InkWell(
           onTap: canPrev ? onPrev : null,
           borderRadius: BorderRadius.circular(6),
-          child: Icon(Lucide.ChevronLeft, size: 16, color: canPrev ? cs.onSurface : cs.onSurface.withOpacity(0.35)),
+          child: Icon(
+            Lucide.ChevronLeft,
+            size: 16,
+            color: canPrev ? cs.onSurface : cs.onSurface.withOpacity(0.35),
+          ),
         ),
         const SizedBox(width: 6),
-        Text('${index + 1}/$total', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.8), fontWeight: FontWeight.w600)),
+        Text(
+          '${index + 1}/$total',
+          style: TextStyle(
+            fontSize: 12,
+            color: cs.onSurface.withOpacity(0.8),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(width: 6),
         InkWell(
           onTap: canNext ? onNext : null,
           borderRadius: BorderRadius.circular(6),
-          child: Icon(Lucide.ChevronRight, size: 16, color: canNext ? cs.onSurface : cs.onSurface.withOpacity(0.35)),
+          child: Icon(
+            Lucide.ChevronRight,
+            size: 16,
+            color: canNext ? cs.onSurface : cs.onSurface.withOpacity(0.35),
+          ),
         ),
       ],
     );
@@ -1764,10 +2098,7 @@ class _LoadingIndicatorState extends State<_LoadingIndicator>
       vsync: this,
     )..repeat(reverse: true);
 
-    _curve = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOutSine,
-    );
+    _curve = CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine);
   }
 
   @override
@@ -1882,8 +2213,12 @@ class _ToolCallItem extends StatelessWidget {
     }
   }
 
-
-  String _titleFor(BuildContext context, String name, Map<String, dynamic> args, {required bool isResult}) {
+  String _titleFor(
+    BuildContext context,
+    String name,
+    Map<String, dynamic> args, {
+    required bool isResult,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     switch (name) {
       case 'create_memory':
@@ -1898,7 +2233,9 @@ class _ToolCallItem extends StatelessWidget {
       case 'builtin_search':
         return l10n.chatMessageWidgetBuiltinSearch;
       default:
-        return isResult ? l10n.chatMessageWidgetToolResult(name) : l10n.chatMessageWidgetToolCall(name);
+        return isResult
+            ? l10n.chatMessageWidgetToolResult(name)
+            : l10n.chatMessageWidgetToolCall(name);
     }
   }
 
@@ -1925,16 +2262,23 @@ class _ToolCallItem extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: part.loading
-                    ? SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
-                  ),
-                )
-                    : Icon(_iconFor(part.toolName), size: 18, color: cs.secondary),
+                child:
+                    part.loading
+                        ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              cs.primary,
+                            ),
+                          ),
+                        )
+                        : Icon(
+                          _iconFor(part.toolName),
+                          size: 18,
+                          color: cs.secondary,
+                        ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1942,8 +2286,17 @@ class _ToolCallItem extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _titleFor(context, part.toolName, part.arguments, isResult: !part.loading),
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.secondary),
+                      _titleFor(
+                        context,
+                        part.toolName,
+                        part.arguments,
+                        isResult: !part.loading,
+                      ),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: cs.secondary,
+                      ),
                     ),
                     // No inline result preview; tap to view details in sheet
                   ],
@@ -1959,8 +2312,13 @@ class _ToolCallItem extends StatelessWidget {
   void _showDetail(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final argsPretty = const JsonEncoder.withIndent('  ').convert(part.arguments);
-    final resultText = (part.content ?? '').isNotEmpty ? part.content! : l10n.chatMessageWidgetNoResultYet;
+    final argsPretty = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(part.arguments);
+    final resultText =
+        (part.content ?? '').isNotEmpty
+            ? part.content!
+            : l10n.chatMessageWidgetNoResultYet;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1981,41 +2339,81 @@ class _ToolCallItem extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(_iconFor(part.toolName), size: 18, color: cs.primary),
+                        Icon(
+                          _iconFor(part.toolName),
+                          size: 18,
+                          color: cs.primary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _titleFor(context, part.toolName, part.arguments, isResult: !part.loading),
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                            _titleFor(
+                              context,
+                              part.toolName,
+                              part.arguments,
+                              isResult: !part.loading,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Text(l10n.chatMessageWidgetArguments, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                    Text(
+                      l10n.chatMessageWidgetArguments,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF7F7F9),
+                        color:
+                            Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white10
+                                : const Color(0xFFF7F7F9),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+                        border: Border.all(
+                          color: cs.outlineVariant.withOpacity(0.2),
+                        ),
                       ),
-                      child: SelectableText(argsPretty, style: const TextStyle(fontSize: 12)),
+                      child: SelectableText(
+                        argsPretty,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    Text(l10n.chatMessageWidgetResult, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
+                    Text(
+                      l10n.chatMessageWidgetResult,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurface.withOpacity(0.6),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF7F7F9),
+                        color:
+                            Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white10
+                                : const Color(0xFFF7F7F9),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+                        border: Border.all(
+                          color: cs.outlineVariant.withOpacity(0.2),
+                        ),
                       ),
-                      child: SelectableText(resultText, style: const TextStyle(fontSize: 12)),
+                      child: SelectableText(
+                        resultText,
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ],
                 ),
@@ -2052,11 +2450,19 @@ class _SourcesList extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               l10n.chatMessageWidgetCitationsTitle(items.length),
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.75)),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.75),
+              ),
             ),
           ),
           for (int i = 0; i < items.length; i++)
-            _SourceRow(index: (items[i]['index'] ?? (i + 1)).toString(), title: (items[i]['title'] ?? '').toString(), url: (items[i]['url'] ?? '').toString()),
+            _SourceRow(
+              index: (items[i]['index'] ?? (i + 1)).toString(),
+              title: (items[i]['title'] ?? '').toString(),
+              url: (items[i]['url'] ?? '').toString(),
+            ),
         ],
       ),
     );
@@ -2064,7 +2470,11 @@ class _SourcesList extends StatelessWidget {
 }
 
 class _SourceRow extends StatelessWidget {
-  const _SourceRow({required this.index, required this.title, required this.url});
+  const _SourceRow({
+    required this.index,
+    required this.title,
+    required this.url,
+  });
   final String index;
   final String title;
   final String url;
@@ -2093,7 +2503,10 @@ class _SourceRow extends StatelessWidget {
             child: InkWell(
               onTap: () async {
                 try {
-                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                  await launchUrl(
+                    Uri.parse(url),
+                    mode: LaunchMode.externalApplication,
+                  );
                 } catch (_) {}
               },
               child: Text(
@@ -2139,7 +2552,14 @@ class _SourcesSummaryCard extends StatelessWidget {
             children: [
               Icon(Lucide.BookOpen, size: 16, color: cs.secondary),
               const SizedBox(width: 8),
-              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.secondary)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: cs.secondary,
+                ),
+              ),
             ],
           ),
         ),
@@ -2186,7 +2606,8 @@ class _ReasoningSection extends StatefulWidget {
   State<_ReasoningSection> createState() => _ReasoningSectionState();
 }
 
-class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerProviderStateMixin {
+class _ReasoningSectionState extends State<_ReasoningSection>
+    with SingleTickerProviderStateMixin {
   late final Ticker _ticker = Ticker((_) => setState(() {}));
   final ScrollController _scroll = ScrollController();
   bool _hasOverflow = false;
@@ -2264,7 +2685,6 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
     return s;
   }
 
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -2295,20 +2715,35 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
             const SizedBox(width: 8),
             _Shimmer(
               enabled: loading,
-              child: Text(l10n.chatMessageWidgetDeepThinking, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.secondary)),
+              child: Text(
+                l10n.chatMessageWidgetDeepThinking,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: cs.secondary,
+                ),
+              ),
             ),
             const SizedBox(width: 8),
             if (widget.startAt != null)
               _Shimmer(
                 enabled: loading,
-                child: Text(_elapsed(), style: TextStyle(fontSize: 13, color: cs.secondary.withOpacity(0.9))),
+                child: Text(
+                  _elapsed(),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: cs.secondary.withOpacity(0.9),
+                  ),
+                ),
               ),
             // No header marquee; content area handles scrolling when loading
             const Spacer(),
             Icon(
               widget.expanded
                   ? Lucide.ChevronDown
-                  : (loading && !widget.expanded ? Lucide.ChevronRight : Lucide.ChevronRight),
+                  : (loading && !widget.expanded
+                      ? Lucide.ChevronRight
+                      : Lucide.ChevronRight),
               size: 18,
               color: cs.secondary,
             ),
@@ -2317,9 +2752,10 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
       ),
     );
 
-// 抽公共样式，继承当前 DefaultTextStyle（从而继承正确的颜色）
-    final TextStyle baseStyle =
-    DefaultTextStyle.of(context).style.copyWith(fontSize: 12.5, height: 1.32);
+    // 抽公共样式，继承当前 DefaultTextStyle（从而继承正确的颜色）
+    final TextStyle baseStyle = DefaultTextStyle.of(
+      context,
+    ).style.copyWith(fontSize: 12.5, height: 1.32);
 
     const StrutStyle baseStrut = StrutStyle(
       forceStrutHeight: true,
@@ -2337,7 +2773,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
     final bool isLoading = loading;
     final display = _sanitize(widget.text);
 
-// 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
+    // 未加载：不要再指定 color: fg，让它继承和"加载中"相同的颜色
     Widget body = Padding(
       padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
       child: SelectionArea(
@@ -2353,61 +2789,66 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
         padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 80),
-          child: _hasOverflow
-              ? ShaderMask(
-            shaderCallback: (rect) {
-              final h = rect.height;
-              const double topFade = 12.0;
-              const double bottomFade = 28.0;
-              final double sTop = (topFade / h).clamp(0.0, 1.0);
-              final double sBot = (1.0 - bottomFade / h).clamp(0.0, 1.0);
-              return LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: const [
-                  Color(0x00FFFFFF),
-                  Color(0xFFFFFFFF),
-                  Color(0xFFFFFFFF),
-                  Color(0x00FFFFFF),
-                ],
-                stops: [0.0, sTop, sBot, 1.0],
-              ).createShader(rect);
-            },
-            blendMode: BlendMode.dstIn,
-            child: NotificationListener<ScrollUpdateNotification>(
-              onNotification: (_) {
-                WidgetsBinding.instance.addPostFrameCallback((_) => _checkOverflow());
-                return false;
-              },
-              child: SingleChildScrollView(
-                controller: _scroll,
-                physics: const BouncingScrollPhysics(),
-                child: SelectionArea(
-                  child: MarkdownWithCodeHighlight(
-                    text: display.isNotEmpty ? display : '…',
-                    baseStyle: baseStyle,
+          child:
+              _hasOverflow
+                  ? ShaderMask(
+                    shaderCallback: (rect) {
+                      final h = rect.height;
+                      const double topFade = 12.0;
+                      const double bottomFade = 28.0;
+                      final double sTop = (topFade / h).clamp(0.0, 1.0);
+                      final double sBot = (1.0 - bottomFade / h).clamp(
+                        0.0,
+                        1.0,
+                      );
+                      return LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: const [
+                          Color(0x00FFFFFF),
+                          Color(0xFFFFFFFF),
+                          Color(0xFFFFFFFF),
+                          Color(0x00FFFFFF),
+                        ],
+                        stops: [0.0, sTop, sBot, 1.0],
+                      ).createShader(rect);
+                    },
+                    blendMode: BlendMode.dstIn,
+                    child: NotificationListener<ScrollUpdateNotification>(
+                      onNotification: (_) {
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _checkOverflow(),
+                        );
+                        return false;
+                      },
+                      child: SingleChildScrollView(
+                        controller: _scroll,
+                        physics: const BouncingScrollPhysics(),
+                        child: SelectionArea(
+                          child: MarkdownWithCodeHighlight(
+                            text: display.isNotEmpty ? display : '…',
+                            baseStyle: baseStyle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                  : SingleChildScrollView(
+                    controller: _scroll,
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: SelectionArea(
+                      child: MarkdownWithCodeHighlight(
+                        text: display.isNotEmpty ? display : '…',
+                        baseStyle: baseStyle,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-          )
-              : SingleChildScrollView(
-            controller: _scroll,
-            physics: const NeverScrollableScrollPhysics(),
-            child: SelectionArea(
-              child: MarkdownWithCodeHighlight(
-                text: display.isNotEmpty ? display : '…',
-                baseStyle: baseStyle,
-              ),
-            ),
-          ),
         ),
       );
     }
 
     // Enable long-press text selection in reasoning body
     // body = SelectionArea(child: body);
-
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 300),
@@ -2423,10 +2864,7 @@ class _ReasoningSectionState extends State<_ReasoningSection> with SingleTickerP
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              header,
-              if (widget.expanded || isLoading) body,
-            ],
+            children: [header, if (widget.expanded || isLoading) body],
           ),
         ),
       ),
@@ -2450,7 +2888,10 @@ class _ShimmerState extends State<_Shimmer> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
     if (widget.enabled) _c.repeat();
   }
 
@@ -2479,7 +2920,12 @@ class _ShimmerState extends State<_Shimmer> with TickerProviderStateMixin {
             final width = rect.width;
             final gradientWidth = width * 0.4;
             final dx = (width + gradientWidth) * t - gradientWidth;
-            final shaderRect = Rect.fromLTWH(-dx, 0, width + gradientWidth * 2, rect.height);
+            final shaderRect = Rect.fromLTWH(
+              -dx,
+              0,
+              width + gradientWidth * 2,
+              rect.height,
+            );
             return LinearGradient(
               colors: [
                 Colors.white.withOpacity(0.0),
@@ -2517,8 +2963,12 @@ class _Marquee extends StatefulWidget {
   State<_Marquee> createState() => _MarqueeState();
 }
 
-class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: widget.duration)..repeat();
+class _MarqueeState extends State<_Marquee>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+  )..repeat();
 
   @override
   void dispose() {
@@ -2547,42 +2997,61 @@ class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin 
       width: w,
       height: (widget.style.fontSize ?? 13) * 1.35,
       child: ClipRect(
-        child: needScroll
-            ? AnimatedBuilder(
-          animation: _c,
-          builder: (context, _) {
-            final t = Curves.linear.transform(_c.value);
-            final dx = -loopWidth * t;
-            return ShaderMask(
-              shaderCallback: (rect) {
-                return const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [
-                    Color(0x00FFFFFF),
-                    Color(0xFFFFFFFF),
-                    Color(0xFFFFFFFF),
-                    Color(0x00FFFFFF),
-                  ],
-                  stops: [0.0, 0.07, 0.93, 1.0],
-                ).createShader(rect);
-              },
-              blendMode: BlendMode.dstIn,
-              child: Transform.translate(
-                offset: Offset(dx, 0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(widget.text, style: widget.style, maxLines: 1, softWrap: false),
-                    SizedBox(width: gap),
-                    Text(widget.text, style: widget.style, maxLines: 1, softWrap: false),
-                  ],
+        child:
+            needScroll
+                ? AnimatedBuilder(
+                  animation: _c,
+                  builder: (context, _) {
+                    final t = Curves.linear.transform(_c.value);
+                    final dx = -loopWidth * t;
+                    return ShaderMask(
+                      shaderCallback: (rect) {
+                        return const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Color(0x00FFFFFF),
+                            Color(0xFFFFFFFF),
+                            Color(0xFFFFFFFF),
+                            Color(0x00FFFFFF),
+                          ],
+                          stops: [0.0, 0.07, 0.93, 1.0],
+                        ).createShader(rect);
+                      },
+                      blendMode: BlendMode.dstIn,
+                      child: Transform.translate(
+                        offset: Offset(dx, 0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.text,
+                              style: widget.style,
+                              maxLines: 1,
+                              softWrap: false,
+                            ),
+                            SizedBox(width: gap),
+                            Text(
+                              widget.text,
+                              style: widget.style,
+                              maxLines: 1,
+                              softWrap: false,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                )
+                : Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    widget.text,
+                    style: widget.style,
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
                 ),
-              ),
-            );
-          },
-        )
-            : Align(alignment: Alignment.centerLeft, child: Text(widget.text, style: widget.style, maxLines: 1, softWrap: false)),
       ),
     );
   }
@@ -2640,161 +3109,187 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
     final size = renderBox.size;
 
     _overlayEntry = OverlayEntry(
-      builder: (context) => Stack(
-        children: [
-          // Transparent background to capture taps outside the card (for mobile only)
-          // Don't use this for desktop as it interferes with MouseRegion hover detection
-          if (_isExpanded) // Only show background when explicitly tapped (mobile)
-            GestureDetector(
-              onTap: _handleOutsideTap,
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                color: Colors.transparent,
-              ),
-            ),
-          // The actual token info card
-          Positioned(
-            left: offset.dx,
-            top: offset.dy + size.height + 4,
-            child: MouseRegion(
-              onEnter: (_) {
-                // Keep overlay open when hovering over the card itself
-                setState(() => _isHoveringCard = true);
-              },
-              onExit: (_) {
-                // Mark that we left the card
-                setState(() => _isHoveringCard = false);
-                // Close overlay if we're not hovering over the trigger either
-                if (!_isHovering && !_isExpanded) {
-                  _removeOverlay();
-                }
-              },
-              child: GestureDetector(
-                onTap: () {
-                  // Prevent taps on the card itself from closing it
-                },
-                child: Material(
-                  elevation: 4,
-                  borderRadius: BorderRadius.circular(8),
-                  color: widget.colorScheme.surface,
-                  child: Container(
-                  constraints: const BoxConstraints(maxWidth: 300),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: widget.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: widget.colorScheme.outline.withOpacity(0.2),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: SelectionArea(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Only show basic tooltip info if no rounds data
-                        if (widget.rounds == null || widget.rounds!.isEmpty)
-                          ...widget.tooltipLines.map((line) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: Text(
-                                line,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: widget.colorScheme.onSurface,
-                                  fontFamily: 'monospace',
-                                ),
-                              ),
-                            );
-                          }),
-                        // Show rounds breakdown if available
-                        if (widget.rounds != null && widget.rounds!.isNotEmpty) ...[
-                          ...widget.rounds!.asMap().entries.map((entry) {
-                            final idx = entry.key;
-                            final round = entry.value;
-                            final prompt = round['promptTokens'] ?? 0;
-                            final completion = round['completionTokens'] ?? 0;
-                            final thought = round['thoughtTokens'] ?? 0;
-                            final cached = round['cachedTokens'] ?? 0;
-
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '第 ${idx + 1} 轮:',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: widget.colorScheme.primary.withOpacity(0.8),
-                                      fontFamily: 'monospace',
+      builder:
+          (context) => Stack(
+            children: [
+              // Transparent background to capture taps outside the card (for mobile only)
+              // Don't use this for desktop as it interferes with MouseRegion hover detection
+              if (_isExpanded) // Only show background when explicitly tapped (mobile)
+                GestureDetector(
+                  onTap: _handleOutsideTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(color: Colors.transparent),
+                ),
+              // The actual token info card
+              Positioned(
+                left: offset.dx,
+                top: offset.dy + size.height + 4,
+                child: MouseRegion(
+                  onEnter: (_) {
+                    // Keep overlay open when hovering over the card itself
+                    setState(() => _isHoveringCard = true);
+                  },
+                  onExit: (_) {
+                    // Mark that we left the card
+                    setState(() => _isHoveringCard = false);
+                    // Close overlay if we're not hovering over the trigger either
+                    if (!_isHovering && !_isExpanded) {
+                      _removeOverlay();
+                    }
+                  },
+                  child: GestureDetector(
+                    onTap: () {
+                      // Prevent taps on the card itself from closing it
+                    },
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(8),
+                      color: widget.colorScheme.surface,
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 300),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: widget.colorScheme.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: widget.colorScheme.outline.withOpacity(0.2),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: SelectionArea(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Only show basic tooltip info if no rounds data
+                              if (widget.rounds == null ||
+                                  widget.rounds!.isEmpty)
+                                ...widget.tooltipLines.map((line) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2,
                                     ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 8),
+                                    child: Text(
+                                      line,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: widget.colorScheme.onSurface,
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              // Show rounds breakdown if available
+                              if (widget.rounds != null &&
+                                  widget.rounds!.isNotEmpty) ...[
+                                ...widget.rounds!.asMap().entries.map((entry) {
+                                  final idx = entry.key;
+                                  final round = entry.value;
+                                  final prompt = round['promptTokens'] ?? 0;
+                                  final completion =
+                                      round['completionTokens'] ?? 0;
+                                  final thought = round['thoughtTokens'] ?? 0;
+                                  final cached = round['cachedTokens'] ?? 0;
+
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '  输入↓: $prompt',
+                                          '第 ${idx + 1} 轮:',
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: widget.colorScheme.onSurface.withOpacity(0.8),
+                                            fontWeight: FontWeight.w600,
+                                            color: widget.colorScheme.primary
+                                                .withOpacity(0.8),
                                             fontFamily: 'monospace',
                                           ),
                                         ),
-                                        Text(
-                                          '  输出↑: $completion',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: widget.colorScheme.onSurface.withOpacity(0.8),
-                                            fontFamily: 'monospace',
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 8,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                '  输入↓: $prompt',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: widget
+                                                      .colorScheme
+                                                      .onSurface
+                                                      .withOpacity(0.8),
+                                                  fontFamily: 'monospace',
+                                                ),
+                                              ),
+                                              Text(
+                                                '  输出↑: $completion',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: widget
+                                                      .colorScheme
+                                                      .onSurface
+                                                      .withOpacity(0.8),
+                                                  fontFamily: 'monospace',
+                                                ),
+                                              ),
+                                              if (thought > 0)
+                                                Text(
+                                                  '  思考💭: $thought',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: widget
+                                                        .colorScheme
+                                                        .onSurface
+                                                        .withOpacity(0.8),
+                                                    fontFamily: 'monospace',
+                                                  ),
+                                                ),
+                                              if (cached > 0)
+                                                Text(
+                                                  '  缓存♻: $cached',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: widget
+                                                        .colorScheme
+                                                        .primary
+                                                        .withOpacity(0.8),
+                                                    fontFamily: 'monospace',
+                                                  ),
+                                                ),
+                                            ],
                                           ),
                                         ),
-                                        if (thought > 0)
-                                          Text(
-                                            '  思考💭: $thought',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: widget.colorScheme.onSurface.withOpacity(0.8),
-                                              fontFamily: 'monospace',
-                                            ),
-                                          ),
-                                        if (cached > 0)
-                                          Text(
-                                            '  缓存♻: $cached',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: widget.colorScheme.primary.withOpacity(0.8),
-                                              fontFamily: 'monospace',
-                                            ),
-                                          ),
                                       ],
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ],
+                                  );
+                                }),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
     );
 
     overlay.insert(_overlayEntry!);
@@ -2804,28 +3299,29 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
   Widget build(BuildContext context) {
     // Support both desktop hover and mobile tap/long-press.
     final content = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            widget.tokenText,
-            style: TextStyle(
-              fontSize: 11,
-              color: widget.hasCache
-                  ? widget.colorScheme.primary.withOpacity(0.7)
-                  : widget.colorScheme.onSurface.withOpacity(0.5),
-              fontFamily: 'monospace',
-            ),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          widget.tokenText,
+          style: TextStyle(
+            fontSize: 11,
+            color:
+                widget.hasCache
+                    ? widget.colorScheme.primary.withOpacity(0.7)
+                    : widget.colorScheme.onSurface.withOpacity(0.5),
+            fontFamily: 'monospace',
           ),
-          if (widget.rounds != null && widget.rounds!.length > 1) ...[
-            const SizedBox(width: 4),
-            Icon(
-              Icons.info_outline,
-              size: 12,
-              color: widget.colorScheme.primary.withOpacity(0.6),
-            ),
-          ],
+        ),
+        if (widget.rounds != null && widget.rounds!.length > 1) ...[
+          const SizedBox(width: 4),
+          Icon(
+            Icons.info_outline,
+            size: 12,
+            color: widget.colorScheme.primary.withOpacity(0.6),
+          ),
         ],
-      );
+      ],
+    );
 
     return MouseRegion(
       onEnter: (_) {
