@@ -45,12 +45,23 @@ jobs:
           done
           ls -lh
 
-      - name: Upload Android APKs
-        uses: actions/upload-artifact@v4
+      - name: Upload to latest release
+        uses: softprops/action-gh-release@v2
         with:
-          name: android-apks
-          path: build/app/outputs/flutter-apk/kelivo-*.apk
-          retention-days: 30
+          tag_name: latest
+          name: "Latest Build (Auto)"
+          body: |
+            **自动构建** - 每次推送到 master 自动更新
+
+            提交: ${{ github.sha }}
+            时间: ${{ github.event.head_commit.timestamp }}
+
+            ### 下载
+            - Android APK (arm64, armeabi-v7a, x86_64)
+            - Windows x64 便携版
+          files: build/app/outputs/flutter-apk/kelivo-*.apk
+          prerelease: true
+          make_latest: false
 
   build-windows:
     name: Build Windows App
@@ -158,9 +169,21 @@ jobs:
           $zipSize = (Get-Item "kelivo-windows-x64.zip").Length / 1MB
           Write-Host "✓ Created kelivo-windows-x64.zip (${zipSize:N2} MB)"
 
-      - name: Upload Windows build
-        uses: actions/upload-artifact@v4
+      - name: Upload to latest release
+        uses: softprops/action-gh-release@v2
         with:
-          name: windows-x64
-          path: kelivo-windows-x64.zip
-          retention-days: 30
+          tag_name: latest
+          name: "Latest Build (Auto)"
+          body: |
+            **自动构建** - 每次推送到 master 自动更新
+
+            提交: ${{ github.sha }}
+            时间: ${{ github.event.head_commit.timestamp }}
+
+            ### 下载
+            - Android APK (arm64, armeabi-v7a, x86_64)
+            - Windows x64 便携版
+          files: kelivo-windows-x64.zip
+          prerelease: true
+          make_latest: false
+
