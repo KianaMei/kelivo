@@ -54,7 +54,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatf
 import 'dart:ui' as ui;
 import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:io' show File, Directory;
+import 'dart:io' show File, Directory, Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import '../../../utils/platform_utils.dart';
@@ -3424,34 +3424,60 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           );
         }),
         titleSpacing: 2,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          // crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            AnimatedTextSwap(
-              text: title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-            if (providerName != null && modelDisplay != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: InkWell(
+        title: (() {
+          final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+          final titleWidget = AnimatedTextSwap(
+            text: title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          );
+          final modelWidget = (providerName != null && modelDisplay != null)
+              ? InkWell(
                   borderRadius: BorderRadius.circular(6),
                   onTap: () => showModelSelectSheet(context),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 0),
+                    padding: EdgeInsets.symmetric(
+                      vertical: isDesktop ? 4 : 0,
+                      horizontal: isDesktop ? 8 : 0,
+                    ),
                     child: AnimatedTextSwap(
                       text: '$modelDisplay ($providerName)',
-                      style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6), fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: cs.onSurface.withOpacity(0.6),
+                        fontWeight: FontWeight.w500,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                )
+              : null;
+
+          // Desktop: horizontal layout (title left, model right)
+          if (isDesktop && modelWidget != null) {
+            return Row(
+              children: [
+                Expanded(child: titleWidget),
+                const SizedBox(width: 12),
+                modelWidget,
+              ],
+            );
+          }
+
+          // Mobile: vertical layout (title top, model bottom)
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              titleWidget,
+              if (modelWidget != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: modelWidget,
                 ),
-              ),
-          ],
-        ),
+            ],
+          );
+        })(),
         actions: [
           // Mini map button (to the left of new conversation)
           IosIconButton(
