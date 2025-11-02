@@ -185,9 +185,11 @@ class MyApp extends StatelessWidget {
               }
 
                   return Listener(
+                    behavior: HitTestBehavior.translucent,
                     onPointerDown: (event) {
                       // Windows mouse back button support (鼠标侧键返回)
-                      if (event.buttons & kBackMouseButton != 0) {
+                      if ((event.buttons & kBackMouseButton) != 0) {
+                        debugPrint('[MouseBack] Back button detected, triggering BackIntent');
                         Actions.invoke(ctx, const BackIntent());
                       }
                     },
