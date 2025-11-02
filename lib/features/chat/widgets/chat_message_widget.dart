@@ -240,25 +240,37 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       return 'AI Assistant';
     }
 
+    String? providerName;
+    String? modelName;
+
     final providerId = widget.message.providerId;
     if (providerId != null && providerId.isNotEmpty) {
       try {
         final cfg = settings.getProviderConfig(providerId);
+        // 获取供应商名称
+        providerName = cfg.name.trim().isNotEmpty ? cfg.name : null;
+        // 获取模型名称
         final ov = cfg.modelOverrides[modelId] as Map?;
-        final name = (ov?['name'] as String?)?.trim();
-        if (name != null && name.isNotEmpty) {
-          return name;
-        }
+        modelName = (ov?['name'] as String?)?.trim();
       } catch (_) {
         // ignore lookup failures; fall through to inferred name.
       }
     }
 
-    final inferred = ModelRegistry.infer(
-      ModelInfo(id: modelId, displayName: modelId),
-    );
-    final fallback = inferred.displayName.trim();
-    return fallback.isNotEmpty ? fallback : modelId;
+    // 如果没有找到自定义模型名，使用推断的名称
+    if (modelName == null || modelName.isEmpty) {
+      final inferred = ModelRegistry.infer(
+        ModelInfo(id: modelId, displayName: modelId),
+      );
+      modelName = inferred.displayName.trim();
+      if (modelName.isEmpty) modelName = modelId;
+    }
+
+    // 组合模型和供应商名称
+    if (providerName != null && providerName.isNotEmpty) {
+      return '$modelName | $providerName';
+    }
+    return modelName;
   }
 
   @override
@@ -1015,11 +1027,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 children: [
                   if (settings.showModelNameTimestamp)
                     Text(
-                      widget.useAssistantAvatar
-                          ? (widget.assistantName?.trim().isNotEmpty == true
-                              ? widget.assistantName!.trim()
-                              : 'Assistant')
-                          : _resolveModelDisplayName(settings),
+                      _resolveModelDisplayName(settings),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
