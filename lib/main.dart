@@ -28,6 +28,7 @@ import 'core/services/chat/chat_service.dart';
 import 'core/services/mcp/mcp_tool_service.dart';
 import 'utils/sandbox_path_resolver.dart';
 import 'shared/widgets/snackbar.dart';
+import 'utils/restart_widget.dart';
 
 final RouteObserver<ModalRoute<dynamic>> routeObserver = RouteObserver<ModalRoute<dynamic>>();
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -50,7 +51,7 @@ Future<void> main() async {
   // Enable edge-to-edge to allow content under system bars (Android)
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // Start app (no extra guarded zone logging)
-runApp(const MyApp());
+  runApp(const RestartWidget(child: MyApp()));
 }
 
 Future<void> _initDesktopWindow() async {

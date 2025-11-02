@@ -21,6 +21,7 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/backup/cherry_importer.dart';
+import '../../../utils/restart_widget.dart';
 
 // File size formatter (B, KB, MB, GB)
 String _fmtBytes(int bytes) {
@@ -131,6 +132,29 @@ class _BackupPageState extends State<BackupPage> {
           ),
         );
       },
+    );
+  }
+
+  /// Shows a dialog informing the user that a restart is required, then restarts the app
+  Future<void> _showRestartRequiredDialog(BuildContext context, {String? additionalInfo}) async {
+    final l10n = AppLocalizations.of(context)!;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dctx) => AlertDialog(
+        title: Text(l10n.backupPageRestartRequired),
+        content: Text(additionalInfo ?? l10n.backupPageRestartContent),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(dctx).pop();
+              // Restart the app
+              await RestartWidget.restartApp(context);
+            },
+            child: Text(l10n.backupPageOK),
+          ),
+        ],
+      ),
     );
   }
 
@@ -404,16 +428,7 @@ class _BackupPageState extends State<BackupPage> {
                           
                           await _runWithImportingOverlay(context, () => vm.restoreFromItem(item, mode: mode));
                           if (!mounted) return;
-                          await showDialog(
-                            context: context,
-                            builder: (dctx) => AlertDialog(
-                              title: Text(l10n.backupPageRestartRequired),
-                              content: Text(l10n.backupPageRestartContent),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(dctx).pop(), child: Text(l10n.backupPageOK)),
-                              ],
-                            ),
-                          );
+                          await _showRestartRequiredDialog(context);
                         },
                       ),
                     );
@@ -486,27 +501,14 @@ class _BackupPageState extends State<BackupPage> {
                           chatService: cs,
                         );
                         if (!mounted) return;
-                        await showDialog(
-                          context: context,
-                          builder: (dctx) => AlertDialog(
-                            title: Text(l10n.backupPageRestartRequired),
-                            content: Text(
-                              '${l10n.backupPageImportFromCherryStudio}:\n'
-                              ' • Providers: ${res.providers}\n'
-                              ' • Assistants: ${res.assistants}\n'
-                              ' • Conversations: ${res.conversations}\n'
-                              ' • Messages: ${res.messages}\n'
-                              ' • Files: ${res.files}\n\n'
-                              '${l10n.backupPageRestartContent}',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(dctx).pop(),
-                                child: Text(l10n.backupPageOK),
-                              ),
-                            ],
-                          ),
-                        );
+                        final importInfo = '${l10n.backupPageImportFromCherryStudio}:\n'
+                            ' • Providers: ${res.providers}\n'
+                            ' • Assistants: ${res.assistants}\n'
+                            ' • Conversations: ${res.conversations}\n'
+                            ' • Messages: ${res.messages}\n'
+                            ' • Files: ${res.files}\n\n'
+                            '${l10n.backupPageRestartContent}';
+                        await _showRestartRequiredDialog(context, additionalInfo: importInfo);
                       } catch (e) {
                         if (!mounted) return;
                         showAppSnackBar(
@@ -606,14 +608,7 @@ class _BackupPageState extends State<BackupPage> {
       await _runWithImportingOverlay(context, () => vm.restoreFromLocalFile(File(path), mode: mode));
     }
     if (!mounted) return;
-    await showDialog(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        title: Text(l10n.backupPageRestartRequired),
-        content: Text(l10n.backupPageRestartContent),
-        actions: [TextButton(onPressed: () => Navigator.of(dctx).pop(), child: Text(l10n.backupPageOK))],
-      ),
-    );
+    await _showRestartRequiredDialog(context);
   }
 
   Future<void> _showWebDavSettingsSheet(BuildContext context, SettingsProvider settings, BackupProvider vm, WebDavConfig cfg) async {
