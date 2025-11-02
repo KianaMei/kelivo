@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../utils/brand_assets.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,6 +24,7 @@ import '../../../shared/widgets/ios_switch.dart';
 import 'multi_key_manager_page.dart';
 import 'provider_network_page.dart';
 import '../../../core/services/haptics.dart';
+import '../../../desktop/window_title_bar.dart';
 
 class ProviderDetailPage extends StatefulWidget {
   const ProviderDetailPage({super.key, required this.keyName, required this.displayName});
@@ -208,6 +210,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               },
             ),
           ),
+          if (defaultTargetPlatform == TargetPlatform.windows)
+            const WindowCaptionActions(),
           const SizedBox(width: 12),
         ],
       ),

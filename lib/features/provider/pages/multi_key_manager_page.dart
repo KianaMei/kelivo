@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import 'package:flutter/cupertino.dart';
@@ -13,6 +14,7 @@ import '../../model/widgets/model_select_sheet.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../core/services/haptics.dart';
+import '../../../desktop/window_title_bar.dart';
 
 class MultiKeyManagerPage extends StatefulWidget {
   const MultiKeyManagerPage({super.key, required this.providerKey, required this.providerDisplayName});
@@ -90,6 +92,8 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
               onTap: _onAddKeys,
             ),
           ),
+          if (defaultTargetPlatform == TargetPlatform.windows)
+            const WindowCaptionActions(),
           const SizedBox(width: 12),
         ],
       ),

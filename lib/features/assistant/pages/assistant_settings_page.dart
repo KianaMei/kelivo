@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import '../../../l10n/app_localizations.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../theme/design_tokens.dart';
@@ -7,13 +8,13 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/assistant.dart';
 import 'dart:io' show File, Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:characters/characters.dart';
 import 'assistant_settings_edit_page.dart';
 import '../../../utils/avatar_cache.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../core/services/haptics.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import '../../../desktop/window_title_bar.dart';
 
 class AssistantSettingsPage extends StatelessWidget {
   const AssistantSettingsPage({super.key, this.embedded = false});
@@ -129,6 +130,8 @@ class AssistantSettingsPage extends StatelessWidget {
               },
             ),
           ),
+          if (defaultTargetPlatform == TargetPlatform.windows)
+            const WindowCaptionActions(),
           const SizedBox(width: 8),
         ],
       ),

@@ -67,3 +67,12 @@ internationalization.md
 *.keystore
 key.properties
 *.jks.base64
+
+# Backup files - use Git instead of manual backups
+*.bak
+*.bak[0-9]*
+*.bak_*
+*_backup_*/
+
+# Temporary commit messages
+commit_message*.txt

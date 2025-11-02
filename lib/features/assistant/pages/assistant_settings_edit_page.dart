@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -8,20 +9,16 @@ import 'package:syncfusion_flutter_core/theme.dart';
 import 'dart:ui';
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:characters/characters.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import '../../../icons/lucide_adapter.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/assistant_provider.dart';
-import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
@@ -31,7 +28,6 @@ import 'package:flutter/services.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../utils/sandbox_path_resolver.dart';
-import 'dart:io' show File, Platform;
 import '../../../utils/avatar_cache.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../core/models/quick_phrase.dart';
@@ -42,6 +38,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../desktop/window_title_bar.dart';
 
 class AssistantSettingsEditPage extends StatefulWidget {
   const AssistantSettingsEditPage({super.key, required this.assistantId});
@@ -91,7 +88,11 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
             ),
           ),
           title: Text(l10n.assistantEditPageTitle),
-          actions: const [SizedBox(width: 12)],
+          actions: [
+            if (defaultTargetPlatform == TargetPlatform.windows)
+              const WindowCaptionActions(),
+            const SizedBox(width: 12),
+          ],
         ),
         body: Center(child: Text(l10n.assistantEditPageNotFound)),
       );
@@ -113,7 +114,11 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
               ? assistant.name
               : l10n.assistantEditPageTitle,
         ),
-        actions: const [SizedBox(width: 12)],
+        actions: [
+          if (defaultTargetPlatform == TargetPlatform.windows)
+            const WindowCaptionActions(),
+          const SizedBox(width: 12),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(52),
           child: Padding(

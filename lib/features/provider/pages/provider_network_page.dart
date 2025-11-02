@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
+import '../../../desktop/window_title_bar.dart';
 
 class ProviderNetworkPage extends StatefulWidget {
   const ProviderNetworkPage({super.key, required this.providerKey, required this.providerDisplayName});
@@ -53,6 +55,10 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(l10n.providerDetailPageNetworkTab),
+        actions: [
+          if (defaultTargetPlatform == TargetPlatform.windows)
+            const WindowCaptionActions(),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
