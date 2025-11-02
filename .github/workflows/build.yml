@@ -1,0 +1,166 @@
+name: Build Apps
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.35.7'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi --no-tree-shake-icons
+
+      - name: Rename APK files
+        run: |
+          cd build/app/outputs/flutter-apk
+          for file in app-*-release.apk; do
+            if [ -f "$file" ]; then
+              newname=$(echo "$file" | sed 's/app-/kelivo-/')
+              mv "$file" "$newname"
+              echo "Renamed: $file -> $newname"
+            fi
+          done
+          ls -lh
+
+      - name: Upload Android APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apks
+          path: build/app/outputs/flutter-apk/kelivo-*.apk
+          retention-days: 30
+
+  build-windows:
+    name: Build Windows App
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.35.7'
+          cache: true
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate required files
+        shell: pwsh
+        run: |
+          Write-Host "Generating Hive adapters and other generated files..."
+          flutter pub run build_runner build --delete-conflicting-outputs
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Build runner completed with warnings, continuing..."
+          }
+
+      - name: Disable flutter_tts for Windows
+        shell: pwsh
+        run: |
+          Write-Host "Disabling flutter_tts plugin for Windows build..."
+          $pubspecPath = "pubspec.yaml"
+          $content = Get-Content $pubspecPath -Raw
+
+          # Comment the flutter_tts line
+          $updated = [System.Text.RegularExpressions.Regex]::Replace(
+            $content,
+            '^(?<indent>\s*)flutter_tts\s*:(?<rest>.*)$',
+            '${indent}# flutter_tts:${rest}  # Disabled for Windows build',
+            [System.Text.RegularExpressions.RegexOptions]::Multiline
+          )
+          if ($updated -ne $content) {
+            Set-Content $pubspecPath $updated
+            Write-Host "Updated pubspec.yaml (flutter_tts commented)"
+          } else {
+            Write-Host "No flutter_tts line found to comment (already disabled?)"
+          }
+
+          # Clean and resolve deps
+          flutter clean
+          flutter pub get
+
+      - name: Build Windows app
+        run: flutter build windows --release --no-tree-shake-icons
+
+      - name: Create portable package
+        shell: pwsh
+        run: |
+          Write-Host "Creating Windows portable package..."
+
+          $buildPath = "build\windows\x64\runner\Release"
+
+          if (-not (Test-Path $buildPath)) {
+            Write-Host "ERROR: Build path not found: $buildPath"
+            $exeFiles = Get-ChildItem -Path "build\windows" -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue
+            if ($exeFiles) {
+              foreach ($exe in $exeFiles) {
+                Write-Host "Found: $($exe.FullName)"
+                $buildPath = Split-Path $exe.FullName -Parent
+                break
+              }
+            } else {
+              throw "No executable files found!"
+            }
+          }
+
+          Write-Host "Build path: $buildPath"
+          Write-Host "Contents:"
+          Get-ChildItem -Path $buildPath | ForEach-Object {
+            Write-Host "  $($_.Name) ($($_.Length) bytes)"
+          }
+
+          $outputDir = "kelivo-windows-x64"
+          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+
+          Write-Host "`nCopying files to $outputDir..."
+          Copy-Item -Path "$buildPath\*" -Destination $outputDir -Recurse -Force
+
+          $exeFile = Get-ChildItem -Path $outputDir -Filter "*.exe" | Select-Object -First 1
+          if (-not $exeFile) {
+            throw "ERROR: No executable file found in output directory!"
+          }
+          Write-Host "Executable found: $($exeFile.Name)"
+
+          Write-Host "`nCreating zip archive..."
+          Compress-Archive -Path $outputDir -DestinationPath "kelivo-windows-x64.zip" -Force
+
+          if (-not (Test-Path "kelivo-windows-x64.zip")) {
+            throw "ERROR: Failed to create zip file!"
+          }
+
+          $zipSize = (Get-Item "kelivo-windows-x64.zip").Length / 1MB
+          Write-Host "✓ Created kelivo-windows-x64.zip (${zipSize:N2} MB)"
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: kelivo-windows-x64.zip
+          retention-days: 30
