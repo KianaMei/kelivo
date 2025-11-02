@@ -7,13 +7,14 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 
 class BottomToolsSheet extends StatelessWidget {
-  const BottomToolsSheet({super.key, this.onCamera, this.onPhotos, this.onUpload, this.onClear, this.clearLabel});
+  const BottomToolsSheet({super.key, this.onCamera, this.onPhotos, this.onUpload, this.onClear, this.clearLabel, this.onMaxTokens});
 
   final VoidCallback? onCamera;
   final VoidCallback? onPhotos;
   final VoidCallback? onUpload;
   final VoidCallback? onClear;
   final String? clearLabel;
+  final VoidCallback? onMaxTokens;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +100,7 @@ class BottomToolsSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _LearningAndClearSection(clearLabel: clearLabel, onClear: onClear),
+          _LearningAndClearSection(clearLabel: clearLabel, onClear: onClear, onMaxTokens: onMaxTokens),
         ],
       ),
     ),
@@ -108,9 +109,10 @@ class BottomToolsSheet extends StatelessWidget {
 }
 
 class _LearningAndClearSection extends StatefulWidget {
-  const _LearningAndClearSection({this.onClear, this.clearLabel});
+  const _LearningAndClearSection({this.onClear, this.clearLabel, this.onMaxTokens});
   final VoidCallback? onClear;
   final String? clearLabel;
+  final VoidCallback? onMaxTokens;
 
   @override
   State<_LearningAndClearSection> createState() => _LearningAndClearSectionState();
@@ -166,6 +168,17 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.onMaxTokens != null) ...[
+          _row(
+            icon: Lucide.FileText,
+            label: l10n.chatInputBarMaxTokensTooltip,
+            onTap: () {
+              Haptics.light();
+              widget.onMaxTokens?.call();
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
         if (_loading)
           const SizedBox(height: 48)
         else

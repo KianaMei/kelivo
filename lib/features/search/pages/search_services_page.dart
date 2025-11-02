@@ -167,9 +167,40 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       ],
     );
 
-    // If embedded, return body content directly without Scaffold
+    // If embedded, return body content directly with inline toolbar
     if (widget.embedded) {
-      return bodyContent;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                Text(
+                  l10n.searchServicesPageTitle,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Tooltip(
+                  message: l10n.searchServicesPageAddProvider,
+                  child: _TactileIconButton(
+                    icon: Lucide.Plus,
+                    color: cs.onSurface,
+                    size: 22,
+                    onTap: _addService,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+          Expanded(child: bodyContent),
+        ],
+      );
     }
 
     // Otherwise, return full page with Scaffold and AppBar

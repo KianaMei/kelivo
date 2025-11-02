@@ -93,9 +93,46 @@ class TtsServicesPage extends StatelessWidget {
       ],
     );
 
-    // If embedded, return body content directly without Scaffold
+    // If embedded, return body content directly with inline toolbar
     if (embedded) {
-      return bodyContent;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                Text(
+                  l10n.ttsServicesPageTitle,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Tooltip(
+                  message: l10n.ttsServicesPageAddTooltip,
+                  child: _TactileIconButton(
+                    icon: Lucide.Plus,
+                    color: cs.onSurface,
+                    size: 22,
+                    onTap: () {
+                      showAppSnackBar(
+                        context,
+                        message: l10n.ttsServicesPageAddNotImplemented,
+                        type: NotificationType.warning,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+          Expanded(child: bodyContent),
+        ],
+      );
     }
 
     // Otherwise, return full page with Scaffold and AppBar

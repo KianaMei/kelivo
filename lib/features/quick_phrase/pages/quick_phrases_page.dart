@@ -256,9 +256,45 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
               },
             );
 
-    // If embedded, return body content directly without Scaffold
+    final titleText = widget.assistantId == null
+        ? l10n.quickPhraseGlobalTitle
+        : l10n.quickPhraseAssistantTitle;
+
+    // If embedded, return body content with inline toolbar
     if (widget.embedded) {
-      return bodyContent;
+      final cs = Theme.of(context).colorScheme;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                Text(
+                  titleText,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Tooltip(
+                  message: l10n.quickPhraseAddTooltip,
+                  child: _TactileIconButton(
+                    icon: Lucide.Plus,
+                    color: cs.onSurface,
+                    size: 22,
+                    onTap: () => _showAddEditSheet(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+          Expanded(child: bodyContent),
+        ],
+      );
     }
 
     // Otherwise, return full page with Scaffold and AppBar
@@ -273,11 +309,7 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
             onTap: () => Navigator.of(context).maybePop(),
           ),
         ),
-        title: Text(
-          widget.assistantId == null
-              ? l10n.quickPhraseGlobalTitle
-              : l10n.quickPhraseAssistantTitle,
-        ),
+        title: Text(titleText),
         actions: [
           Tooltip(
             message: l10n.quickPhraseAddTooltip,

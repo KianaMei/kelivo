@@ -668,6 +668,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               Navigator.of(ctx).maybePop();
               await _onClearContext();
             },
+            onMaxTokens: () async {
+              Navigator.of(ctx).maybePop();
+              await showMaxTokensSheet(context);
+            },
             clearLabel: _clearContextLabel(),
           ),
         );
@@ -4959,6 +4963,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     }
                                   }
 
+                                  final screenWidth = MediaQuery.sizeOf(context).width;
+                                  final isMobile = screenWidth < 600;
+
                                   Widget input = ChatInputBar(
                                     key: _inputBarKey,
                                     onMore: _toggleTools,
@@ -5017,7 +5024,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     },
                                     onLongPressLearning: _showLearningPromptSheet,
                                     learningModeActive: _learningModeEnabled,
-                                    showMoreButton: false,
+                                    showMoreButton: isMobile,
                                     onClearContext: _onClearContext,
                                     onStop: _cancelStreaming,
                                     modelIcon: (settings.showModelIcon && ((a?.chatModelProvider ?? settings.currentModelProvider) != null) && ((a?.chatModelId ?? settings.currentModelId) != null))
@@ -5073,6 +5080,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       final selected = a?.mcpServerIds ?? const <String>[];
                                       if (selected.isEmpty || connected.isEmpty) return false;
                                       return connected.any((s) => selected.contains(s.id));
+                                    })(),
+                                    mcpToolCount: (() {
+                                      final a = context.watch<AssistantProvider>().currentAssistant;
+                                      final mcpProvider = context.watch<McpProvider>();
+                                      final selected = a?.mcpServerIds ?? const <String>[];
+                                      if (selected.isEmpty) return 0;
+                                      final enabledTools = mcpProvider.getEnabledToolsForServers(selected.toSet());
+                                      return enabledTools.length;
                                     })(),
                                   );
 

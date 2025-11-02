@@ -60,6 +60,7 @@ class ChatInputBar extends StatefulWidget {
     this.maxTokensConfigured = false,
     this.showMcpButton = false,
     this.mcpActive = false,
+    this.mcpToolCount = 0,
     this.searchEnabled = false,
     this.showMiniMapButton = false,
     this.onOpenMiniMap,
@@ -99,6 +100,7 @@ class ChatInputBar extends StatefulWidget {
   final bool maxTokensConfigured;
   final bool showMcpButton;
   final bool mcpActive;
+  final int mcpToolCount;
   final bool searchEnabled;
   final bool showMiniMapButton;
   final VoidCallback? onOpenMiniMap;
@@ -405,6 +407,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isMobile = screenWidth < 600;
     final hasText = _controller.text.trim().isNotEmpty;
     final hasImages = _images.isNotEmpty;
     final hasDocs = _docs.isNotEmpty;
@@ -724,15 +728,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 ),
                               ),
                             ],
-                            if (widget.onConfigureMaxTokens != null) ...[
-                              const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.chatInputBarMaxTokensTooltip,
-                                icon: Lucide.FileText,
-                                active: widget.maxTokensConfigured,
-                                onTap: widget.onConfigureMaxTokens,
-                              ),
-                            ],
                             if (widget.showMcpButton) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -741,18 +736,22 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 active: widget.mcpActive,
                                 onTap: widget.onOpenMcp,
                                 onLongPress: widget.onLongPressMcp,
-                                // child: SvgPicture.asset(
-                                //   'assets/icons/codex.svg',
-                                //   width: 20,
-                                //   height: 20,
-                                //   colorFilter: ColorFilter.mode(
-                                //     widget.mcpActive
-                                //         ? theme.colorScheme.primary
-                                //         : (isDark ? Colors.white70 : Colors.black54),
-                                //     BlendMode.srcIn,
-                                //   ),
-                                // ),
                               ),
+                              if (widget.mcpToolCount > 0) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${widget.mcpToolCount}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: widget.mcpActive
+                                      ? Theme.of(context).colorScheme.primary
+                                      : (Theme.of(context).brightness == Brightness.dark
+                                          ? Colors.white70
+                                          : Colors.black54),
+                                  ),
+                                ),
+                              ],
                             ],
                             //（已调整到最右端折叠区）
                             // Quick Phrase button placed immediately to the right of Tool Loop
@@ -793,47 +792,59 @@ class _ChatInputBarState extends State<ChatInputBar> {
                             ],
                             //（已调整到最右端折叠区）
                             // Collapse toggle 放在图标区域的最右侧；展开时在其右边动态追加折叠组图标
-                            const SizedBox(width: 8),
-                            _CompactIconButton(
-                              tooltip: _extraActionsCollapsed ? '展开更多' : '收起',
-                              icon: _extraActionsCollapsed ? Lucide.ChevronRight : Lucide.ChevronLeft,
-                              onTap: () => setState(() => _extraActionsCollapsed = !_extraActionsCollapsed),
-                            ),
-                            if (!_extraActionsCollapsed) ...[
-                              if (widget.onConfigureToolLoop != null) ...[
-                                const SizedBox(width: 8),
-                                _CompactIconButton(
-                                  tooltip: '工具循环次数',
-                                  icon: Lucide.RefreshCw,
-                                  active: false,
-                                  onTap: widget.onConfigureToolLoop,
-                                ),
-                              ],
-                              if (widget.onPickCamera != null) ...[
-                                const SizedBox(width: 8),
-                                _CompactIconButton(
-                                  tooltip: AppLocalizations.of(context)!.bottomToolsSheetCamera,
-                                  icon: Lucide.Camera,
-                                  onTap: widget.onPickCamera,
-                                ),
-                              ],
-                              if (widget.onToggleLearningMode != null) ...[
-                                const SizedBox(width: 8),
-                                _CompactIconButton(
-                                  tooltip: AppLocalizations.of(context)!.bottomToolsSheetLearningMode,
-                                  icon: Lucide.BookOpenText,
-                                  active: widget.learningModeActive,
-                                  onTap: widget.onToggleLearningMode,
-                                  onLongPress: widget.onLongPressLearning,
-                                ),
-                              ],
-                              if (widget.showMiniMapButton) ...[
-                                const SizedBox(width: 8),
-                                _CompactIconButton(
-                                  tooltip: AppLocalizations.of(context)!.miniMapTooltip,
-                                  icon: Lucide.Map,
-                                  onTap: widget.onOpenMiniMap,
-                                ),
+                            // 手机端隐藏折叠功能
+                            if (!isMobile) ...[
+                              const SizedBox(width: 8),
+                              _CompactIconButton(
+                                tooltip: _extraActionsCollapsed ? '展开更多' : '收起',
+                                icon: _extraActionsCollapsed ? Lucide.ChevronRight : Lucide.ChevronLeft,
+                                onTap: () => setState(() => _extraActionsCollapsed = !_extraActionsCollapsed),
+                              ),
+                              if (!_extraActionsCollapsed) ...[
+                                if (widget.onConfigureMaxTokens != null) ...[
+                                  const SizedBox(width: 8),
+                                  _CompactIconButton(
+                                    tooltip: AppLocalizations.of(context)!.chatInputBarMaxTokensTooltip,
+                                    icon: Lucide.FileText,
+                                    active: widget.maxTokensConfigured,
+                                    onTap: widget.onConfigureMaxTokens,
+                                  ),
+                                ],
+                                if (widget.onConfigureToolLoop != null) ...[
+                                  const SizedBox(width: 8),
+                                  _CompactIconButton(
+                                    tooltip: '工具循环次数',
+                                    icon: Lucide.RefreshCw,
+                                    active: false,
+                                    onTap: widget.onConfigureToolLoop,
+                                  ),
+                                ],
+                                if (widget.onPickCamera != null) ...[
+                                  const SizedBox(width: 8),
+                                  _CompactIconButton(
+                                    tooltip: AppLocalizations.of(context)!.bottomToolsSheetCamera,
+                                    icon: Lucide.Camera,
+                                    onTap: widget.onPickCamera,
+                                  ),
+                                ],
+                                if (widget.onToggleLearningMode != null) ...[
+                                  const SizedBox(width: 8),
+                                  _CompactIconButton(
+                                    tooltip: AppLocalizations.of(context)!.bottomToolsSheetLearningMode,
+                                    icon: Lucide.BookOpenText,
+                                    active: widget.learningModeActive,
+                                    onTap: widget.onToggleLearningMode,
+                                    onLongPress: widget.onLongPressLearning,
+                                  ),
+                                ],
+                                if (widget.showMiniMapButton) ...[
+                                  const SizedBox(width: 8),
+                                  _CompactIconButton(
+                                    tooltip: AppLocalizations.of(context)!.miniMapTooltip,
+                                    icon: Lucide.Map,
+                                    onTap: widget.onOpenMiniMap,
+                                  ),
+                                ],
                               ],
                             ],
                           ],

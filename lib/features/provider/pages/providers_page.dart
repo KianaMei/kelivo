@@ -38,6 +38,83 @@ class _ProvidersPageState extends State<ProvidersPage> {
   bool _selectMode = false;
   final Set<String> _selected = {};
 
+  void _toggleSelectMode(AppLocalizations l10n) {
+    setState(() {
+      if (_selectMode) {
+        _selected.clear();
+      }
+      _selectMode = !_selectMode;
+    });
+  }
+
+  Future<void> _importProviders() async {
+    await showImportProviderSheet(context);
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _addProvider(AppLocalizations l10n) async {
+    final createdKey = await showAddProviderSheet(context);
+    if (!mounted) return;
+    if (createdKey != null && createdKey.isNotEmpty) {
+      setState(() {});
+      final msg = l10n.providersPageProviderAddedSnackbar;
+      showAppSnackBar(
+        context,
+        message: msg,
+        type: NotificationType.success,
+      );
+    }
+  }
+
+  Widget _buildEmbeddedToolbar(ColorScheme cs, AppLocalizations l10n) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          Text(
+            l10n.providersPageTitle,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const Spacer(),
+          Tooltip(
+            message: _selectMode ? l10n.searchServicesPageDone : l10n.providersPageMultiSelectTooltip,
+            child: _TactileIconButton(
+              icon: _selectMode ? Lucide.Check : Lucide.circleDot,
+              color: cs.onSurface,
+              size: 22,
+              onTap: () => _toggleSelectMode(l10n),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: l10n.providersPageImportTooltip,
+            child: _TactileIconButton(
+              icon: Lucide.cloudDownload,
+              color: cs.onSurface,
+              size: 22,
+              onTap: _importProviders,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: l10n.providersPageAddTooltip,
+            child: _TactileIconButton(
+              icon: Lucide.Plus,
+              color: cs.onSurface,
+              size: 22,
+              onTap: () => _addProvider(l10n),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -143,7 +220,14 @@ class _ProvidersPageState extends State<ProvidersPage> {
 
     // If embedded, return body content directly without Scaffold
     if (widget.embedded) {
-      return bodyContent;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildEmbeddedToolbar(cs, l10n),
+          Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+          Expanded(child: bodyContent),
+        ],
+      );
     }
 
     // Otherwise, return full page with Scaffold and AppBar
@@ -166,14 +250,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
               icon: _selectMode ? Lucide.Check : Lucide.circleDot,
               color: cs.onSurface,
               size: 22,
-              onTap: () {
-                setState(() {
-                  if (_selectMode) {
-                    _selected.clear();
-                  }
-                  _selectMode = !_selectMode;
-                });
-              },
+              onTap: () => _toggleSelectMode(l10n),
             ),
           ),
           Tooltip(
@@ -182,11 +259,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
               icon: Lucide.cloudDownload,
               color: cs.onSurface,
               size: 22,
-              onTap: () async {
-                await showImportProviderSheet(context);
-                if (!mounted) return;
-                setState(() {});
-              },
+              onTap: _importProviders,
             ),
           ),
           Tooltip(
@@ -195,19 +268,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
               icon: Lucide.Plus,
               color: cs.onSurface,
               size: 22,
-              onTap: () async {
-                final createdKey = await showAddProviderSheet(context);
-                if (!mounted) return;
-                if (createdKey != null && createdKey.isNotEmpty) {
-                  setState(() {});
-                  final msg = l10n.providersPageProviderAddedSnackbar;
-                  showAppSnackBar(
-                    context,
-                    message: msg,
-                    type: NotificationType.success,
-                  );
-                }
-              },
+              onTap: () => _addProvider(l10n),
             ),
           ),
           const SizedBox(width: 12),
