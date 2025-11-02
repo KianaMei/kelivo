@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:restart_app/restart_app.dart';
 
 /// A widget that can restart the entire app.
 ///
@@ -17,7 +18,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 ///
 /// Platform behavior:
 /// - Desktop (Windows/macOS/Linux): Restarts the app process
-/// - Mobile/Web: Rebuilds the widget tree (requires manual restart for full effect)
+/// - Mobile (Android/iOS): Uses restart_app package to restart
+/// - Web: Rebuilds the widget tree (requires manual restart for full effect)
 class RestartWidget extends StatefulWidget {
   const RestartWidget({super.key, required this.child});
 
@@ -38,15 +40,17 @@ class _RestartWidgetState extends State<RestartWidget> {
   Key _key = UniqueKey();
 
   Future<void> restartApp() async {
-    // For desktop platforms, perform a real process restart
-    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
-      await _restartProcess();
-    } else {
-      // For mobile/web, just rebuild the widget tree
-      // (This won't reload data from persistent storage)
+    if (kIsWeb) {
+      // Web: just rebuild the widget tree
       setState(() {
         _key = UniqueKey();
       });
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      // Mobile: use restart_app package
+      await Restart.restartApp();
+    } else {
+      // Desktop: restart the process
+      await _restartProcess();
     }
   }
 
