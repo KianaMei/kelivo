@@ -2904,6 +2904,47 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
+  Future<void> _renameCurrentConversation() async {
+    if (_currentConversation == null) return;
+
+    final controller = TextEditingController(text: _currentConversation!.title);
+    final l10n = AppLocalizations.of(context)!;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(l10n.sideDrawerMenuRename),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(hintText: l10n.sideDrawerRenameHint),
+            onSubmitted: (_) => Navigator.of(ctx).pop(true),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n.sideDrawerCancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(l10n.sideDrawerOK),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok == true && mounted) {
+      final newTitle = controller.text.trim();
+      if (newTitle.isNotEmpty) {
+        await _chatService.renameConversation(_currentConversation!.id, newTitle);
+        setState(() {
+          _currentConversation = _chatService.getConversation(_currentConversation!.id);
+        });
+      }
+    }
+    controller.dispose();
+  }
+
   void _scrollToBottom() {
     try {
       if (!_scrollController.hasClients) return;
@@ -3426,9 +3467,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         titleSpacing: 2,
         title: (() {
           final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-          final titleWidget = AnimatedTextSwap(
-            text: title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          final titleWidget = InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: _renameCurrentConversation,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              child: AnimatedTextSwap(
+                text: title,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
           );
           final modelWidget = (providerName != null && modelDisplay != null)
               ? InkWell(
@@ -3456,8 +3504,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           // Desktop: horizontal layout (title left, model right)
           if (isDesktop && modelWidget != null) {
             return Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(child: titleWidget),
+                titleWidget,
                 const SizedBox(width: 12),
                 modelWidget,
               ],
@@ -4422,9 +4471,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               titleSpacing: 2,
               title: (() {
                 final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-                final titleWidget = AnimatedTextSwap(
-                  text: title,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                final titleWidget = InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: _renameCurrentConversation,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    child: AnimatedTextSwap(
+                      text: title,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                  ),
                 );
                 final modelWidget = (providerName != null && modelDisplay != null)
                     ? InkWell(
@@ -4452,8 +4508,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 // Desktop: horizontal layout (title left, model right)
                 if (isDesktop && modelWidget != null) {
                   return Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(child: titleWidget),
+                      titleWidget,
                       const SizedBox(width: 12),
                       modelWidget,
                     ],
