@@ -18,6 +18,7 @@ class ProviderNetworkPage extends StatefulWidget {
 
 class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
   bool _proxyEnabled = false;
+  bool _allowInsecureConnection = false;
   final _proxyHostCtrl = TextEditingController();
   final _proxyPortCtrl = TextEditingController(text: '8080');
   final _proxyUserCtrl = TextEditingController();
@@ -29,6 +30,7 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
     _proxyEnabled = cfg.proxyEnabled ?? false;
+    _allowInsecureConnection = cfg.allowInsecureConnection ?? false;
     _proxyHostCtrl.text = cfg.proxyHost ?? '';
     _proxyPortCtrl.text = cfg.proxyPort ?? '8080';
     _proxyUserCtrl.text = cfg.proxyUsername ?? '';
@@ -104,6 +106,15 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
               onChanged: (_) => _saveNetwork(),
             ),
           ],
+          const SizedBox(height: 12),
+          _switchRow(
+            title: '跳过 SSL 证书验证 (允许不安全连接)',
+            value: _allowInsecureConnection,
+            onChanged: (v) {
+              setState(() => _allowInsecureConnection = v);
+              _saveNetwork();
+            },
+          ),
         ],
       ),
     );
@@ -153,6 +164,7 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
       proxyPort: _proxyPortCtrl.text.trim(),
       proxyUsername: _proxyUserCtrl.text.trim(),
       proxyPassword: _proxyPassCtrl.text.trim(),
+      allowInsecureConnection: _allowInsecureConnection,
     );
     await settings.setProviderConfig(widget.providerKey, cfg);
     // Silent auto-save (no snackbar) to match immediate-save UX

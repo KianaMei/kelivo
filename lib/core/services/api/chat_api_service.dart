@@ -916,6 +916,9 @@ class ChatApiService {
           (body as Map<String, dynamic>).remove('reasoning_content');
           (body as Map<String, dynamic>).remove('reasoning_budget');
         }
+      } else if (host.contains('opencode')) {
+        // opencode.ai doesn't support reasoning_effort parameter
+        (body as Map<String, dynamic>).remove('reasoning_effort');
       }
     }
 
@@ -1201,6 +1204,9 @@ class ChatApiService {
                   body2.remove('reasoning_content');
                   body2.remove('reasoning_budget');
                 }
+              } else if (host.contains('opencode')) {
+                // opencode.ai doesn't support reasoning_effort parameter
+                body2.remove('reasoning_effort');
               }
 
               // Ask for usage in streaming (when supported)
@@ -2279,6 +2285,9 @@ class ChatApiService {
                   body2.remove('reasoning_content');
                   body2.remove('reasoning_budget');
                 }
+              } else if (host.contains('opencode')) {
+                // opencode.ai doesn't support reasoning_effort parameter
+                body2.remove('reasoning_effort');
               }
               if (!host.contains('mistral.ai')) {
                 body2['stream_options'] = {'include_usage': true};
@@ -2611,6 +2620,9 @@ class ChatApiService {
                       body2.remove('reasoning_content');
                       body2.remove('reasoning_budget');
                     }
+                  } else if (host.contains('opencode')) {
+                    // opencode.ai doesn't support reasoning_effort parameter
+                    body2.remove('reasoning_effort');
                   }
                   if (!host.contains('mistral.ai')) {
                     body2['stream_options'] = {'include_usage': true};
