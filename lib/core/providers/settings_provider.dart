@@ -1044,6 +1044,8 @@ class ProviderConfig {
   final bool? multiKeyEnabled; // default false
   final List<ApiKeyConfig>? apiKeys; // when enabled
   final KeyManagementConfig? keyManagement;
+  // SSL/TLS settings
+  final bool? allowInsecureConnection; // Skip SSL certificate verification (for self-signed certs)
 
   ProviderConfig({
     required this.id,
@@ -1068,6 +1070,7 @@ class ProviderConfig {
     this.multiKeyEnabled,
     this.apiKeys,
     this.keyManagement,
+    this.allowInsecureConnection,
   });
 
   ProviderConfig copyWith({
@@ -1093,6 +1096,7 @@ class ProviderConfig {
     bool? multiKeyEnabled,
     List<ApiKeyConfig>? apiKeys,
     KeyManagementConfig? keyManagement,
+    bool? allowInsecureConnection,
   }) => ProviderConfig(
         id: id ?? this.id,
         enabled: enabled ?? this.enabled,
@@ -1116,6 +1120,7 @@ class ProviderConfig {
         multiKeyEnabled: multiKeyEnabled ?? this.multiKeyEnabled,
         apiKeys: apiKeys ?? this.apiKeys,
         keyManagement: keyManagement ?? this.keyManagement,
+        allowInsecureConnection: allowInsecureConnection ?? this.allowInsecureConnection,
       );
 
   Map<String, dynamic> toJson() => {
@@ -1141,6 +1146,7 @@ class ProviderConfig {
         'multiKeyEnabled': multiKeyEnabled,
         'apiKeys': apiKeys?.map((e) => e.toJson()).toList(),
         'keyManagement': keyManagement?.toJson(),
+        'allowInsecureConnection': allowInsecureConnection,
       };
 
   factory ProviderConfig.fromJson(Map<String, dynamic> json) => ProviderConfig(
@@ -1176,6 +1182,7 @@ class ProviderConfig {
         keyManagement: KeyManagementConfig.fromJson(
           (json['keyManagement'] as Map?)?.cast<String, dynamic>(),
         ),
+        allowInsecureConnection: json['allowInsecureConnection'] as bool?,
       );
 
   static ProviderKind classify(String key, {ProviderKind? explicitType}) {

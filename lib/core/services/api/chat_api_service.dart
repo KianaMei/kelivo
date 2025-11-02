@@ -217,15 +217,29 @@ class ChatApiService {
     final portStr = (cfg.proxyPort ?? '').trim();
     final user = (cfg.proxyUsername ?? '').trim();
     final pass = (cfg.proxyPassword ?? '').trim();
-    if (enabled && host.isNotEmpty && portStr.isNotEmpty) {
-      final port = int.tryParse(portStr) ?? 8080;
+    final allowInsecure = cfg.allowInsecureConnection == true;
+
+    // Create HttpClient if proxy is enabled OR SSL verification needs to be disabled
+    if (enabled || allowInsecure) {
       final io = HttpClient();
-      io.findProxy = (uri) => 'PROXY $host:$port';
-      if (user.isNotEmpty) {
-        io.addProxyCredentials(host, port, '', HttpClientBasicCredentials(user, pass));
+
+      // Configure proxy if enabled
+      if (enabled && host.isNotEmpty && portStr.isNotEmpty) {
+        final port = int.tryParse(portStr) ?? 8080;
+        io.findProxy = (uri) => 'PROXY $host:$port';
+        if (user.isNotEmpty) {
+          io.addProxyCredentials(host, port, '', HttpClientBasicCredentials(user, pass));
+        }
       }
+
+      // Skip SSL certificate verification if requested (for self-signed certs)
+      if (allowInsecure) {
+        io.badCertificateCallback = (cert, host, port) => true;
+      }
+
       return IOClient(io);
     }
+
     return http.Client();
   }
 
