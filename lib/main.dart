@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
-import 'package:flutter/gestures.dart' show kBackMouseButton;
 // import 'dart:async';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
@@ -184,21 +183,14 @@ class MyApp extends StatelessWidget {
                 });
               }
 
-                  return Listener(
-                    behavior: HitTestBehavior.translucent,
-                    onPointerDown: (event) {
-                      // Windows mouse back button support (鼠标侧键返回)
-                      if ((event.buttons & kBackMouseButton) != 0) {
-                        debugPrint('[MouseBack] Back button detected, triggering BackIntent');
-                        Actions.invoke(ctx, const BackIntent());
-                      }
-                    },
-                    child: Shortcuts(
+                  return Shortcuts(
                       shortcuts: <LogicalKeySet, Intent>{
                         // ESC: close dialog/sheet or pop route
                         LogicalKeySet(LogicalKeyboardKey.escape): const BackIntent(),
                         // Ctrl+W: common desktop close-tab/back gesture
                         LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyW): const BackIntent(),
+                        // Mouse back button (鼠标侧键返回)
+                        LogicalKeySet(LogicalKeyboardKey.browserBack): const BackIntent(),
                       },
                       child: Actions(
                         actions: <Type, Action<Intent>>{
@@ -220,8 +212,7 @@ class MyApp extends StatelessWidget {
                           ),
                         ),
                       ),
-                    ),
-                  );
+                    );
                 },
               );
             },
