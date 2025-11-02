@@ -3,7 +3,10 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  camera_windows
   dynamic_color
+  flutter_tts
+  permission_handler_windows
   screen_retriever_windows
   share_plus
   url_launcher_windows

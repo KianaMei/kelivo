@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/gestures.dart' show kBackMouseButton;
 // import 'dart:async';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
@@ -183,29 +184,37 @@ class MyApp extends StatelessWidget {
                 });
               }
 
-                  return Shortcuts(
-                    shortcuts: <LogicalKeySet, Intent>{
-                      // ESC: close dialog/sheet or pop route
-                      LogicalKeySet(LogicalKeyboardKey.escape): const BackIntent(),
-                      // Ctrl+W: common desktop close-tab/back gesture
-                      LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyW): const BackIntent(),
+                  return Listener(
+                    onPointerDown: (event) {
+                      // Windows mouse back button support (鼠标侧键返回)
+                      if (event.buttons & kBackMouseButton != 0) {
+                        Actions.invoke(ctx, const BackIntent());
+                      }
                     },
-                    child: Actions(
-                      actions: <Type, Action<Intent>>{
-                        BackIntent: CallbackAction<BackIntent>(
-                          onInvoke: (intent) {
-                            final nav = appNavigatorKey.currentState;
-                            nav?.maybePop();
-                            return null;
-                          },
-                        ),
+                    child: Shortcuts(
+                      shortcuts: <LogicalKeySet, Intent>{
+                        // ESC: close dialog/sheet or pop route
+                        LogicalKeySet(LogicalKeyboardKey.escape): const BackIntent(),
+                        // Ctrl+W: common desktop close-tab/back gesture
+                        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyW): const BackIntent(),
                       },
-                      child: Focus(
-                        autofocus: true,
-                        child: AnnotatedRegion<SystemUiOverlayStyle>(
-                          value: overlay,
-                          child: AppSnackBarOverlay(
-                            child: child ?? const SizedBox.shrink(),
+                      child: Actions(
+                        actions: <Type, Action<Intent>>{
+                          BackIntent: CallbackAction<BackIntent>(
+                            onInvoke: (intent) {
+                              final nav = appNavigatorKey.currentState;
+                              nav?.maybePop();
+                              return null;
+                            },
+                          ),
+                        },
+                        child: Focus(
+                          autofocus: true,
+                          child: AnnotatedRegion<SystemUiOverlayStyle>(
+                            value: overlay,
+                            child: AppSnackBarOverlay(
+                              child: child ?? const SizedBox.shrink(),
+                            ),
                           ),
                         ),
                       ),
