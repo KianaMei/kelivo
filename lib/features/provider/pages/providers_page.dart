@@ -428,16 +428,16 @@ class _ProvidersList extends StatelessWidget {
               aspectRatio = 0.80;
             }
           } else {
-            // Mobile/Tablet: 2-3 columns, card size 140-180px, taller cards
+            // Mobile/Tablet: optimize for readability with larger cards
             if (screenWidth > 600) {
-              cardSize = 180; // Tablet
-              aspectRatio = 0.78;
-            } else if (screenWidth > 400) {
-              cardSize = 150; // Large phone - reduced from 160
-              aspectRatio = 0.75; // Taller card
+              // Tablet: 3 columns
+              cardSize = 200;
+              aspectRatio = 0.82;
             } else {
-              cardSize = 140; // Small phone - reduced from 150
-              aspectRatio = 0.72; // Even taller for small screens
+              // Phone: 2 columns with larger cards for better content display
+              // This gives each card ~170-190px width (accounting for padding/spacing)
+              cardSize = 250;
+              aspectRatio = 0.85;
             }
           }
 
@@ -514,19 +514,17 @@ class _ProviderCard extends StatelessWidget {
     final statusBg = enabled ? Colors.green.withOpacity(0.12) : Colors.orange.withOpacity(0.15);
     final statusFg = enabled ? Colors.green : Colors.orange;
 
-    // Responsive sizing - reduced for better layout on mobile
+    // Responsive sizing - larger on mobile for better readability
     final screenWidth = MediaQuery.of(context).size.width;
     final double avatarSize;
     final double nameSize;
     if (screenWidth > 600) {
-      avatarSize = 88; // Tablet
+      avatarSize = 96; // Tablet
       nameSize = 15;
-    } else if (screenWidth > 400) {
-      avatarSize = 72; // Large phone - reduced for better text space
-      nameSize = 14;
     } else {
-      avatarSize = 64; // Small phone - smaller avatar for compact layout
-      nameSize = 12.5;
+      // Phone: 2-column layout with larger cards - can use bigger avatar
+      avatarSize = 88;
+      nameSize = 14;
     }
 
     return GestureDetector(
@@ -587,7 +585,7 @@ class _ProviderCard extends StatelessWidget {
                 ),
               ),
 
-            if (!selectMode) const SizedBox(height: screenWidth > 400 ? 8 : 6),
+            if (!selectMode) const SizedBox(height: 10),
 
             // Avatar (row 1)
             _BrandAvatar(
@@ -596,11 +594,11 @@ class _ProviderCard extends StatelessWidget {
               customAvatarPath: cfg.customAvatarPath,
             ),
 
-            SizedBox(height: screenWidth > 400 ? 12 : 10),
+            const SizedBox(height: 12),
 
-            // Name (row 2) - centered, more flexible on small screens
+            // Name (row 2) - centered with good padding
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: screenWidth > 400 ? 10 : 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Center(
                 child: Text(
                   cfg.name.isNotEmpty ? cfg.name : provider.name,
@@ -611,20 +609,17 @@ class _ProviderCard extends StatelessWidget {
                     fontSize: nameSize,
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface,
-                    height: 1.15,
+                    height: 1.2,
                   ),
                 ),
               ),
             ),
 
-            SizedBox(height: screenWidth > 400 ? 8 : 6),
+            const SizedBox(height: 10),
 
-            // Status badge - smaller on mobile
+            // Status badge
             Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: screenWidth > 400 ? 6 : 5,
-                vertical: 2,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: statusBg,
                 borderRadius: BorderRadius.circular(999),
@@ -632,7 +627,7 @@ class _ProviderCard extends StatelessWidget {
               child: Text(
                 enabled ? '启用' : '禁用',
                 style: TextStyle(
-                  fontSize: screenWidth > 400 ? 10 : 9,
+                  fontSize: 10,
                   color: statusFg,
                   fontWeight: FontWeight.w500,
                 ),
@@ -644,7 +639,7 @@ class _ProviderCard extends StatelessWidget {
             // Drag handle (row 3) - 6-dot grid (industry standard)
             if (!selectMode)
               Padding(
-                padding: EdgeInsets.only(bottom: screenWidth > 400 ? 10 : 8),
+                padding: const EdgeInsets.only(bottom: 10),
                 child: _DragHandleIcon(color: cs.onSurface.withOpacity(0.3)),
               ),
           ],
