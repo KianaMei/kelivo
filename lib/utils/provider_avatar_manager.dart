@@ -22,7 +22,7 @@ class ProviderAvatarManager {
   /// [providerId]: Unique identifier for the provider
   /// [imageBytes]: Raw image bytes (can be from file or network)
   ///
-  /// Returns: Local file path of the saved avatar
+  /// Returns: Relative path for cross-platform compatibility (e.g., 'cache/avatars/providers/xxx_timestamp.png')
   static Future<String> saveAvatar(String providerId, Uint8List imageBytes) async {
     if (kIsWeb) {
       throw UnsupportedError('Custom avatars not supported on web');
@@ -40,48 +40,73 @@ class ProviderAvatarManager {
     // Encode as PNG (lossless)
     final png = img.encodePng(resized, level: 6); // level 6 = good compression without being too slow
 
-    // Save to file
+    // Save to file with timestamp to ensure unique path (triggers ValueKey rebuild in UI)
     final dir = await _avatarDir();
     final safeName = _safeFileName(providerId);
-    final file = File('${dir.path}/$safeName.png');
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final filename = '${safeName}_$timestamp.png';
+    final file = File('${dir.path}/$filename');
 
-    // Delete old file first to avoid cache issues
-    if (await file.exists()) {
-      await file.delete();
-    }
+    // Delete old avatars for this provider to avoid clutter
+    try {
+      await for (final entity in dir.list()) {
+        if (entity is File && entity.path.contains(safeName) && entity.path != file.path) {
+          await entity.delete();
+        }
+      }
+    } catch (_) {}
 
     await file.writeAsBytes(png, flush: true);
 
-    return file.path;
+    // Return relative path for cross-platform compatibility
+    return 'cache/avatars/providers/$filename';
   }
 
-  /// Deletes the custom avatar for a provider.
+  /// Deletes the custom avatar(s) for a provider.
+  /// Since avatars now include timestamps, this deletes all matching files.
   static Future<void> deleteAvatar(String providerId) async {
     if (kIsWeb) return;
 
     try {
       final dir = await _avatarDir();
       final safeName = _safeFileName(providerId);
-      final file = File('${dir.path}/$safeName.png');
-      if (await file.exists()) {
-        await file.delete();
+      // Delete all files matching this provider (handles timestamped filenames)
+      await for (final entity in dir.list()) {
+        if (entity is File && entity.path.contains(safeName)) {
+          await entity.delete();
+        }
       }
     } catch (_) {
       // Ignore errors during deletion
     }
   }
 
-  /// Gets the file path for a provider's custom avatar if it exists.
+  /// Gets the relative file path for a provider's custom avatar if it exists.
+  /// Returns the most recent avatar file (by filename timestamp).
+  /// Returns: Relative path like 'cache/avatars/providers/xxx_timestamp.png' or null if not found
   static Future<String?> getAvatarPath(String providerId) async {
     if (kIsWeb) return null;
 
     try {
       final dir = await _avatarDir();
       final safeName = _safeFileName(providerId);
-      final file = File('${dir.path}/$safeName.png');
-      if (await file.exists()) {
-        return file.path;
+
+      // Find all files matching this provider
+      final matches = <File>[];
+      await for (final entity in dir.list()) {
+        if (entity is File && entity.path.contains(safeName)) {
+          matches.add(entity);
+        }
       }
+
+      if (matches.isEmpty) return null;
+
+      // Sort by filename (timestamp) descending to get the most recent
+      matches.sort((a, b) => b.path.compareTo(a.path));
+      final mostRecent = matches.first;
+      final filename = mostRecent.path.split(Platform.pathSeparator).last;
+
+      return 'cache/avatars/providers/$filename';
     } catch (_) {
       // Ignore errors
     }

@@ -1172,7 +1172,7 @@ class _Pill extends StatelessWidget {
 }
 
 class _BrandAvatar extends StatelessWidget {
-  const _BrandAvatar({required this.name, this.size = 40, this.customAvatarPath});
+  const _BrandAvatar({super.key, required this.name, this.size = 40, this.customAvatarPath});
   final String name;
   final double size;
   final String? customAvatarPath;
@@ -1195,31 +1195,87 @@ class _BrandAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? Colors.white10 : cs.primary.withOpacity(0.1);
 
     // Priority 1: Custom avatar
     if (customAvatarPath != null && customAvatarPath!.isNotEmpty) {
-      return FutureBuilder<String>(
-        future: _resolveAvatarPath(customAvatarPath!),
-        builder: (context, snapshot) {
-          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-            final file = File(snapshot.data!);
-            return ClipOval(
-              child: Image.file(
-                file,
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  // Fallback to brand assets if custom avatar fails to load
-                  return _buildBrandAvatar(cs, isDark);
-                },
+      final av = customAvatarPath!.trim();
+
+      // 1. URL - Network image
+      if (av.startsWith('http')) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: bg,
+          ),
+          child: ClipOval(
+            child: Image.network(
+              av,
+              key: ValueKey(av), // Force reload when URL changes
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
+            ),
+          ),
+        );
+      }
+      // 2. File path (contains / or :)
+      else if (av.startsWith('/') || av.contains(':') || av.contains('/')) {
+        return FutureBuilder<String>(
+          key: ValueKey(av), // Force FutureBuilder to rebuild when path changes
+          future: _resolveAvatarPath(av),
+          builder: (context, snapshot) {
+            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              final file = File(snapshot.data!);
+              if (file.existsSync()) {
+                return Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: bg,
+                  ),
+                  child: ClipOval(
+                    child: Image.file(
+                      file,
+                      key: ValueKey(file.path), // Force reload when file path changes
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
+                    ),
+                  ),
+                );
+              }
+            }
+            // While loading or if invalid, show fallback
+            return _buildBrandAvatar(cs, isDark);
+          },
+        );
+      }
+      // 3. Emoji - Display as text
+      else {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: bg,
+          ),
+          child: Center(
+            child: Text(
+              av,
+              style: TextStyle(
+                fontSize: size * 0.5,
+                fontWeight: FontWeight.w700,
               ),
-            );
-          }
-          // While loading or if path is invalid, show default avatar
-          return _buildBrandAvatar(cs, isDark);
-        },
-      );
+            ),
+          ),
+        );
+      }
     }
 
     // Priority 2 & 3: Brand assets or initials

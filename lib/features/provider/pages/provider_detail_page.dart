@@ -10,10 +10,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/assistant_provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/model_provider.dart';
-import '../../../core/providers/assistant_provider.dart';
 import '../../model/widgets/model_detail_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../widgets/share_provider_sheet.dart';
@@ -39,7 +40,7 @@ class ProviderDetailPage extends StatefulWidget {
 class _ProviderDetailPageState extends State<ProviderDetailPage> {
   final PageController _pc = PageController();
   int _index = 0;
-  late ProviderConfig _cfg;
+  // ❌ Removed: late ProviderConfig _cfg; - use Provider directly for reactive updates
   late ProviderKind _kind;
   final _nameCtrl = TextEditingController();
   final _keyCtrl = TextEditingController();
@@ -65,25 +66,25 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   void initState() {
     super.initState();
     final settings = context.read<SettingsProvider>();
-    _cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-    _kind = ProviderConfig.classify(widget.keyName, explicitType: _cfg.providerType);
-    _enabled = _cfg.enabled;
-    _nameCtrl.text = _cfg.name;
-    _keyCtrl.text = _cfg.apiKey;
-    _baseCtrl.text = _cfg.baseUrl;
-    _pathCtrl.text = _cfg.chatPath ?? '/chat/completions';
-    _useResp = _cfg.useResponseApi ?? false;
-    _vertexAI = _cfg.vertexAI ?? false;
-    _locationCtrl.text = _cfg.location ?? '';
-    _projectCtrl.text = _cfg.projectId ?? '';
-    _saJsonCtrl.text = _cfg.serviceAccountJson ?? '';
+    final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    _kind = ProviderConfig.classify(widget.keyName, explicitType: cfg.providerType);
+    _enabled = cfg.enabled;
+    _nameCtrl.text = cfg.name;
+    _keyCtrl.text = cfg.apiKey;
+    _baseCtrl.text = cfg.baseUrl;
+    _pathCtrl.text = cfg.chatPath ?? '/chat/completions';
+    _useResp = cfg.useResponseApi ?? false;
+    _vertexAI = cfg.vertexAI ?? false;
+    _locationCtrl.text = cfg.location ?? '';
+    _projectCtrl.text = cfg.projectId ?? '';
+    _saJsonCtrl.text = cfg.serviceAccountJson ?? '';
     // proxy
-    _proxyEnabled = _cfg.proxyEnabled ?? false;
-    _proxyHostCtrl.text = _cfg.proxyHost ?? '';
-    _proxyPortCtrl.text = _cfg.proxyPort ?? '8080';
-    _proxyUserCtrl.text = _cfg.proxyUsername ?? '';
-    _proxyPassCtrl.text = _cfg.proxyPassword ?? '';
-    _multiKeyEnabled = _cfg.multiKeyEnabled ?? false;
+    _proxyEnabled = cfg.proxyEnabled ?? false;
+    _proxyHostCtrl.text = cfg.proxyHost ?? '';
+    _proxyPortCtrl.text = cfg.proxyPort ?? '8080';
+    _proxyUserCtrl.text = cfg.proxyUsername ?? '';
+    _proxyPassCtrl.text = cfg.proxyPassword ?? '';
+    _multiKeyEnabled = cfg.multiKeyEnabled ?? false;
   }
 
   @override
@@ -105,6 +106,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Read latest config from Provider for reactive updates (especially for avatar)
+    final settings = context.watch<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     bool _isUserAdded(String key) {
@@ -130,9 +135,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         title: Row(
           children: [
             _BrandAvatar(
+              key: ValueKey(cfg.customAvatarPath),
               name: (_nameCtrl.text.isEmpty ? widget.displayName : _nameCtrl.text),
               size: 22,
-              customAvatarPath: _cfg.customAvatarPath,
+              customAvatarPath: cfg.customAvatarPath,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -825,7 +831,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   Widget _buildAvatarRow(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final hasCustomAvatar = _cfg.customAvatarPath != null && _cfg.customAvatarPath!.isNotEmpty;
+    // ✅ Read latest config from Provider for reactive avatar display
+    final settings = context.watch<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    final hasCustomAvatar = cfg.customAvatarPath != null && cfg.customAvatarPath!.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -854,9 +863,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             children: [
               // Avatar preview
               _BrandAvatar(
+                key: ValueKey(cfg.customAvatarPath),
                 name: _nameCtrl.text.isEmpty ? widget.displayName : _nameCtrl.text,
                 size: 48,
-                customAvatarPath: _cfg.customAvatarPath,
+                customAvatarPath: cfg.customAvatarPath,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -882,7 +892,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               IconButton(
                 icon: Icon(Lucide.Upload, size: 18, color: cs.primary),
                 tooltip: hasCustomAvatar ? '更换头像' : '上传头像',
-                onPressed: () => _pickAndSaveAvatar(),
+                onPressed: () => _showAvatarPicker(),
               ),
             ],
           ),
@@ -891,11 +901,87 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     );
   }
 
-  Future<void> _pickAndSaveAvatar() async {
+  Future<void> _showAvatarPicker() async {
     final l10n = AppLocalizations.of(context)!;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        final maxH = MediaQuery.of(ctx).size.height * 0.8;
 
+        Widget row(String text, Future<void> Function() action) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Material(
+              color: cs.surface,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await Future<void>.delayed(const Duration(milliseconds: 100));
+                  await action();
+                },
+                child: Container(
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      text,
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: cs.onSurface),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    row('选择本地图片', () async => _pickLocalImage()),
+                    row('选择表情', () async => _pickEmoji()),
+                    row('输入图片链接', () async => _inputAvatarUrl()),
+                    row('删除自定义头像', () async => _deleteCustomAvatar()),
+                    const SizedBox(height: 4),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickLocalImage() async {
     try {
-      // Pick image file
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
@@ -909,7 +995,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         return;
       }
 
-      // Get image bytes
       final Uint8List bytes;
       if (file.bytes != null) {
         bytes = file.bytes!;
@@ -917,7 +1002,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         bytes = await File(file.path!).readAsBytes();
       }
 
-      // Show loading
       if (!mounted) return;
       showDialog(
         context: context,
@@ -939,56 +1023,213 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         ),
       );
 
-      // Save avatar using ProviderAvatarManager
-      final avatarPath = await ProviderAvatarManager.saveAvatar(
-        widget.keyName,
-        bytes,
-      );
+      final avatarPath = await ProviderAvatarManager.saveAvatar(widget.keyName, bytes);
 
       if (!mounted) return;
-      Navigator.of(context).pop(); // Close loading dialog
+      Navigator.of(context).pop();
 
-      // Clear image cache for old avatar
-      if (_cfg.customAvatarPath != null && _cfg.customAvatarPath!.isNotEmpty) {
-        try {
-          FileImage(File(_cfg.customAvatarPath!)).evict();
-        } catch (_) {}
-      }
-
-      // Update config
-      setState(() {
-        _cfg = _cfg.copyWith(customAvatarPath: avatarPath);
-      });
-      _save();
-
-      // Clear new image cache to force reload
+      // Clear image cache before updating to force reload
       try {
-        FileImage(File(avatarPath)).evict();
+        imageCache.clear();
+        imageCache.clearLiveImages();
       } catch (_) {}
+
+      // ✅ Update Provider directly - no need for setState, notifyListeners will trigger rebuild
+      final settings = context.read<SettingsProvider>();
+      final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+      await settings.setProviderConfig(
+        widget.keyName,
+        cfg.copyWith(customAvatarPath: avatarPath),
+      );
 
       showAppSnackBar(context, message: '头像已更新', type: NotificationType.success);
     } catch (e) {
       if (!mounted) return;
-      Navigator.of(context).pop(); // Close loading dialog if open
+      try {
+        Navigator.of(context).pop();
+      } catch (_) {}
       showAppSnackBar(context, message: '处理图片失败: $e', type: NotificationType.error);
+    }
+  }
+
+  Future<void> _pickEmoji() async {
+    final emoji = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final emojis = [
+          '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+          '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+          '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+          '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+          '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬',
+          '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗',
+          '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯',
+          '🤐', '🥱', '😪', '😴', '😌', '😷', '🤒', '🤕', '🤢', '🤮',
+          '🤧', '🥴', '😵', '🤠', '🥳', '🥸', '😎', '🤓', '🧐', '😕',
+          '👻', '👽', '🤖', '💩', '😺', '😸', '😹', '😻', '😼', '😽',
+        ];
+
+        return AlertDialog(
+          title: const Text('选择表情'),
+          content: SizedBox(
+            width: 300,
+            height: 400,
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 5,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: emojis.length,
+              itemBuilder: (context, index) {
+                return InkWell(
+                  onTap: () => Navigator.of(context).pop(emojis[index]),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Center(
+                    child: Text(
+                      emojis[index],
+                      style: const TextStyle(fontSize: 32),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (emoji != null) {
+      // ✅ Update Provider directly
+      final settings = context.read<SettingsProvider>();
+      final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+      await settings.setProviderConfig(
+        widget.keyName,
+        cfg.copyWith(customAvatarPath: emoji),
+      );
+      showAppSnackBar(context, message: '头像已更新', type: NotificationType.success);
+    }
+  }
+
+  Future<void> _inputAvatarUrl() async {
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: cs.surface,
+          title: const Text('输入图片链接'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'https://example.com/avatar.png',
+              filled: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('确定'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (ok == true) {
+      final url = controller.text.trim();
+      if (url.isEmpty) return;
+
+      try {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Center(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('下载图片中...'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        // Download image from URL
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode != 200) {
+          throw Exception('下载失败: HTTP ${response.statusCode}');
+        }
+
+        final bytes = response.bodyBytes;
+        final avatarPath = await ProviderAvatarManager.saveAvatar(widget.keyName, bytes);
+
+        if (!mounted) return;
+        Navigator.of(context).pop();
+
+        // Clear image cache before updating to force reload
+        try {
+          imageCache.clear();
+          imageCache.clearLiveImages();
+        } catch (_) {}
+
+        // ✅ Update Provider directly
+        final settings = context.read<SettingsProvider>();
+        final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+        await settings.setProviderConfig(
+          widget.keyName,
+          cfg.copyWith(customAvatarPath: avatarPath),
+        );
+
+        showAppSnackBar(context, message: '头像已更新', type: NotificationType.success);
+      } catch (e) {
+        if (!mounted) return;
+        try {
+          Navigator.of(context).pop();
+        } catch (_) {}
+        showAppSnackBar(context, message: '下载图片失败: $e', type: NotificationType.error);
+      }
     }
   }
 
   Future<void> _deleteCustomAvatar() async {
     try {
-      // Clear image cache before deleting
-      if (_cfg.customAvatarPath != null && _cfg.customAvatarPath!.isNotEmpty) {
-        try {
-          FileImage(File(_cfg.customAvatarPath!)).evict();
-        } catch (_) {}
-      }
-
       await ProviderAvatarManager.deleteAvatar(widget.keyName);
 
-      setState(() {
-        _cfg = _cfg.copyWith(customAvatarPath: '');
-      });
-      _save();
+      // Clear image cache before updating to force reload
+      try {
+        imageCache.clear();
+        imageCache.clearLiveImages();
+      } catch (_) {}
+
+      // ✅ Update Provider directly
+      final settings = context.read<SettingsProvider>();
+      final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+      await settings.setProviderConfig(
+        widget.keyName,
+        cfg.copyWith(customAvatarPath: ''),
+      );
 
       showAppSnackBar(context, message: '已删除自定义头像', type: NotificationType.success);
     } catch (e) {
@@ -1241,7 +1482,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       projectId: _kind == ProviderKind.google ? projectId : old.projectId,
       serviceAccountJson: _kind == ProviderKind.google ? _saJsonCtrl.text.trim() : old.serviceAccountJson,
       multiKeyEnabled: _multiKeyEnabled,
-      customAvatarPath: _cfg.customAvatarPath,  // Preserve custom avatar
+      // ✅ Preserve custom avatar from old config (already in Provider state)
+      customAvatarPath: old.customAvatarPath,
       // preserve models and modelOverrides and proxy fields implicitly via copyWith
     );
     await settings.setProviderConfig(widget.keyName, updated);
@@ -2316,7 +2558,7 @@ Widget _modelTagWrap(BuildContext context, ModelInfo m) {
 
 
 class _BrandAvatar extends StatelessWidget {
-  const _BrandAvatar({required this.name, this.size = 20, this.customAvatarPath});
+  const _BrandAvatar({super.key, required this.name, this.size = 20, this.customAvatarPath});
   final String name;
   final double size;
   final String? customAvatarPath;
@@ -2333,20 +2575,80 @@ class _BrandAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? Colors.white10 : cs.primary.withOpacity(0.1);
 
     // Priority 1: Custom avatar
     if (customAvatarPath != null && customAvatarPath!.isNotEmpty) {
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundColor: isDark ? Colors.white10 : cs.primary.withOpacity(0.1),
-        backgroundImage: FileImage(File(customAvatarPath!)),
-        onBackgroundImageError: (exception, stackTrace) {
-          // Will fallback to default rendering
-        },
-      );
+      final av = customAvatarPath!.trim();
+
+      // 1. URL - Network image
+      if (av.startsWith('http')) {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundColor: bg,
+          child: ClipOval(
+            child: Image.network(
+              av,
+              key: ValueKey(av), // Force reload when URL changes
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
+            ),
+          ),
+        );
+      }
+      // 2. File path (contains / or :)
+      else if (av.startsWith('/') || av.contains(':') || av.contains('/')) {
+        return FutureBuilder<String?>(
+          key: ValueKey(av), // Force FutureBuilder to rebuild when path changes
+          future: AssistantProvider.resolveToAbsolutePath(av),
+          builder: (context, snapshot) {
+            if (snapshot.hasData && snapshot.data != null) {
+              final file = File(snapshot.data!);
+              if (file.existsSync()) {
+                return CircleAvatar(
+                  radius: size / 2,
+                  backgroundColor: bg,
+                  child: ClipOval(
+                    child: Image.file(
+                      file,
+                      key: ValueKey(file.path), // Force reload when file path changes
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
+                    ),
+                  ),
+                );
+              }
+            }
+            // Fallback while loading or if invalid
+            return _buildBrandAvatar(cs, isDark);
+          },
+        );
+      }
+      // 3. Emoji - Display as text
+      else {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundColor: bg,
+          child: Text(
+            av,
+            style: TextStyle(
+              fontSize: size * 0.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        );
+      }
     }
 
     // Priority 2 & 3: Brand assets or initials
+    return _buildBrandAvatar(cs, isDark);
+  }
+
+  Widget _buildBrandAvatar(ColorScheme cs, bool isDark) {
     final asset = BrandAssets.assetForName(name);
     final lower = name.toLowerCase();
     final bool _mono = isDark && (RegExp(r'openai|gpt|o\\d').hasMatch(lower) || RegExp(r'grok|xai').hasMatch(lower) || RegExp(r'openrouter').hasMatch(lower));
@@ -2373,7 +2675,9 @@ class _BrandAvatar extends StatelessWidget {
                 )),
     );
   }
+
 }
+
 
 // Top-level tactile row used by iOS-style lists here
 class _TactileRow extends StatefulWidget {
