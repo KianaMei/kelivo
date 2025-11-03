@@ -22,7 +22,7 @@ class ProviderAvatarManager {
   /// [providerId]: Unique identifier for the provider
   /// [imageBytes]: Raw image bytes (can be from file or network)
   ///
-  /// Returns: Local file path of the saved avatar
+  /// Returns: Relative path for cross-platform compatibility (e.g., 'cache/avatars/providers/xxx.png')
   static Future<String> saveAvatar(String providerId, Uint8List imageBytes) async {
     if (kIsWeb) {
       throw UnsupportedError('Custom avatars not supported on web');
@@ -52,7 +52,8 @@ class ProviderAvatarManager {
 
     await file.writeAsBytes(png, flush: true);
 
-    return file.path;
+    // Return relative path for cross-platform compatibility
+    return 'cache/avatars/providers/$safeName.png';
   }
 
   /// Deletes the custom avatar for a provider.
@@ -71,7 +72,8 @@ class ProviderAvatarManager {
     }
   }
 
-  /// Gets the file path for a provider's custom avatar if it exists.
+  /// Gets the relative file path for a provider's custom avatar if it exists.
+  /// Returns: Relative path like 'cache/avatars/providers/xxx.png' or null if not found
   static Future<String?> getAvatarPath(String providerId) async {
     if (kIsWeb) return null;
 
@@ -80,7 +82,7 @@ class ProviderAvatarManager {
       final safeName = _safeFileName(providerId);
       final file = File('${dir.path}/$safeName.png');
       if (await file.exists()) {
-        return file.path;
+        return 'cache/avatars/providers/$safeName.png';
       }
     } catch (_) {
       // Ignore errors
