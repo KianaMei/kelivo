@@ -1,16 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../utils/brand_assets.dart';
+import '../../../utils/provider_avatar_manager.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../icons/lucide_adapter.dart';
-import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../model/widgets/model_detail_sheet.dart';
@@ -131,6 +132,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             _BrandAvatar(
               name: (_nameCtrl.text.isEmpty ? widget.displayName : _nameCtrl.text),
               size: 22,
+              customAvatarPath: _cfg.customAvatarPath,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -498,6 +500,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           onChanged: (_) => _save(),
         ),
         const SizedBox(height: 12),
+        // Custom Avatar
+        _buildAvatarRow(context),
+        const SizedBox(height: 12),
         if (!(_kind == ProviderKind.google && _vertexAI)) ...[
           if (widget.keyName.toLowerCase() != 'kelivoin' && !_multiKeyEnabled) ...[
             _inputRow(
@@ -817,6 +822,180 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     );
   }
 
+  Widget _buildAvatarRow(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final hasCustomAvatar = _cfg.customAvatarPath != null && _cfg.customAvatarPath!.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 14),
+          child: Text(
+            '自定义头像',  // TODO: Add to l10n
+            style: TextStyle(
+              fontSize: 12,
+              color: cs.onSurface.withOpacity(0.6),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Colors.white.withOpacity(0.03)
+                : cs.primary.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              // Avatar preview
+              _BrandAvatar(
+                name: _nameCtrl.text.isEmpty ? widget.displayName : _nameCtrl.text,
+                size: 48,
+                customAvatarPath: _cfg.customAvatarPath,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  hasCustomAvatar
+                      ? '已设置自定义头像'
+                      : '使用默认品牌图标',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: cs.onSurface.withOpacity(0.7),
+                  ),
+                ),
+              ),
+              // Action buttons
+              if (hasCustomAvatar) ...[
+                IconButton(
+                  icon: Icon(Lucide.Trash2, size: 18, color: cs.error),
+                  tooltip: '删除自定义头像',
+                  onPressed: () => _deleteCustomAvatar(),
+                ),
+                const SizedBox(width: 4),
+              ],
+              IconButton(
+                icon: Icon(Lucide.Upload, size: 18, color: cs.primary),
+                tooltip: hasCustomAvatar ? '更换头像' : '上传头像',
+                onPressed: () => _pickAndSaveAvatar(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickAndSaveAvatar() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    try {
+      // Pick image file
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      if (file.bytes == null && file.path == null) {
+        showAppSnackBar(context, message: '无法读取图片文件', type: NotificationType.error);
+        return;
+      }
+
+      // Get image bytes
+      final Uint8List bytes;
+      if (file.bytes != null) {
+        bytes = file.bytes!;
+      } else {
+        bytes = await File(file.path!).readAsBytes();
+      }
+
+      // Show loading
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('处理图片中...'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Save avatar using ProviderAvatarManager
+      final avatarPath = await ProviderAvatarManager.saveAvatar(
+        widget.keyName,
+        bytes,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Close loading dialog
+
+      // Clear image cache for old avatar
+      if (_cfg.customAvatarPath != null && _cfg.customAvatarPath!.isNotEmpty) {
+        try {
+          FileImage(File(_cfg.customAvatarPath!)).evict();
+        } catch (_) {}
+      }
+
+      // Update config
+      setState(() {
+        _cfg = _cfg.copyWith(customAvatarPath: avatarPath);
+      });
+      _save();
+
+      // Clear new image cache to force reload
+      try {
+        FileImage(File(avatarPath)).evict();
+      } catch (_) {}
+
+      showAppSnackBar(context, message: '头像已更新', type: NotificationType.success);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Close loading dialog if open
+      showAppSnackBar(context, message: '处理图片失败: $e', type: NotificationType.error);
+    }
+  }
+
+  Future<void> _deleteCustomAvatar() async {
+    try {
+      // Clear image cache before deleting
+      if (_cfg.customAvatarPath != null && _cfg.customAvatarPath!.isNotEmpty) {
+        try {
+          FileImage(File(_cfg.customAvatarPath!)).evict();
+        } catch (_) {}
+      }
+
+      await ProviderAvatarManager.deleteAvatar(widget.keyName);
+
+      setState(() {
+        _cfg = _cfg.copyWith(customAvatarPath: '');
+      });
+      _save();
+
+      showAppSnackBar(context, message: '已删除自定义头像', type: NotificationType.success);
+    } catch (e) {
+      showAppSnackBar(context, message: '删除失败: $e', type: NotificationType.error);
+    }
+  }
+
   Widget _inputRow(BuildContext context, {required String label, required TextEditingController controller, String? hint, bool obscure = false, bool enabled = true, Widget? suffix, ValueChanged<String>? onChanged}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cs = Theme.of(context).colorScheme;
@@ -1062,6 +1241,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       projectId: _kind == ProviderKind.google ? projectId : old.projectId,
       serviceAccountJson: _kind == ProviderKind.google ? _saJsonCtrl.text.trim() : old.serviceAccountJson,
       multiKeyEnabled: _multiKeyEnabled,
+      customAvatarPath: _cfg.customAvatarPath,  // Preserve custom avatar
       // preserve models and modelOverrides and proxy fields implicitly via copyWith
     );
     await settings.setProviderConfig(widget.keyName, updated);
@@ -2136,9 +2316,10 @@ Widget _modelTagWrap(BuildContext context, ModelInfo m) {
 
 
 class _BrandAvatar extends StatelessWidget {
-  const _BrandAvatar({required this.name, this.size = 20});
+  const _BrandAvatar({required this.name, this.size = 20, this.customAvatarPath});
   final String name;
   final double size;
+  final String? customAvatarPath;
 
 
   bool _preferMonochromeWhite(String n) {
@@ -2152,6 +2333,20 @@ class _BrandAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Priority 1: Custom avatar
+    if (customAvatarPath != null && customAvatarPath!.isNotEmpty) {
+      return CircleAvatar(
+        radius: size / 2,
+        backgroundColor: isDark ? Colors.white10 : cs.primary.withOpacity(0.1),
+        backgroundImage: FileImage(File(customAvatarPath!)),
+        onBackgroundImageError: (exception, stackTrace) {
+          // Will fallback to default rendering
+        },
+      );
+    }
+
+    // Priority 2 & 3: Brand assets or initials
     final asset = BrandAssets.assetForName(name);
     final lower = name.toLowerCase();
     final bool _mono = isDark && (RegExp(r'openai|gpt|o\\d').hasMatch(lower) || RegExp(r'grok|xai').hasMatch(lower) || RegExp(r'openrouter').hasMatch(lower));

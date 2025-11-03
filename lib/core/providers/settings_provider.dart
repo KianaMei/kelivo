@@ -1046,6 +1046,8 @@ class ProviderConfig {
   final KeyManagementConfig? keyManagement;
   // SSL/TLS settings
   final bool? allowInsecureConnection; // Skip SSL certificate verification (for self-signed certs)
+  // Custom avatar
+  final String? customAvatarPath; // Local path to custom provider avatar
 
   ProviderConfig({
     required this.id,
@@ -1071,6 +1073,7 @@ class ProviderConfig {
     this.apiKeys,
     this.keyManagement,
     this.allowInsecureConnection,
+    this.customAvatarPath,
   });
 
   ProviderConfig copyWith({
@@ -1097,6 +1100,7 @@ class ProviderConfig {
     List<ApiKeyConfig>? apiKeys,
     KeyManagementConfig? keyManagement,
     bool? allowInsecureConnection,
+    String? customAvatarPath,
   }) => ProviderConfig(
         id: id ?? this.id,
         enabled: enabled ?? this.enabled,
@@ -1121,6 +1125,7 @@ class ProviderConfig {
         apiKeys: apiKeys ?? this.apiKeys,
         keyManagement: keyManagement ?? this.keyManagement,
         allowInsecureConnection: allowInsecureConnection ?? this.allowInsecureConnection,
+        customAvatarPath: customAvatarPath ?? this.customAvatarPath,
       );
 
   Map<String, dynamic> toJson() => {
@@ -1147,6 +1152,7 @@ class ProviderConfig {
         'apiKeys': apiKeys?.map((e) => e.toJson()).toList(),
         'keyManagement': keyManagement?.toJson(),
         'allowInsecureConnection': allowInsecureConnection,
+        'customAvatarPath': customAvatarPath,
       };
 
   factory ProviderConfig.fromJson(Map<String, dynamic> json) => ProviderConfig(
@@ -1183,6 +1189,7 @@ class ProviderConfig {
           (json['keyManagement'] as Map?)?.cast<String, dynamic>(),
         ),
         allowInsecureConnection: json['allowInsecureConnection'] as bool?,
+        customAvatarPath: json['customAvatarPath'] as String?,
       );
 
   static ProviderKind classify(String key, {ProviderKind? explicitType}) {
