@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'dart:io';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
@@ -218,9 +217,6 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   final DraggableScrollableController _sheetCtrl = DraggableScrollableController();
   static const double _initialSize = 0.8;
   static const double _maxSize = 0.8;
-  // ScrollablePositionedList controllers
-  final ItemScrollController _itemScrollController = ItemScrollController();
-  final ItemPositionsListener _itemPositionsListener = ItemPositionsListener.create();
 
   // Provider tabs scroll controller
   final ScrollController _providerTabsScrollController = ScrollController();
@@ -307,18 +303,6 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     }
   }
 
-  Future<void> _expandSheetIfNeeded(double target, {Duration duration = const Duration(milliseconds: 300)}) async {
-    // Safely attempt to read size and animate; ignore if controller not yet attached
-    try {
-      final current = _sheetCtrl.size;
-      if (current < target) {
-        await _sheetCtrl.animateTo(target, duration: duration, curve: Curves.easeOutCubic);
-        // allow a brief settle time after expansion
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-    } catch (_) {}
-  }
-  
   void _loadModelsSynchronously() {
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
@@ -364,75 +348,6 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         _currentTab = (_favItems.isNotEmpty && widget.limitProviderKey == null) ? '__fav__' : _orderedKeys.first;
       }
     });
-  }
-
-  void _scheduleAutoScrollToCurrent() {
-    if (_autoScrolled) return;
-    // Wait until the content has been laid out and offsets computed in _buildContent
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || _autoScrolled) return;
-      await _jumpToCurrentSelection();
-    });
-  }
-
-  Future<void> _jumpToCurrentSelection() async {
-    final settings = context.read<SettingsProvider>();
-    final assistant = context.read<AssistantProvider>().currentAssistant;
-    
-    // Use assistant's model if set, otherwise fall back to global default
-    final pk = assistant?.chatModelProvider ?? settings.currentModelProvider;
-    final mid = assistant?.chatModelId ?? settings.currentModelId;
-    if (pk == null || mid == null) return;
-
-    // Optionally expand a bit for better context
-    await _expandSheetIfNeeded(_initialSize.clamp(0.0, _maxSize), duration: const Duration(milliseconds: 200));
-
-    // If current model is pinned and favorites section is visible, jump there first
-    final currentKey = '${pk}::${mid}';
-    final bool showFavorites = widget.limitProviderKey == null && (_search.text.isEmpty);
-    final bool isPinned = settings.pinnedModels.contains(currentKey);
-
-    // Ensure the list is attached before attempting to scroll
-    if (!_itemScrollController.isAttached) {
-      // Try again shortly after the list attaches
-      Future.delayed(const Duration(milliseconds: 60), () {
-        if (mounted && !_autoScrolled) {
-          _jumpToCurrentSelection();
-        }
-      });
-      return;
-    }
-
-    int? targetIndex;
-    if (showFavorites && isPinned) {
-      targetIndex = _favModelIndexMap[currentKey];
-    }
-    targetIndex ??= _modelIndexMap[currentKey];
-    targetIndex ??= _headerIndexMap[pk];
-
-    if (targetIndex != null) {
-      try {
-        await _itemScrollController.scrollTo(
-          index: targetIndex,
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic,
-        );
-        _autoScrolled = true;
-      } catch (_) {
-        // If scroll fails for any reason, try again once.
-        Future.delayed(const Duration(milliseconds: 80), () async {
-          if (!mounted || _autoScrolled) return;
-          try {
-            await _itemScrollController.scrollTo(
-              index: targetIndex!,
-              duration: const Duration(milliseconds: 360),
-              curve: Curves.easeOutCubic,
-            );
-            _autoScrolled = true;
-          } catch (_) {}
-        });
-      }
-    }
   }
 
   @override
@@ -511,7 +426,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                                     message: l10n.modelSelectSheetFavoritesSection,
                                     child: IconButton(
                                       icon: Icon(Lucide.Bookmark, size: 18, color: cs.onSurface.withOpacity(_isLoading ? 0.35 : 0.7)),
-                                      onPressed: _jumpToFavorites,
+                                      onPressed: () => _switchToTab('__fav__'),
                                       splashColor: Colors.transparent,
                                       highlightColor: Colors.transparent,
                                       hoverColor: Colors.transparent,
@@ -571,107 +486,98 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   }
 
   Widget _buildContent(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final query = _search.text.trim();
-    // Build flattened rows and index maps for precise positioning
-    _rows.clear();
-    _headerIndexMap.clear();
-    _modelIndexMap.clear();
-    _favModelIndexMap.clear();
 
-    final Set<String> favMatchedKeys = <String>{};
-
-    if (widget.limitProviderKey == null) {
-      final pinned = context.watch<SettingsProvider>().pinnedModels;
-      if (pinned.isNotEmpty) {
-        final favs = <_ModelItem>[];
-        for (final k in pinned) {
-          final parts = k.split('::');
-          if (parts.length < 2) continue;
-          final pk = parts[0];
-          final mid = parts.sublist(1).join('::');
-          final g = _groups[pk];
-          if (g == null) continue;
-          final found = g.items.firstWhere(
-            (e) => e.id == mid,
-            orElse: () => _ModelItem(
-              providerKey: pk,
-              providerName: g.name,
-              id: mid,
-              info: ModelRegistry.infer(ModelInfo(id: mid, displayName: mid)),
-              pinned: true,
-              selected: false,
-            ),
-          );
-          if (_matchesSearch(query, found, found.providerName)) {
-            favs.add(found.copyWith(pinned: true));
-            favMatchedKeys.add('$pk::$mid');
-          }
-        }
-        if (favs.isNotEmpty) {
-          _headerIndexMap['__fav__'] = _rows.length;
-          _rows.add(_HeaderRow(l10n.modelSelectSheetFavoritesSection));
-          for (final m in favs) {
-            _favModelIndexMap['${m.providerKey}::${m.id}'] = _rows.length;
-            _rows.add(_ModelRow(m, showProviderLabel: true));
-          }
-        }
-      }
+    // Search mode: show all matching models across all providers
+    if (query.isNotEmpty) {
+      return _buildSearchResults(context, query);
     }
 
+    // Tab mode: show only current tab's models
+    if (_currentTab == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_currentTab == '__fav__') {
+      return _buildFavoritesTab(context);
+    }
+
+    // Regular provider tab
+    final group = _groups[_currentTab];
+    if (group == null || group.items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 12, top: 8),
+      itemCount: group.items.length,
+      itemBuilder: (context, index) {
+        return _modelTile(context, group.items[index]);
+      },
+    );
+  }
+
+  Widget _buildSearchResults(BuildContext context, String query) {
+    final matches = <_ModelItem>[];
+
+    // Search across all providers
     for (final pk in _orderedKeys) {
       final g = _groups[pk]!;
-      List<_ModelItem> items;
-      if (query.isEmpty) {
-        items = g.items;
+      final providerMatches = _providerMatchesSearch(query, g.name);
+      if (providerMatches) {
+        matches.addAll(g.items);
       } else {
-        final providerMatches = _providerMatchesSearch(query, g.name);
-        items = providerMatches ? g.items : g.items.where((e) => _matchesSearch(query, e, g.name)).toList();
-        if (favMatchedKeys.isNotEmpty) {
-          items = items.where((e) => !favMatchedKeys.contains('${e.providerKey}::${e.id}')).toList();
-        }
-      }
-      if (items.isEmpty) continue;
-      _headerIndexMap[pk] = _rows.length;
-      _rows.add(_HeaderRow(g.name));
-      for (final m in items) {
-        _modelIndexMap['${m.providerKey}::${m.id}'] = _rows.length;
-        _rows.add(_ModelRow(m));
+        matches.addAll(g.items.where((e) => _matchesSearch(query, e, g.name)));
       }
     }
 
-    if (_rows.isEmpty) return const SizedBox.shrink();
+    if (matches.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    return ScrollablePositionedList.builder(
-      itemCount: _rows.length,
-      itemScrollController: _itemScrollController,
-      itemPositionsListener: _itemPositionsListener,
-      padding: const EdgeInsets.only(bottom: 12),
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 12, top: 8),
+      itemCount: matches.length,
       itemBuilder: (context, index) {
-        final row = _rows[index];
-        if (row is _HeaderRow) {
-          return _sectionHeader(context, row.title);
-        } else if (row is _ModelRow) {
-          return _modelTile(context, row.item, showProviderLabel: row.showProviderLabel);
-        }
-        return const SizedBox.shrink();
+        return _modelTile(context, matches[index], showProviderLabel: true);
+      },
+    );
+  }
+
+  Widget _buildFavoritesTab(BuildContext context) {
+    if (_favItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 12, top: 8),
+      itemCount: _favItems.length,
+      itemBuilder: (context, index) {
+        return _modelTile(context, _favItems[index], showProviderLabel: true);
       },
     );
   }
 
   Widget _buildBottomTabs(BuildContext context) {
-    // Bottom provider tabs (ordered per ProvidersPage order)
+    final l10n = AppLocalizations.of(context)!;
     final List<Widget> providerTabs = <Widget>[];
-    if (widget.limitProviderKey == null && !_isLoading) {
-      // Use current viewing provider index for selection state
-      final currentViewingProviderKey = _orderedKeys.isNotEmpty && _currentViewingProviderIndex < _orderedKeys.length
-          ? _orderedKeys[_currentViewingProviderIndex]
-          : null;
 
+    if (widget.limitProviderKey == null && !_isLoading) {
+      // Add favorites tab first if there are any favorites
+      if (_favItems.isNotEmpty) {
+        providerTabs.add(_providerTab(
+          context,
+          '__fav__',
+          l10n.modelSelectSheetFavoritesSection,
+          selected: _currentTab == '__fav__',
+        ));
+      }
+
+      // Add provider tabs
       for (final k in _orderedKeys) {
         final g = _groups[k];
         if (g != null) {
-          providerTabs.add(_providerTab(context, k, g.name, selected: k == currentViewingProviderKey));
+          providerTabs.add(_providerTab(context, k, g.name, selected: _currentTab == k));
         }
       }
     }
@@ -684,7 +590,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         padding: const EdgeInsets.only(left: 12, right: 12, bottom: 10),
         child: Listener(
         onPointerSignal: (event) {
-          // Windows 滚轮支持 - 切换到下一个/上一个供应商
+          // Windows 滚轮支持 - 切换到下一个/上一个tab
           if (event is PointerScrollEvent && Platform.isWindows) {
             // Debounce: ignore events that come too quickly
             final now = DateTime.now();
@@ -696,11 +602,11 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 
             final delta = event.scrollDelta.dy;
             if (delta > 0) {
-              // 向下滚动 - 切换到下一个供应商
-              _jumpToNextProviderWheel(1);
+              // 向下滚动 - 切换到下一个tab
+              _switchToNextTab(1);
             } else if (delta < 0) {
-              // 向上滚动 - 切换到上一个供应商
-              _jumpToNextProviderWheel(-1);
+              // 向上滚动 - 切换到上一个tab
+              _switchToNextTab(-1);
             }
           }
         },
@@ -722,15 +628,6 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         ),
       ),
       ),
-    );
-  }
-
-  Widget _sectionHeader(BuildContext context, String title) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.6))),
     );
   }
 
@@ -823,196 +720,70 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   Widget _providerTab(BuildContext context, String key, String name, {bool selected = false}) {
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
-    final cfg = settings.getProviderConfig(key, defaultName: name);
+    // Only fetch provider config for non-favorites tab
+    final cfg = (key == '__fav__') ? null : settings.getProviderConfig(key, defaultName: name);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: _ProviderChip(
         avatar: _BrandAvatar(
           name: name,
           size: 18,
-          customAvatarPath: cfg.customAvatarPath,
+          customAvatarPath: cfg?.customAvatarPath,
         ),
         label: name,
         selected: selected,
         borderColor: cs.outlineVariant.withOpacity(0.25),
-        onTap: () async { await _jumpToProvider(key); },
-        onLongPress: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ProviderDetailPage(keyName: key, displayName: name)),
-          );
-          if (mounted) setState(() {});
-        },
+        onTap: () => _switchToTab(key),
+        onLongPress: key == '__fav__'
+          ? null
+          : () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ProviderDetailPage(keyName: key, displayName: name)),
+              );
+              if (mounted) setState(() {});
+            },
       ),
     );
   }
 
-  Future<void> _jumpToProvider(String pk, {bool updateIndex = true}) async {
-    // Update current viewing provider index (optional, for manual clicks)
-    if (updateIndex) {
-      final pkIndex = _orderedKeys.indexOf(pk);
-      if (pkIndex != -1) {
-        _currentViewingProviderIndex = pkIndex;
-      }
+  /// Get all tab keys in order: favorites first (if exists), then providers
+  List<String> _getAllTabKeys() {
+    final tabs = <String>[];
+    if (_favItems.isNotEmpty && widget.limitProviderKey == null) {
+      tabs.add('__fav__');
     }
-
-    // Update UI to reflect new selection in bottom tabs
-    if (mounted) setState(() {});
-
-    // Scroll bottom tabs to make selected provider visible
-    _scrollProviderTabToVisible(_currentViewingProviderIndex);
-
-    // Expand sheet first if needed
-    await _expandSheetIfNeeded(_maxSize);
-
-    // Clear search if needed to ensure provider is visible
-    if (_search.text.isNotEmpty) {
-      setState(() => _search.clear());
-      // Wait for the widget tree to rebuild and all widgets to be rendered
-      await Future.delayed(const Duration(milliseconds: 150));
-    }
-
-    // Use precise index jump via ScrollablePositionedList
-    final idx = _headerIndexMap[pk];
-    if (idx != null) {
-      if (!_itemScrollController.isAttached) {
-        // Retry shortly if list not yet attached
-        Future.delayed(const Duration(milliseconds: 60), () {
-          if (mounted) {
-            _jumpToProvider(pk, updateIndex: false);
-          }
-        });
-        return;
-      }
-      try {
-        await _itemScrollController.scrollTo(
-          index: idx,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutCubic,
-        );
-      } catch (_) {}
-    }
+    tabs.addAll(_orderedKeys);
+    return tabs;
   }
 
-  /// Scroll bottom provider tabs to make the tab at given index visible
-  void _scrollProviderTabToVisible(int index) {
-    if (!_providerTabsScrollController.hasClients || index < 0 || index >= _orderedKeys.length) {
-      return;
-    }
-
-    // Estimate tab width (avatar + label + padding)
-    // Typical: 18px avatar + 6px gap + ~60-80px label + 20px padding = ~100-120px per tab
-    const estimatedTabWidth = 110.0;
-    final targetOffset = index * estimatedTabWidth;
-
-    // Get viewport width
-    final viewportWidth = _providerTabsScrollController.position.viewportDimension;
-    final maxScroll = _providerTabsScrollController.position.maxScrollExtent;
-
-    // Calculate scroll position to center the tab
-    double scrollTo = targetOffset - (viewportWidth / 2) + (estimatedTabWidth / 2);
-
-    // Clamp to valid range
-    scrollTo = scrollTo.clamp(0.0, maxScroll);
-
-    // Animate to position
-    _providerTabsScrollController.animateTo(
-      scrollTo,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-    );
+  /// Switch to a specific tab and persist the selection
+  void _switchToTab(String tabKey) {
+    if (_currentTab == tabKey) return;
+    setState(() {
+      _currentTab = tabKey;
+    });
+    // Persist tab selection
+    context.read<SettingsProvider>().setLastSelectedProviderTab(tabKey);
   }
 
-  /// Jump to next/previous provider using mouse wheel
-  void _jumpToNextProvider(int direction) {
-    if (_orderedKeys.isEmpty) return;
+  /// Switch to next/previous tab (for wheel navigation)
+  void _switchToNextTab(int direction) {
+    final allTabs = _getAllTabKeys();
+    if (allTabs.isEmpty) return;
 
-    // Calculate next index based on current viewing provider
-    int nextIndex = _currentViewingProviderIndex + direction;
+    final currentIndex = _currentTab != null ? allTabs.indexOf(_currentTab!) : -1;
+    int nextIndex = (currentIndex == -1) ? 0 : currentIndex + direction;
 
     // Wrap around
     if (nextIndex < 0) {
-      nextIndex = _orderedKeys.length - 1; // Wrap to last
-    } else if (nextIndex >= _orderedKeys.length) {
-      nextIndex = 0; // Wrap to first
-    }
-
-    // Update index immediately to prevent race conditions from rapid scrolling
-    _currentViewingProviderIndex = nextIndex;
-
-    // Jump to the provider (don't update index again)
-    _jumpToProvider(_orderedKeys[nextIndex], updateIndex: false);
-  }
-
-  /// Lightweight version for mouse wheel - avoid unnecessary operations
-  void _jumpToNextProviderWheel(int direction) {
-    if (_orderedKeys.isEmpty) return;
-
-    // Calculate next index
-    int nextIndex = _currentViewingProviderIndex + direction;
-
-    // Wrap around
-    if (nextIndex < 0) {
-      nextIndex = _orderedKeys.length - 1;
-    } else if (nextIndex >= _orderedKeys.length) {
+      nextIndex = allTabs.length - 1;
+    } else if (nextIndex >= allTabs.length) {
       nextIndex = 0;
     }
 
-    final pk = _orderedKeys[nextIndex];
-
-    // Update index immediately
-    _currentViewingProviderIndex = nextIndex;
-
-    // Update only the bottom tabs selection state (minimal rebuild)
-    if (mounted) setState(() {});
-
-    // Scroll bottom tabs to make selected provider visible
-    _scrollProviderTabToVisible(_currentViewingProviderIndex);
-
-    // Scroll content to provider section (no expanding, no search clearing)
-    final idx = _headerIndexMap[pk];
-    if (idx != null && _itemScrollController.isAttached) {
-      try {
-        _itemScrollController.scrollTo(
-          index: idx,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-        );
-      } catch (_) {}
-    }
+    _switchToTab(allTabs[nextIndex]);
   }
 
-  String _displayName(BuildContext context, _ModelItem m) => m.info.displayName;
-  ModelInfo _effectiveInfo(BuildContext context, _ModelItem m) => m.info;
-
-  Future<void> _jumpToFavorites() async {
-    if (widget.limitProviderKey != null) return;
-    // Expand sheet first to reveal more content
-    await _expandSheetIfNeeded(_maxSize);
-
-    // If search text hides favorites section, clear it to ensure favorites are visible
-    if (_search.text.isNotEmpty) {
-      setState(() => _search.clear());
-      await Future.delayed(const Duration(milliseconds: 150));
-    }
-
-    // Jump to favorites header index if present
-    final idx = _headerIndexMap['__fav__'];
-    if (idx != null) {
-      if (!_itemScrollController.isAttached) {
-        Future.delayed(const Duration(milliseconds: 60), () {
-          if (mounted) _jumpToFavorites();
-        });
-        return;
-      }
-      try {
-        await _itemScrollController.scrollTo(
-          index: idx,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutCubic,
-        );
-      } catch (_) {}
-    }
-  }
 }
 
 class _ProviderChip extends StatefulWidget {
@@ -1098,20 +869,6 @@ class _ModelItem {
   _ModelItem copyWith({bool? pinned, bool? selected}) => _ModelItem(providerKey: providerKey, providerName: providerName, id: id, info: info, pinned: pinned ?? this.pinned, selected: selected ?? this.selected, asset: asset);
 }
 
-// Virtualization entry: fixed height + lazy builder
-// Rows for flattened list
-abstract class _ListRow {}
-class _HeaderRow extends _ListRow {
-  final String title;
-  _HeaderRow(this.title);
-}
-class _ModelRow extends _ListRow {
-  final _ModelItem item;
-  final bool showProviderLabel;
-  _ModelRow(this.item, {this.showProviderLabel = false});
-}
-
-// Reuse badges and avatars similar to provider detail
 class _BrandAvatar extends StatelessWidget {
   const _BrandAvatar({required this.name, this.size = 20, this.assetOverride, this.customAvatarPath});
   final String name;
