@@ -33,8 +33,50 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Clean old signing files
+        run: |
+          echo "Cleaning old signing files..."
+          rm -f android/key.properties
+          rm -f android/upload-keystore.jks
+          rm -f android/app/upload-keystore.jks
+          rm -f android/app/key.properties
+          echo "Cleanup complete"
+
+      - name: Setup Android signing
+        continue-on-error: true
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No keystore configured, will build unsigned APK"
+            exit 0
+          fi
+
+          echo "Setting up keystore..."
+          echo "$KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+
+          echo "Creating key.properties..."
+          cat > android/key.properties << EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+          echo "Keystore setup complete!"
+
       - name: Build APK
-        run: flutter build apk --release --split-per-abi --no-tree-shake-icons
+        run: |
+          echo "Building APK..."
+          if [ -f "android/key.properties" ]; then
+            echo "Building SIGNED APK..."
+          else
+            echo "Building UNSIGNED APK (no keystore found)..."
+          fi
+          flutter build apk --release --split-per-abi --no-tree-shake-icons
 
       - name: Rename APK files
         run: |
