@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'provider_detail_page.dart';
@@ -1197,22 +1198,47 @@ class _BrandAvatar extends StatelessWidget {
 
     // Priority 1: Custom avatar
     if (customAvatarPath != null && customAvatarPath!.isNotEmpty) {
-      return ClipOval(
-        child: Image.file(
-          File(customAvatarPath!),
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            // Fallback to brand assets if custom avatar fails to load
-            return _buildBrandAvatar(cs, isDark);
-          },
-        ),
+      return FutureBuilder<String>(
+        future: _resolveAvatarPath(customAvatarPath!),
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+            final file = File(snapshot.data!);
+            return ClipOval(
+              child: Image.file(
+                file,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback to brand assets if custom avatar fails to load
+                  return _buildBrandAvatar(cs, isDark);
+                },
+              ),
+            );
+          }
+          // While loading or if path is invalid, show default avatar
+          return _buildBrandAvatar(cs, isDark);
+        },
       );
     }
 
     // Priority 2 & 3: Brand assets or initials
     return _buildBrandAvatar(cs, isDark);
+  }
+
+  /// Resolve avatar path: convert relative path to absolute if needed
+  Future<String> _resolveAvatarPath(String path) async {
+    // If already absolute path (starts with / or contains :), return as-is
+    if (path.startsWith('/') || path.contains(':')) {
+      return path;
+    }
+    // Relative path: resolve to absolute
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      return '${docs.path}/$path';
+    } catch (_) {
+      return path; // Return original if resolution fails
+    }
   }
 
   Widget _buildBrandAvatar(ColorScheme cs, bool isDark) {
