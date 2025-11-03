@@ -412,25 +412,32 @@ class _ProvidersList extends StatelessWidget {
               defaultTargetPlatform == TargetPlatform.macOS ||
               defaultTargetPlatform == TargetPlatform.linux;
 
-          // Calculate optimal card size based on screen width
+          // Calculate optimal card size and aspect ratio based on screen width
           double cardSize;
+          double aspectRatio;
           if (isDesktop) {
             // Desktop: 4-6 columns, card size 160-200px
             if (screenWidth > 1400) {
               cardSize = 200;
+              aspectRatio = 0.82;
             } else if (screenWidth > 1000) {
               cardSize = 180;
+              aspectRatio = 0.82;
             } else {
               cardSize = 160;
+              aspectRatio = 0.80;
             }
           } else {
-            // Mobile/Tablet: 2-3 columns, card size 150-180px
+            // Mobile/Tablet: 2-3 columns, card size 140-180px, taller cards
             if (screenWidth > 600) {
               cardSize = 180; // Tablet
+              aspectRatio = 0.78;
             } else if (screenWidth > 400) {
-              cardSize = 160; // Large phone
+              cardSize = 150; // Large phone - reduced from 160
+              aspectRatio = 0.75; // Taller card
             } else {
-              cardSize = 150; // Small phone
+              cardSize = 140; // Small phone - reduced from 150
+              aspectRatio = 0.72; // Even taller for small screens
             }
           }
 
@@ -448,7 +455,7 @@ class _ProvidersList extends StatelessWidget {
                 maxCrossAxisExtent: cardSize,
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
-                childAspectRatio: 0.82,
+                childAspectRatio: aspectRatio,
               ),
               dragWidgetBuilder: (index, child) {
                 return Material(
@@ -507,19 +514,19 @@ class _ProviderCard extends StatelessWidget {
     final statusBg = enabled ? Colors.green.withOpacity(0.12) : Colors.orange.withOpacity(0.15);
     final statusFg = enabled ? Colors.green : Colors.orange;
 
-    // Responsive sizing
+    // Responsive sizing - reduced for better layout on mobile
     final screenWidth = MediaQuery.of(context).size.width;
     final double avatarSize;
     final double nameSize;
     if (screenWidth > 600) {
-      avatarSize = 96; // 放大：80 -> 96
+      avatarSize = 88; // Tablet
       nameSize = 15;
     } else if (screenWidth > 400) {
-      avatarSize = 88; // 放大：72 -> 88
+      avatarSize = 72; // Large phone - reduced for better text space
       nameSize = 14;
     } else {
-      avatarSize = 80; // 放大：64 -> 80
-      nameSize = 13;
+      avatarSize = 64; // Small phone - smaller avatar for compact layout
+      nameSize = 12.5;
     }
 
     return GestureDetector(
@@ -580,7 +587,7 @@ class _ProviderCard extends StatelessWidget {
                 ),
               ),
 
-            if (!selectMode) const SizedBox(height: 8),
+            if (!selectMode) const SizedBox(height: screenWidth > 400 ? 8 : 6),
 
             // Avatar (row 1)
             _BrandAvatar(
@@ -589,11 +596,11 @@ class _ProviderCard extends StatelessWidget {
               customAvatarPath: cfg.customAvatarPath,
             ),
 
-            const SizedBox(height: 14),
+            SizedBox(height: screenWidth > 400 ? 12 : 10),
 
-            // Name (row 2) - centered
+            // Name (row 2) - centered, more flexible on small screens
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: EdgeInsets.symmetric(horizontal: screenWidth > 400 ? 10 : 8),
               child: Center(
                 child: Text(
                   cfg.name.isNotEmpty ? cfg.name : provider.name,
@@ -604,24 +611,31 @@ class _ProviderCard extends StatelessWidget {
                     fontSize: nameSize,
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface,
-                    height: 1.2,
+                    height: 1.15,
                   ),
                 ),
               ),
             ),
 
-            const SizedBox(height: 10),
+            SizedBox(height: screenWidth > 400 ? 8 : 6),
 
-            // Status badge
+            // Status badge - smaller on mobile
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: EdgeInsets.symmetric(
+                horizontal: screenWidth > 400 ? 6 : 5,
+                vertical: 2,
+              ),
               decoration: BoxDecoration(
                 color: statusBg,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 enabled ? '启用' : '禁用',
-                style: TextStyle(fontSize: 10, color: statusFg, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  fontSize: screenWidth > 400 ? 10 : 9,
+                  color: statusFg,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
 
@@ -630,7 +644,7 @@ class _ProviderCard extends StatelessWidget {
             // Drag handle (row 3) - 6-dot grid (industry standard)
             if (!selectMode)
               Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: EdgeInsets.only(bottom: screenWidth > 400 ? 10 : 8),
                 child: _DragHandleIcon(color: cs.onSurface.withOpacity(0.3)),
               ),
           ],

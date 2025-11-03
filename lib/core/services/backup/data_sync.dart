@@ -70,6 +70,56 @@ class DataSync {
     return out;
   }
 
+  // Normalize provider configs for cross-platform restore (especially customAvatarPath)
+  Map<String, dynamic> _normalizeProviderConfigsForCrossPlatform(Map<String, dynamic> configs) {
+    String? _normAvatarPath(String? raw) {
+      if (raw == null) return null;
+      var s = raw.trim();
+      if (s.isEmpty) return null;
+      final lower = s.toLowerCase();
+      if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('data:')) return s;
+      s = s.replaceAll('\\\\', '/');
+      // Look for cache/avatars/providers/ pattern
+      final idx = s.indexOf('/cache/avatars/providers/');
+      if (idx >= 0) {
+        final tail = s.substring(idx + 1);
+        final parts = tail.split('/');
+        if (parts.isNotEmpty) {
+          final name = parts.lastWhere((e) => e.isNotEmpty, orElse: () => parts.last);
+          return 'cache/avatars/providers/$name';
+        }
+      }
+      // Fallback: extract filename and reconstruct path
+      if (!s.startsWith('/') && !s.contains(':')) {
+        return s.replaceAll('\\\\', '/');
+      }
+      final allParts = s.split(RegExp(r'[/\\]'));
+      final filename = allParts.lastWhere((p) => p.trim().isNotEmpty, orElse: () => '');
+      if (filename.isNotEmpty && filename.contains('.')) {
+        return 'cache/avatars/providers/$filename';
+      }
+      return null;
+    }
+
+    final normalized = <String, dynamic>{};
+    for (final entry in configs.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      if (value is Map) {
+        final providerConfig = Map<String, dynamic>.from(value as Map);
+        if (providerConfig.containsKey('customAvatarPath')) {
+          providerConfig['customAvatarPath'] = _normAvatarPath(
+            (providerConfig['customAvatarPath'] ?? '')?.toString()
+          );
+        }
+        normalized[key] = providerConfig;
+      } else {
+        normalized[key] = value;
+      }
+    }
+    return normalized;
+  }
+
   // ===== WebDAV helpers =====
   Uri _collectionUri(WebDavConfig cfg) {
     String base = cfg.url.trim();
@@ -439,6 +489,17 @@ class DataSync {
             }
           } catch (_) {}
         }
+        // Normalize provider_configs_v1 for cross-platform before writing
+        if (map.containsKey('provider_configs_v1')) {
+          try {
+            final raw = map['provider_configs_v1'];
+            if (raw is String && raw.isNotEmpty) {
+              final configs = jsonDecode(raw) as Map<String, dynamic>;
+              final norm = _normalizeProviderConfigsForCrossPlatform(configs);
+              map['provider_configs_v1'] = jsonEncode(norm);
+            }
+          } catch (_) {}
+        }
         if (mode == RestoreMode.overwrite) {
           // For overwrite mode, restore all settings
           await prefs.restore(map);
@@ -541,8 +602,11 @@ class DataSync {
                 // Merge provider configs: combine both maps
                 try {
                   final existingConfigs = jsonDecode(existing[key] as String) as Map<String, dynamic>;
-                  final newConfigs = jsonDecode(newValue as String) as Map<String, dynamic>;
-                  
+                  final rawNewConfigs = jsonDecode(newValue as String) as Map<String, dynamic>;
+
+                  // Normalize provider paths for cross-platform restore
+                  final newConfigs = _normalizeProviderConfigsForCrossPlatform(rawNewConfigs);
+
                   // Merge configs, new values override existing for same keys
                   final mergedConfigs = {...existingConfigs, ...newConfigs};
                   await prefs.restoreSingle(key, jsonEncode(mergedConfigs));
@@ -810,6 +874,17 @@ class DataSync {
               final arr = jsonDecode(raw) as List<dynamic>;
               final norm = _normalizeAssistantsForCrossPlatform(arr);
               map['assistants_v1'] = jsonEncode(norm);
+            }
+          } catch (_) {}
+        }
+        // Normalize provider_configs_v1 for cross-platform before writing
+        if (map.containsKey('provider_configs_v1')) {
+          try {
+            final raw = map['provider_configs_v1'];
+            if (raw is String && raw.isNotEmpty) {
+              final configs = jsonDecode(raw) as Map<String, dynamic>;
+              final norm = _normalizeProviderConfigsForCrossPlatform(configs);
+              map['provider_configs_v1'] = jsonEncode(norm);
             }
           } catch (_) {}
         }
