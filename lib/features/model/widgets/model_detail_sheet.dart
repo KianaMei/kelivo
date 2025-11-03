@@ -488,7 +488,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet> with SingleTickerP
     final String prevId = widget.modelId;
     String id = _idCtrl.text.trim();
     // Basic validation
-    if (id.isEmpty || id.length < 2 || id.contains(' ')) {
+    if (id.isEmpty || id.length < 2) {
       final l10n = AppLocalizations.of(context)!;
       showAppSnackBar(
         context,
