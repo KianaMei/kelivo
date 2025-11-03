@@ -35,7 +35,8 @@ class DataSync {
       if (s.isEmpty) return null;
       final lower = s.toLowerCase();
       if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('data:')) return s;
-      s = s.replaceAll('\\\\', '/');
+      // Convert Windows backslashes to forward slashes
+      s = s.replaceAll('\\', '/');
       final idx = s.indexOf('/' + folder + '/');
       if (idx >= 0) {
         final tail = s.substring(idx + 1);
@@ -46,7 +47,7 @@ class DataSync {
         }
       }
       if (!s.startsWith('/') && !s.contains(':')) {
-        return s.replaceAll('\\\\', '/');
+        return s.replaceAll('\\', '/');
       }
       // Fallback: extract filename from any path format (Windows/Unix/mixed)
       // Split by both / and \ to handle all cases
@@ -78,7 +79,8 @@ class DataSync {
       if (s.isEmpty) return null;
       final lower = s.toLowerCase();
       if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('data:')) return s;
-      s = s.replaceAll('\\\\', '/');
+      // Convert Windows backslashes to forward slashes
+      s = s.replaceAll('\\', '/');
       // Look for cache/avatars/providers/ pattern
       final idx = s.indexOf('/cache/avatars/providers/');
       if (idx >= 0) {
@@ -91,7 +93,7 @@ class DataSync {
       }
       // Fallback: extract filename and reconstruct path
       if (!s.startsWith('/') && !s.contains(':')) {
-        return s.replaceAll('\\\\', '/');
+        return s.replaceAll('\\', '/');
       }
       final allParts = s.split(RegExp(r'[/\\]'));
       final filename = allParts.lastWhere((p) => p.trim().isNotEmpty, orElse: () => '');
