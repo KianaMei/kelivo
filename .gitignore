@@ -76,3 +76,9 @@ key.properties
 
 # Temporary commit messages
 commit_message*.txt
+
+# Project-specific ignores
+tmp/
+*.tgz
+AIaW/
+
