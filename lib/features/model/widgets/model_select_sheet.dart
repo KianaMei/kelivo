@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'dart:io';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -219,19 +221,29 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   // ScrollablePositionedList controllers
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener = ItemPositionsListener.create();
-  
+
+  // Provider tabs scroll controller
+  final ScrollController _providerTabsScrollController = ScrollController();
+
   // Flattened rows + index maps for precise jumps
   final List<_ListRow> _rows = <_ListRow>[];
   final Map<String, int> _headerIndexMap = <String, int>{}; // providerKey or '__fav__' -> index
   final Map<String, int> _modelIndexMap = <String, int>{};  // 'pk::modelId' in provider sections -> index
   final Map<String, int> _favModelIndexMap = <String, int>{}; // 'pk::modelId' in favorites -> index
-  
+
   // Async loading state
   bool _isLoading = true;
   Map<String, _ProviderGroup> _groups = {};
   List<_ModelItem> _favItems = [];
   List<String> _orderedKeys = [];
   bool _autoScrolled = false; // ensure we only auto-scroll once per open
+
+  // Track current viewing provider for wheel navigation
+  int _currentViewingProviderIndex = 0;
+
+  // Debounce for wheel events
+  DateTime? _lastWheelEvent;
+  static const _wheelDebounceMs = 150;
 
   @override
   void initState() {
@@ -248,14 +260,14 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     try {
       final settings = context.read<SettingsProvider>();
       final assistant = context.read<AssistantProvider>().currentAssistant;
-      
+
       // Determine current model - use assistant's model if set, otherwise global default
       final currentProvider = assistant?.chatModelProvider ?? settings.currentModelProvider;
       final currentModelId = assistant?.chatModelId ?? settings.currentModelId;
-      final currentKey = (currentProvider != null && currentModelId != null) 
-          ? '$currentProvider::$currentModelId' 
+      final currentKey = (currentProvider != null && currentModelId != null)
+          ? '$currentProvider::$currentModelId'
           : '';
-      
+
       // Prepare data for background processing
       final processingData = _ModelProcessingData(
         providerConfigs: Map<String, dynamic>.from(
@@ -271,16 +283,25 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         providersOrder: settings.providersOrder,
         limitProviderKey: widget.limitProviderKey,
       );
-      
+
       // Process in background isolate
       final result = await compute(_processModelsInBackground, processingData);
-      
+
       if (mounted) {
         setState(() {
           _groups = result.groups;
           _favItems = result.favItems;
           _orderedKeys = result.orderedKeys;
           _isLoading = false;
+
+          // Initialize: find which provider contains the selected model
+          _currentViewingProviderIndex = 0;
+          if (currentProvider != null) {
+            final idx = _orderedKeys.indexOf(currentProvider);
+            if (idx != -1) {
+              _currentViewingProviderIndex = idx;
+            }
+          }
         });
         _scheduleAutoScrollToCurrent();
       }
@@ -307,14 +328,14 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   void _loadModelsSynchronously() {
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
-    
+
     // Determine current model - use assistant's model if set, otherwise global default
     final currentProvider = assistant?.chatModelProvider ?? settings.currentModelProvider;
     final currentModelId = assistant?.chatModelId ?? settings.currentModelId;
-    final currentKey = (currentProvider != null && currentModelId != null) 
-        ? '$currentProvider::$currentModelId' 
+    final currentKey = (currentProvider != null && currentModelId != null)
+        ? '$currentProvider::$currentModelId'
         : '';
-    
+
     final processingData = _ModelProcessingData(
       providerConfigs: Map<String, dynamic>.from(
         settings.providerConfigs.map((key, value) => MapEntry(key, {
@@ -329,14 +350,23 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       providersOrder: settings.providersOrder,
       limitProviderKey: widget.limitProviderKey,
     );
-    
+
     final result = _processModelsInBackground(processingData);
-    
+
     setState(() {
       _groups = result.groups;
       _favItems = result.favItems;
       _orderedKeys = result.orderedKeys;
       _isLoading = false;
+
+      // Initialize: find which provider contains the selected model
+      _currentViewingProviderIndex = 0;
+      if (currentProvider != null) {
+        final idx = _orderedKeys.indexOf(currentProvider);
+        if (idx != -1) {
+          _currentViewingProviderIndex = idx;
+        }
+      }
     });
     _scheduleAutoScrollToCurrent();
   }
@@ -414,6 +444,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   void dispose() {
     _search.dispose();
     _sheetCtrl.dispose();
+    _providerTabsScrollController.dispose();
     super.dispose();
   }
 
@@ -637,29 +668,64 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     // Bottom provider tabs (ordered per ProvidersPage order)
     final List<Widget> providerTabs = <Widget>[];
     if (widget.limitProviderKey == null && !_isLoading) {
-      String? selectedProviderKey;
-      // Find which provider currently holds the selected model
-      _groups.forEach((pk, group) {
-        if (selectedProviderKey == null && group.items.any((m) => m.selected)) {
-          selectedProviderKey = pk;
-        }
-      });
+      // Use current viewing provider index for selection state
+      final currentViewingProviderKey = _orderedKeys.isNotEmpty && _currentViewingProviderIndex < _orderedKeys.length
+          ? _orderedKeys[_currentViewingProviderIndex]
+          : null;
+
       for (final k in _orderedKeys) {
         final g = _groups[k];
         if (g != null) {
-          providerTabs.add(_providerTab(context, k, g.name, selected: k == selectedProviderKey));
+          providerTabs.add(_providerTab(context, k, g.name, selected: k == currentViewingProviderKey));
         }
       }
     }
 
     if (providerTabs.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      // SafeArea already applies bottom inset; avoid doubling it here.
-      padding: const EdgeInsets.only(left: 12, right: 12, bottom: 10),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(children: providerTabs),
+    return RepaintBoundary(
+      child: Padding(
+        // SafeArea already applies bottom inset; avoid doubling it here.
+        padding: const EdgeInsets.only(left: 12, right: 12, bottom: 10),
+        child: Listener(
+        onPointerSignal: (event) {
+          // Windows 滚轮支持 - 切换到下一个/上一个供应商
+          if (event is PointerScrollEvent && Platform.isWindows) {
+            // Debounce: ignore events that come too quickly
+            final now = DateTime.now();
+            if (_lastWheelEvent != null &&
+                now.difference(_lastWheelEvent!).inMilliseconds < _wheelDebounceMs) {
+              return;
+            }
+            _lastWheelEvent = now;
+
+            final delta = event.scrollDelta.dy;
+            if (delta > 0) {
+              // 向下滚动 - 切换到下一个供应商
+              _jumpToNextProviderWheel(1);
+            } else if (delta < 0) {
+              // 向上滚动 - 切换到上一个供应商
+              _jumpToNextProviderWheel(-1);
+            }
+          }
+        },
+        child: ScrollConfiguration(
+          // Windows 拖动支持
+          behavior: ScrollConfiguration.of(context).copyWith(
+            dragDevices: {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+            },
+          ),
+          child: SingleChildScrollView(
+            controller: _providerTabsScrollController,
+            scrollDirection: Axis.horizontal,
+            // 减小回弹幅度
+            physics: const ClampingScrollPhysics(),
+            child: Row(children: providerTabs),
+          ),
+        ),
+      ),
       ),
     );
   }
@@ -761,10 +827,16 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 
   Widget _providerTab(BuildContext context, String key, String name, {bool selected = false}) {
     final cs = Theme.of(context).colorScheme;
+    final settings = context.watch<SettingsProvider>();
+    final cfg = settings.getProviderConfig(key, defaultName: name);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: _ProviderChip(
-        avatar: _BrandAvatar(name: name, size: 18),
+        avatar: _BrandAvatar(
+          name: name,
+          size: 18,
+          customAvatarPath: cfg.customAvatarPath,
+        ),
         label: name,
         selected: selected,
         borderColor: cs.outlineVariant.withOpacity(0.25),
@@ -779,7 +851,21 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     );
   }
 
-  Future<void> _jumpToProvider(String pk) async {
+  Future<void> _jumpToProvider(String pk, {bool updateIndex = true}) async {
+    // Update current viewing provider index (optional, for manual clicks)
+    if (updateIndex) {
+      final pkIndex = _orderedKeys.indexOf(pk);
+      if (pkIndex != -1) {
+        _currentViewingProviderIndex = pkIndex;
+      }
+    }
+
+    // Update UI to reflect new selection in bottom tabs
+    if (mounted) setState(() {});
+
+    // Scroll bottom tabs to make selected provider visible
+    _scrollProviderTabToVisible(_currentViewingProviderIndex);
+
     // Expand sheet first if needed
     await _expandSheetIfNeeded(_maxSize);
 
@@ -797,7 +883,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         // Retry shortly if list not yet attached
         Future.delayed(const Duration(milliseconds: 60), () {
           if (mounted) {
-            _jumpToProvider(pk);
+            _jumpToProvider(pk, updateIndex: false);
           }
         });
         return;
@@ -806,6 +892,94 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         await _itemScrollController.scrollTo(
           index: idx,
           duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      } catch (_) {}
+    }
+  }
+
+  /// Scroll bottom provider tabs to make the tab at given index visible
+  void _scrollProviderTabToVisible(int index) {
+    if (!_providerTabsScrollController.hasClients || index < 0 || index >= _orderedKeys.length) {
+      return;
+    }
+
+    // Estimate tab width (avatar + label + padding)
+    // Typical: 18px avatar + 6px gap + ~60-80px label + 20px padding = ~100-120px per tab
+    const estimatedTabWidth = 110.0;
+    final targetOffset = index * estimatedTabWidth;
+
+    // Get viewport width
+    final viewportWidth = _providerTabsScrollController.position.viewportDimension;
+    final maxScroll = _providerTabsScrollController.position.maxScrollExtent;
+
+    // Calculate scroll position to center the tab
+    double scrollTo = targetOffset - (viewportWidth / 2) + (estimatedTabWidth / 2);
+
+    // Clamp to valid range
+    scrollTo = scrollTo.clamp(0.0, maxScroll);
+
+    // Animate to position
+    _providerTabsScrollController.animateTo(
+      scrollTo,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  /// Jump to next/previous provider using mouse wheel
+  void _jumpToNextProvider(int direction) {
+    if (_orderedKeys.isEmpty) return;
+
+    // Calculate next index based on current viewing provider
+    int nextIndex = _currentViewingProviderIndex + direction;
+
+    // Wrap around
+    if (nextIndex < 0) {
+      nextIndex = _orderedKeys.length - 1; // Wrap to last
+    } else if (nextIndex >= _orderedKeys.length) {
+      nextIndex = 0; // Wrap to first
+    }
+
+    // Update index immediately to prevent race conditions from rapid scrolling
+    _currentViewingProviderIndex = nextIndex;
+
+    // Jump to the provider (don't update index again)
+    _jumpToProvider(_orderedKeys[nextIndex], updateIndex: false);
+  }
+
+  /// Lightweight version for mouse wheel - avoid unnecessary operations
+  void _jumpToNextProviderWheel(int direction) {
+    if (_orderedKeys.isEmpty) return;
+
+    // Calculate next index
+    int nextIndex = _currentViewingProviderIndex + direction;
+
+    // Wrap around
+    if (nextIndex < 0) {
+      nextIndex = _orderedKeys.length - 1;
+    } else if (nextIndex >= _orderedKeys.length) {
+      nextIndex = 0;
+    }
+
+    final pk = _orderedKeys[nextIndex];
+
+    // Update index immediately
+    _currentViewingProviderIndex = nextIndex;
+
+    // Update only the bottom tabs selection state (minimal rebuild)
+    if (mounted) setState(() {});
+
+    // Scroll bottom tabs to make selected provider visible
+    _scrollProviderTabToVisible(_currentViewingProviderIndex);
+
+    // Scroll content to provider section (no expanding, no search clearing)
+    final idx = _headerIndexMap[pk];
+    if (idx != null && _itemScrollController.isAttached) {
+      try {
+        _itemScrollController.scrollTo(
+          index: idx,
+          duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
         );
       } catch (_) {}
@@ -866,15 +1040,23 @@ class _ProviderChipState extends State<_ProviderChip> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool isSelected = widget.selected;
-    // Subtle background tint when selected (less conspicuous)
+
+    // More visible selection state (stronger background)
     final Color baseBg = isSelected
-        ? (isDark ? cs.primary.withOpacity(0.08) : cs.primary.withOpacity(0.05))
+        ? (isDark ? cs.primary.withOpacity(0.20) : cs.primary.withOpacity(0.18))
         : cs.surface;
+
+    // Press overlay (only for pressed state)
     final Color overlay = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05);
     final Color bg = _pressed ? Color.alphaBlend(overlay, baseBg) : baseBg;
-    // Slightly stronger border when selected; keep label color unchanged for subtlety
-    final Color borderColor = widget.borderColor ?? cs.outlineVariant.withOpacity(0.25);
+
+    // Border: stronger when selected
+    final Color borderColor = isSelected
+        ? (isDark ? cs.primary.withOpacity(0.4) : cs.primary.withOpacity(0.35))
+        : (widget.borderColor ?? cs.outlineVariant.withOpacity(0.25));
+
     final Color labelColor = cs.onSurface;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => setState(() => _pressed = true),
@@ -882,14 +1064,13 @@ class _ProviderChipState extends State<_ProviderChip> {
       onTapCancel: () => setState(() => _pressed = false),
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOutCubic,
+      child: Container(
+        // NO animation for selected state changes - only animate press
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor),
+          border: Border.all(color: borderColor, width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -937,22 +1118,95 @@ class _ModelRow extends _ListRow {
 
 // Reuse badges and avatars similar to provider detail
 class _BrandAvatar extends StatelessWidget {
-  const _BrandAvatar({required this.name, this.size = 20, this.assetOverride});
+  const _BrandAvatar({required this.name, this.size = 20, this.assetOverride, this.customAvatarPath});
   final String name;
   final double size;
   final String? assetOverride;
+  final String? customAvatarPath;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? Colors.white10 : cs.primary.withOpacity(0.1);
+
+    // Priority 1: Custom avatar (for provider tabs)
+    if (customAvatarPath != null && customAvatarPath!.isNotEmpty) {
+      final av = customAvatarPath!.trim();
+
+      // 1. URL - Network image
+      if (av.startsWith('http')) {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundColor: bg,
+          child: ClipOval(
+            child: Image.network(
+              av,
+              key: ValueKey(av),
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
+            ),
+          ),
+        );
+      }
+      // 2. File path
+      else if (av.startsWith('/') || av.contains(':') || av.contains('/')) {
+        return FutureBuilder<String?>(
+          key: ValueKey(av),
+          future: AssistantProvider.resolveToAbsolutePath(av),
+          builder: (context, snapshot) {
+            if (snapshot.hasData && snapshot.data != null) {
+              final file = File(snapshot.data!);
+              if (file.existsSync()) {
+                return CircleAvatar(
+                  radius: size / 2,
+                  backgroundColor: bg,
+                  child: ClipOval(
+                    child: Image.file(
+                      file,
+                      key: ValueKey(file.path),
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
+                    ),
+                  ),
+                );
+              }
+            }
+            return _buildBrandAvatar(cs, isDark);
+          },
+        );
+      }
+      // 3. Emoji
+      else {
+        return CircleAvatar(
+          radius: size / 2,
+          backgroundColor: bg,
+          child: Text(
+            av,
+            style: TextStyle(
+              fontSize: size * 0.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        );
+      }
+    }
+
+    // Priority 2 & 3: Brand assets or initials
+    return _buildBrandAvatar(cs, isDark);
+  }
+
+  Widget _buildBrandAvatar(ColorScheme cs, bool isDark) {
     final asset = assetOverride ?? BrandAssets.assetForName(name);
     Widget inner;
     if (asset != null) {
       if (asset.endsWith('.svg')) {
         final isColorful = asset.contains('color');
-        final dark = Theme.of(context).brightness == Brightness.dark;
-        final ColorFilter? tint = (dark && !isColorful)
+        final ColorFilter? tint = (isDark && !isColorful)
             ? const ColorFilter.mode(Colors.white, BlendMode.srcIn)
             : null;
         inner = SvgPicture.asset(
@@ -965,7 +1219,10 @@ class _BrandAvatar extends StatelessWidget {
         inner = Image.asset(asset, width: size * 0.62, height: size * 0.62, fit: BoxFit.contain);
       }
     } else {
-      inner = Text(name.isNotEmpty ? name.characters.first.toUpperCase() : '?', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.42));
+      inner = Text(
+        name.isNotEmpty ? name.characters.first.toUpperCase() : '?',
+        style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.42),
+      );
     }
     return Container(
       width: size,
