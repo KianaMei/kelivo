@@ -35,6 +35,7 @@ dependencies:
   
   # Desktop window control (caption buttons, drag area, title bar style)
   window_manager: ^0.4.3
+  screen_retriever: ^0.2.0
 
   # Localizations for Chinese/English UI strings
   flutter_localizations:

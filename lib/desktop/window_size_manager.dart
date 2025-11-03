@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 
 /// Manages desktop window size/position persistence and defaults.
 class WindowSizeManager {
@@ -50,7 +51,50 @@ class WindowSizeManager {
     if (x == null || y == null) return null;
     // Simple sanity: avoid infinities
     if (!x.isFinite || !y.isFinite) return null;
-    return Offset(x, y);
+
+    final savedPos = Offset(x, y);
+    // Validate that position is within visible screen bounds
+    final validPos = await _validatePosition(savedPos);
+    return validPos;
+  }
+
+  /// Validates that a window position is visible on at least one screen.
+  /// Returns the position if valid, null if the window would be off-screen.
+  Future<Offset?> _validatePosition(Offset position) async {
+    try {
+      final displays = await screenRetriever.getAllDisplays();
+      if (displays.isEmpty) return null;
+
+      // Check if window center would be visible on any screen
+      // Use a reasonable estimate of window size for validation
+      final windowSize = Size(defaultWindowWidth, defaultWindowHeight);
+      final windowCenter = Offset(
+        position.dx + windowSize.width / 2,
+        position.dy + windowSize.height / 2,
+      );
+
+      // Check each display
+      for (final display in displays) {
+        final bounds = display.visibleSize;
+        final displayRect = Rect.fromLTWH(
+          display.visiblePosition?.dx ?? 0,
+          display.visiblePosition?.dy ?? 0,
+          bounds?.width ?? 0,
+          bounds?.height ?? 0,
+        );
+
+        // If window center is within this display, position is valid
+        if (displayRect.contains(windowCenter)) {
+          return position;
+        }
+      }
+
+      // Position is off-screen on all displays
+      return null;
+    } catch (e) {
+      // If screen retrieval fails, assume position is invalid to be safe
+      return null;
+    }
   }
 
   Future<void> setPosition(Offset offset) async {

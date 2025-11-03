@@ -3650,31 +3650,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         }
                         truncCollapsed = count - 1;
                       }
-                      final bool listLoadingTail = _isCurrentConversationLoading;
                       final list = ListView.builder(
                         controller: _scrollController,
                         padding: const EdgeInsets.only(bottom: 16, top: 8),
-                        itemCount: messages.length + (listLoadingTail ? 1 : 0),
+                        itemCount: messages.length,
                         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         itemBuilder: (context, index) {
-                          // tail loading row
-                          if (listLoadingTail && index == messages.length) {
-                            final cs = Theme.of(context).colorScheme;
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: AnimatedLoadingText(
-                                text: AppLocalizations.of(context)!.chatMessageWidgetThinking,
-                                textStyle: TextStyle(
-                                  fontSize: 13,
-                                  color: cs.onSurface.withOpacity(0.6),
-                                  fontStyle: FontStyle.italic,
-                                ),
-                                dotSize: 8,
-                                dotGap: 4,
-                                style: LoadingTextStyle.modern, // 使用现代风格
-                              ),
-                            );
-                          }
                           if (index < 0 || index >= messages.length) {
                             return const SizedBox.shrink();
                           }

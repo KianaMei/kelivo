@@ -516,12 +516,15 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       return const SizedBox.shrink();
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 12, top: 8),
-      itemCount: group.items.length,
-      itemBuilder: (context, index) {
-        return _modelTile(context, group.items[index]);
-      },
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 12, top: 8),
+        itemCount: group.items.length,
+        itemBuilder: (context, index) {
+          return _modelTile(context, group.items[index]);
+        },
+      ),
     );
   }
 
@@ -543,26 +546,58 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       return const SizedBox.shrink();
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 12, top: 8),
-      itemCount: matches.length,
-      itemBuilder: (context, index) {
-        return _modelTile(context, matches[index], showProviderLabel: true);
-      },
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 12, top: 8),
+        itemCount: matches.length,
+        itemBuilder: (context, index) {
+          return _modelTile(context, matches[index], showProviderLabel: true);
+        },
+      ),
     );
   }
 
   Widget _buildFavoritesTab(BuildContext context) {
-    if (_favItems.isEmpty) {
+    // Dynamically build favorites list based on current pinned models
+    final pinnedModels = context.watch<SettingsProvider>().pinnedModels;
+    final favs = <_ModelItem>[];
+
+    for (final k in pinnedModels) {
+      final parts = k.split('::');
+      if (parts.length < 2) continue;
+      final pk = parts[0];
+      final mid = parts.sublist(1).join('::');
+      final g = _groups[pk];
+      if (g == null) continue;
+
+      final found = g.items.firstWhere(
+        (e) => e.id == mid,
+        orElse: () => _ModelItem(
+          providerKey: pk,
+          providerName: g.name,
+          id: mid,
+          info: ModelRegistry.infer(ModelInfo(id: mid, displayName: mid)),
+          pinned: true,
+          selected: false,
+        ),
+      );
+      favs.add(found.copyWith(pinned: true));
+    }
+
+    if (favs.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 12, top: 8),
-      itemCount: _favItems.length,
-      itemBuilder: (context, index) {
-        return _modelTile(context, _favItems[index], showProviderLabel: true);
-      },
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(bottom: 12, top: 8),
+        itemCount: favs.length,
+        itemBuilder: (context, index) {
+          return _modelTile(context, favs[index], showProviderLabel: true);
+        },
+      ),
     );
   }
 
@@ -571,8 +606,9 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     final List<Widget> providerTabs = <Widget>[];
 
     if (widget.limitProviderKey == null && !_isLoading) {
-      // Add favorites tab first if there are any favorites
-      if (_favItems.isNotEmpty) {
+      // Add favorites tab first if there are any favorites (dynamic check)
+      final hasFavorites = context.watch<SettingsProvider>().pinnedModels.isNotEmpty;
+      if (hasFavorites) {
         providerTabs.add(_providerTab(
           context,
           '__fav__',
@@ -735,7 +771,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       child: _ProviderChip(
         avatar: _BrandAvatar(
           name: name,
-          size: 18,
+          size: 28,
           customAvatarPath: cfg?.customAvatarPath,
         ),
         label: name,
@@ -757,8 +793,19 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   /// Get all tab keys in order: favorites first (if exists), then providers
   List<String> _getAllTabKeys() {
     final tabs = <String>[];
-    if (_favItems.isNotEmpty && widget.limitProviderKey == null) {
-      tabs.add('__fav__');
+    // Dynamic check for favorites
+    if (widget.limitProviderKey == null) {
+      try {
+        final hasFavorites = context.read<SettingsProvider>().pinnedModels.isNotEmpty;
+        if (hasFavorites) {
+          tabs.add('__fav__');
+        }
+      } catch (_) {
+        // If context.read fails, fall back to cached check
+        if (_favItems.isNotEmpty) {
+          tabs.add('__fav__');
+        }
+      }
     }
     tabs.addAll(_orderedKeys);
     return tabs;
@@ -875,7 +922,7 @@ class _ProviderChipState extends State<_ProviderChip> {
       onLongPress: widget.onLongPress,
       child: Container(
         // NO animation for selected state changes - only animate press
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(14),
@@ -885,8 +932,8 @@ class _ProviderChipState extends State<_ProviderChip> {
           mainAxisSize: MainAxisSize.min,
           children: [
             widget.avatar,
-            const SizedBox(width: 6),
-            Text(widget.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: labelColor)),
+            const SizedBox(width: 9),
+            Text(widget.label, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500, color: labelColor)),
           ],
         ),
       ),
