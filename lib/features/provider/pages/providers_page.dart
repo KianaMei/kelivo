@@ -594,7 +594,7 @@ class _ProviderCard extends StatelessWidget {
               customAvatarPath: cfg.customAvatarPath,
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
             // Name (row 2) - centered with good padding
             Padding(
