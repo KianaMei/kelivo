@@ -221,6 +221,9 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   // Provider tabs scroll controller
   final ScrollController _providerTabsScrollController = ScrollController();
 
+  // PageView controller for horizontal swipe on mobile
+  PageController? _pageController;
+
   // Async loading state
   bool _isLoading = true;
   Map<String, _ProviderGroup> _groups = {};
@@ -293,6 +296,11 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
             // Check if there are favorites first
             _currentTab = (_favItems.isNotEmpty && widget.limitProviderKey == null) ? '__fav__' : _orderedKeys.first;
           }
+
+          // Initialize PageController with current tab index
+          final allTabs = _getAllTabKeys();
+          final initialPage = _currentTab != null ? allTabs.indexOf(_currentTab!) : 0;
+          _pageController = PageController(initialPage: initialPage.clamp(0, allTabs.length - 1));
         });
         // Scroll to the selected tab after UI is built
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -351,6 +359,11 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         // Check if there are favorites first
         _currentTab = (_favItems.isNotEmpty && widget.limitProviderKey == null) ? '__fav__' : _orderedKeys.first;
       }
+
+      // Initialize PageController with current tab index
+      final allTabs = _getAllTabKeys();
+      final initialPage = _currentTab != null ? allTabs.indexOf(_currentTab!) : 0;
+      _pageController = PageController(initialPage: initialPage.clamp(0, allTabs.length - 1));
     });
     // Scroll to the selected tab after UI is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -363,6 +376,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     _search.dispose();
     _sheetCtrl.dispose();
     _providerTabsScrollController.dispose();
+    _pageController?.dispose();
     super.dispose();
   }
 
@@ -501,30 +515,58 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       return _buildSearchResults(context, query);
     }
 
-    // Tab mode: show only current tab's models
-    if (_currentTab == null) {
+    // Tab mode: use PageView for horizontal swipe on mobile
+    if (_pageController == null || _currentTab == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_currentTab == '__fav__') {
-      return _buildFavoritesTab(context);
-    }
-
-    // Regular provider tab
-    final group = _groups[_currentTab];
-    if (group == null || group.items.isEmpty) {
+    final allTabs = _getAllTabKeys();
+    if (allTabs.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: ListView.builder(
-        padding: const EdgeInsets.only(bottom: 12, top: 8),
-        itemCount: group.items.length,
-        itemBuilder: (context, index) {
-          return _modelTile(context, group.items[index]);
-        },
-      ),
+    return PageView.builder(
+      controller: _pageController,
+      itemCount: allTabs.length,
+      onPageChanged: (index) {
+        // Sync PageView page change to tab state
+        if (index >= 0 && index < allTabs.length) {
+          final newTab = allTabs[index];
+          if (_currentTab != newTab) {
+            setState(() {
+              _currentTab = newTab;
+            });
+            // Persist tab selection
+            context.read<SettingsProvider>().setLastSelectedProviderTab(newTab);
+            // Scroll bottom tabs to make the selected tab visible
+            _scrollCurrentTabToVisible();
+          }
+        }
+      },
+      itemBuilder: (context, index) {
+        final tabKey = allTabs[index];
+
+        if (tabKey == '__fav__') {
+          return _buildFavoritesTab(context);
+        }
+
+        // Regular provider tab
+        final group = _groups[tabKey];
+        if (group == null || group.items.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 12, top: 8),
+            itemCount: group.items.length,
+            itemBuilder: (context, idx) {
+              return _modelTile(context, group.items[idx]);
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -819,6 +861,18 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     });
     // Persist tab selection
     context.read<SettingsProvider>().setLastSelectedProviderTab(tabKey);
+
+    // Animate PageView to the selected tab
+    final allTabs = _getAllTabKeys();
+    final targetIndex = allTabs.indexOf(tabKey);
+    if (targetIndex != -1 && _pageController != null && _pageController!.hasClients) {
+      _pageController!.animateToPage(
+        targetIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+
     // Scroll to make the selected tab visible
     _scrollCurrentTabToVisible();
   }
