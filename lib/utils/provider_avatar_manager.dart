@@ -9,8 +9,11 @@ class ProviderAvatarManager {
   ProviderAvatarManager._();
 
   static Future<Directory> _avatarDir() async {
+    // New canonical location: Documents/avatars/providers
+    // We purposely avoid using a cache/ path because these are user-provided assets
+    // that must be backed up and restored across devices.
     final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory('${docs.path}/cache/avatars/providers');
+    final dir = Directory('${docs.path}/avatars/providers');
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
@@ -22,7 +25,7 @@ class ProviderAvatarManager {
   /// [providerId]: Unique identifier for the provider
   /// [imageBytes]: Raw image bytes (can be from file or network)
   ///
-  /// Returns: Relative path for cross-platform compatibility (e.g., 'cache/avatars/providers/xxx_timestamp.png')
+  /// Returns: Relative path for cross-platform compatibility (e.g., 'avatars/providers/xxx_timestamp.png')
   static Future<String> saveAvatar(String providerId, Uint8List imageBytes) async {
     if (kIsWeb) {
       throw UnsupportedError('Custom avatars not supported on web');
@@ -58,8 +61,8 @@ class ProviderAvatarManager {
 
     await file.writeAsBytes(png, flush: true);
 
-    // Return relative path for cross-platform compatibility
-    return 'cache/avatars/providers/$filename';
+    // Return relative path for cross-platform compatibility (now under avatars/)
+    return 'avatars/providers/$filename';
   }
 
   /// Deletes the custom avatar(s) for a provider.
@@ -68,14 +71,26 @@ class ProviderAvatarManager {
     if (kIsWeb) return;
 
     try {
-      final dir = await _avatarDir();
       final safeName = _safeFileName(providerId);
-      // Delete all files matching this provider (handles timestamped filenames)
+      // New location
+      final dir = await _avatarDir();
       await for (final entity in dir.list()) {
         if (entity is File && entity.path.contains(safeName)) {
           await entity.delete();
         }
       }
+      // Legacy location cleanup (best effort)
+      try {
+        final docs = await getApplicationDocumentsDirectory();
+        final legacyDir = Directory('${docs.path}/cache/avatars/providers');
+        if (await legacyDir.exists()) {
+          await for (final entity in legacyDir.list()) {
+            if (entity is File && entity.path.contains(safeName)) {
+              await entity.delete();
+            }
+          }
+        }
+      } catch (_) {}
     } catch (_) {
       // Ignore errors during deletion
     }
@@ -83,30 +98,55 @@ class ProviderAvatarManager {
 
   /// Gets the relative file path for a provider's custom avatar if it exists.
   /// Returns the most recent avatar file (by filename timestamp).
-  /// Returns: Relative path like 'cache/avatars/providers/xxx_timestamp.png' or null if not found
+  /// Returns: Relative path like 'avatars/providers/xxx_timestamp.png' or null if not found
   static Future<String?> getAvatarPath(String providerId) async {
     if (kIsWeb) return null;
 
     try {
-      final dir = await _avatarDir();
       final safeName = _safeFileName(providerId);
 
-      // Find all files matching this provider
+      // Search in new location first
+      final newDir = await _avatarDir();
       final matches = <File>[];
-      await for (final entity in dir.list()) {
+      await for (final entity in newDir.list()) {
         if (entity is File && entity.path.contains(safeName)) {
           matches.add(entity);
         }
       }
 
-      if (matches.isEmpty) return null;
+      if (matches.isNotEmpty) {
+        matches.sort((a, b) => b.path.compareTo(a.path));
+        final mostRecent = matches.first;
+        final filename = mostRecent.path.split(Platform.pathSeparator).last;
+        return 'avatars/providers/$filename';
+      }
 
-      // Sort by filename (timestamp) descending to get the most recent
-      matches.sort((a, b) => b.path.compareTo(a.path));
-      final mostRecent = matches.first;
-      final filename = mostRecent.path.split(Platform.pathSeparator).last;
+      // Fallback: look in legacy cache location and migrate the most recent file
+      try {
+        final docs = await getApplicationDocumentsDirectory();
+        final legacyDir = Directory('${docs.path}/cache/avatars/providers');
+        if (await legacyDir.exists()) {
+          final legacyMatches = <File>[];
+          await for (final entity in legacyDir.list()) {
+            if (entity is File && entity.path.contains(safeName)) {
+              legacyMatches.add(entity);
+            }
+          }
+          if (legacyMatches.isNotEmpty) {
+            legacyMatches.sort((a, b) => b.path.compareTo(a.path));
+            final mostRecent = legacyMatches.first;
+            // Migrate to new location
+            final newFilename = mostRecent.path.split(Platform.pathSeparator).last;
+            final dest = File('${newDir.path}/$newFilename');
+            if (!await dest.exists()) {
+              await mostRecent.copy(dest.path);
+            }
+            return 'avatars/providers/$newFilename';
+          }
+        }
+      } catch (_) {}
 
-      return 'cache/avatars/providers/$filename';
+      return null;
     } catch (_) {
       // Ignore errors
     }

@@ -22,7 +22,8 @@ class DataSync {
   DataSync({required this.chatService});
   // Normalize file path to use POSIX separators for ZIP entries
   String _toArchivePath(String base, String rel) {
-    final r = rel.replaceAll('\\\\', '/');
+    // Normalize Windows backslashes to POSIX forward slashes for ZIP entry names
+    final r = rel.replaceAll('\\', '/');
     final rr = r.startsWith('./') ? r.substring(2) : r;
     return base.isEmpty ? rr : (base.endsWith('/') ? base + rr : '$base/' + rr);
   }
@@ -81,14 +82,17 @@ class DataSync {
       if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('data:')) return s;
       // Convert Windows backslashes to forward slashes
       s = s.replaceAll('\\', '/');
-      // Look for cache/avatars/providers/ pattern
-      final idx = s.indexOf('/cache/avatars/providers/');
-      if (idx >= 0) {
-        final tail = s.substring(idx + 1);
+      // Prefer new canonical path: avatars/providers/<filename>
+      // Accept both legacy and new prefixes, normalize to avatars/providers
+      final hitNew = s.indexOf('/avatars/providers/');
+      final hitLegacy = s.indexOf('/cache/avatars/providers/');
+      final hit = (hitNew >= 0) ? hitNew : hitLegacy;
+      if (hit >= 0) {
+        final tail = s.substring(hit + 1);
         final parts = tail.split('/');
         if (parts.isNotEmpty) {
           final name = parts.lastWhere((e) => e.isNotEmpty, orElse: () => parts.last);
-          return 'cache/avatars/providers/$name';
+          return 'avatars/providers/$name';
         }
       }
       // Fallback: extract filename and reconstruct path
@@ -98,7 +102,7 @@ class DataSync {
       final allParts = s.split(RegExp(r'[/\\]'));
       final filename = allParts.lastWhere((p) => p.trim().isNotEmpty, orElse: () => '');
       if (filename.isNotEmpty && filename.contains('.')) {
-        return 'cache/avatars/providers/$filename';
+        return 'avatars/providers/$filename';
       }
       return null;
     }
@@ -257,6 +261,27 @@ class DataSync {
           }
         }
       }
+
+      // Legacy migration support: include old provider avatars under cache/avatars/providers/
+      // Map them into avatars/providers/ within the archive so restore goes to the new location.
+      try {
+        final docs = await getApplicationDocumentsDirectory();
+        final legacyDir = Directory(p.join(docs.path, 'cache', 'avatars', 'providers'));
+        final newProvidersDir = Directory(p.join(docs.path, 'avatars', 'providers'));
+        if (await legacyDir.exists()) {
+          final legacyFiles = legacyDir.listSync(recursive: true, followLinks: false).whereType<File>();
+          for (final ent in legacyFiles) {
+            final filename = p.basename(ent.path);
+            // Skip if a file with the same name already exists in new location to avoid duplicates
+            final newPath = p.join(newProvidersDir.path, filename);
+            if (await File(newPath).exists()) continue;
+            final bytes = await ent.readAsBytes();
+            final arcName = _toArchivePath('avatars/providers', filename);
+            final f = ArchiveFile(arcName, bytes.length, bytes);
+            archive.addFile(f);
+          }
+        }
+      } catch (_) {}
 
       // Export images directory
       final imagesDir = await _getImagesDir();
@@ -465,7 +490,8 @@ class DataSync {
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
     for (final entry in archive) {
-      final outPath = p.join(extractDir.path, (entry.name ?? '').toString().replaceAll('\\\\','/'));
+      // Ensure entry names use POSIX separators so we create the right directories on Android/iOS/Linux
+      final outPath = p.join(extractDir.path, (entry.name ?? '').toString().replaceAll('\\', '/'));
       if (entry.isFile) {
         final outFile = File(outPath)..createSync(recursive: true);
         outFile.writeAsBytesSync(entry.content as List<int>);
@@ -768,23 +794,41 @@ class DataSync {
           }
         }
 
-        // Restore avatars directory
-        final avatarsSrc = Directory(p.join(extractDir.path, 'avatars'));
-        if (await avatarsSrc.exists()) {
-          final dst = await _getAvatarsDir();
-          if (await dst.exists()) {
-            try { await dst.delete(recursive: true); } catch (_) {}
-          }
-          await dst.create(recursive: true);
-          for (final ent in avatarsSrc.listSync(recursive: true)) {
-            if (ent is File) {
-              final rel = p.relative(ent.path, from: avatarsSrc.path);
-              final target = File(p.join(dst.path, rel));
-              await target.parent.create(recursive: true);
-              await ent.copy(target.path);
-            }
+      // Restore avatars directory
+      final avatarsSrc = Directory(p.join(extractDir.path, 'avatars'));
+      if (await avatarsSrc.exists()) {
+        final dst = await _getAvatarsDir();
+        if (await dst.exists()) {
+          try { await dst.delete(recursive: true); } catch (_) {}
+        }
+        await dst.create(recursive: true);
+        for (final ent in avatarsSrc.listSync(recursive: true)) {
+          if (ent is File) {
+            final rel = p.relative(ent.path, from: avatarsSrc.path);
+            final target = File(p.join(dst.path, rel));
+            await target.parent.create(recursive: true);
+            await ent.copy(target.path);
           }
         }
+      }
+
+      // Legacy restore support: cache/avatars/providers -> avatars/providers
+      final legacyProvidersSrc = Directory(p.join(extractDir.path, 'cache', 'avatars', 'providers'));
+      if (await legacyProvidersSrc.exists()) {
+        final dstBase = await _getAvatarsDir();
+        final dst = Directory(p.join(dstBase.path, 'providers'));
+        if (!await dst.exists()) {
+          await dst.create(recursive: true);
+        }
+        for (final ent in legacyProvidersSrc.listSync(recursive: true)) {
+          if (ent is File) {
+            final filename = p.basename(ent.path);
+            final target = File(p.join(dst.path, filename));
+            await target.parent.create(recursive: true);
+            await ent.copy(target.path);
+          }
+        }
+      }
       } else {
         // Merge mode: Only copy non-existing files
         // Merge upload directory
@@ -825,24 +869,44 @@ class DataSync {
           }
         }
 
-        // Merge avatars directory
-        final avatarsSrc = Directory(p.join(extractDir.path, 'avatars'));
-        if (await avatarsSrc.exists()) {
-          final dst = await _getAvatarsDir();
-          if (!await dst.exists()) {
-            await dst.create(recursive: true);
-          }
-          for (final ent in avatarsSrc.listSync(recursive: true)) {
-            if (ent is File) {
-              final rel = p.relative(ent.path, from: avatarsSrc.path);
-              final target = File(p.join(dst.path, rel));
-              if (!await target.exists()) {
-                await target.parent.create(recursive: true);
-                await ent.copy(target.path);
-              }
+      // Merge avatars directory
+      final avatarsSrc = Directory(p.join(extractDir.path, 'avatars'));
+      if (await avatarsSrc.exists()) {
+        final dst = await _getAvatarsDir();
+        if (!await dst.exists()) {
+          await dst.create(recursive: true);
+        }
+        for (final ent in avatarsSrc.listSync(recursive: true)) {
+          if (ent is File) {
+            final rel = p.relative(ent.path, from: avatarsSrc.path);
+            final target = File(p.join(dst.path, rel));
+            if (!await target.exists()) {
+              await target.parent.create(recursive: true);
+              await ent.copy(target.path);
             }
           }
         }
+      }
+
+      // Legacy merge support: cache/avatars/providers -> avatars/providers
+      final legacyProvidersSrc = Directory(p.join(extractDir.path, 'cache', 'avatars', 'providers'));
+      if (await legacyProvidersSrc.exists()) {
+        final dstBase = await _getAvatarsDir();
+        final dst = Directory(p.join(dstBase.path, 'providers'));
+        if (!await dst.exists()) {
+          await dst.create(recursive: true);
+        }
+        for (final ent in legacyProvidersSrc.listSync(recursive: true)) {
+          if (ent is File) {
+            final filename = p.basename(ent.path);
+            final target = File(p.join(dst.path, filename));
+            if (!await target.exists()) {
+              await target.parent.create(recursive: true);
+              await ent.copy(target.path);
+            }
+          }
+        }
+      }
       }
     }
 
@@ -984,5 +1048,3 @@ class SharedPreferencesAsync {
     }
   }
 }
-
-
