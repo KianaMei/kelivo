@@ -294,6 +294,10 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
             _currentTab = (_favItems.isNotEmpty && widget.limitProviderKey == null) ? '__fav__' : _orderedKeys.first;
           }
         });
+        // Scroll to the selected tab after UI is built
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _scrollCurrentTabToVisible();
+        });
       }
     } catch (e) {
       // If compute fails (e.g., on web), fall back to synchronous processing
@@ -347,6 +351,10 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         // Check if there are favorites first
         _currentTab = (_favItems.isNotEmpty && widget.limitProviderKey == null) ? '__fav__' : _orderedKeys.first;
       }
+    });
+    // Scroll to the selected tab after UI is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scrollCurrentTabToVisible();
     });
   }
 
@@ -764,6 +772,41 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     });
     // Persist tab selection
     context.read<SettingsProvider>().setLastSelectedProviderTab(tabKey);
+    // Scroll to make the selected tab visible
+    _scrollCurrentTabToVisible();
+  }
+
+  /// Scroll bottom tabs to make the currently selected tab visible
+  void _scrollCurrentTabToVisible() {
+    if (!_providerTabsScrollController.hasClients || _currentTab == null) {
+      return;
+    }
+
+    final allTabs = _getAllTabKeys();
+    final currentIndex = allTabs.indexOf(_currentTab!);
+    if (currentIndex == -1) return;
+
+    // Estimate tab width (avatar + label + padding)
+    // Typical: 18px avatar + 6px gap + ~60-80px label + 20px padding = ~100-120px per tab
+    const estimatedTabWidth = 110.0;
+    final targetOffset = currentIndex * estimatedTabWidth;
+
+    // Get viewport width
+    final viewportWidth = _providerTabsScrollController.position.viewportDimension;
+    final maxScroll = _providerTabsScrollController.position.maxScrollExtent;
+
+    // Calculate scroll position to center the tab
+    double scrollTo = targetOffset - (viewportWidth / 2) + (estimatedTabWidth / 2);
+
+    // Clamp to valid range
+    scrollTo = scrollTo.clamp(0.0, maxScroll);
+
+    // Animate to position
+    _providerTabsScrollController.animateTo(
+      scrollTo,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   /// Switch to next/previous tab (for wheel navigation)
