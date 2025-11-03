@@ -1,14 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'provider_detail_page.dart';
 import '../widgets/import_provider_sheet.dart';
 import '../widgets/add_provider_sheet.dart';
-// grid reorder removed in favor of iOS-style list reordering
 import 'package:provider/provider.dart';
-import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -406,61 +406,235 @@ class _ProvidersList extends StatelessWidget {
           final bottomGapIfFlush = safeBottom + 16.0; // leave room above system bar
 
           final maxH = constraints.hasBoundedHeight ? constraints.maxHeight : double.infinity;
-          // Estimate row height: avatar(22) + vertical paddings(11*2) ~= 44
-          const double rowH = 44.0;
-          const double dividerH = 6.0; // _iosDivider height
-          const double listPadV = 8.0; // ReorderableListView vertical padding
-          final int n = items.length;
-          final double baseContentH = n == 0 ? 0.0 : (n * rowH + (n - 1) * dividerH + listPadV);
-          // Decide if we should treat it as reaching bottom (considering the bottom gap we will add)
-          final bool reachesBottom = maxH.isFinite &&
-              (baseContentH >= maxH - 0.5 || (baseContentH + bottomGapIfFlush) >= maxH - 0.5);
-          final double effectiveContentH = baseContentH + (reachesBottom ? bottomGapIfFlush : 0.0);
-          final double containerH = maxH.isFinite ? (effectiveContentH.clamp(0.0, maxH)).toDouble() : effectiveContentH;
+          // Responsive grid sizing
+          final screenWidth = MediaQuery.of(context).size.width;
+          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.linux;
+
+          // Calculate optimal card size based on screen width
+          double cardSize;
+          if (isDesktop) {
+            // Desktop: 4-6 columns, card size 160-200px
+            if (screenWidth > 1400) {
+              cardSize = 200;
+            } else if (screenWidth > 1000) {
+              cardSize = 180;
+            } else {
+              cardSize = 160;
+            }
+          } else {
+            // Mobile/Tablet: 2-3 columns, card size 150-180px
+            if (screenWidth > 600) {
+              cardSize = 180; // Tablet
+            } else if (screenWidth > 400) {
+              cardSize = 160; // Large phone
+            } else {
+              cardSize = 150; // Small phone
+            }
+          }
 
           return Container(
-            height: containerH.isFinite ? containerH : null,
             decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(12),
-                topRight: const Radius.circular(12),
-                // If not reaching bottom, use rounded corners; if reaching bottom, flush
-                bottomLeft: Radius.circular(reachesBottom ? 0 : 12),
-                bottomRight: Radius.circular(reachesBottom ? 0 : 12),
-              ),
-              border: Border.all(color: borderColor, width: 0.6),
+              color: Colors.transparent, // Transparent background
+              borderRadius: BorderRadius.circular(12),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: ReorderableListView.builder(
-              padding: EdgeInsets.only(top: 4, bottom: reachesBottom ? bottomGapIfFlush : 4),
+            clipBehavior: Clip.none,
+            child: ReorderableGridView.builder(
+              padding: const EdgeInsets.all(12),
               itemCount: items.length,
               onReorder: onReorder,
-              buildDefaultDragHandles: false,
-              proxyDecorator: (child, index, animation) => Opacity(
-                opacity: 0.95,
-                child: Transform.scale(scale: 0.98, child: child),
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: cardSize,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.82,
               ),
+              dragWidgetBuilder: (index, child) {
+                return Material(
+                  color: Colors.transparent,
+                  child: Opacity(
+                    opacity: 0.85,
+                    child: Transform.scale(scale: 1.05, child: child),
+                  ),
+                );
+              },
               itemBuilder: (context, index) {
                 final p = items[index];
-                return KeyedSubtree(
+                return _SettleAnim(
                   key: ValueKey(p.keyName),
-                  child: _SettleAnim(
-                    active: settlingKeys.contains(p.keyName),
-                    child: _ProviderRow(
-                      provider: p,
-                      index: index,
-                      total: items.length,
-                      selectMode: selectMode,
-                      selected: selectedKeys.contains(p.keyName),
-                      onToggleSelect: onToggleSelect,
-                    ),
+                  active: settlingKeys.contains(p.keyName),
+                  child: _ProviderCard(
+                    provider: p,
+                    index: index,
+                    selectMode: selectMode,
+                    selected: selectedKeys.contains(p.keyName),
+                    onToggleSelect: onToggleSelect,
                   ),
                 );
               },
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// Grid card for provider
+class _ProviderCard extends StatelessWidget {
+  const _ProviderCard({
+    required this.provider,
+    required this.index,
+    required this.selectMode,
+    required this.selected,
+    required this.onToggleSelect,
+  });
+  final _Provider provider;
+  final int index;
+  final bool selectMode;
+  final bool selected;
+  final void Function(String key) onToggleSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final settings = context.watch<SettingsProvider>();
+    final cfg = settings.getProviderConfig(provider.keyName, defaultName: provider.name);
+    final enabled = cfg.enabled;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final statusBg = enabled ? Colors.green.withOpacity(0.12) : Colors.orange.withOpacity(0.15);
+    final statusFg = enabled ? Colors.green : Colors.orange;
+
+    // Responsive sizing
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double avatarSize;
+    final double nameSize;
+    if (screenWidth > 600) {
+      avatarSize = 96; // 放大：80 -> 96
+      nameSize = 15;
+    } else if (screenWidth > 400) {
+      avatarSize = 88; // 放大：72 -> 88
+      nameSize = 14;
+    } else {
+      avatarSize = 80; // 放大：64 -> 80
+      nameSize = 13;
+    }
+
+    return GestureDetector(
+      onTap: () {
+        if (selectMode) {
+          Haptics.light();
+          onToggleSelect(provider.keyName);
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ProviderDetailPage(
+                keyName: provider.keyName,
+                displayName: provider.name,
+              ),
+            ),
+          );
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? cs.primary
+                : isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : cs.outline.withOpacity(0.15),
+            width: selected ? 2 : 0.5,
+          ),
+          boxShadow: [
+            if (!isDark && !selected)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Selection checkbox (top-right corner)
+            if (selectMode)
+              Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: IosCheckbox(
+                    value: selected,
+                    size: 20,
+                    hitTestSize: 22,
+                    borderWidth: 1.6,
+                    activeColor: cs.primary,
+                    borderColor: cs.onSurface.withOpacity(0.35),
+                    onChanged: (_) => onToggleSelect(provider.keyName),
+                  ),
+                ),
+              ),
+
+            if (!selectMode) const SizedBox(height: 8),
+
+            // Avatar (row 1)
+            _BrandAvatar(
+              name: cfg.name.isNotEmpty ? cfg.name : provider.keyName,
+              size: avatarSize,
+              customAvatarPath: cfg.customAvatarPath,
+            ),
+
+            const SizedBox(height: 14),
+
+            // Name (row 2) - centered
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Center(
+                child: Text(
+                  cfg.name.isNotEmpty ? cfg.name : provider.name,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: nameSize,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // Status badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: statusBg,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                enabled ? '启用' : '禁用',
+                style: TextStyle(fontSize: 10, color: statusFg, fontWeight: FontWeight.w500),
+              ),
+            ),
+
+            const Spacer(),
+
+            // Drag handle (row 3) - 6-dot grid (industry standard)
+            if (!selectMode)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _DragHandleIcon(color: cs.onSurface.withOpacity(0.3)),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -570,7 +744,7 @@ class _ProviderRow extends StatelessWidget {
                       ),
                     ),
                   ],
-                  SizedBox(width: 36, child: Center(child: _BrandAvatar(name: (cfg.name.isNotEmpty ? cfg.name : provider.keyName), size: 22))),
+                  SizedBox(width: 36, child: Center(child: _BrandAvatar(name: (cfg.name.isNotEmpty ? cfg.name : provider.keyName), size: 22, customAvatarPath: cfg.customAvatarPath))),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -947,7 +1121,7 @@ Future<void> _showMultiExportSheet(BuildContext context, List<String> keys) asyn
 // smoother, battle-tested drag animations and reordering.
 
 class _SettleAnim extends StatelessWidget {
-  const _SettleAnim({required this.active, required this.child});
+  const _SettleAnim({super.key, required this.active, required this.child});
   final bool active;
   final Widget child;
 
@@ -988,9 +1162,10 @@ class _Pill extends StatelessWidget {
 }
 
 class _BrandAvatar extends StatelessWidget {
-  const _BrandAvatar({required this.name, this.size = 40});
+  const _BrandAvatar({required this.name, this.size = 40, this.customAvatarPath});
   final String name;
   final double size;
+  final String? customAvatarPath;
 
 
   bool _preferMonochromeWhite(String n) {
@@ -1010,8 +1185,30 @@ class _BrandAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Priority 1: Custom avatar
+    if (customAvatarPath != null && customAvatarPath!.isNotEmpty) {
+      return ClipOval(
+        child: Image.file(
+          File(customAvatarPath!),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            // Fallback to brand assets if custom avatar fails to load
+            return _buildBrandAvatar(cs, isDark);
+          },
+        ),
+      );
+    }
+
+    // Priority 2 & 3: Brand assets or initials
+    return _buildBrandAvatar(cs, isDark);
+  }
+
+  Widget _buildBrandAvatar(ColorScheme cs, bool isDark) {
     final asset = BrandAssets.assetForName(name);
-    final circle = Container(
+    return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
@@ -1028,7 +1225,6 @@ class _BrandAvatar extends StatelessWidget {
               monochromeWhite: isDark && _preferMonochromeWhite(name),
             ),
     );
-    return circle;
   }
 }
 
@@ -1067,6 +1263,59 @@ class _Provider {
   final bool enabled;
   final int modelCount;
   _Provider({required this.name, required this.keyName, required this.enabled, required this.modelCount});
+}
+
+// Modern 6-dot drag handle (Notion-style)
+class _DragHandleIcon extends StatelessWidget {
+  const _DragHandleIcon({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 12,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _Dot(color: color),
+              _Dot(color: color),
+              _Dot(color: color),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _Dot(color: color),
+              _Dot(color: color),
+              _Dot(color: color),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Dot extends StatelessWidget {
+  const _Dot({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 3,
+      height: 3,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
 }
 
 class _DragHandle extends StatelessWidget {
