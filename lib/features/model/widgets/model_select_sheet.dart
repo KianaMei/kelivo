@@ -225,21 +225,14 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   // Provider tabs scroll controller
   final ScrollController _providerTabsScrollController = ScrollController();
 
-  // Flattened rows + index maps for precise jumps
-  final List<_ListRow> _rows = <_ListRow>[];
-  final Map<String, int> _headerIndexMap = <String, int>{}; // providerKey or '__fav__' -> index
-  final Map<String, int> _modelIndexMap = <String, int>{};  // 'pk::modelId' in provider sections -> index
-  final Map<String, int> _favModelIndexMap = <String, int>{}; // 'pk::modelId' in favorites -> index
-
   // Async loading state
   bool _isLoading = true;
   Map<String, _ProviderGroup> _groups = {};
   List<_ModelItem> _favItems = [];
   List<String> _orderedKeys = [];
-  bool _autoScrolled = false; // ensure we only auto-scroll once per open
 
-  // Track current viewing provider for wheel navigation
-  int _currentViewingProviderIndex = 0;
+  // Current selected tab (provider key or "__fav__" for favorites)
+  String? _currentTab;
 
   // Debounce for wheel events
   DateTime? _lastWheelEvent;
@@ -294,16 +287,17 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
           _orderedKeys = result.orderedKeys;
           _isLoading = false;
 
-          // Initialize: find which provider contains the selected model
-          _currentViewingProviderIndex = 0;
-          if (currentProvider != null) {
-            final idx = _orderedKeys.indexOf(currentProvider);
-            if (idx != -1) {
-              _currentViewingProviderIndex = idx;
-            }
+          // Initialize current tab: prioritize last selected tab, fall back to current model provider, then first provider
+          final lastTab = settings.lastSelectedProviderTab;
+          if (lastTab != null && (lastTab == '__fav__' || _orderedKeys.contains(lastTab))) {
+            _currentTab = lastTab;
+          } else if (currentProvider != null && _orderedKeys.contains(currentProvider)) {
+            _currentTab = currentProvider;
+          } else if (_orderedKeys.isNotEmpty) {
+            // Check if there are favorites first
+            _currentTab = (_favItems.isNotEmpty && widget.limitProviderKey == null) ? '__fav__' : _orderedKeys.first;
           }
         });
-        _scheduleAutoScrollToCurrent();
       }
     } catch (e) {
       // If compute fails (e.g., on web), fall back to synchronous processing
@@ -359,16 +353,17 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       _orderedKeys = result.orderedKeys;
       _isLoading = false;
 
-      // Initialize: find which provider contains the selected model
-      _currentViewingProviderIndex = 0;
-      if (currentProvider != null) {
-        final idx = _orderedKeys.indexOf(currentProvider);
-        if (idx != -1) {
-          _currentViewingProviderIndex = idx;
-        }
+      // Initialize current tab: prioritize last selected tab, fall back to current model provider, then first provider
+      final lastTab = settings.lastSelectedProviderTab;
+      if (lastTab != null && (lastTab == '__fav__' || _orderedKeys.contains(lastTab))) {
+        _currentTab = lastTab;
+      } else if (currentProvider != null && _orderedKeys.contains(currentProvider)) {
+        _currentTab = currentProvider;
+      } else if (_orderedKeys.isNotEmpty) {
+        // Check if there are favorites first
+        _currentTab = (_favItems.isNotEmpty && widget.limitProviderKey == null) ? '__fav__' : _orderedKeys.first;
       }
     });
-    _scheduleAutoScrollToCurrent();
   }
 
   void _scheduleAutoScrollToCurrent() {

@@ -53,6 +53,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _searchSelectedKey = 'search_selected_v1';
   static const String _searchEnabledKey = 'search_enabled_v1';
   static const String _webDavConfigKey = 'webdav_config_v1';
+  static const String _lastSelectedProviderTabKey = 'last_selected_provider_tab_v1';
   // Desktop UI
   static const String _desktopSidebarWidthKey = 'desktop_sidebar_width_v1';
   static const String _desktopSidebarOpenKey = 'desktop_sidebar_open_v1';
@@ -152,6 +153,8 @@ class SettingsProvider extends ChangeNotifier {
         _currentModelId = parts.sublist(1).join('::');
       }
     }
+    // load last selected provider tab
+    _lastSelectedProviderTab = prefs.getString(_lastSelectedProviderTabKey);
     // load title model
     final titleSel = prefs.getString(_titleModelKey);
     if (titleSel != null && titleSel.contains('::')) {
@@ -494,6 +497,20 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_selectedModelKey, '$providerKey::$modelId');
+  }
+
+  // Last selected provider tab in model selector (for persistent tab state)
+  String? _lastSelectedProviderTab;
+  String? get lastSelectedProviderTab => _lastSelectedProviderTab;
+  Future<void> setLastSelectedProviderTab(String? tabKey) async {
+    _lastSelectedProviderTab = tabKey;
+    // No notifyListeners() - this is internal UI state that doesn't affect app logic
+    final prefs = await SharedPreferences.getInstance();
+    if (tabKey != null) {
+      await prefs.setString(_lastSelectedProviderTabKey, tabKey);
+    } else {
+      await prefs.remove(_lastSelectedProviderTabKey);
+    }
   }
 
   // Title model and prompt
