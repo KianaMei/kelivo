@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
@@ -399,7 +399,7 @@ class _ProvidersList extends StatelessWidget {
 
     // Adapt height: wrap to content if short; flush to bottom if long
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final media = MediaQuery.of(context);
@@ -449,13 +449,13 @@ class _ProvidersList extends StatelessWidget {
             ),
             clipBehavior: Clip.none,
             child: ReorderableGridView.builder(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               itemCount: items.length,
               onReorder: onReorder,
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: cardSize,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
                 childAspectRatio: aspectRatio,
               ),
               dragWidgetBuilder: (index, child) {
