@@ -246,6 +246,43 @@ class _SearchSettingsSheet extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
+                // Sticker tool toggle
+                IosCardPress(
+                  borderRadius: BorderRadius.circular(14),
+                  baseColor: cs.surface,
+                  duration: const Duration(milliseconds: 260),
+                  onTap: () {
+                    Haptics.light();
+                    context.read<SettingsProvider>().setStickerEnabled(!settings.stickerEnabled);
+                  },
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(Lucide.Image, size: 20, color: cs.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '表情包工具',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IosSwitch(
+                        value: settings.stickerEnabled,
+                        onChanged: (v) => context.read<SettingsProvider>().setStickerEnabled(v),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
                 ],
                 // Services list (iOS-style rows like learning mode)
                 if (!hasBuiltInSearch && services.isNotEmpty) ...[
