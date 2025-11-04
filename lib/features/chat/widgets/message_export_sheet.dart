@@ -1179,6 +1179,7 @@ class _ExportedMessageCard extends StatelessWidget {
               // Build mixed content: reasoning segments and tool cards按 toolStartIndex 混合显示
               ...() {
                 final List<Widget> mixedContent = [];
+                final settings = context.read<SettingsProvider>();
                 if (reasoningSegments.isNotEmpty) {
                   for (int i = 0; i < reasoningSegments.length; i++) {
                     final seg = reasoningSegments[i];
@@ -1208,6 +1209,8 @@ class _ExportedMessageCard extends StatelessWidget {
                     for (int k = start; k < clampedEnd; k++) {
                       // Hide builtin_search tool cards
                       if (toolParts[k].toolName == 'builtin_search') continue;
+                      // Hide get_sticker tool cards if setting is off
+                      if (toolParts[k].toolName == 'get_sticker' && !settings.showStickerToolUI) continue;
                       mixedContent.add(_ExportToolCard(part: toolParts[k], cs: cs));
                       mixedContent.add(const SizedBox(height: 8));
                     }
@@ -1216,6 +1219,8 @@ class _ExportedMessageCard extends StatelessWidget {
                   // No reasoning segments but have tool cards - show all tool cards
                   for (final toolPart in toolParts) {
                     if (toolPart.toolName == 'builtin_search') continue;
+                    // Hide get_sticker tool cards if setting is off
+                    if (toolPart.toolName == 'get_sticker' && !settings.showStickerToolUI) continue;
                     mixedContent.add(_ExportToolCard(part: toolPart, cs: cs));
                     mixedContent.add(const SizedBox(height: 8));
                   }
@@ -1426,6 +1431,7 @@ class _ExportedBubble extends StatelessWidget {
     if (isAssistant) {
       // Build mixed content: reasoning segments and tool cards按 toolStartIndex 混合显示
       final List<Widget> mixedContent = [];
+      final settings = context.read<SettingsProvider>();
 
       if (reasoningSegments.isNotEmpty) {
         for (int i = 0; i < reasoningSegments.length; i++) {
@@ -1456,6 +1462,8 @@ class _ExportedBubble extends StatelessWidget {
           for (int k = start; k < clampedEnd; k++) {
             // Hide builtin_search tool cards
             if (toolParts[k].toolName == 'builtin_search') continue;
+            // Hide get_sticker tool cards if setting is off
+            if (toolParts[k].toolName == 'get_sticker' && !settings.showStickerToolUI) continue;
             mixedContent.add(_ExportToolCard(part: toolParts[k], cs: cs));
             mixedContent.add(const SizedBox(height: 8));
           }
@@ -1464,6 +1472,8 @@ class _ExportedBubble extends StatelessWidget {
         // No reasoning segments but have tool cards - show all tool cards
         for (final toolPart in toolParts) {
           if (toolPart.toolName == 'builtin_search') continue;
+          // Hide get_sticker tool cards if setting is off
+          if (toolPart.toolName == 'get_sticker' && !settings.showStickerToolUI) continue;
           mixedContent.add(_ExportToolCard(part: toolPart, cs: cs));
           mixedContent.add(const SizedBox(height: 8));
         }

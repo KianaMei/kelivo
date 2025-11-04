@@ -101,10 +101,10 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
               ? const SizedBox.shrink()
               : Image(
                   image: provider,
-                  width: 100,
-                  height: 100,
+                  width: 85,
+                  height: 85,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stack) => const Icon(Icons.broken_image, size: 100),
+                  errorBuilder: (context, error, stack) => const Icon(Icons.broken_image, size: 85),
                 );
         }
 

@@ -1166,6 +1166,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               final List<Widget> mixedContent = [];
               final tools = widget.toolParts ?? const <ToolUIPart>[];
               final segments = widget.reasoningSegments!;
+              final settings = context.read<SettingsProvider>();
 
               for (int i = 0; i < segments.length; i++) {
                 final seg = segments[i];
@@ -1202,6 +1203,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 for (int k = start; k < clampedEnd; k++) {
                   // Hide builtin_search tool cards; citations still appear via bottom summary card 隐藏内置搜索工具卡片
                   if (tools[k].toolName == 'builtin_search') continue;
+                  // Hide get_sticker tool cards if setting is off 如果设置关闭则隐藏表情包工具卡片
+                  if (tools[k].toolName == 'get_sticker' && !settings.showStickerToolUI) continue;
                   mixedContent.add(
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -1270,14 +1273,14 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             }(),
             // Tool call placeholders before content 隐藏内置搜索工具卡片
             if ((widget.toolParts ?? const <ToolUIPart>[])
-                .where((p) => p.toolName != 'builtin_search')
+                .where((p) => p.toolName != 'builtin_search' && (p.toolName != 'get_sticker' || context.read<SettingsProvider>().showStickerToolUI))
                 .isNotEmpty) ...[
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children:
                     widget.toolParts!
                         .where(
-                          (p) => p.toolName != 'builtin_search',
+                          (p) => p.toolName != 'builtin_search' && (p.toolName != 'get_sticker' || context.read<SettingsProvider>().showStickerToolUI),
                         ) // 隐藏内置搜索工具卡片
                         .map(
                           (p) => Padding(

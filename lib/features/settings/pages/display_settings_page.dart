@@ -680,6 +680,8 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
           _iosSwitchRow(context, icon: Lucide.MessageSquare, label: l10n.displaySettingsPageShowModelNameTimestampTitle, value: sp.showModelNameTimestamp, onChanged: (v) => context.read<SettingsProvider>().setShowModelNameTimestamp(v)),
           _iosDivider(context),
           _iosSwitchRow(context, icon: Lucide.Type, label: l10n.displaySettingsPageShowTokenStatsTitle, value: sp.showTokenStats, onChanged: (v) => context.read<SettingsProvider>().setShowTokenStats(v)),
+          _iosDivider(context),
+          _iosSwitchRow(context, icon: Lucide.Image, label: '显示表情包工具调用', value: sp.showStickerToolUI, onChanged: (v) => context.read<SettingsProvider>().setShowStickerToolUI(v)),
         ]),
       ]),
     );
