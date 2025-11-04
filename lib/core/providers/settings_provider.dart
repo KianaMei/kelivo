@@ -52,6 +52,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _searchCommonKey = 'search_common_v1';
   static const String _searchSelectedKey = 'search_selected_v1';
   static const String _searchEnabledKey = 'search_enabled_v1';
+  static const String _stickerEnabledKey = 'sticker_enabled_v1';
   static const String _webDavConfigKey = 'webdav_config_v1';
   static const String _lastSelectedProviderTabKey = 'last_selected_provider_tab_v1';
   // Desktop UI
@@ -108,6 +109,8 @@ class SettingsProvider extends ChangeNotifier {
   int get searchServiceSelected => _searchServiceSelected;
   bool _searchEnabled = false;
   bool get searchEnabled => _searchEnabled;
+  bool _stickerEnabled = false;
+  bool get stickerEnabled => _stickerEnabled;
   // Ephemeral connection test results: serviceId -> connected (true), failed (false), or null (not tested)
   final Map<String, bool?> _searchConnection = <String, bool?>{};
   Map<String, bool?> get searchConnection => Map.unmodifiable(_searchConnection);
@@ -240,6 +243,7 @@ class SettingsProvider extends ChangeNotifier {
     }
     _searchServiceSelected = prefs.getInt(_searchSelectedKey) ?? 0;
     _searchEnabled = prefs.getBool(_searchEnabledKey) ?? false;
+    _stickerEnabled = prefs.getBool(_stickerEnabledKey) ?? false;
     // webdav config
     final webdavStr = prefs.getString(_webDavConfigKey);
     if (webdavStr != null && webdavStr.isNotEmpty) {
@@ -961,6 +965,13 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_searchEnabledKey, enabled);
+  }
+
+  Future<void> setStickerEnabled(bool enabled) async {
+    _stickerEnabled = enabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_stickerEnabledKey, enabled);
   }
 
   // Combined update for settings

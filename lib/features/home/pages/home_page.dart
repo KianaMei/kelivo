@@ -59,6 +59,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import '../../../utils/platform_utils.dart';
 import '../../../core/services/search/search_tool_service.dart';
+import '../../../core/services/sticker/sticker_tool_service.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../core/services/learning_mode_store.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -1341,6 +1342,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         apiMessages.insert(0, {'role': 'system', 'content': prompt});
       }
     }
+    // Inject sticker tool usage guide (when sticker is enabled)
+    if (settings.stickerEnabled && supportsTools) {
+      final prompt = StickerToolService.getSystemPrompt();
+      if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
+        apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + prompt;
+      } else {
+        apiMessages.insert(0, {'role': 'system', 'content': prompt});
+      }
+    }
     // Inject learning mode prompt when enabled (global)
     try {
       final lmEnabled = await LearningModeStore.isEnabled();
@@ -1401,6 +1411,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       // Search tool (skip when Gemini built-in search is active)
       if (settings.searchEnabled && !hasBuiltInSearch && supportsTools) {
         toolDefs.add(SearchToolService.getToolDefinition());
+      }
+
+      // Sticker tool
+      if (settings.stickerEnabled && supportsTools) {
+        toolDefs.add(StickerToolService.getToolDefinition());
       }
 
       // Memory tools
@@ -1486,6 +1501,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           if (name == SearchToolService.toolName && settings.searchEnabled) {
             final q = (args['query'] ?? '').toString();
             return await SearchToolService.executeSearch(q, settings);
+          }
+          // Sticker tool
+          if (name == StickerToolService.toolName && settings.stickerEnabled) {
+            final stickerId = (args['sticker_id'] as num?)?.toInt() ?? 0;
+            return await StickerToolService.getSticker(stickerId);
           }
           // Memory tools
           if (assistant?.enableMemory == true) {
@@ -2318,6 +2338,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         apiMessages.insert(0, {'role': 'system', 'content': prompt});
       }
     }
+    // Inject sticker tool usage guide when enabled
+    if (settings.stickerEnabled) {
+      final prompt = StickerToolService.getSystemPrompt();
+      if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
+        apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + prompt;
+      } else {
+        apiMessages.insert(0, {'role': 'system', 'content': prompt});
+      }
+    }
     // Inject learning mode prompt when enabled (global)
     try {
       final lmEnabled = await LearningModeStore.isEnabled();
@@ -2407,6 +2436,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       if (settings.searchEnabled) {
         toolDefs.add(SearchToolService.getToolDefinition());
       }
+      if (settings.stickerEnabled) {
+        toolDefs.add(StickerToolService.getToolDefinition());
+      }
       final mcp = context.read<McpProvider>();
       final toolSvc = context.read<McpToolService>();
       final tools = toolSvc.listAvailableToolsForAssistant(mcp, context.read<AssistantProvider>(), assistant?.id);
@@ -2439,6 +2471,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           if (name == SearchToolService.toolName && settings.searchEnabled) {
             final q = (args['query'] ?? '').toString();
             return await SearchToolService.executeSearch(q, settings);
+          }
+          // Sticker tool
+          if (name == StickerToolService.toolName && settings.stickerEnabled) {
+            final stickerId = (args['sticker_id'] as num?)?.toInt() ?? 0;
+            return await StickerToolService.getSticker(stickerId);
           }
           // Memory tools
           if (assistant?.enableMemory == true) {
