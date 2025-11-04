@@ -77,12 +77,12 @@ class StickerToolService {
         });
       }
 
-      // 返回 asset 路径和描述
-      final assetPath = 'assets/stickers/nachoneko/$stickerId.webp';
+      // 返回自定义标记
       final description = _stickerMap[stickerId] ?? '表情包';
+      final stickerTag = '[STICKER:nachoneko:$stickerId]';
 
       return jsonEncode({
-        'asset_path': assetPath,
+        'sticker_tag': stickerTag,
         'description': description,
         'sticker_id': stickerId,
       });
@@ -111,13 +111,19 @@ $stickerList
 ### 使用方法
 1. 根据对话氛围和想表达的情绪，选择合适的表情包编号
 2. 调用 get_sticker(sticker_id=编号)
-3. 工具会返回表情包的 description
-4. **在回复中使用文本方式表达**，例如：
-   - "你好！（招手）"
-   - "我来帮你解决～（开心 nya~）"
-   - "让我想想...（思考）"
+3. 工具会返回包含 sticker_tag 字段的 JSON
+4. **直接将 sticker_tag 的值插入到你的回复中**
 
-**重要：不要使用 markdown 图片语法插入表情包，只使用括号内的文本描述即可。**
+### 使用示例
+```
+工具返回：{"sticker_tag": "[STICKER:nachoneko:26]", "description": "你好（Hi）"}
+你的回复：你好！[STICKER:nachoneko:26] 请问有什么可以帮您？
+```
+
+**重要提示：**
+- 直接复制粘贴 sticker_tag 的值到回复中
+- 不要修改标记格式，保持 [STICKER:nachoneko:数字] 的格式
+- 表情包会在用户界面自动渲染成可爱的图片
 
 ### 使用规范
 - **适度使用**：不要过度使用表情包，以免影响阅读体验

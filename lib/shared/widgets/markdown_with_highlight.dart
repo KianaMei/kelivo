@@ -87,10 +87,28 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       onLinkTap: (url, title) => _handleLinkTap(context, url),
       components: components,
       imageBuilder: (ctx, url) {
+        // Check if this is a sticker
+        final isSticker = url.startsWith('sticker://');
+
         final imgs = imageUrls.isNotEmpty ? imageUrls : [url];
         final idx = imgs.indexOf(url);
         final initial = idx >= 0 ? idx : 0;
         final provider = _imageProviderFor(url);
+
+        // For stickers, render with fixed size and no click handler
+        if (isSticker) {
+          return (provider == null)
+              ? const SizedBox.shrink()
+              : Image(
+                  image: provider,
+                  width: 100,
+                  height: 100,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stack) => const Icon(Icons.broken_image, size: 100),
+                );
+        }
+
+        // For regular images, use the original logic with viewer
         return GestureDetector(
           onTap: () {
             Navigator.of(ctx).push(PageRouteBuilder(
@@ -486,6 +504,15 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       out = buf.toString();
     }
 
+    // 9) Convert [STICKER:pack:id] tags to markdown image syntax
+    // Example: [STICKER:nachoneko:1] -> ![sticker](sticker://nachoneko/1)
+    final stickerPattern = RegExp(r'\[STICKER:([a-zA-Z0-9_-]+):(\d+)\]');
+    out = out.replaceAllMapped(stickerPattern, (match) {
+      final pack = match.group(1);
+      final id = match.group(2);
+      return '![sticker](sticker://$pack/$id)';
+    });
+
     return out;
   }
 
@@ -540,6 +567,19 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   }
 
   static ImageProvider? _imageProviderFor(String src) {
+    // Handle sticker:// protocol for custom sticker images
+    if (src.startsWith('sticker://')) {
+      try {
+        // Parse: sticker://pack/id -> assets/stickers/pack/id.webp
+        final uri = Uri.parse(src);
+        final pack = uri.host;
+        final id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '0';
+        final assetPath = 'assets/stickers/$pack/$id.webp';
+        return AssetImage(assetPath);
+      } catch (_) {
+        return null;
+      }
+    }
     if (src.startsWith('http://') || src.startsWith('https://')) {
       return NetworkImage(src);
     }
