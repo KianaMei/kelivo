@@ -151,7 +151,35 @@ class _ProvidersPageState extends State<ProvidersPage> {
     }
     // Append any remaining providers not recorded in order
     tmp.addAll(map.values);
-    final items = tmp;
+
+    // Use local cache during drag to avoid flash when settings update asynchronously
+    if (_items == null) {
+      _items = tmp;
+    } else {
+      // Sync _items with settings: add new providers, remove deleted ones, update metadata
+      final tmpKeys = {for (final p in tmp) p.keyName};
+      final currentKeys = {for (final p in _items!) p.keyName};
+
+      // Remove deleted providers
+      _items!.removeWhere((p) => !tmpKeys.contains(p.keyName));
+
+      // Add new providers at the end
+      for (final p in tmp) {
+        if (!currentKeys.contains(p.keyName)) {
+          _items!.add(p);
+        }
+      }
+
+      // Preserve order from _items (modified by drag), but update metadata from tmp
+      final tmpMap = {for (final p in tmp) p.keyName: p};
+      for (var i = 0; i < _items!.length; i++) {
+        final updated = tmpMap[_items![i].keyName];
+        if (updated != null) {
+          _items![i] = updated;
+        }
+      }
+    }
+    final items = _items!;
 
     final bodyContent = Stack(
       children: [
@@ -169,15 +197,14 @@ class _ProvidersPageState extends State<ProvidersPage> {
             });
           },
           onReorder: (oldIndex, newIndex) async {
-            // Normalize newIndex because Flutter passes the index after removal
-            if (newIndex > oldIndex) newIndex -= 1;
+            // reorderable_grid_view already provides the correct insertion index
+            // No normalization needed (unlike ReorderableListView)
             final moved = items[oldIndex];
-            final mut = List<_Provider>.of(items);
-            final item = mut.removeAt(oldIndex);
-            mut.insert(newIndex, item);
+            final item = items.removeAt(oldIndex);
+            items.insert(newIndex, item);
             setState(() => _settleKeys.add(moved.keyName));
             await context.read<SettingsProvider>().setProvidersOrder([
-              for (final p in mut) p.keyName
+              for (final p in items) p.keyName
             ]);
             Future.delayed(const Duration(milliseconds: 220), () {
               if (!mounted) return;
@@ -1224,11 +1251,11 @@ class _BrandAvatar extends StatelessWidget {
       }
       // 2. File path (contains / or :)
       else if (av.startsWith('/') || av.contains(':') || av.contains('/')) {
-        return FutureBuilder<String>(
+        return FutureBuilder<String?>(
           key: ValueKey(av), // Force FutureBuilder to rebuild when path changes
           future: _resolveAvatarPath(av),
           builder: (context, snapshot) {
-            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+            if (snapshot.hasData && (snapshot.data ?? '').isNotEmpty) {
               final file = File(snapshot.data!);
               if (file.existsSync()) {
                 return Container(
@@ -1282,20 +1309,8 @@ class _BrandAvatar extends StatelessWidget {
     return _buildBrandAvatar(cs, isDark);
   }
 
-  /// Resolve avatar path: convert relative path to absolute if needed
-  Future<String> _resolveAvatarPath(String path) async {
-    // If already absolute path (starts with / or contains :), return as-is
-    if (path.startsWith('/') || path.contains(':')) {
-      return path;
-    }
-    // Relative path: resolve to absolute
-    try {
-      final docs = await getApplicationDocumentsDirectory();
-      return '${docs.path}/$path';
-    } catch (_) {
-      return path; // Return original if resolution fails
-    }
-  }
+  /// Resolve avatar path using a shared helper to ensure cross-platform consistency.
+  Future<String?> _resolveAvatarPath(String path) => AssistantProvider.resolveToAbsolutePath(path);
 
   Widget _buildBrandAvatar(ColorScheme cs, bool isDark) {
     final asset = BrandAssets.assetForName(name);

@@ -1,8 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as p;
 
 /// Manages provider custom avatars: compression, storage, and deletion.
 class ProviderAvatarManager {
@@ -154,8 +157,11 @@ class ProviderAvatarManager {
   }
 
   static String _safeFileName(String providerId) {
-    // Replace any non-alphanumeric characters with underscores
-    return providerId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+    // Use SHA256 hash to ensure unique, filesystem-safe filenames for all provider IDs.
+    // This prevents collisions when Chinese characters or special chars map to same underscores.
+    final bytes = utf8.encode(providerId);
+    final hash = sha256.convert(bytes);
+    return hash.toString().substring(0, 16); // First 16 chars of hash (sufficient uniqueness)
   }
 
   static img.Image _resizeImage(img.Image image, int maxSize) {
