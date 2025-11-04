@@ -1534,6 +1534,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   visualDensity: VisualDensity.compact,
                   iconSize: 16,
                 ),
+                IconButton(
+                  icon: Icon(Lucide.Trash2, size: 16),
+                  onPressed: widget.onDelete,
+                  tooltip: l10n.homePageDelete,
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 16,
+                ),
                 Builder(
                   builder: (btnContext) {
                     return IconButton(

@@ -24,11 +24,50 @@ jobs:
           flutter-version: '3.35.7'
           cache: true
 
+      # Align Android (Ubuntu) env with build workflow
+      - name: Setup Java
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
       - name: Flutter doctor
         run: flutter doctor -v
 
+      # Align Windows env with build workflow
+      - name: Enable Windows Desktop
+        if: matrix.os == 'windows-latest'
+        run: flutter config --enable-windows-desktop
+
       - name: Install dependencies
         run: flutter pub get
+
+      # Disable flutter_tts for Windows to match packaging behavior
+      - name: Disable flutter_tts for Windows
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "Disabling flutter_tts plugin for Windows CI..."
+          $pubspecPath = "pubspec.yaml"
+          $content = Get-Content $pubspecPath -Raw
+
+          $updated = [System.Text.RegularExpressions.Regex]::Replace(
+            $content,
+            '^(?<indent>\s*)flutter_tts\s*:(?<rest>.*)$',
+            '${indent}# flutter_tts:${rest}  # Disabled for Windows CI to match build',
+            [System.Text.RegularExpressions.RegexOptions]::Multiline
+          )
+          if ($updated -ne $content) {
+            Set-Content $pubspecPath $updated
+            Write-Host "Updated pubspec.yaml (flutter_tts commented for Windows CI)"
+          } else {
+            Write-Host "No flutter_tts line found to comment (already disabled?)"
+          }
+
+          flutter clean
+          flutter pub get
 
       - name: Generate required files
         run: flutter pub run build_runner build --delete-conflicting-outputs

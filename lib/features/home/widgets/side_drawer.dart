@@ -14,6 +14,7 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/models/chat_item.dart';
+import '../../../core/models/chat_message.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../settings/pages/settings_page.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -2250,6 +2251,43 @@ class _ChatTileState extends State<_ChatTile> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Count only "visible" assistant messages for this conversation.
+    // Visible = versions collapsed by selected version, then apply truncateIndex.
+    // We use select to keep dependencies minimal and avoid broad rebuilds.
+    final assistantCount = context.select<ChatService, int>((svc) {
+      final cid = widget.chat.id;
+      final msgs = svc.getMessages(cid);
+      if (msgs.isEmpty) return 0;
+
+      // Group by groupId while preserving order of first appearance
+      final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
+      final List<String> order = <String>[];
+      for (final m in msgs) {
+        final gid = (m.groupId ?? m.id);
+        final list = byGroup.putIfAbsent(gid, () {
+          order.add(gid);
+          return <ChatMessage>[];
+        });
+        list.add(m);
+      }
+
+      // Sort each group's versions ascending to allow index selection
+      for (final e in byGroup.entries) {
+        e.value.sort((a, b) => a.version.compareTo(b.version));
+      }
+
+      // Select versions across ALL groups (ignore truncateIndex for counting)
+      final sel = svc.getVersionSelections(cid);
+      int n = 0;
+      for (final gid in order) {
+        final vers = byGroup[gid]!;
+        int idx = sel[gid] ?? (vers.length - 1);
+        if (idx < 0 || idx >= vers.length) idx = vers.length - 1;
+        final chosen = vers[idx];
+        if (chosen.role == 'assistant') n++;
+      }
+      return n;
+    });
     final embedded =
         context.findAncestorWidgetOfExactType<SideDrawer>()?.embedded ?? false;
     final Color tileColor;
@@ -2308,6 +2346,10 @@ class _ChatTileState extends State<_ChatTile> {
                     ),
                   ),
                 ),
+                if (assistantCount > 0) ...[
+                  const SizedBox(width: 8),
+                  _CountBadge(count: assistantCount, selected: widget.selected),
+                ],
                 if (widget.loading) ...[
                   const SizedBox(width: 8),
                   _LoadingDot(),
@@ -2356,6 +2398,53 @@ class _LoadingDotState extends State<_LoadingDot>
         width: 9,
         height: 9,
         decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
+      ),
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count, this.selected = false});
+
+  final int count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    final Color bg = selected
+        ? cs.onSurface.withOpacity(isDark ? 0.22 : 0.12)
+        : cs.onSurface.withOpacity(isDark ? 0.16 : 0.08);
+    final Color fg = selected
+        ? cs.onSurface.withOpacity(0.95)
+        : cs.onSurface.withOpacity(0.75);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+      constraints: const BoxConstraints(minHeight: 18, minWidth: 22),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: cs.onSurface.withOpacity(isDark ? 0.18 : 0.12),
+          width: 0.5,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        count.toString(),
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: fg,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.2,
+        ),
       ),
     );
   }

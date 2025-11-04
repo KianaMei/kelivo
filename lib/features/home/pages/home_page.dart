@@ -3837,7 +3837,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       } catch (_) {}
                                     }
                                   } : null,
-                                  onDelete: message.role == 'user' ? () async {
+                                  onDelete: () async {
                                     final l10n = AppLocalizations.of(context)!;
                                     final confirm = await showDialog<bool>(
                                       context: context,
@@ -3867,7 +3867,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       });
                                       await _chatService.deleteMessage(id);
                                     }
-                                  } : null,
+                                  },
                               onMore: () async {
                                 final action = await showMessageMoreSheet(context, message);
                                 if (!mounted) return;
@@ -4744,13 +4744,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                                             }
                                                           }
                                                         : null,
-                                                    onDelete: message.role == 'user'
-                                                        ? () async {
-                                                            final l10n = AppLocalizations.of(context)!;
-                                                            final confirm = await showDialog<bool>(
-                                                              context: context,
-                                                              builder: (ctx) => AlertDialog(
-                                                                title: Text(l10n.homePageDeleteMessage),
+                                                    onDelete: () async {
+                                                          final l10n = AppLocalizations.of(context)!;
+                                                          final confirm = await showDialog<bool>(
+                                                            context: context,
+                                                            builder: (ctx) => AlertDialog(
+                                                              title: Text(l10n.homePageDeleteMessage),
                                                                 content: Text(l10n.homePageDeleteMessageConfirm),
                                                                 actions: [
                                                                   TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.homePageCancel)),
@@ -4770,7 +4769,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                                               await _chatService.deleteMessage(id);
                                                             }
                                                           }
-                                                        : null,
+                                                        ,
                                                     onMore: () async {
                                                       final action = await showMessageMoreSheet(context, message);
                                                       if (!mounted) return;
@@ -4787,18 +4786,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                                             ],
                                                           ),
                                                         );
-                                                        if (confirm == true) {
-                                                          final id = message.id;
-                                                          setState(() {
-                                                            _messages.removeWhere((m) => m.id == id);
-                                                            _reasoning.remove(id);
-                                                            _translations.remove(id);
-                                                            _toolParts.remove(id);
-                                                            _reasoningSegments.remove(id);
-                                                          });
-                                                          await _chatService.deleteMessage(id);
-                                                        }
-                                                      } else if (action == MessageMoreAction.edit) {
+                                                            if (confirm == true) {
+                                                              final id = message.id;
+                                                              setState(() {
+                                                                _messages.removeWhere((m) => m.id == id);
+                                                                _reasoning.remove(id);
+                                                                _translations.remove(id);
+                                                                _toolParts.remove(id);
+                                                                _reasoningSegments.remove(id);
+                                                              });
+                                                              await _chatService.deleteMessage(id);
+                                                            }
+                                                          } else if (action == MessageMoreAction.edit) {
                                                         final edited = await showMessageEditSheet(context, message: message);
                                                         if (edited != null) {
                                                           final newMsg = await _chatService.appendMessageVersion(messageId: message.id, content: edited);
