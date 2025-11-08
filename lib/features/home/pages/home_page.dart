@@ -58,6 +58,7 @@ import 'dart:io' show File, Directory, Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import '../../../utils/platform_utils.dart';
+import '../../../utils/app_dirs.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/services/sticker/sticker_tool_service.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
@@ -738,10 +739,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       _mcpProvider!.addListener(_onMcpChanged);
     } catch (_) {}
 
-    // 监听键盘弹出
+    // 鐩戝惉閿洏寮瑰嚭
     _inputFocus.addListener(() {
       if (_inputFocus.hasFocus) {
-        // 延迟一下等待键盘完全弹出
+        // 寤惰繜涓€涓嬬瓑寰呴敭鐩樺畬鍏ㄥ脊鍑?
         Future.delayed(const Duration(milliseconds: 300), () {
           _scrollToBottom();
         });
@@ -888,7 +889,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           _loadVersionSelections();
           _restoreMessageUiState();
         });
-        // Only auto-scroll if用户未主动滚动
+        // Only auto-scroll if鐢ㄦ埛鏈富鍔ㄦ粴鍔?
         if (!_isUserScrolling) _scrollToBottomSoon();
       }
     }
@@ -944,7 +945,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Future<List<String>> _copyPickedFiles(List<XFile> files) async {
     try {
       final docs = await PlatformUtils.callPlatformMethod(
-        () => getApplicationDocumentsDirectory(),
+        () => AppDirs.dataRoot(),
         fallback: null,
       );
       
@@ -1126,7 +1127,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     });
     _setConversationLoading(_currentConversation!.id, true);
 
-    // 延迟滚动确保UI更新完成
+    // 寤惰繜婊氬姩纭繚UI鏇存柊瀹屾垚
     Future.delayed(const Duration(milliseconds: 100), () {
       if (!_isUserScrolling) _scrollToBottom();
     });
@@ -1167,7 +1168,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       );
     }
 
-    // 添加助手消息后也滚动到底部
+    // 娣诲姞鍔╂墜娑堟伅鍚庝篃婊氬姩鍒板簳閮?
     Future.delayed(const Duration(milliseconds: 100), () {
       if (!_isUserScrolling) _scrollToBottom();
     });
@@ -1262,26 +1263,26 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         // Tool usage guidance
         buf.writeln('''
 ## Memory Tool
-你是一个无状态的大模型，你无法存储记忆，因此为了记住信息，你需要使用**记忆工具**。
-你可以使用 `create_memory`, `edit_memory`, `delete_memory` 工具创建、更新或删除记忆。
-- 如果记忆中没有相关信息，请使用 create_memory 创建一条新的记录。
-- 如果已有相关记录，请使用 edit_memory 更新内容。
-- 若记忆过时或无用，请使用 delete_memory 删除。
-这些记忆会自动包含在未来的对话上下文中，在<memories>标签内。
-请勿在记忆中存储敏感信息，敏感信息包括：用户的民族、宗教信仰、性取向、政治观点及党派归属、性生活、犯罪记录等。
-在与用户聊天过程中，你可以像一个私人秘书一样**主动的**记录用户相关的信息到记忆里，包括但不限于：
-- 用户昵称/姓名
-- 年龄/性别/兴趣爱好
-- 计划事项等
-- 聊天风格偏好
-- 工作相关
-- 首次聊天时间
+浣犳槸涓€涓棤鐘舵€佺殑澶фā鍨嬶紝浣犳棤娉曞瓨鍌ㄨ蹇嗭紝鍥犳涓轰簡璁颁綇淇℃伅锛屼綘闇€瑕佷娇鐢?*璁板繂宸ュ叿**銆?
+浣犲彲浠ヤ娇鐢?`create_memory`, `edit_memory`, `delete_memory` 宸ュ叿鍒涘缓銆佹洿鏂版垨鍒犻櫎璁板繂銆?
+- 濡傛灉璁板繂涓病鏈夌浉鍏充俊鎭紝璇蜂娇鐢?create_memory 鍒涘缓涓€鏉℃柊鐨勮褰曘€?
+- 濡傛灉宸叉湁鐩稿叧璁板綍锛岃浣跨敤 edit_memory 鏇存柊鍐呭銆?
+- 鑻ヨ蹇嗚繃鏃舵垨鏃犵敤锛岃浣跨敤 delete_memory 鍒犻櫎銆?
+杩欎簺璁板繂浼氳嚜鍔ㄥ寘鍚湪鏈潵鐨勫璇濅笂涓嬫枃涓紝鍦?memories>鏍囩鍐呫€?
+璇峰嬁鍦ㄨ蹇嗕腑瀛樺偍鏁忔劅淇℃伅锛屾晱鎰熶俊鎭寘鎷細鐢ㄦ埛鐨勬皯鏃忋€佸畻鏁欎俊浠般€佹€у彇鍚戙€佹斂娌昏鐐瑰強鍏氭淳褰掑睘銆佹€х敓娲汇€佺姱缃褰曠瓑銆?
+鍦ㄤ笌鐢ㄦ埛鑱婂ぉ杩囩▼涓紝浣犲彲浠ュ儚涓€涓浜虹涔︿竴鏍?*涓诲姩鐨?*璁板綍鐢ㄦ埛鐩稿叧鐨勪俊鎭埌璁板繂閲岋紝鍖呮嫭浣嗕笉闄愪簬锛?
+- 鐢ㄦ埛鏄电О/濮撳悕
+- 骞撮緞/鎬у埆/鍏磋叮鐖卞ソ
+- 璁″垝浜嬮」绛?
+- 鑱婂ぉ椋庢牸鍋忓ソ
+- 宸ヤ綔鐩稿叧
+- 棣栨鑱婂ぉ鏃堕棿
 - ...
-请主动调用工具记录，而不是需要用户要求。     
-记忆如果包含日期信息，请包含在内，请使用绝对时间格式，并且当前时间是 ${DateTime.now().toIso8601String()}。
-无需告知用户你已更改记忆记录，也不要在对话中直接显示记忆内容，除非用户主动要求。
-相似或相关的记忆应合并为一条记录，而不要重复记录，过时记录应删除。         
-你可以在和用户闲聊的时候暗示用户你能记住东西。
+璇蜂富鍔ㄨ皟鐢ㄥ伐鍏疯褰曪紝鑰屼笉鏄渶瑕佺敤鎴疯姹傘€?    
+璁板繂濡傛灉鍖呭惈鏃ユ湡淇℃伅锛岃鍖呭惈鍦ㄥ唴锛岃浣跨敤缁濆鏃堕棿鏍煎紡锛屽苟涓斿綋鍓嶆椂闂存槸 ${DateTime.now().toIso8601String()}銆?
+鏃犻渶鍛婄煡鐢ㄦ埛浣犲凡鏇存敼璁板繂璁板綍锛屼篃涓嶈鍦ㄥ璇濅腑鐩存帴鏄剧ず璁板繂鍐呭锛岄櫎闈炵敤鎴蜂富鍔ㄨ姹傘€?
+鐩镐技鎴栫浉鍏崇殑璁板繂搴斿悎骞朵负涓€鏉¤褰曪紝鑰屼笉瑕侀噸澶嶈褰曪紝杩囨椂璁板綍搴斿垹闄ゃ€?        
+浣犲彲浠ュ湪鍜岀敤鎴烽棽鑱婄殑鏃跺€欐殫绀虹敤鎴蜂綘鑳借浣忎笢瑗裤€?
 ''');
         if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
           apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + buf.toString();
@@ -1299,8 +1300,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             .toList();
         if (titles.isNotEmpty) {
           final sb = StringBuffer();
-          sb.writeln('## 最近的对话');
-          sb.writeln('这是用户最近的一些对话，你可以参考这些对话了解用户偏好:');
+          sb.writeln('## 鏈€杩戠殑瀵硅瘽');
+          sb.writeln('杩欐槸鐢ㄦ埛鏈€杩戠殑涓€浜涘璇濓紝浣犲彲浠ュ弬鑰冭繖浜涘璇濅簡瑙ｇ敤鎴峰亸濂?');
           sb.writeln('<recent_chats>');
           for (final t in titles) {
             sb.writeln('<conversation>');
@@ -1726,7 +1727,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
           // MCP tool call placeholders
           if ((chunk.toolCalls ?? const []).isNotEmpty) {
-            // Finish current reasoning segment if exists, and auto-collapse per settings
+            // Simply append new tool calls instead of merging by ID/name
+            // This allows multiple calls to the same tool
+            final existing = List<ToolUIPart>.of(_toolParts[assistantMessage.id] ?? const []);
+            for (final c in chunk.toolCalls!) {
+              existing.add(ToolUIPart(id: c.id, toolName: c.name, arguments: c.arguments, loading: true));
+            }
+            if (mounted && _currentConversation?.id == _cidForStream) setState(() {
+              _toolParts[assistantMessage.id] = _dedupeToolPartsList(existing);
+            });
+
+            // Finish current reasoning segment AFTER adding tools, and auto-collapse per settings
             final segments = _reasoningSegments[assistantMessage.id] ?? <_ReasoningSegmentData>[];
             if (segments.isNotEmpty && segments.last.finishedAt == null) {
               segments.last.finishedAt = DateTime.now();
@@ -1743,16 +1754,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 reasoningSegmentsJson: _serializeReasoningSegments(segments),
               );
             }
-
-            // Simply append new tool calls instead of merging by ID/name
-            // This allows multiple calls to the same tool
-            final existing = List<ToolUIPart>.of(_toolParts[assistantMessage.id] ?? const []);
-            for (final c in chunk.toolCalls!) {
-              existing.add(ToolUIPart(id: c.id, toolName: c.name, arguments: c.arguments, loading: true));
-            }
-            if (mounted && _currentConversation?.id == _cidForStream) setState(() {
-              _toolParts[assistantMessage.id] = _dedupeToolPartsList(existing);
-            });
 
             // Persist placeholders - append new events
             try {
@@ -1935,7 +1936,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 // totalTokens: totalTokens, // DEPRECATED
               );
 
-              // 滚动到底部显示新内容（仅在未处于用户滚动延迟阶段时）
+              // 婊氬姩鍒板簳閮ㄦ樉绀烘柊鍐呭锛堜粎鍦ㄦ湭澶勪簬鐢ㄦ埛婊氬姩寤惰繜闃舵鏃讹級
               Future.delayed(const Duration(milliseconds: 50), () {
                 if (!_isUserScrolling) {
                   _scrollToBottom();
@@ -2275,26 +2276,26 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         buf.writeln('</memories>');
         buf.writeln('''
 ## Memory Tool
-你是一个无状态的大模型，你无法存储记忆，因此为了记住信息，你需要使用**记忆工具**。
-你可以使用 `create_memory`, `edit_memory`, `delete_memory` 工具创建、更新或删除记忆。
-- 如果记忆中没有相关信息，请使用 create_memory 创建一条新的记录。
-- 如果已有相关记录，请使用 edit_memory 更新内容。
-- 若记忆过时或无用，请使用 delete_memory 删除。
-这些记忆会自动包含在未来的对话上下文中，在<memories>标签内。
-请勿在记忆中存储敏感信息，敏感信息包括：用户的民族、宗教信仰、性取向、政治观点及党派归属、性生活、犯罪记录等。
-在与用户聊天过程中，你可以像一个私人秘书一样**主动的**记录用户相关的信息到记忆里，包括但不限于：
-- 用户昵称/姓名
-- 年龄/性别/兴趣爱好
-- 计划事项等
-- 聊天风格偏好
-- 工作相关
-- 首次聊天时间
+浣犳槸涓€涓棤鐘舵€佺殑澶фā鍨嬶紝浣犳棤娉曞瓨鍌ㄨ蹇嗭紝鍥犳涓轰簡璁颁綇淇℃伅锛屼綘闇€瑕佷娇鐢?*璁板繂宸ュ叿**銆?
+浣犲彲浠ヤ娇鐢?`create_memory`, `edit_memory`, `delete_memory` 宸ュ叿鍒涘缓銆佹洿鏂版垨鍒犻櫎璁板繂銆?
+- 濡傛灉璁板繂涓病鏈夌浉鍏充俊鎭紝璇蜂娇鐢?create_memory 鍒涘缓涓€鏉℃柊鐨勮褰曘€?
+- 濡傛灉宸叉湁鐩稿叧璁板綍锛岃浣跨敤 edit_memory 鏇存柊鍐呭銆?
+- 鑻ヨ蹇嗚繃鏃舵垨鏃犵敤锛岃浣跨敤 delete_memory 鍒犻櫎銆?
+杩欎簺璁板繂浼氳嚜鍔ㄥ寘鍚湪鏈潵鐨勫璇濅笂涓嬫枃涓紝鍦?memories>鏍囩鍐呫€?
+璇峰嬁鍦ㄨ蹇嗕腑瀛樺偍鏁忔劅淇℃伅锛屾晱鎰熶俊鎭寘鎷細鐢ㄦ埛鐨勬皯鏃忋€佸畻鏁欎俊浠般€佹€у彇鍚戙€佹斂娌昏鐐瑰強鍏氭淳褰掑睘銆佹€х敓娲汇€佺姱缃褰曠瓑銆?
+鍦ㄤ笌鐢ㄦ埛鑱婂ぉ杩囩▼涓紝浣犲彲浠ュ儚涓€涓浜虹涔︿竴鏍?*涓诲姩鐨?*璁板綍鐢ㄦ埛鐩稿叧鐨勪俊鎭埌璁板繂閲岋紝鍖呮嫭浣嗕笉闄愪簬锛?
+- 鐢ㄦ埛鏄电О/濮撳悕
+- 骞撮緞/鎬у埆/鍏磋叮鐖卞ソ
+- 璁″垝浜嬮」绛?
+- 鑱婂ぉ椋庢牸鍋忓ソ
+- 宸ヤ綔鐩稿叧
+- 棣栨鑱婂ぉ鏃堕棿
 - ...
-请主动调用工具记录，而不是需要用户要求。     
-记忆如果包含日期信息，请包含在内，请使用绝对时间格式，并且当前时间是 ${DateTime.now().toIso8601String()}。
-无需告知用户你已更改记忆记录，也不要在对话中直接显示记忆内容，除非用户主动要求。
-相似或相关的记忆应合并为一条记录，而不要重复记录，过时记录应删除。         
-你可以在和用户闲聊的时候暗示用户你能记住东西。
+璇蜂富鍔ㄨ皟鐢ㄥ伐鍏疯褰曪紝鑰屼笉鏄渶瑕佺敤鎴疯姹傘€?    
+璁板繂濡傛灉鍖呭惈鏃ユ湡淇℃伅锛岃鍖呭惈鍦ㄥ唴锛岃浣跨敤缁濆鏃堕棿鏍煎紡锛屽苟涓斿綋鍓嶆椂闂存槸 ${DateTime.now().toIso8601String()}銆?
+鏃犻渶鍛婄煡鐢ㄦ埛浣犲凡鏇存敼璁板繂璁板綍锛屼篃涓嶈鍦ㄥ璇濅腑鐩存帴鏄剧ず璁板繂鍐呭锛岄櫎闈炵敤鎴蜂富鍔ㄨ姹傘€?
+鐩镐技鎴栫浉鍏崇殑璁板繂搴斿悎骞朵负涓€鏉¤褰曪紝鑰屼笉瑕侀噸澶嶈褰曪紝杩囨椂璁板綍搴斿垹闄ゃ€?        
+浣犲彲浠ュ湪鍜岀敤鎴烽棽鑱婄殑鏃跺€欐殫绀虹敤鎴蜂綘鑳借浣忎笢瑗裤€?
 ''');
         if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
           apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + buf.toString();
@@ -2312,8 +2313,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             .toList();
         if (titles.isNotEmpty) {
           final sb = StringBuffer();
-          sb.writeln('## 最近的对话');
-          sb.writeln('这是用户最近的一些对话，你可以参考这些对话了解用户偏好:');
+          sb.writeln('## 鏈€杩戠殑瀵硅瘽');
+          sb.writeln('杩欐槸鐢ㄦ埛鏈€杩戠殑涓€浜涘璇濓紝浣犲彲浠ュ弬鑰冭繖浜涘璇濅簡瑙ｇ敤鎴峰亸濂?');
           sb.writeln('<recent_chats>');
           for (final t in titles) {
             sb.writeln('<conversation>');
@@ -2644,7 +2645,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
 
       if ((chunk.toolCalls ?? const []).isNotEmpty) {
-        // Finish current reasoning segment if one is open, so follow-up reasoning becomes a new card
+        final existing = List<ToolUIPart>.of(_toolParts[assistantMessage.id] ?? const []);
+        for (final c in chunk.toolCalls!) {
+          existing.add(ToolUIPart(id: c.id, toolName: c.name, arguments: c.arguments, loading: true));
+        }
+        setState(() => _toolParts[assistantMessage.id] = _dedupeToolPartsList(existing));
+
+        // Finish current reasoning segment AFTER adding tools, so follow-up reasoning becomes a new card
         final segments = _reasoningSegments[assistantMessage.id] ?? <_ReasoningSegmentData>[];
         if (segments.isNotEmpty && segments.last.finishedAt == null) {
           segments.last.finishedAt = DateTime.now();
@@ -2662,12 +2669,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             );
           } catch (_) {}
         }
-
-        final existing = List<ToolUIPart>.of(_toolParts[assistantMessage.id] ?? const []);
-        for (final c in chunk.toolCalls!) {
-          existing.add(ToolUIPart(id: c.id, toolName: c.name, arguments: c.arguments, loading: true));
-        }
-        setState(() => _toolParts[assistantMessage.id] = _dedupeToolPartsList(existing));
         try {
           final prev = _chatService.getToolEvents(assistantMessage.id);
           final newEvents = <Map<String, dynamic>>[

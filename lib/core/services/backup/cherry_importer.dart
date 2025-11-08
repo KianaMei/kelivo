@@ -4,6 +4,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../utils/app_dirs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/backup.dart';
 import '../../models/chat_message.dart';
@@ -507,8 +508,8 @@ class CherryImporter {
     Set<String> usedIds, {
     File? backupArchive,
   }) async {
-    final docs = await getApplicationDocumentsDirectory();
-    final uploadDir = Directory(p.join(docs.path, 'upload'));
+    final root = await AppDirs.dataRoot();
+    final uploadDir = Directory(p.join(root.path, 'upload'));
     if (!await uploadDir.exists()) await uploadDir.create(recursive: true);
 
     // If a ZIP is provided, index entries under common folders for quick lookup
@@ -967,8 +968,8 @@ class CherryImporter {
 
   static Future<String?> _saveDataUrlToUpload(String dataUrl) async {
     try {
-      final docs = await getApplicationDocumentsDirectory();
-      final upload = Directory(p.join(docs.path, 'upload'));
+      final root = await AppDirs.dataRoot();
+      final upload = Directory(p.join(root.path, 'upload'));
       if (!await upload.exists()) await upload.create(recursive: true);
       // Extract mime and data
       String mime = 'image/png';
@@ -1017,3 +1018,4 @@ class _PendingAttachmentRef {
   final bool isImage;
   const _PendingAttachmentRef({this.fileId, this.dataUrl, this.url, this.name, this.mime, this.isImage = true});
 }
+

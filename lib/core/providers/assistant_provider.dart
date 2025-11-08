@@ -7,6 +7,8 @@ import '../../utils/sandbox_path_resolver.dart';
 import '../models/assistant.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/avatar_cache.dart';
+import 'package:path/path.dart' as p;
+import '../../utils/app_dirs.dart';
 
 class AssistantProvider extends ChangeNotifier {
   static const String _assistantsKey = 'assistants_v1';
@@ -146,8 +148,8 @@ class AssistantProvider extends ChangeNotifier {
         final fixedInput = SandboxPathResolver.fix(raw);
         final src = File(fixedInput);
         if (await src.exists()) {
-          final docs = await getApplicationDocumentsDirectory();
-          final avatarsDir = Directory('${docs.path}/avatars');
+          final root = await AppDirs.dataRoot();
+          final avatarsDir = Directory(p.join(root.path, 'avatars'));
           if (!await avatarsDir.exists()) {
             await avatarsDir.create(recursive: true);
           }
@@ -197,8 +199,8 @@ class AssistantProvider extends ChangeNotifier {
         final fixedBg = SandboxPathResolver.fix(bgRaw);
         final srcBg = File(fixedBg);
         if (await srcBg.exists()) {
-          final docs = await getApplicationDocumentsDirectory();
-          final imagesDir = Directory('${docs.path}/images');
+          final root = await AppDirs.dataRoot();
+          final imagesDir = Directory(p.join(root.path, 'images'));
           if (!await imagesDir.exists()) {
             await imagesDir.create(recursive: true);
           }
@@ -257,10 +259,10 @@ class AssistantProvider extends ChangeNotifier {
     if (path.isEmpty) return null;
     if (path.startsWith('http')) return null; // Skip URLs
 
-    // If it's a relative path (doesn't start with / or contain :), prepend documents directory
+    // If it's a relative path, prepend app data root for cross-platform consistency
     if (!path.startsWith('/') && !path.contains(':')) {
-      final docs = await getApplicationDocumentsDirectory();
-      return '${docs.path}/$path';
+      final root = await AppDirs.dataRoot();
+      return p.join(root.path, path);
     }
 
     // Already absolute - use SandboxPathResolver for iOS compatibility
@@ -301,3 +303,5 @@ class AssistantProvider extends ChangeNotifier {
     await _persist();
   }
 }
+
+

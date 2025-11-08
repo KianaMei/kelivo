@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../utils/avatar_cache.dart';
 import '../../utils/sandbox_path_resolver.dart';
+import '../../utils/app_dirs.dart';
 
 class UserProvider extends ChangeNotifier {
   static const String _prefsUserNameKey = 'user_name';
@@ -108,8 +109,8 @@ class UserProvider extends ChangeNotifier {
       final src = File(fixedInput);
       if (!await src.exists()) return;
 
-      final docs = await getApplicationDocumentsDirectory();
-      final avatarsDir = Directory(p.join(docs.path, 'avatars'));
+      final root = await AppDirs.dataRoot();
+      final avatarsDir = Directory(p.join(root.path, 'avatars'));
       if (!await avatarsDir.exists()) {
         await avatarsDir.create(recursive: true);
       }
@@ -145,7 +146,7 @@ class UserProvider extends ChangeNotifier {
 
       _avatarType = 'file';
       final relPath = p
-          .relative(dest.path, from: docs.path)
+          .relative(dest.path, from: root.path)
           .replaceAll('\\', '/');
       _avatarValue = relPath;
       notifyListeners();
@@ -181,8 +182,8 @@ class UserProvider extends ChangeNotifier {
 
     final fixed = SandboxPathResolver.fix(trimmed);
     try {
-      final docs = await getApplicationDocumentsDirectory();
-      final normalizedDocs = p.normalize(docs.path);
+      final root = await AppDirs.dataRoot();
+      final normalizedDocs = p.normalize(root.path);
       final normalizedFile = p.normalize(fixed);
       final rel = p.relative(normalizedFile, from: normalizedDocs);
       if (!rel.startsWith('..') && !p.isAbsolute(rel)) {
@@ -198,7 +199,7 @@ class UserProvider extends ChangeNotifier {
     if (value.startsWith('/') || value.contains(':')) {
       return SandboxPathResolver.fix(value);
     }
-    final docs = await getApplicationDocumentsDirectory();
-    return p.join(docs.path, value);
+    final root = await AppDirs.dataRoot();
+    return p.join(root.path, value);
   }
 }

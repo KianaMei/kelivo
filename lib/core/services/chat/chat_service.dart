@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive/hive.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../utils/app_dirs.dart';
+import '../../../utils/app_dirs.dart';
 
 class ChatService extends ChangeNotifier {
   static const String _conversationsBoxName = 'conversations';
@@ -35,7 +37,9 @@ class ChatService extends ChangeNotifier {
   Future<void> init() async {
     if (_initialized) return;
 
-    await Hive.initFlutter();
+    // Initialize Hive with app-scoped data root to avoid Windows data clashes
+    final hiveDir = await AppDirs.hivePath();
+    Hive.init(hiveDir);
     
     // Register adapters if not already registered
     if (!Hive.isAdapterRegistered(0)) {
@@ -250,8 +254,8 @@ class ChatService extends ChangeNotifier {
 
   Future<void> _cleanupOrphanUploads() async {
     try {
-      final docs = await getApplicationDocumentsDirectory();
-      final uploadDir = Directory(p.join(docs.path, 'upload'));
+      final root = await AppDirs.dataRoot();
+      final uploadDir = Directory(p.join(root.path, 'upload'));
       if (!await uploadDir.exists()) return;
 
       // Build the set of all referenced paths across all messages
@@ -763,8 +767,8 @@ class ChatService extends ChangeNotifier {
     _currentConversationId = null;
     // Remove uploads directory completely
     try {
-      final docs = await getApplicationDocumentsDirectory();
-      final uploadDir = Directory(p.join(docs.path, 'upload'));
+      final root = await AppDirs.dataRoot();
+      final uploadDir = Directory(p.join(root.path, 'upload'));
       if (await uploadDir.exists()) {
         await uploadDir.delete(recursive: true);
       }
@@ -775,8 +779,8 @@ class ChatService extends ChangeNotifier {
   // Uploads stats: count and total size of files under app documents/upload
   Future<UploadStats> getUploadStats() async {
     try {
-      final docs = await getApplicationDocumentsDirectory();
-      final uploadDir = Directory(p.join(docs.path, 'upload'));
+      final root = await AppDirs.dataRoot();
+      final uploadDir = Directory(p.join(root.path, 'upload'));
       if (!await uploadDir.exists()) {
         return const UploadStats(fileCount: 0, totalBytes: 0);
       }

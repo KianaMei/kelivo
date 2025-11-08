@@ -27,6 +27,7 @@ import 'core/providers/memory_provider.dart';
 import 'core/services/chat/chat_service.dart';
 import 'core/services/mcp/mcp_tool_service.dart';
 import 'utils/sandbox_path_resolver.dart';
+import 'utils/app_dirs.dart';
 import 'shared/widgets/snackbar.dart';
 import 'utils/restart_widget.dart';
 
@@ -38,6 +39,8 @@ bool _didEnsureAssistants = false; // ensure defaults after l10n ready
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Init app data directories and migrate legacy Windows data if needed
+  await AppDirs.init();
   // Desktop (Windows) window setup: hide native title bar for custom Flutter bar
   await _initDesktopWindow();
   // Debug logging and global error handlers were enabled previously for diagnosis.

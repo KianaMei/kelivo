@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
+import 'app_dirs.dart';
 
 /// Manages provider custom avatars: compression, storage, and deletion.
 class ProviderAvatarManager {
@@ -15,8 +16,8 @@ class ProviderAvatarManager {
     // New canonical location: Documents/avatars/providers
     // We purposely avoid using a cache/ path because these are user-provided assets
     // that must be backed up and restored across devices.
-    final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory('${docs.path}/avatars/providers');
+    final root = await AppDirs.dataRoot();
+    final dir = Directory(p.join(root.path, 'avatars/providers'));
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }

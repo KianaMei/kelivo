@@ -330,8 +330,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   Future<List<String>> _persistClipboardImages(List<String> srcPaths) async {
     try {
-      final docs = await getApplicationDocumentsDirectory();
-      final dir = Directory(p.join(docs.path, 'upload'));
+      final root = await AppDirs.dataRoot();
+      final dir = Directory(p.join(root.path, 'upload'));
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
@@ -1097,3 +1097,4 @@ class _SendButton extends StatelessWidget {
     );
   }
 }
+import '../../../utils/app_dirs.dart';

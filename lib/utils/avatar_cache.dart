@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'app_dirs.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -10,8 +12,8 @@ class AvatarCache {
   static final Map<String, String?> _memo = <String, String?>{};
 
   static Future<Directory> _cacheDir() async {
-    final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory('${docs.path}/cache/avatars');
+    final root = await AppDirs.dataRoot();
+    final dir = Directory(p.join(root.path, 'cache/avatars'));
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }

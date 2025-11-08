@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -9,6 +9,7 @@ import 'package:archive/archive.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../utils/app_dirs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xml/xml.dart';
 
@@ -265,9 +266,9 @@ class DataSync {
       // Legacy migration support: include old provider avatars under cache/avatars/providers/
       // Map them into avatars/providers/ within the archive so restore goes to the new location.
       try {
-        final docs = await getApplicationDocumentsDirectory();
-        final legacyDir = Directory(p.join(docs.path, 'cache', 'avatars', 'providers'));
-        final newProvidersDir = Directory(p.join(docs.path, 'avatars', 'providers'));
+        final root = await AppDirs.dataRoot();
+        final legacyDir = Directory(p.join(root.path, 'cache', 'avatars', 'providers'));
+        final newProvidersDir = Directory(p.join(root.path, 'avatars', 'providers'));
         if (await legacyDir.exists()) {
           final legacyFiles = legacyDir.listSync(recursive: true, followLinks: false).whereType<File>();
           for (final ent in legacyFiles) {
@@ -418,7 +419,7 @@ class DataSync {
   Future<File> exportToFile(WebDavConfig cfg) => prepareBackupFile(cfg);
 
   Future<void> restoreFromLocalFile(File file, WebDavConfig cfg, {RestoreMode mode = RestoreMode.overwrite}) async {
-    if (!await file.exists()) throw Exception('备份文件不存在');
+    if (!await file.exists()) throw Exception('备份文件不存�?);
     await _restoreFromBackupFile(file, cfg, mode: mode);
   }
 
@@ -436,18 +437,18 @@ class DataSync {
   }
 
   Future<Directory> _getUploadDir() async {
-    final docs = await getApplicationDocumentsDirectory();
-    return Directory(p.join(docs.path, 'upload'));
+    final root = await AppDirs.dataRoot();
+    return Directory(p.join(root.path, 'upload'));
   }
 
   Future<Directory> _getImagesDir() async {
-    final docs = await getApplicationDocumentsDirectory();
-    return Directory(p.join(docs.path, 'images'));
+    final root = await AppDirs.dataRoot();
+    return Directory(p.join(root.path, 'images'));
   }
 
   Future<Directory> _getAvatarsDir() async {
-    final docs = await getApplicationDocumentsDirectory();
-    return Directory(p.join(docs.path, 'avatars'));
+    final root = await AppDirs.dataRoot();
+    return Directory(p.join(root.path, 'avatars'));
   }
 
   Future<String> _exportSettingsJson() async {
@@ -1048,3 +1049,5 @@ class SharedPreferencesAsync {
     }
   }
 }
+
+
