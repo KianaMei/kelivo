@@ -754,7 +754,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 ),
                               ],
                             ],
-                            //閿涘牆鍑＄拫鍐╂殻閸掔増娓堕崣宕囶伂閹舵ê褰旈崠鐚寸礆
+                            //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?
                             // Quick Phrase button placed immediately to the right of Tool Loop
                             if (widget.showQuickPhraseButton && widget.onQuickPhrase != null) ...[
                               const SizedBox(width: 8),
@@ -765,7 +765,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onLongPress: widget.onLongPressQuickPhrase,
                               ),
                             ],
-                            //閿涘牆鍑＄拫鍐╂殻閸掔増娓堕崣宕囶伂閹舵ê褰旈崠鐚寸礆
+                            //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?
                             if (widget.onPickPhotos != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -782,7 +782,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onUploadFiles,
                               ),
                             ],
-                            //閿涘牆鍑＄拫鍐╂殻閸掔増娓堕崣宕囶伂閹舵ê褰旈崠鐚寸礆
+                            //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?
                             if (widget.onClearContext != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -791,13 +791,13 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onClearContext,
                               ),
                             ],
-                            //閿涘牆鍑＄拫鍐╂殻閸掔増娓堕崣宕囶伂閹舵ê褰旈崠鐚寸礆
-                            // Collapse toggle 閺€鎯ф躬閸ョ偓鐖ｉ崠鍝勭厵閻ㄥ嫭娓堕崣鍏呮櫠閿涙稑鐫嶅鈧弮璺烘躬閸忚泛褰告潏鐟板З閹浇鎷烽崝鐘冲閸欑姷绮嶉崶鐐垼
-                            // 閹靛婧€缁旑垶娈ｉ挊蹇斿閸欑姴濮涢懗?
+                            //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?
+                            // Collapse toggle 闂佽　鍋撻柟顖嗗嫯鍚梺鎼炲劤閸嬫捇鎮ラ敐澶婄闁告繂瀚崢鐢告煟閵娿儱顏繛鎾崇埣瀹曪綁宕楅崨顔界彿闂佹寧绋掔粙鎴︽儓瀹ュ拋鍤曢柍褜鍓熷顔炬崉閻戞鍚梺绋跨箺濞夋稖銇愰崨濠冪秶闁荤喐婢樿闂佽鍏涘ù鍥箯閻戣棄绀夐柣妯哄暱椤垿鏌涘▎鎴澬ョ紒顔肩Ч瀹曞爼鎮欓鍌氱伇
+                            // 闂佸綊娼ч鍡椻攦閳ь剛绱掗弮鎴濈仸婵炲牞缍侀幐濠呯疀閺傛娼欓梺鍛婄懅婵瓨鎱ㄥ☉銏″殑?
                             if (!isMobile) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
-                                tooltip: _extraActionsCollapsed ? '鐏炴洖绱戦弴鏉戭樋' : '閺€鎯版崳',
+                                tooltip: _extraActionsCollapsed ? 'Expand' : 'Collapse',
                                 icon: _extraActionsCollapsed ? Lucide.ChevronRight : Lucide.ChevronLeft,
                                 onTap: () => setState(() => _extraActionsCollapsed = !_extraActionsCollapsed),
                               ),
@@ -814,7 +814,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 if (widget.onConfigureToolLoop != null) ...[
                                   const SizedBox(width: 8),
                                   _CompactIconButton(
-                                    tooltip: '瀹搞儱鍙垮顏嗗箚濞嗏剝鏆?,
+                                    tooltip: 'Tool Loop',
                                     icon: Lucide.RefreshCw,
                                     active: false,
                                     onTap: widget.onConfigureToolLoop,
