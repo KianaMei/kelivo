@@ -8,6 +8,7 @@ import '../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import '../../../utils/app_dirs.dart';
 import '../../../shared/responsive/breakpoints.dart';
 import 'dart:async';
 
@@ -753,7 +754,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 ),
                               ],
                             ],
-                            //（已调整到最右端折叠区）
+                            //閿涘牆鍑＄拫鍐╂殻閸掔増娓堕崣宕囶伂閹舵ê褰旈崠鐚寸礆
                             // Quick Phrase button placed immediately to the right of Tool Loop
                             if (widget.showQuickPhraseButton && widget.onQuickPhrase != null) ...[
                               const SizedBox(width: 8),
@@ -764,7 +765,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onLongPress: widget.onLongPressQuickPhrase,
                               ),
                             ],
-                            //（已调整到最右端折叠区）
+                            //閿涘牆鍑＄拫鍐╂殻閸掔増娓堕崣宕囶伂閹舵ê褰旈崠鐚寸礆
                             if (widget.onPickPhotos != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -781,7 +782,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onUploadFiles,
                               ),
                             ],
-                            //（已调整到最右端折叠区）
+                            //閿涘牆鍑＄拫鍐╂殻閸掔増娓堕崣宕囶伂閹舵ê褰旈崠鐚寸礆
                             if (widget.onClearContext != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -790,13 +791,13 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onClearContext,
                               ),
                             ],
-                            //（已调整到最右端折叠区）
-                            // Collapse toggle 放在图标区域的最右侧；展开时在其右边动态追加折叠组图标
-                            // 手机端隐藏折叠功能
+                            //閿涘牆鍑＄拫鍐╂殻閸掔増娓堕崣宕囶伂閹舵ê褰旈崠鐚寸礆
+                            // Collapse toggle 閺€鎯ф躬閸ョ偓鐖ｉ崠鍝勭厵閻ㄥ嫭娓堕崣鍏呮櫠閿涙稑鐫嶅鈧弮璺烘躬閸忚泛褰告潏鐟板З閹浇鎷烽崝鐘冲閸欑姷绮嶉崶鐐垼
+                            // 閹靛婧€缁旑垶娈ｉ挊蹇斿閸欑姴濮涢懗?
                             if (!isMobile) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
-                                tooltip: _extraActionsCollapsed ? '展开更多' : '收起',
+                                tooltip: _extraActionsCollapsed ? '鐏炴洖绱戦弴鏉戭樋' : '閺€鎯版崳',
                                 icon: _extraActionsCollapsed ? Lucide.ChevronRight : Lucide.ChevronLeft,
                                 onTap: () => setState(() => _extraActionsCollapsed = !_extraActionsCollapsed),
                               ),
@@ -813,7 +814,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 if (widget.onConfigureToolLoop != null) ...[
                                   const SizedBox(width: 8),
                                   _CompactIconButton(
-                                    tooltip: '工具循环次数',
+                                    tooltip: '瀹搞儱鍙垮顏嗗箚濞嗏剝鏆?,
                                     icon: Lucide.RefreshCw,
                                     active: false,
                                     onTap: widget.onConfigureToolLoop,
@@ -1097,4 +1098,3 @@ class _SendButton extends StatelessWidget {
     );
   }
 }
-import '../../../utils/app_dirs.dart';

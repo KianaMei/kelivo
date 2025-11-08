@@ -7,7 +7,6 @@ import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/app_dirs.dart';
-import '../../../utils/app_dirs.dart';
 
 class ChatService extends ChangeNotifier {
   static const String _conversationsBoxName = 'conversations';
