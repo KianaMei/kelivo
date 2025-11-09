@@ -5034,3 +5034,174 @@ class _IosButtonState extends State<_IosButton> {
     );
   }
 }
+// ===== Desktop Assistant Dialog (reuses kelivo tabs) =====
+
+enum _AssistantDesktopMenu { basic, prompts, memory, mcp, quick, custom }
+
+Future<void> showAssistantDesktopDialog(BuildContext context, {required String assistantId}) async {
+  final cs = Theme.of(context).colorScheme;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) {
+      return Dialog(
+        backgroundColor: cs.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860, maxHeight: 640),
+          child: _DesktopAssistantDialogShell(assistantId: assistantId),
+        ),
+      );
+    },
+  );
+}
+
+class _DesktopAssistantDialogShell extends StatefulWidget {
+  const _DesktopAssistantDialogShell({required this.assistantId});
+  final String assistantId;
+  @override
+  State<_DesktopAssistantDialogShell> createState() => _DesktopAssistantDialogShellState();
+}
+
+class _DesktopAssistantDialogShellState extends State<_DesktopAssistantDialogShell> {
+  _AssistantDesktopMenu _menu = _AssistantDesktopMenu.basic;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final a = context.watch<AssistantProvider>().getById(widget.assistantId);
+    final name = a?.name ?? AppLocalizations.of(context)!.assistantEditPageTitle;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  icon: const Icon(Lucide.X, size: 18),
+                  color: cs.onSurface,
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DesktopAssistantMenu(
+                selected: _menu,
+                onSelect: (m) => setState(() => _menu = m),
+              ),
+              VerticalDivider(width: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  switchInCurve: Curves.easeOutCubic,
+                  child: () {
+                    switch (_menu) {
+                      case _AssistantDesktopMenu.basic:
+                        return _BasicSettingsTab(assistantId: widget.assistantId);
+                      case _AssistantDesktopMenu.prompts:
+                        return _PromptTab(assistantId: widget.assistantId);
+                      case _AssistantDesktopMenu.memory:
+                        return _MemoryTab(assistantId: widget.assistantId);
+                      case _AssistantDesktopMenu.mcp:
+                        return _McpTab(assistantId: widget.assistantId);
+                      case _AssistantDesktopMenu.quick:
+                        return _QuickPhraseTab(assistantId: widget.assistantId);
+                      case _AssistantDesktopMenu.custom:
+                        return _CustomRequestTab(assistantId: widget.assistantId);
+                    }
+                  }(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopAssistantMenu extends StatefulWidget {
+  const _DesktopAssistantMenu({required this.selected, required this.onSelect});
+  final _AssistantDesktopMenu selected;
+  final ValueChanged<_AssistantDesktopMenu> onSelect;
+  @override
+  State<_DesktopAssistantMenu> createState() => _DesktopAssistantMenuState();
+}
+
+class _DesktopAssistantMenuState extends State<_DesktopAssistantMenu> {
+  int _hover = -1;
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final items = <(_AssistantDesktopMenu, String)>[
+      (_AssistantDesktopMenu.basic, l10n.assistantEditPageBasicTab),
+      (_AssistantDesktopMenu.prompts, l10n.assistantEditPagePromptsTab),
+      (_AssistantDesktopMenu.memory, l10n.assistantEditPageMemoryTab),
+      (_AssistantDesktopMenu.mcp, l10n.assistantEditPageMcpTab),
+      (_AssistantDesktopMenu.quick, l10n.assistantEditPageQuickPhraseTab),
+      (_AssistantDesktopMenu.custom, l10n.assistantEditPageCustomTab),
+    ];
+    return SizedBox(
+      width: 220,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(12),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (ctx, i) {
+          final selected = widget.selected == items[i].$1;
+          final bg = selected
+              ? cs.primary.withOpacity(0.10)
+              : (_hover == i
+                  ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04))
+                  : Colors.transparent);
+          final fg = selected ? cs.primary : cs.onSurface.withOpacity(0.9);
+          return MouseRegion(
+            onEnter: (_) => setState(() => _hover = i),
+            onExit: (_) => setState(() => _hover = -1),
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => widget.onSelect(items[i].$1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOutCubic,
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14)),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    items[i].$2,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w400, color: fg, decoration: TextDecoration.none),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}

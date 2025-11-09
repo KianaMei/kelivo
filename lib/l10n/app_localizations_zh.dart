@@ -661,6 +661,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantSettingsDeleteDialogConfirm => '删除';
 
   @override
+  String get assistantSettingsAtLeastOneAssistantRequired => '至少需要保留一个助手';
+
+  @override
   String get mcpAssistantSheetTitle => 'MCP服务器';
 
   @override
@@ -2246,7 +2249,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get desktopDisplayWideModeTitle => '宽屏模式（填满聊天区域）';
 
   @override
-  String desktopDisplayNarrowWidthLabel(String value) {
+  String desktopDisplayNarrowWidthLabel(Object value) {
     return '窄屏宽度：$value px';
   }
 
@@ -4888,14 +4891,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get desktopSettingsFontsTitle => '字体设置';
 
   @override
-  String get desktopDisplayWideModeTitle => '宽屏模式（填满聊天区域）';
-
-  @override
-  String desktopDisplayNarrowWidthLabel(String value) {
-    return '窄屏宽度：$value px';
-  }
-
-  @override
   String get displaySettingsPageOtherSettingsTitle => '其他设置';
 
   @override
@@ -7452,14 +7447,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get desktopSettingsFontsTitle => '字體設定';
-
-  @override
-  String get desktopDisplayWideModeTitle => '寬屏模式（填滿聊天區域）';
-
-  @override
-  String desktopDisplayNarrowWidthLabel(String value) {
-    return '窄屏寬度：$value px';
-  }
 
   @override
   String get displaySettingsPageOtherSettingsTitle => '其他設定';

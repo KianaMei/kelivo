@@ -275,6 +275,7 @@
   "backupPageMergeModeDescription": "仅添加不存在的数据（智能去重）",
   "backupPageRestore": "恢复",
   "backupPageBackupUploaded": "已上传备份",
+  "assistantSettingsAtLeastOneAssistantRequired": "至少需要保留一个助手",
   "backupPageBackup": "立即备份",
   "backupPageExporting": "正在导出...",
   "backupPageExportToFile": "导出为文件",

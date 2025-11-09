@@ -675,6 +675,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantSettingsDeleteDialogConfirm => 'Delete';
 
   @override
+  String get assistantSettingsAtLeastOneAssistantRequired =>
+      'At least one assistant is required';
+
+  @override
   String get mcpAssistantSheetTitle => 'MCP Servers';
 
   @override
@@ -2324,7 +2328,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopDisplayWideModeTitle => 'Wide mode (fill chat area)';
 
   @override
-  String desktopDisplayNarrowWidthLabel(String value) {
+  String desktopDisplayNarrowWidthLabel(Object value) {
     return 'Narrow width: $value px';
   }
 

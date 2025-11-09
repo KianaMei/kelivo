@@ -1367,6 +1367,12 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get assistantSettingsDeleteDialogConfirm;
 
+  /// No description provided for @assistantSettingsAtLeastOneAssistantRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'At least one assistant is required'**
+  String get assistantSettingsAtLeastOneAssistantRequired;
+
   /// No description provided for @mcpAssistantSheetTitle.
   ///
   /// In en, this message translates to:
@@ -4415,11 +4421,11 @@ abstract class AppLocalizations {
   /// **'Wide mode (fill chat area)'**
   String get desktopDisplayWideModeTitle;
 
-  /// No description provided for @desktopDisplayNarrowWidthLabel.
+  /// Label shown above the slider for narrow width value
   ///
   /// In en, this message translates to:
   /// **'Narrow width: {value} px'**
-  String desktopDisplayNarrowWidthLabel(String value);
+  String desktopDisplayNarrowWidthLabel(Object value);
 
   /// No description provided for @desktopFontAppLabel.
   ///
