@@ -965,6 +965,27 @@
   "displaySettingsPageThemeSettingsTitle": "Theme Settings",
   "displaySettingsPageThemeColorTitle": "Theme Color",
   "desktopSettingsFontsTitle": "Fonts",
+  "desktopDisplayWideModeTitle": "Wide mode (fill chat area)",
+  "desktopDisplayNarrowWidthLabel": "Narrow width: {value} px",
+  "@desktopDisplayNarrowWidthLabel": {
+    "description": "Label shown above the slider for narrow width value",
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "desktopFontAppLabel": "App Font",
+  "desktopFontCodeLabel": "Code Font",
+  "desktopFontFamilySystemDefault": "System Default",
+  "desktopFontFamilyMonospaceDefault": "Monospace",
+  "desktopFontFilterHint": "Filter fonts...",
+  "displaySettingsPageAppFontTitle": "App Font",
+  "displaySettingsPageCodeFontTitle": "Code Font",
+  "fontPickerChooseLocalFile": "Choose Local File",
+  "fontPickerGetFromGoogleFonts": "Browse Google Fonts",
+  "fontPickerFilterHint": "Filter fonts...",
+  "desktopFontLoading": "Loading fonts…",
+  "displaySettingsPageFontLocalFileLabel": "Local file",
+  "displaySettingsPageFontResetLabel": "Reset font settings",
   "displaySettingsPageOtherSettingsTitle": "Other",
   "themeSettingsPageDynamicColorSection": "Dynamic Color",
   "themeSettingsPageUseDynamicColorTitle": "Use Dynamic Color",
@@ -1090,19 +1111,33 @@
   "displaySettingsPageBehaviorStartupTitle": "Behavior & startup",
   "displaySettingsPageHapticsSettingsTitle": "Haptics",
   "assistantSettingsNoPromptPlaceholder": "No prompt yet",
-  "providersPageMultiSelectTooltip": "Multi-select"
-  ,
+  "providersPageMultiSelectTooltip": "Multi-select",
   "providersPageDeleteSelectedConfirmContent": "Delete selected providers? This cannot be undone.",
   "providersPageDeleteSelectedSnackbar": "Deleted selected providers",
   "providersPageExportSelectedTitle": "Export {count} providers",
   "@providersPageExportSelectedTitle": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "providersPageExportCopyButton": "Copy",
   "providersPageExportShareButton": "Share",
   "providersPageExportCopiedSnackbar": "Copied export code",
   "providersPageDeleteAction": "Delete",
-  "providersPageExportAction": "Export"
+  "providersPageExportAction": "Export",
+  "displaySettingsPageChatMessageBackgroundTitle": "Chat Message Background",
+  "displaySettingsPageChatMessageBackgroundDefault": "Default",
+  "displaySettingsPageChatMessageBackgroundFrosted": "Frosted",
+  "displaySettingsPageChatMessageBackgroundSolid": "Solid",
+  "themeSettingsPageUsePureBackgroundTitle": "Pure Background",
+  "themeSettingsPageUsePureBackgroundSubtitle": "Only bubbles and accents follow theme colors",
+  "desktopDisplaySettingsTopicPositionTitle": "Topic position",
+  "desktopDisplaySettingsTopicPositionLeft": "Left",
+  "desktopDisplaySettingsTopicPositionRight": "Right",
+  "displaySettingsPageAndroidBackgroundChatTitle": "Background chat generation",
+  "displaySettingsPageAndroidBackgroundChatOff": "Off",
+  "displaySettingsPageAndroidBackgroundChatOn": "On (silent)",
+  "displaySettingsPageAndroidBackgroundChatOnNotify": "On (with notifications)"
 }

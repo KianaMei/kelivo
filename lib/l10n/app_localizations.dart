@@ -4409,6 +4409,96 @@ abstract class AppLocalizations {
   /// **'Fonts'**
   String get desktopSettingsFontsTitle;
 
+  /// No description provided for @desktopDisplayWideModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Wide mode (fill chat area)'**
+  String get desktopDisplayWideModeTitle;
+
+  /// No description provided for @desktopDisplayNarrowWidthLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Narrow width: {value} px'**
+  String desktopDisplayNarrowWidthLabel(String value);
+
+  /// No description provided for @desktopFontAppLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'App Font'**
+  String get desktopFontAppLabel;
+
+  /// No description provided for @desktopFontCodeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Code Font'**
+  String get desktopFontCodeLabel;
+
+  /// No description provided for @desktopFontFamilySystemDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'System Default'**
+  String get desktopFontFamilySystemDefault;
+
+  /// No description provided for @desktopFontFamilyMonospaceDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Monospace'**
+  String get desktopFontFamilyMonospaceDefault;
+
+  /// No description provided for @desktopFontFilterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter fonts...'**
+  String get desktopFontFilterHint;
+
+  /// No description provided for @displaySettingsPageAppFontTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'App Font'**
+  String get displaySettingsPageAppFontTitle;
+
+  /// No description provided for @displaySettingsPageCodeFontTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Code Font'**
+  String get displaySettingsPageCodeFontTitle;
+
+  /// No description provided for @fontPickerChooseLocalFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Local File'**
+  String get fontPickerChooseLocalFile;
+
+  /// No description provided for @fontPickerGetFromGoogleFonts.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse Google Fonts'**
+  String get fontPickerGetFromGoogleFonts;
+
+  /// No description provided for @fontPickerFilterHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter fonts...'**
+  String get fontPickerFilterHint;
+
+  /// No description provided for @desktopFontLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading fonts…'**
+  String get desktopFontLoading;
+
+  /// No description provided for @displaySettingsPageFontLocalFileLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Local file'**
+  String get displaySettingsPageFontLocalFileLabel;
+
+  /// No description provided for @displaySettingsPageFontResetLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset font settings'**
+  String get displaySettingsPageFontResetLabel;
+
   /// No description provided for @displaySettingsPageOtherSettingsTitle.
   ///
   /// In en, this message translates to:
@@ -5044,6 +5134,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Export'**
   String get providersPageExportAction;
+
+  /// No description provided for @displaySettingsPageChatMessageBackgroundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat Message Background'**
+  String get displaySettingsPageChatMessageBackgroundTitle;
+
+  /// No description provided for @displaySettingsPageChatMessageBackgroundDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get displaySettingsPageChatMessageBackgroundDefault;
+
+  /// No description provided for @displaySettingsPageChatMessageBackgroundFrosted.
+  ///
+  /// In en, this message translates to:
+  /// **'Frosted'**
+  String get displaySettingsPageChatMessageBackgroundFrosted;
+
+  /// No description provided for @displaySettingsPageChatMessageBackgroundSolid.
+  ///
+  /// In en, this message translates to:
+  /// **'Solid'**
+  String get displaySettingsPageChatMessageBackgroundSolid;
+
+  /// No description provided for @themeSettingsPageUsePureBackgroundTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pure Background'**
+  String get themeSettingsPageUsePureBackgroundTitle;
+
+  /// No description provided for @themeSettingsPageUsePureBackgroundSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Only bubbles and accents follow theme colors'**
+  String get themeSettingsPageUsePureBackgroundSubtitle;
+
+  /// No description provided for @desktopDisplaySettingsTopicPositionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Topic position'**
+  String get desktopDisplaySettingsTopicPositionTitle;
+
+  /// No description provided for @desktopDisplaySettingsTopicPositionLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Left'**
+  String get desktopDisplaySettingsTopicPositionLeft;
+
+  /// No description provided for @desktopDisplaySettingsTopicPositionRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Right'**
+  String get desktopDisplaySettingsTopicPositionRight;
+
+  /// No description provided for @displaySettingsPageAndroidBackgroundChatTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Background chat generation'**
+  String get displaySettingsPageAndroidBackgroundChatTitle;
+
+  /// No description provided for @displaySettingsPageAndroidBackgroundChatOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get displaySettingsPageAndroidBackgroundChatOff;
+
+  /// No description provided for @displaySettingsPageAndroidBackgroundChatOn.
+  ///
+  /// In en, this message translates to:
+  /// **'On (silent)'**
+  String get displaySettingsPageAndroidBackgroundChatOn;
+
+  /// No description provided for @displaySettingsPageAndroidBackgroundChatOnNotify.
+  ///
+  /// In en, this message translates to:
+  /// **'On (with notifications)'**
+  String get displaySettingsPageAndroidBackgroundChatOnNotify;
 }
 
 class _AppLocalizationsDelegate

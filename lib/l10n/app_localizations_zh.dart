@@ -2243,6 +2243,53 @@ class AppLocalizationsZh extends AppLocalizations {
   String get desktopSettingsFontsTitle => '字体设置';
 
   @override
+  String get desktopDisplayWideModeTitle => '宽屏模式（填满聊天区域）';
+
+  @override
+  String desktopDisplayNarrowWidthLabel(String value) {
+    return '窄屏宽度：$value px';
+  }
+
+  @override
+  String get desktopFontAppLabel => '应用字体';
+
+  @override
+  String get desktopFontCodeLabel => '代码字体';
+
+  @override
+  String get desktopFontFamilySystemDefault => '系统默认';
+
+  @override
+  String get desktopFontFamilyMonospaceDefault => '系统默认';
+
+  @override
+  String get desktopFontFilterHint => '输入以过滤字体…';
+
+  @override
+  String get displaySettingsPageAppFontTitle => '应用字体';
+
+  @override
+  String get displaySettingsPageCodeFontTitle => '代码字体';
+
+  @override
+  String get fontPickerChooseLocalFile => '选择本地文件';
+
+  @override
+  String get fontPickerGetFromGoogleFonts => '从 Google Fonts 获取';
+
+  @override
+  String get fontPickerFilterHint => '输入以过滤字体…';
+
+  @override
+  String get desktopFontLoading => '正在加载字体…';
+
+  @override
+  String get displaySettingsPageFontLocalFileLabel => '本地文件';
+
+  @override
+  String get displaySettingsPageFontResetLabel => '恢复默认';
+
+  @override
   String get displaySettingsPageOtherSettingsTitle => '其他设置';
 
   @override
@@ -2578,6 +2625,45 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get providersPageExportAction => '导出';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundTitle => '聊天消息背景';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundDefault => '默认';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundFrosted => '模糊';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundSolid => '纯色';
+
+  @override
+  String get themeSettingsPageUsePureBackgroundTitle => '纯色背景';
+
+  @override
+  String get themeSettingsPageUsePureBackgroundSubtitle => '仅气泡与强调色随主题变化';
+
+  @override
+  String get desktopDisplaySettingsTopicPositionTitle => '话题位置';
+
+  @override
+  String get desktopDisplaySettingsTopicPositionLeft => '左侧';
+
+  @override
+  String get desktopDisplaySettingsTopicPositionRight => '右侧';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatTitle => '后台聊天生成';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatOff => '关闭';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatOn => '开启（静默）';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatOnNotify => '开启（带通知）';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -4800,6 +4886,14 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get desktopSettingsFontsTitle => '字体设置';
+
+  @override
+  String get desktopDisplayWideModeTitle => '宽屏模式（填满聊天区域）';
+
+  @override
+  String desktopDisplayNarrowWidthLabel(String value) {
+    return '窄屏宽度：$value px';
+  }
 
   @override
   String get displaySettingsPageOtherSettingsTitle => '其他设置';
@@ -7358,6 +7452,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get desktopSettingsFontsTitle => '字體設定';
+
+  @override
+  String get desktopDisplayWideModeTitle => '寬屏模式（填滿聊天區域）';
+
+  @override
+  String desktopDisplayNarrowWidthLabel(String value) {
+    return '窄屏寬度：$value px';
+  }
 
   @override
   String get displaySettingsPageOtherSettingsTitle => '其他設定';

@@ -662,12 +662,13 @@ class _DesktopContentWidthRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sp = context.watch<SettingsProvider>();
+    final l10n = AppLocalizations.of(context)!;
     final bool wide = sp.desktopWideContent;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ToggleRow(
-          label: 'Wide mode (fill chat area)',
+          label: l10n.desktopDisplayWideModeTitle,
           value: wide,
           onChanged: (v) => context.read<SettingsProvider>().setDesktopWideContent(v),
         ),
@@ -679,7 +680,6 @@ class _DesktopContentWidthRow extends StatelessWidget {
               : _DesktopWidthSlider(
                   key: const ValueKey('narrow_width_slider'),
                   value: sp.desktopNarrowContentWidth,
-                  label: 'Narrow width (px)',
                 ),
         ),
       ],
@@ -688,9 +688,8 @@ class _DesktopContentWidthRow extends StatelessWidget {
 }
 
 class _DesktopWidthSlider extends StatefulWidget {
-  const _DesktopWidthSlider({super.key, required this.value, required this.label});
+  const _DesktopWidthSlider({super.key, required this.value});
   final double value;
-  final String label;
 
   @override
   State<_DesktopWidthSlider> createState() => _DesktopWidthSliderState();
@@ -718,13 +717,14 @@ class _DesktopWidthSliderState extends State<_DesktopWidthSlider> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 8, 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${widget.label}: ${_value.toStringAsFixed(0)} px',
+            l10n.desktopDisplayNarrowWidthLabel(_value.toStringAsFixed(0)),
             style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(0.75)),
           ),
           Slider(
@@ -2730,3 +2730,4 @@ class _TopicPositionOverlayState extends State<_TopicPositionOverlay> with Singl
     );
   }
 }
+

@@ -118,7 +118,9 @@
   "providersPageExportSelectedTitle": "导出 {count} 个供应商",
   "@providersPageExportSelectedTitle": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "providersPageExportCopyButton": "复制",
@@ -774,6 +776,27 @@
   "displaySettingsPageThemeSettingsTitle": "主题设置",
   "displaySettingsPageThemeColorTitle": "主题颜色",
   "desktopSettingsFontsTitle": "字体设置",
+  "desktopDisplayWideModeTitle": "宽屏模式（填满聊天区域）",
+  "desktopDisplayNarrowWidthLabel": "窄屏宽度：{value} px",
+  "@desktopDisplayNarrowWidthLabel": {
+    "description": "窄屏宽度滑块标签",
+    "placeholders": {
+      "value": {}
+    }
+  },
+  "desktopFontAppLabel": "应用字体",
+  "desktopFontCodeLabel": "代码字体",
+  "desktopFontFamilySystemDefault": "系统默认",
+  "desktopFontFamilyMonospaceDefault": "系统默认",
+  "desktopFontFilterHint": "输入以过滤字体…",
+  "displaySettingsPageAppFontTitle": "应用字体",
+  "displaySettingsPageCodeFontTitle": "代码字体",
+  "fontPickerChooseLocalFile": "选择本地文件",
+  "fontPickerGetFromGoogleFonts": "从 Google Fonts 获取",
+  "fontPickerFilterHint": "输入以过滤字体…",
+  "desktopFontLoading": "正在加载字体…",
+  "displaySettingsPageFontLocalFileLabel": "本地文件",
+  "displaySettingsPageFontResetLabel": "恢复默认",
   "displaySettingsPageOtherSettingsTitle": "其他设置",
   "themeSettingsPageDynamicColorSection": "动态颜色",
   "themeSettingsPageUseDynamicColorTitle": "使用动态颜色",
@@ -883,5 +906,18 @@
   "displaySettingsPageRenderingSettingsTitle": "渲染设置",
   "displaySettingsPageBehaviorStartupTitle": "行为与启动",
   "displaySettingsPageHapticsSettingsTitle": "触觉反馈",
-  "assistantSettingsNoPromptPlaceholder": "暂无提示词"
+  "assistantSettingsNoPromptPlaceholder": "暂无提示词",
+  "displaySettingsPageChatMessageBackgroundTitle": "聊天消息背景",
+  "displaySettingsPageChatMessageBackgroundDefault": "默认",
+  "displaySettingsPageChatMessageBackgroundFrosted": "模糊",
+  "displaySettingsPageChatMessageBackgroundSolid": "纯色",
+  "themeSettingsPageUsePureBackgroundTitle": "纯色背景",
+  "themeSettingsPageUsePureBackgroundSubtitle": "仅气泡与强调色随主题变化",
+  "desktopDisplaySettingsTopicPositionTitle": "话题位置",
+  "desktopDisplaySettingsTopicPositionLeft": "左侧",
+  "desktopDisplaySettingsTopicPositionRight": "右侧",
+  "displaySettingsPageAndroidBackgroundChatTitle": "后台聊天生成",
+  "displaySettingsPageAndroidBackgroundChatOff": "关闭",
+  "displaySettingsPageAndroidBackgroundChatOn": "开启（静默）",
+  "displaySettingsPageAndroidBackgroundChatOnNotify": "开启（带通知）"
 }

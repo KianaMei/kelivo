@@ -2321,6 +2321,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopSettingsFontsTitle => 'Fonts';
 
   @override
+  String get desktopDisplayWideModeTitle => 'Wide mode (fill chat area)';
+
+  @override
+  String desktopDisplayNarrowWidthLabel(String value) {
+    return 'Narrow width: $value px';
+  }
+
+  @override
+  String get desktopFontAppLabel => 'App Font';
+
+  @override
+  String get desktopFontCodeLabel => 'Code Font';
+
+  @override
+  String get desktopFontFamilySystemDefault => 'System Default';
+
+  @override
+  String get desktopFontFamilyMonospaceDefault => 'Monospace';
+
+  @override
+  String get desktopFontFilterHint => 'Filter fonts...';
+
+  @override
+  String get displaySettingsPageAppFontTitle => 'App Font';
+
+  @override
+  String get displaySettingsPageCodeFontTitle => 'Code Font';
+
+  @override
+  String get fontPickerChooseLocalFile => 'Choose Local File';
+
+  @override
+  String get fontPickerGetFromGoogleFonts => 'Browse Google Fonts';
+
+  @override
+  String get fontPickerFilterHint => 'Filter fonts...';
+
+  @override
+  String get desktopFontLoading => 'Loading fonts…';
+
+  @override
+  String get displaySettingsPageFontLocalFileLabel => 'Local file';
+
+  @override
+  String get displaySettingsPageFontResetLabel => 'Reset font settings';
+
+  @override
   String get displaySettingsPageOtherSettingsTitle => 'Other';
 
   @override
@@ -2669,4 +2716,47 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providersPageExportAction => 'Export';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundTitle =>
+      'Chat Message Background';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundDefault => 'Default';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundFrosted => 'Frosted';
+
+  @override
+  String get displaySettingsPageChatMessageBackgroundSolid => 'Solid';
+
+  @override
+  String get themeSettingsPageUsePureBackgroundTitle => 'Pure Background';
+
+  @override
+  String get themeSettingsPageUsePureBackgroundSubtitle =>
+      'Only bubbles and accents follow theme colors';
+
+  @override
+  String get desktopDisplaySettingsTopicPositionTitle => 'Topic position';
+
+  @override
+  String get desktopDisplaySettingsTopicPositionLeft => 'Left';
+
+  @override
+  String get desktopDisplaySettingsTopicPositionRight => 'Right';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatTitle =>
+      'Background chat generation';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatOff => 'Off';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatOn => 'On (silent)';
+
+  @override
+  String get displaySettingsPageAndroidBackgroundChatOnNotify =>
+      'On (with notifications)';
 }
