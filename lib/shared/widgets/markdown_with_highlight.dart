@@ -21,6 +21,7 @@ import 'package:kelivo/l10n/app_localizations.dart';
 import 'package:kelivo/theme/theme_factory.dart' show kDefaultFontFamilyFallback;
 import 'package:provider/provider.dart';
 import '../../core/providers/settings_provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// gpt_markdown with custom code block highlight and inline code styling.
 class MarkdownWithCodeHighlight extends StatelessWidget {
@@ -229,26 +230,39 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         final cs = Theme.of(ctx).colorScheme;
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         final borderColor = cs.outlineVariant.withOpacity(isDark ? 0.22 : 0.28);
-        final headerBg = cs.primary.withOpacity(isDark ? 0.10 : 0.08);
-        final headerStyle = (style).copyWith(fontWeight: FontWeight.w600);
+        final headerBg = Color.alphaBlend(
+          cs.primary.withOpacity(isDark ? 0.14 : 0.08),
+          cs.surface,
+        );
+        final headerStyle = (style).copyWith(fontWeight: FontWeight.w600, color: cs.onSurface);
+        final cellStyle = (style).copyWith(color: cs.onSurface);
 
         int maxCol = 0;
         for (final r in rows) {
           if (r.fields.length > maxCol) maxCol = r.fields.length;
         }
 
+        final bool isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+
         Widget cell(String text, TextAlign align, {bool header = false, bool lastCol = false, bool lastRow = false}) {
-          // Render inline markdown (bold, code, links) inside table cells
-          final innerCfg = cfg.copyWith(style: header ? headerStyle : style);
+          final innerCfg = cfg.copyWith(style: header ? headerStyle : cellStyle);
           final children = MarkdownComponent.generate(ctx, text, innerCfg, true);
+          final Widget rich = isDesktop
+              ? SelectableText.rich(
+                  TextSpan(style: header ? headerStyle : cellStyle, children: children),
+                  textAlign: align,
+                  maxLines: null,
+                )
+              : RichText(
+                  text: TextSpan(style: header ? headerStyle : cellStyle, children: children),
+                  textAlign: align,
+                  softWrap: true,
+                  maxLines: null,
+                  overflow: TextOverflow.visible,
+                  textWidthBasis: TextWidthBasis.parent,
+                );
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              border: Border(
-                right: lastCol ? BorderSide.none : BorderSide(color: borderColor, width: 0.5),
-                bottom: lastRow ? BorderSide.none : BorderSide(color: borderColor, width: 0.5),
-              ),
-            ),
             child: Align(
               alignment: () {
                 switch (align) {
@@ -260,60 +274,124 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
                     return Alignment.centerLeft;
                 }
               }(),
-              child: RichText(
-                text: TextSpan(style: header ? headerStyle : style, children: children),
-                textAlign: align,
-                textScaler: MediaQuery.of(ctx).textScaler,
+              child: rich,
+            ),
+          );
+        }
+
+        if (!isDesktop) {
+          final table = Table(
+            defaultColumnWidth: const IntrinsicColumnWidth(),
+            border: TableBorder(
+              horizontalInside: BorderSide(color: borderColor, width: 0.5),
+              verticalInside: BorderSide(color: borderColor, width: 0.5),
+            ),
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              if (rows.isNotEmpty)
+                TableRow(
+                  decoration: BoxDecoration(color: headerBg),
+                  children: List.generate(maxCol, (i) {
+                    final f = i < rows.first.fields.length ? rows.first.fields[i] : null;
+                    final txt = f?.data ?? '';
+                    final align = f?.alignment ?? TextAlign.left;
+                    return cell(txt, align, header: true, lastCol: i == maxCol - 1, lastRow: false);
+                  }),
+                ),
+              for (int r = 1; r < rows.length; r++)
+                TableRow(
+                  children: List.generate(maxCol, (c) {
+                    final f = c < rows[r].fields.length ? rows[r].fields[c] : null;
+                    final txt = f?.data ?? '';
+                    final align = f?.alignment ?? TextAlign.left;
+                    return cell(txt, align, lastCol: c == maxCol - 1, lastRow: r == rows.length - 1);
+                  }),
+                ),
+            ],
+          );
+
+          return SelectionContainer.disabled(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              primary: false,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  foregroundDecoration: BoxDecoration(
+                    border: Border.all(color: borderColor, width: 0.8),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: DefaultTextStyle.merge(
+                    style: TextStyle(color: cs.onSurface),
+                    child: table,
+                  ),
+                ),
               ),
             ),
           );
         }
 
-        final table = Table(
-          defaultColumnWidth: const IntrinsicColumnWidth(),
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: [
-            if (rows.isNotEmpty)
-              TableRow(
-                decoration: BoxDecoration(
-                  color: headerBg,
-                  border: Border(bottom: BorderSide(color: borderColor, width: 0.8)),
-                ),
-                children: List.generate(maxCol, (i) {
-                  final f = i < rows.first.fields.length ? rows.first.fields[i] : null;
-                  final txt = f?.data ?? '';
-                  final align = f?.alignment ?? TextAlign.left;
-                  return cell(txt, align, header: true, lastCol: i == maxCol - 1, lastRow: false);
-                }),
-              ),
-            for (int r = 1; r < rows.length; r++)
-              TableRow(
-                children: List.generate(maxCol, (c) {
-                  final f = c < rows[r].fields.length ? rows[r].fields[c] : null;
-                  final txt = f?.data ?? '';
-                  final align = f?.alignment ?? TextAlign.left;
-                  return cell(txt, align, lastCol: c == maxCol - 1, lastRow: r == rows.length - 1);
-                }),
-              ),
-          ],
-        );
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final columnWidths = <int, TableColumnWidth>{
+              for (int i = 0; i < maxCol; i++) i: const FlexColumnWidth(),
+            };
 
-        return SelectionContainer.disabled(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            primary: false,
-            child: ClipRRect(
+            final table = Table(
+              defaultColumnWidth: const FlexColumnWidth(),
+              columnWidths: columnWidths,
+              border: TableBorder(
+                horizontalInside: BorderSide(color: borderColor, width: 0.5),
+                verticalInside: BorderSide(color: borderColor, width: 0.5),
+              ),
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
+                if (rows.isNotEmpty)
+                  TableRow(
+                    decoration: BoxDecoration(color: headerBg),
+                    children: List.generate(maxCol, (i) {
+                      final f = i < rows.first.fields.length ? rows.first.fields[i] : null;
+                      final txt = f?.data ?? '';
+                      final align = f?.alignment ?? TextAlign.left;
+                      return cell(txt, align, header: true, lastCol: i == maxCol - 1, lastRow: false);
+                    }),
+                  ),
+                for (int r = 1; r < rows.length; r++)
+                  TableRow(
+                    children: List.generate(maxCol, (c) {
+                      final f = c < rows[r].fields.length ? rows[r].fields[c] : null;
+                      final txt = f?.data ?? '';
+                      final align = f?.alignment ?? TextAlign.left;
+                      return cell(txt, align, lastCol: c == maxCol - 1, lastRow: r == rows.length - 1);
+                    }),
+                  ),
+              ],
+            );
+
+            return ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Container(
+                width: double.infinity,
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
                 decoration: BoxDecoration(
                   color: Theme.of(ctx).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                foregroundDecoration: BoxDecoration(
                   border: Border.all(color: borderColor, width: 0.8),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: table,
+                child: DefaultTextStyle.merge(
+                  style: TextStyle(color: cs.onSurface),
+                  child: table,
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
       // Inline `code` styling via highlightBuilder in gpt_markdown
@@ -329,11 +407,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
           ),
           child: Text(
             softened,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 13,
-              height: 1.4,
-            ).copyWith(color: Theme.of(context).colorScheme.onSurface),
+            style: _codeStyleBase(context, size: 13, height: 1.4).copyWith(color: Theme.of(context).colorScheme.onSurface),
             softWrap: true,
             overflow: TextOverflow.visible,
           ),
@@ -766,11 +840,7 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                             isDark ? atomOneDarkReasonableTheme : githubTheme,
                           ),
                           padding: EdgeInsets.zero,
-                          textStyle: const TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 13,
-                            height: 1.5,
-                          ),
+                          textStyle: _codeStyleBase(context, size: 13, height: 1.5),
                         ),
                       ),
                     ),
@@ -1683,3 +1753,15 @@ class ModernRadioMd extends BlockMd {
     );
   }
 }
+    TextStyle _codeStyleBase(BuildContext ctx, {double size = 13, double height = 1.5}) {
+      final base = TextStyle(fontSize: size, height: height);
+      final sp = Provider.of<SettingsProvider>(ctx, listen: false);
+      final fam = sp.codeFontFamily;
+      if (fam == null || fam.isEmpty) {
+        return base.copyWith(fontFamily: 'monospace');
+      }
+      if (sp.codeFontIsGoogle) {
+        try { return GoogleFonts.getFont(fam, textStyle: base); } catch (_) { return base.copyWith(fontFamily: fam); }
+      }
+      return base.copyWith(fontFamily: fam);
+    }

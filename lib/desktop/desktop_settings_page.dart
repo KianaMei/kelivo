@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart';
+import 'dart:async';
 
 import '../icons/lucide_adapter.dart' as lucide;
 import '../l10n/app_localizations.dart';
@@ -17,6 +19,11 @@ import '../features/quick_phrase/pages/quick_phrases_page.dart';
 import '../features/settings/pages/tts_services_page.dart';
 import '../features/backup/pages/backup_page.dart';
 import '../features/settings/pages/about_page.dart';
+import '../features/settings/pages/google_fonts_picker_page.dart';
+import '../features/settings/pages/google_fonts_dialog.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:system_fonts/system_fonts.dart';
+import 'dart:io' show Platform;
 
 /// Desktop settings layout: left menu + vertical divider + right content.
 /// All settings pages are now implemented.
@@ -107,7 +114,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         child: Padding(
           padding: const EdgeInsets.only(left: 16, top: 8),
           child: Text(
-            l10n.settingsPageTitle, // 固定显示“设置”
+            l10n.settingsPageTitle,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -118,7 +125,6 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         ),
       ),
     );
-
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
@@ -315,16 +321,28 @@ class _DisplaySettingsBody extends StatelessWidget {
             children: [
               _SettingsCard(
                 title: l10n.settingsPageDisplay,
-                children: const [
+                children: [
                   _ColorModeRow(),
                   _RowDivider(),
                   _ThemeColorRow(),
+                  _RowDivider(),
+                  _ToggleRowPureBackground(),
+                  _RowDivider(),
+                  _ChatMessageBackgroundRow(),
+                  _RowDivider(),
+                  _TopicPositionRow(),
+                  _RowDivider(),
+                  _DesktopContentWidthRow(),
                 ],
               ),
               const SizedBox(height: 16),
               _SettingsCard(
                 title: l10n.desktopSettingsFontsTitle,
-                children: const [
+                children: [
+                  _AppFontRow(),
+                  _RowDivider(),
+                  _CodeFontRow(),
+                  _RowDivider(),
                   _AppLanguageRow(),
                   _RowDivider(),
                   _ChatFontSizeRow(),
@@ -333,7 +351,7 @@ class _DisplaySettingsBody extends StatelessWidget {
               const SizedBox(height: 16),
               _SettingsCard(
                 title: l10n.displaySettingsPageChatItemDisplayTitle,
-                children: const [
+                children: [
                   _ToggleRowShowUserAvatar(),
                   _RowDivider(),
                   _ToggleRowShowUserNameTs(),
@@ -350,7 +368,7 @@ class _DisplaySettingsBody extends StatelessWidget {
               const SizedBox(height: 16),
               _SettingsCard(
                 title: l10n.displaySettingsPageRenderingSettingsTitle,
-                children: const [
+                children: [
                   _ToggleRowDollarLatex(),
                   _RowDivider(),
                   _ToggleRowMathRendering(),
@@ -363,7 +381,7 @@ class _DisplaySettingsBody extends StatelessWidget {
               const SizedBox(height: 16),
               _SettingsCard(
                 title: l10n.displaySettingsPageBehaviorStartupTitle,
-                children: const [
+                children: [
                   _ToggleRowAutoCollapseThinking(),
                   _RowDivider(),
                   _ToggleRowShowUpdates(),
@@ -378,7 +396,7 @@ class _DisplaySettingsBody extends StatelessWidget {
               const SizedBox(height: 16),
               _SettingsCard(
                 title: l10n.displaySettingsPageOtherSettingsTitle,
-                children: const [
+                children: [
                   _AutoScrollDelayRow(),
                   _RowDivider(),
                   _BackgroundMaskRow(),
@@ -639,6 +657,94 @@ class _HoverPill extends StatelessWidget {
   }
 }
 
+class _DesktopContentWidthRow extends StatelessWidget {
+  const _DesktopContentWidthRow();
+  @override
+  Widget build(BuildContext context) {
+    final sp = context.watch<SettingsProvider>();
+    final bool wide = sp.desktopWideContent;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ToggleRow(
+          label: 'Wide mode (fill chat area)',
+          value: wide,
+          onChanged: (v) => context.read<SettingsProvider>().setDesktopWideContent(v),
+        ),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          switchInCurve: Curves.easeOutCubic,
+          child: wide
+              ? const SizedBox.shrink()
+              : _DesktopWidthSlider(
+                  key: const ValueKey('narrow_width_slider'),
+                  value: sp.desktopNarrowContentWidth,
+                  label: 'Narrow width (px)',
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopWidthSlider extends StatefulWidget {
+  const _DesktopWidthSlider({super.key, required this.value, required this.label});
+  final double value;
+  final String label;
+
+  @override
+  State<_DesktopWidthSlider> createState() => _DesktopWidthSliderState();
+}
+
+class _DesktopWidthSliderState extends State<_DesktopWidthSlider> {
+  static const double _min = 720;
+  static const double _max = 1600;
+  late double _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = widget.value.clamp(_min, _max);
+  }
+
+  @override
+  void didUpdateWidget(covariant _DesktopWidthSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _value = widget.value.clamp(_min, _max);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 8, 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${widget.label}: ${_value.toStringAsFixed(0)} px',
+            style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(0.75)),
+          ),
+          Slider(
+            min: _min,
+            max: _max,
+            divisions: ((_max - _min) / 20).round(),
+            label: _value.toStringAsFixed(0),
+            value: _value,
+            onChanged: (v) {
+              setState(() => _value = v);
+            },
+            onChangeEnd: (v) {
+              context.read<SettingsProvider>().setDesktopNarrowContentWidth(v);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
 // --- Theme Color ---
 class _ThemeColorRow extends StatelessWidget {
   const _ThemeColorRow();
@@ -715,6 +821,324 @@ class _ThemeDotState extends State<_ThemeDot> {
   }
 }
 
+class _ToggleRowPureBackground extends StatelessWidget {
+  const _ToggleRowPureBackground();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    return _ToggleRow(
+      label: l10n.themeSettingsPageUsePureBackgroundTitle,
+      value: sp.usePureBackground,
+      onChanged: (v) => context.read<SettingsProvider>().setUsePureBackground(v),
+    );
+  }
+}
+
+class _ChatMessageBackgroundRow extends StatelessWidget {
+  const _ChatMessageBackgroundRow();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return _LabeledRow(
+      label: l10n.displaySettingsPageChatMessageBackgroundTitle,
+      trailing: const _BackgroundStyleDropdown(),
+    );
+  }
+}
+
+class _BackgroundStyleDropdown extends StatefulWidget {
+  const _BackgroundStyleDropdown();
+  @override
+  State<_BackgroundStyleDropdown> createState() => _BackgroundStyleDropdownState();
+}
+
+class _BackgroundStyleDropdownState extends State<_BackgroundStyleDropdown> {
+  bool _hover = false;
+  bool _open = false;
+  final LayerLink _link = LayerLink();
+  final GlobalKey _triggerKey = GlobalKey();
+  OverlayEntry? _entry;
+
+  void _toggle() {
+    if (_open) {
+      _close();
+    } else {
+      _openMenu();
+    }
+  }
+
+  void _close() {
+    _entry?.remove();
+    _entry = null;
+    if (mounted) setState(() => _open = false);
+  }
+
+  String _labelFor(BuildContext context, ChatMessageBackgroundStyle s) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (s) {
+      case ChatMessageBackgroundStyle.frosted:
+        return l10n.displaySettingsPageChatMessageBackgroundFrosted;
+      case ChatMessageBackgroundStyle.solid:
+        return l10n.displaySettingsPageChatMessageBackgroundSolid;
+      case ChatMessageBackgroundStyle.defaultStyle:
+      default:
+        return l10n.displaySettingsPageChatMessageBackgroundDefault;
+    }
+  }
+
+  void _openMenu() {
+    if (_entry != null) return;
+    final rb = _triggerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (rb == null) return;
+    final triggerSize = rb.size;
+    final triggerWidth = triggerSize.width;
+
+    _entry = OverlayEntry(builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      final usePure = Provider.of<SettingsProvider>(ctx, listen: false).usePureBackground;
+      final bgColor = usePure ? (isDark ? Colors.black : Colors.white) : (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+      final sp = Provider.of<SettingsProvider>(ctx, listen: false);
+
+      return Stack(children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _close,
+            child: const SizedBox.expand(),
+          ),
+        ),
+        CompositedTransformFollower(
+          link: _link,
+          showWhenUnlinked: false,
+          offset: Offset(0, triggerSize.height + 6),
+          child: _BackgroundStyleOverlay(
+            width: triggerWidth,
+            backgroundColor: bgColor,
+            selected: sp.chatMessageBackgroundStyle,
+            onSelected: (style) async {
+              await sp.setChatMessageBackgroundStyle(style);
+              _close();
+            },
+          ),
+        ),
+      ]);
+    });
+    Overlay.of(context)?.insert(_entry!);
+    setState(() => _open = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sp = context.watch<SettingsProvider>();
+    final label = _labelFor(context, sp.chatMessageBackgroundStyle);
+
+    final baseBorder = cs.outlineVariant.withOpacity(0.18);
+    final hoverBorder = cs.primary;
+    final borderColor = _open || _hover ? hoverBorder : baseBorder;
+
+    return CompositedTransformTarget(
+      link: _link,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: _toggle,
+          child: AnimatedContainer(
+            key: _triggerKey,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            constraints: const BoxConstraints(minWidth: 100, minHeight: 34),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF141414) : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor, width: 1),
+              boxShadow: _open
+                  ? [BoxShadow(color: cs.primary.withOpacity(0.10), blurRadius: 0, spreadRadius: 2)]
+                  : null,
+            ),
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 14, color: cs.onSurface.withOpacity(0.88)),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                  ],
+                ),
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: AnimatedRotation(
+                      turns: _open ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      child: Icon(lucide.Lucide.ChevronDown, size: 16, color: cs.onSurface.withOpacity(0.7)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackgroundStyleOverlay extends StatefulWidget {
+  const _BackgroundStyleOverlay({
+    required this.width,
+    required this.backgroundColor,
+    required this.selected,
+    required this.onSelected,
+  });
+  final double width;
+  final Color backgroundColor;
+  final ChatMessageBackgroundStyle selected;
+  final ValueChanged<ChatMessageBackgroundStyle> onSelected;
+  @override
+  State<_BackgroundStyleOverlay> createState() => _BackgroundStyleOverlayState();
+}
+
+class _BackgroundStyleOverlayState extends State<_BackgroundStyleOverlay> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _slide = Tween<Offset>(begin: const Offset(0, -0.06), end: Offset.zero).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ctrl.forward());
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = cs.outlineVariant.withOpacity(0.12);
+
+    final items = <(ChatMessageBackgroundStyle, String)>[
+      (ChatMessageBackgroundStyle.defaultStyle, AppLocalizations.of(context)!.displaySettingsPageChatMessageBackgroundDefault),
+      (ChatMessageBackgroundStyle.frosted, AppLocalizations.of(context)!.displaySettingsPageChatMessageBackgroundFrosted),
+      (ChatMessageBackgroundStyle.solid, AppLocalizations.of(context)!.displaySettingsPageChatMessageBackgroundSolid),
+    ];
+
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _slide,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: BoxConstraints(minWidth: widget.width, maxWidth: widget.width),
+            decoration: BoxDecoration(
+              color: widget.backgroundColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: 0.5),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.32 : 0.08), blurRadius: 16, offset: const Offset(0, 6))],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final it in items)
+                  _SimpleOptionTile(
+                    label: it.$2,
+                    selected: widget.selected == it.$1,
+                    onTap: () => widget.onSelected(it.$1),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SimpleOptionTile extends StatefulWidget {
+  const _SimpleOptionTile({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  State<_SimpleOptionTile> createState() => _SimpleOptionTileState();
+}
+
+class _SimpleOptionTileState extends State<_SimpleOptionTile> {
+  bool _hover = false;
+  bool _active = false;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = widget.selected
+        ? cs.primary.withOpacity(0.12)
+        : (_hover ? (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.04)) : Colors.transparent);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _active = true),
+        onTapCancel: () => setState(() => _active = false),
+        onTapUp: (_) => setState(() => _active = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _active ? 0.98 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 14, color: cs.onSurface.withOpacity(0.88), fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w400),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Opacity(
+                  opacity: widget.selected ? 1 : 0,
+                  child: Icon(lucide.Lucide.Check, size: 14, color: cs.primary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // --- Fonts: language + chat font size ---
 class _AppLanguageRow extends StatefulWidget {
   const _AppLanguageRow();
@@ -744,10 +1168,10 @@ class _AppLanguageRowState extends State<_AppLanguageRow> {
       double measureContentWidth() {
         final style = const TextStyle(fontSize: 16);
         final labels = <String>[
-          '🖥️ ${AppLocalizations.of(ctx)!.settingsPageSystemMode}',
-          '🇨🇳 ${AppLocalizations.of(ctx)!.displaySettingsPageLanguageChineseLabel}',
-          '🇨🇳 ${AppLocalizations.of(ctx)!.languageDisplayTraditionalChinese}',
-          '🇺🇸 ${AppLocalizations.of(ctx)!.displaySettingsPageLanguageEnglishLabel}',
+          AppLocalizations.of(ctx)!.settingsPageSystemMode,
+          AppLocalizations.of(ctx)!.displaySettingsPageLanguageChineseLabel,
+          AppLocalizations.of(ctx)!.languageDisplayTraditionalChinese,
+          AppLocalizations.of(ctx)!.displaySettingsPageLanguageEnglishLabel,
         ];
         double maxText = 0;
         for (final s in labels) {
@@ -900,10 +1324,10 @@ class _LanguageDropdownState extends State<_LanguageDropdown> {
     final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
     final items = <(_LangItem, bool)>[
-      (_LangItem(flag: '🖥️', label: l10n.settingsPageSystemMode, tag: 'system'), sp.isFollowingSystemLocale),
-      (_LangItem(flag: '🇨🇳', label: l10n.displaySettingsPageLanguageChineseLabel, tag: 'zh_CN'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'zh' && (sp.appLocale.scriptCode ?? '').isEmpty)),
-      (_LangItem(flag: '🇨🇳', label: l10n.languageDisplayTraditionalChinese, tag: 'zh_Hant'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'zh' && (sp.appLocale.scriptCode ?? '').toLowerCase() == 'hant')),
-      (_LangItem(flag: '🇺🇸', label: l10n.displaySettingsPageLanguageEnglishLabel, tag: 'en_US'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'en')),
+      (_LangItem(flag: 'SYS', label: l10n.settingsPageSystemMode, tag: 'system'), sp.isFollowingSystemLocale),
+      (_LangItem(flag: 'CN', label: l10n.displaySettingsPageLanguageChineseLabel, tag: 'zh_CN'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'zh' && (sp.appLocale.scriptCode ?? '').isEmpty)),
+      (_LangItem(flag: 'TW', label: l10n.languageDisplayTraditionalChinese, tag: 'zh_Hant'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'zh' && (sp.appLocale.scriptCode ?? '').toLowerCase() == 'hant')) ,
+      (_LangItem(flag: 'EN', label: l10n.displaySettingsPageLanguageEnglishLabel, tag: 'en_US'), (!sp.isFollowingSystemLocale && sp.appLocale.languageCode == 'en')),
     ];
     final maxH = MediaQuery.of(context).size.height * 0.5;
     return AnimatedOpacity(
@@ -1071,6 +1495,146 @@ class _ChatFontSizeRowState extends State<_ChatFontSizeRow> {
           const SizedBox(width: 8),
           Text('%', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 14, decoration: TextDecoration.none)),
         ],
+      ),
+    );
+  }
+}
+
+// --- App Font Row ---
+class _AppFontRow extends StatelessWidget {
+  const _AppFontRow();
+  @override
+  Widget build(BuildContext context) {
+    final sp = context.watch<SettingsProvider>();
+    final current = sp.appFontFamily;
+    final displayText = (current == null || current.isEmpty)
+        ? AppLocalizations.of(context)!.desktopFontFamilySystemDefault
+        : current;
+    return _LabeledRow(
+      label: AppLocalizations.of(context)!.displaySettingsPageAppFontTitle,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _DesktopFontDropdownButton(
+            display: displayText,
+            onTap: () async {
+              final fam = await _showDesktopFontChooserDialog(
+                context,
+                title: AppLocalizations.of(context)!.displaySettingsPageAppFontTitle,
+                initial: sp.appFontFamily,
+              );
+              if (fam == null) return;
+              if (fam == '__SYSTEM__') {
+                await context.read<SettingsProvider>().clearAppFont();
+              } else {
+                await context.read<SettingsProvider>().setAppFontFamily(fam, isGoogle: false);
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _IconBtn(
+            icon: lucide.Lucide.RotateCw,
+            onTap: () async {
+              await context.read<SettingsProvider>().clearAppFont();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Code Font Row ---
+class _CodeFontRow extends StatelessWidget {
+  const _CodeFontRow();
+  @override
+  Widget build(BuildContext context) {
+    final sp = context.watch<SettingsProvider>();
+    final current = sp.codeFontFamily;
+    final displayText = (current == null || current.isEmpty)
+        ? AppLocalizations.of(context)!.desktopFontFamilySystemDefault
+        : current;
+    return _LabeledRow(
+      label: AppLocalizations.of(context)!.displaySettingsPageCodeFontTitle,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _DesktopFontDropdownButton(
+            display: displayText,
+            onTap: () async {
+              final fam = await _showDesktopFontChooserDialog(
+                context,
+                title: AppLocalizations.of(context)!.displaySettingsPageCodeFontTitle,
+                initial: sp.codeFontFamily,
+              );
+              if (fam == null) return;
+              if (fam == '__MONO__') {
+                await context.read<SettingsProvider>().clearCodeFont();
+              } else {
+                await context.read<SettingsProvider>().setCodeFontFamily(fam, isGoogle: false);
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          _IconBtn(
+            icon: lucide.Lucide.RotateCw,
+            onTap: () async {
+              await context.read<SettingsProvider>().clearCodeFont();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Desktop Font Dropdown Button ---
+class _DesktopFontDropdownButton extends StatefulWidget {
+  const _DesktopFontDropdownButton({required this.display, required this.onTap});
+  final String display;
+  final VoidCallback onTap;
+  @override
+  State<_DesktopFontDropdownButton> createState() => _DesktopFontDropdownButtonState();
+}
+
+class _DesktopFontDropdownButtonState extends State<_DesktopFontDropdownButton> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = _hover ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05)) : Colors.transparent;
+  return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: cs.outlineVariant.withOpacity(0.28), width: 0.8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
+                child: Text(
+                  widget.display,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: cs.onSurface, decoration: TextDecoration.none),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(lucide.Lucide.ChevronDown, size: 16, color: cs.onSurface.withOpacity(0.7)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1668,5 +2232,501 @@ class _AboutSettingsBody extends StatelessWidget {
   Widget build(BuildContext context) {
     // Embed AboutPage content directly without navigation
     return const AboutPage(embedded: true);
+  }
+}
+
+// ===== Font Chooser Dialog (from kelivo-remote with Timer-based loading) =====
+
+/// Show desktop font chooser dialog with system fonts list
+Future<String?> _showDesktopFontChooserDialog(
+  BuildContext context, {
+  required String title,
+  String? initial,
+}) async {
+  final cs = Theme.of(context).colorScheme;
+  final ctrl = TextEditingController();
+  String? result;
+
+  Future<List<String>> _fetchSystemFonts() async {
+    try {
+      final sf = SystemFonts();
+      // First try a cheap list of names (fast on Windows)
+      final alt = await sf.getFontList();
+      final out = List<String>.from(alt ?? const <String>[]);
+      if (out.isEmpty) {
+        // Fallback to full load for preview, but cap the time
+        final loaded = await sf.loadAllFonts().timeout(const Duration(seconds: 2));
+        final list = List<String>.from(loaded);
+        if (list.isNotEmpty) {
+          list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+          return list;
+        }
+      } else {
+        out.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        return out;
+      }
+    } catch (_) {/* ignore and fallback */}
+    return <String>[
+      'System UI', 'Segoe UI', 'SF Pro Text', 'San Francisco', 'Helvetica Neue', 'Arial', 'Roboto', 'PingFang SC', 'Microsoft YaHei', 'SimHei', 'Noto Sans SC', 'Noto Serif', 'Courier New', 'JetBrains Mono', 'Fira Code', 'monospace'
+    ]..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  }
+
+  // Show loading dialog only if fetch takes time, and ensure it closes
+  bool loadingShown = false;
+  Timer? loadingTimer;
+  loadingTimer = Timer(const Duration(milliseconds: 200), () {
+    loadingShown = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final bg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+        final cs2 = Theme.of(ctx).colorScheme;
+        return Dialog(
+          elevation: 0,
+          backgroundColor: bg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const CupertinoActivityIndicator(radius: 12),
+                const SizedBox(height: 12),
+                Text(
+                  'Loading fonts...',
+                  style: TextStyle(color: cs2.onSurface, fontSize: 14, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  });
+  final fonts = await _fetchSystemFonts();
+  if (loadingTimer?.isActive ?? false) loadingTimer?.cancel();
+  if (loadingShown) {
+    try { Navigator.of(context, rootNavigator: true).pop(); } catch (_) {}
+  }
+  await showDialog<String>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) {
+      return Dialog(
+        backgroundColor: cs.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 520),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: StatefulBuilder(builder: (context, setState) {
+              String q = ctrl.text.trim().toLowerCase();
+              final filtered = q.isEmpty
+                  ? fonts
+                  : fonts.where((f) => f.toLowerCase().contains(q)).toList();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(children: [
+                    Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700))),
+                    _IconBtn(icon: lucide.Lucide.X, onTap: () => Navigator.of(ctx).maybePop()),
+                  ]),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: true,
+                      hintText: 'Search fonts...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.12), width: 0.6),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.12), width: 0.6),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary.withOpacity(0.35), width: 0.8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black.withOpacity(0.03),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) {
+                          final fam = filtered[i];
+                          final selected = fam == initial;
+                          return _FontRowItem(
+                            family: fam,
+                            selected: selected,
+                            onTap: () => Navigator.of(ctx).pop(fam),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ),
+        ),
+      );
+    },
+  ).then((v) => result = v);
+  return result;
+}
+
+class _FontRowItem extends StatefulWidget {
+  const _FontRowItem({required this.family, required this.onTap, this.selected = false});
+  final String family;
+  final VoidCallback onTap;
+  final bool selected;
+  @override
+  State<_FontRowItem> createState() => _FontRowItemState();
+}
+
+class _FontRowItemState extends State<_FontRowItem> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = _hover ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04)) : Colors.transparent;
+    final sample = 'AaBbCc';
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+          child: Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.family,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: cs.onSurface, decoration: TextDecoration.none),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(sample, style: TextStyle(fontFamily: widget.family, fontSize: 16, color: cs.onSurface, decoration: TextDecoration.none)),
+                  ],
+                ),
+              ),
+              if (widget.selected) ...[
+                const SizedBox(width: 10),
+                Icon(lucide.Lucide.Check, size: 16, color: cs.primary),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IconBtn extends StatefulWidget {
+  const _IconBtn({super.key, required this.icon, required this.onTap, this.onLongPress, this.color});
+  final IconData icon;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final Color? color;
+  @override
+  State<_IconBtn> createState() => _IconBtnState();
+}
+
+class _IconBtnState extends State<_IconBtn> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = _hover ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05)) : Colors.transparent;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        child: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+          alignment: Alignment.center,
+          child: Icon(widget.icon, size: 18, color: widget.color ?? cs.onSurface),
+        ),
+      ),
+    );
+  }
+}
+
+// --- Topic position (desktop) ---
+class _TopicPositionRow extends StatelessWidget {
+  const _TopicPositionRow();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return _LabeledRow(
+      label: l10n.desktopDisplaySettingsTopicPositionTitle,
+      trailing: const _TopicPositionDropdown(),
+    );
+  }
+}
+
+class _TopicPositionDropdown extends StatefulWidget {
+  const _TopicPositionDropdown();
+  @override
+  State<_TopicPositionDropdown> createState() => _TopicPositionDropdownState();
+}
+
+class _TopicPositionDropdownState extends State<_TopicPositionDropdown> {
+  bool _hover = false;
+  bool _open = false;
+  final LayerLink _link = LayerLink();
+  final GlobalKey _triggerKey = GlobalKey();
+  OverlayEntry? _entry;
+
+  void _toggle() {
+    if (_open) {
+      _close();
+    } else {
+      _openMenu();
+    }
+  }
+
+  void _close() {
+    _entry?.remove();
+    _entry = null;
+    if (mounted) setState(() => _open = false);
+  }
+
+  String _labelFor(BuildContext context, DesktopTopicPosition pos) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (pos) {
+      case DesktopTopicPosition.right:
+        return l10n.desktopDisplaySettingsTopicPositionRight;
+      case DesktopTopicPosition.left:
+      default:
+        return l10n.desktopDisplaySettingsTopicPositionLeft;
+    }
+  }
+
+  void _openMenu() {
+    if (_entry != null) return;
+    final rb = _triggerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (rb == null) return;
+    final triggerSize = rb.size;
+    final triggerWidth = triggerSize.width;
+
+    _entry = OverlayEntry(builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      final usePure = Provider.of<SettingsProvider>(ctx, listen: false).usePureBackground;
+      final bgColor = usePure ? (isDark ? Colors.black : Colors.white) : (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+      final sp = Provider.of<SettingsProvider>(ctx, listen: false);
+
+      return Stack(children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _close,
+            child: const SizedBox.expand(),
+          ),
+        ),
+        CompositedTransformFollower(
+          link: _link,
+          showWhenUnlinked: false,
+          offset: Offset(0, triggerSize.height + 6),
+          child: _TopicPositionOverlay(
+            width: triggerWidth,
+            backgroundColor: bgColor,
+            selected: sp.desktopTopicPosition,
+            onSelected: (pos) async {
+              await sp.setDesktopTopicPosition(pos);
+              _close();
+            },
+          ),
+        ),
+      ]);
+    });
+    Overlay.of(context)?.insert(_entry!);
+    setState(() => _open = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sp = context.watch<SettingsProvider>();
+    final label = _labelFor(context, sp.desktopTopicPosition);
+
+    final baseBorder = cs.outlineVariant.withOpacity(0.18);
+    final hoverBorder = cs.primary;
+    final borderColor = _open || _hover ? hoverBorder : baseBorder;
+
+    return CompositedTransformTarget(
+      link: _link,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: _toggle,
+          child: AnimatedContainer(
+            key: _triggerKey,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            constraints: const BoxConstraints(minWidth: 100, minHeight: 34),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF141414) : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor, width: 1),
+              boxShadow: _open
+                  ? [BoxShadow(color: cs.primary.withOpacity(0.10), blurRadius: 0, spreadRadius: 2)]
+                  : null,
+            ),
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 14, color: cs.onSurface.withOpacity(0.88)),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                  ],
+                ),
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: AnimatedRotation(
+                      turns: _open ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      child: Icon(lucide.Lucide.ChevronDown, size: 16, color: cs.onSurface.withOpacity(0.7)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopicPositionOverlay extends StatefulWidget {
+  const _TopicPositionOverlay({
+    required this.width,
+    required this.backgroundColor,
+    required this.selected,
+    required this.onSelected,
+  });
+  final double width;
+  final Color backgroundColor;
+  final DesktopTopicPosition selected;
+  final ValueChanged<DesktopTopicPosition> onSelected;
+  @override
+  State<_TopicPositionOverlay> createState() => _TopicPositionOverlayState();
+}
+
+class _TopicPositionOverlayState extends State<_TopicPositionOverlay> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _slide = Tween<Offset>(begin: const Offset(0, -0.06), end: Offset.zero).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ctrl.forward());
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = cs.outlineVariant.withOpacity(0.12);
+
+    // Align style with chat message background dropdown: no leading icons,
+    // selected item gets a highlighted background.
+    final items = <(DesktopTopicPosition, String)>[
+      (DesktopTopicPosition.left, AppLocalizations.of(context)!.desktopDisplaySettingsTopicPositionLeft),
+      (DesktopTopicPosition.right, AppLocalizations.of(context)!.desktopDisplaySettingsTopicPositionRight),
+    ];
+
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _slide,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: BoxConstraints(minWidth: widget.width, maxWidth: widget.width),
+            decoration: BoxDecoration(
+              color: widget.backgroundColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: 0.5),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(isDark ? 0.32 : 0.08), blurRadius: 16, offset: const Offset(0, 6)),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final it in items)
+                  _SimpleOptionTile(
+                    label: it.$2,
+                    selected: widget.selected == it.$1,
+                    onTap: () => widget.onSelected(it.$1),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

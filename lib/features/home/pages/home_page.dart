@@ -198,8 +198,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   // Desktop: resizable embedded sidebar width
   double _embeddedSidebarWidth = 300;
   static const double _sidebarMinWidth = 200;
-  static const double _sidebarMaxWidth = 480;
+  static const double _sidebarMaxWidth = 360;
   bool _desktopUiInited = false;
+  // Desktop right sidebar state
+  bool _rightSidebarOpen = true;
+  double _rightSidebarWidth = 300;
 
   // Drawer haptics for swipe-open
   double _lastDrawerValue = 0.0;
@@ -794,6 +797,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       _tabletSidebarOpen = !_tabletSidebarOpen;
     });
     try { context.read<SettingsProvider>().setDesktopSidebarOpen(_tabletSidebarOpen); } catch (_) {}
+  }
+
+  void _toggleRightSidebar() {
+    setState(() {
+      _rightSidebarOpen = !_rightSidebarOpen;
+    });
+    try {
+      context.read<SettingsProvider>().setDesktopRightSidebarOpen(_rightSidebarOpen);
+    } catch (_) {}
   }
 
   Widget _buildTabletSidebar(BuildContext context) {
@@ -3377,6 +3389,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Widget build(BuildContext context) {
     // Tablet and larger: fixed side panel + constrained content
     final width = MediaQuery.sizeOf(context).width;
+    // Desktop UI initialization
+    if (width >= AppBreakpoints.tablet && !_desktopUiInited) {
+      _desktopUiInited = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final sp = context.read<SettingsProvider>();
+        setState(() {
+          _embeddedSidebarWidth = sp.desktopSidebarWidth.clamp(_sidebarMinWidth, _sidebarMaxWidth);
+          _tabletSidebarOpen = sp.desktopSidebarOpen;
+          _rightSidebarOpen = sp.desktopRightSidebarOpen;
+          _rightSidebarWidth = sp.desktopRightSidebarWidth.clamp(_sidebarMinWidth, _sidebarMaxWidth);
+        });
+      });
+    }
     if (width >= AppBreakpoints.tablet) {
       final title = ((_currentConversation?.title ?? '').trim().isNotEmpty)
           ? _currentConversation!.title
@@ -3566,6 +3592,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           );
         })(),
         actions: [
+          // Right sidebar toggle for desktop topics-on-right mode
+          Builder(builder: (context) {
+            final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                defaultTargetPlatform == TargetPlatform.windows ||
+                defaultTargetPlatform == TargetPlatform.linux;
+            final sp = context.watch<SettingsProvider>();
+            final topicsOnRight = sp.desktopTopicPosition == DesktopTopicPosition.right;
+            if (!isDesktop || !topicsOnRight) return const SizedBox.shrink();
+            return IosIconButton(
+              size: 20,
+              padding: const EdgeInsets.all(8),
+              minSize: 40,
+              icon: Lucide.panelRight,
+              onTap: _toggleRightSidebar,
+            );
+          }),
           // Mini map button (to the left of new conversation)
           IosIconButton(
             size: 20,
@@ -4492,64 +4534,130 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ),
               ),
               titleSpacing: 2,
-              title: (() {
-                final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-                final titleWidget = InkWell(
-                  borderRadius: BorderRadius.circular(6),
-                  onTap: _renameCurrentConversation,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                    child: AnimatedTextSwap(
-                      text: title,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                );
-                final modelWidget = (providerName != null && modelDisplay != null)
-                    ? InkWell(
-                        borderRadius: BorderRadius.circular(6),
-                        onTap: () => showModelSelectSheet(context),
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(
-                            vertical: isDesktop ? 4 : 0,
-                            horizontal: isDesktop ? 8 : 0,
-                          ),
-                          child: AnimatedTextSwap(
-                            text: '$modelDisplay ($providerName)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: cs.onSurface.withOpacity(0.6),
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                    : null;
+              title: Builder(builder: (context) {
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+                    defaultTargetPlatform == TargetPlatform.windows ||
+                    defaultTargetPlatform == TargetPlatform.linux;
+                // Desktop: title and model chip in a single row; Tablet can keep same for consistency
+                final String? brandAsset = (modelDisplay != null
+                        ? (BrandAssets.assetForName(modelDisplay))
+                        : null) ?? (providerName != null ? BrandAssets.assetForName(providerName!) : null);
 
-                // Desktop: horizontal layout (title left, model right)
-                if (isDesktop && modelWidget != null) {
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      titleWidget,
-                      const SizedBox(width: 12),
-                      modelWidget,
-                    ],
+                Widget? capsule;
+                String? capsuleLabel;
+                if (providerName != null && modelDisplay != null) {
+                  capsuleLabel = '$modelDisplay';
+                  final Widget brandIcon = AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: ScaleTransition(scale: anim, child: child)),
+                    child: (brandAsset != null)
+                        ? (brandAsset.endsWith('.svg')
+                            ? SvgPicture.asset(brandAsset, width: 16, height: 16, key: ValueKey('brand:$brandAsset'))
+                            : Image.asset(brandAsset, width: 16, height: 16, key: ValueKey('brand:$brandAsset')))
+                        : Icon(Lucide.Boxes, size: 16, color: cs.onSurface.withOpacity(0.7), key: const ValueKey('brand:default')),
+                  );
+
+                  capsule = IosCardPress(
+                    borderRadius: BorderRadius.circular(20),
+                    baseColor: Colors.transparent,
+                    pressedBlendStrength: isDark ? 0.18 : 0.12,
+                    padding: EdgeInsets.zero,
+                    onTap: () => showModelSelectSheet(context),
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            brandIcon,
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: AnimatedTextSwap(
+                                text: capsuleLabel!,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  height: 1.1,
+                                  color: isDark ? Colors.white.withOpacity(0.92) : cs.onSurface.withOpacity(0.9),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   );
                 }
 
-                // Mobile/Tablet: vertical layout (title top, model bottom) - compact
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                // Primary header row: title expands, capsule stays close to title's right side
+                final row = Row(
+                  mainAxisSize: MainAxisSize.max,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    titleWidget,
-                    if (modelWidget != null) modelWidget,
+                    // Title expands and ellipsizes as needed
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        child: AnimatedTextSwap(
+                          text: title,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    if (capsule != null) ...[
+                      const SizedBox(width: 8),
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            transitionBuilder: (child, anim) => FadeTransition(
+                              opacity: anim,
+                              child: SlideTransition(
+                                position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(anim),
+                                child: child,
+                              ),
+                            ),
+                            child: KeyedSubtree(
+                              key: ValueKey('cap:${capsuleLabel ?? ''}'),
+                              child: capsule!,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 );
-              })(),
+
+                return Align(
+                  alignment: Alignment.centerLeft,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    transitionBuilder: (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: SlideTransition(
+                        position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(anim),
+                        child: child,
+                      ),
+                    ),
+                    child: KeyedSubtree(key: ValueKey('hdr:$title|${capsuleLabel ?? ''}'), child: row),
+                  ),
+                );
+              }),
               actions: [
                 IconButton(
                   onPressed: () async {
@@ -4569,7 +4677,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   child: Align(
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 860),
+                      constraints: BoxConstraints(
+                        maxWidth: context.watch<SettingsProvider>().desktopWideContent
+                            ? double.infinity
+                            : context.watch<SettingsProvider>().desktopNarrowContentWidth,
+                      ),
                       child: Column(
                         children: [
                           // Message list (add subtle animate on conversation switch)
@@ -5111,7 +5223,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
                                   input = Center(
                                     child: ConstrainedBox(
-                                      constraints: const BoxConstraints(maxWidth: 800),
+                                      constraints: BoxConstraints(
+                                        maxWidth: context.watch<SettingsProvider>().desktopWideContent
+                                            ? double.infinity
+                                            : context.watch<SettingsProvider>().desktopNarrowContentWidth,
+                                      ),
                                       child: input,
                                     ),
                                   );
@@ -5300,6 +5416,67 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ),
           ),
         ),
+        // Fixed right topics sidebar when enabled
+        Builder(builder: (context) {
+          final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.linux;
+          final sp = context.watch<SettingsProvider>();
+          final topicsOnRight = sp.desktopTopicPosition == DesktopTopicPosition.right;
+          if (!isDesktop || !topicsOnRight) return const SizedBox.shrink();
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isDesktop)
+                _SidebarResizeHandle(
+                  visible: _rightSidebarOpen,
+                  onDrag: (dx) {
+                    setState(() {
+                      _rightSidebarWidth = (_rightSidebarWidth - dx).clamp(_sidebarMinWidth, _sidebarMaxWidth);
+                    });
+                  },
+                  onDragEnd: () {
+                    try { context.read<SettingsProvider>().setDesktopRightSidebarWidth(_rightSidebarWidth); } catch (_) {}
+                  },
+                ),
+              AnimatedContainer(
+                duration: _sidebarAnimDuration,
+                curve: _sidebarAnimCurve,
+                width: _rightSidebarOpen ? _rightSidebarWidth : 0,
+                child: ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.centerRight,
+                    minWidth: 0,
+                    maxWidth: _rightSidebarWidth,
+                    child: SizedBox(
+                      width: _rightSidebarWidth,
+                      child: SideDrawer(
+                        embedded: true,
+                        embeddedWidth: _rightSidebarWidth,
+                        userName: context.watch<UserProvider>().name,
+                        assistantName: (() {
+                          final l10n = AppLocalizations.of(context)!;
+                          final a = context.watch<AssistantProvider>().currentAssistant;
+                          final n = a?.name.trim();
+                          return (n == null || n.isEmpty) ? l10n.homePageDefaultAssistant : n;
+                        })(),
+                        closePickerTicker: _assistantPickerCloseTick,
+                        loadingConversationIds: _loadingConversationIds,
+                        desktopTopicsOnly: true,
+                        onSelectConversation: (id) {
+                          _switchConversationAnimated(id);
+                        },
+                        onNewConversation: () async {
+                          await _createNewConversationAnimated();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
       ],
     ),
     ),
@@ -5594,12 +5771,12 @@ class _GlassCapsuleButtonState extends State<_GlassCapsuleButton> {
                     widget.label,
                     style: TextStyle(color: widget.color, fontSize: 14, fontWeight: FontWeight.w600),
                   ),
-                ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

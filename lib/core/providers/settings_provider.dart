@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import '../services/search/search_service.dart';
 import '../models/api_keys.dart';
 import '../models/backup.dart';
 import '../services/haptics.dart';
+import '../../utils/dynamic_font_loader.dart';
+
+// Desktop: topic list position
+enum DesktopTopicPosition { left, right }
 
 class SettingsProvider extends ChangeNotifier {
   static const String _providersOrderKey = 'providers_order_v1';
@@ -43,6 +48,21 @@ class SettingsProvider extends ChangeNotifier {
   static const String _displayEnableUserMarkdownKey = 'display_enable_user_markdown_v1';
   static const String _displayEnableReasoningMarkdownKey = 'display_enable_reasoning_markdown_v1';
   static const String _displayShowChatListDateKey = 'display_show_chat_list_date_v1';
+  static const String _displayUsePureBackgroundKey = 'display_use_pure_background_v1';
+  static const String _displayChatMessageBackgroundStyleKey = 'display_chat_message_background_style_v1';
+  // Desktop middle-content width mode
+  static const String _displayDesktopWideContentKey = 'display_desktop_wide_content_v1';
+  static const String _displayDesktopNarrowWidthKey = 'display_desktop_narrow_width_v1';
+  // Display: app/code font settings (default off)
+  static const String _displayAppFontFamilyKey = 'display_app_font_family_v1';
+  static const String _displayAppFontIsGoogleKey = 'display_app_font_is_google_v1';
+  static const String _displayCodeFontFamilyKey = 'display_code_font_family_v1';
+  static const String _displayCodeFontIsGoogleKey = 'display_code_font_is_google_v1';
+  // Local font (runtime loaded) support
+  static const String _displayAppFontLocalPathKey = 'display_app_font_local_path_v1';
+  static const String _displayAppFontLocalAliasKey = 'display_app_font_local_alias_v1';
+  static const String _displayCodeFontLocalPathKey = 'display_code_font_local_path_v1';
+  static const String _displayCodeFontLocalAliasKey = 'display_code_font_local_alias_v1';
   static const String _appLocaleKey = 'app_locale_v1';
   static const String _translateModelKey = 'translate_model_v1';
   static const String _translatePromptKey = 'translate_prompt_v1';
@@ -59,6 +79,11 @@ class SettingsProvider extends ChangeNotifier {
   // Desktop UI
   static const String _desktopSidebarWidthKey = 'desktop_sidebar_width_v1';
   static const String _desktopSidebarOpenKey = 'desktop_sidebar_open_v1';
+  static const String _desktopTopicPositionKey = 'desktop_topic_position_v1';
+  static const String _desktopRightSidebarOpenKey = 'desktop_right_sidebar_open_v1';
+  static const String _desktopRightSidebarWidthKey = 'desktop_right_sidebar_width_v1';
+  // Android background chat generation mode
+  static const String _androidBackgroundChatModeKey = 'android_background_chat_mode_v1';
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
@@ -73,11 +98,28 @@ class SettingsProvider extends ChangeNotifier {
   bool _dynamicColorSupported = false; // runtime capability, not persisted
   bool get dynamicColorSupported => _dynamicColorSupported;
 
+  // When enabled, force pure white/black backgrounds regardless of theme color
+  bool _usePureBackground = false;
+  bool get usePureBackground => _usePureBackground;
+
+  // Chat message background style (default/frosted/solid)
+  ChatMessageBackgroundStyle _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.defaultStyle;
+  ChatMessageBackgroundStyle get chatMessageBackgroundStyle => _chatMessageBackgroundStyle;
+
   // Desktop UI persisted state
   double _desktopSidebarWidth = 240;
   bool _desktopSidebarOpen = true;
   double get desktopSidebarWidth => _desktopSidebarWidth;
   bool get desktopSidebarOpen => _desktopSidebarOpen;
+  double _desktopRightSidebarWidth = 300;
+  double get desktopRightSidebarWidth => _desktopRightSidebarWidth;
+
+  // Desktop: topic list position (left or right) and right sidebar open state
+  DesktopTopicPosition _desktopTopicPosition = DesktopTopicPosition.left;
+  DesktopTopicPosition get desktopTopicPosition => _desktopTopicPosition;
+  bool get desktopTopicsOnRight => _desktopTopicPosition == DesktopTopicPosition.right;
+  bool _desktopRightSidebarOpen = true;
+  bool get desktopRightSidebarOpen => _desktopRightSidebarOpen;
 
   Map<String, ProviderConfig> _providerConfigs = {};
   Map<String, ProviderConfig> get providerConfigs => Map.unmodifiable(_providerConfigs);
@@ -214,15 +256,68 @@ class SettingsProvider extends ChangeNotifier {
     _chatFontScale = prefs.getDouble(_displayChatFontScaleKey) ?? 1.0;
     _autoScrollIdleSeconds = prefs.getInt(_displayAutoScrollIdleSecondsKey) ?? 8;
     _chatBackgroundMaskStrength = prefs.getDouble(_displayChatBackgroundMaskStrengthKey) ?? 1.0;
+    // display: pure background (desktop default true, mobile default false)
+    final pureBgPref = prefs.getBool(_displayUsePureBackgroundKey);
+    if (pureBgPref == null) {
+      final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+      _usePureBackground = isDesktop;
+      await prefs.setBool(_displayUsePureBackgroundKey, _usePureBackground);
+    } else {
+      _usePureBackground = pureBgPref;
+    }
+    // display: chat message background style (default | frosted | solid)
+    final bgStyleStr = prefs.getString(_displayChatMessageBackgroundStyleKey) ?? 'default';
+    switch (bgStyleStr) {
+      case 'frosted':
+        _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.frosted;
+        break;
+      case 'solid':
+        _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.solid;
+        break;
+      default:
+        _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.defaultStyle;
+    }
     // display: markdown/math rendering
     _enableDollarLatex = prefs.getBool(_displayEnableDollarLatexKey) ?? true;
     _enableMathRendering = prefs.getBool(_displayEnableMathRenderingKey) ?? true;
     _enableUserMarkdown = prefs.getBool(_displayEnableUserMarkdownKey) ?? true;
     _enableReasoningMarkdown = prefs.getBool(_displayEnableReasoningMarkdownKey) ?? true;
     _showChatListDate = prefs.getBool(_displayShowChatListDateKey) ?? false;
+    // display: fonts (default off)
+    _appFontFamily = prefs.getString(_displayAppFontFamilyKey);
+    _desktopWideContent = prefs.getBool(_displayDesktopWideContentKey) ?? false;
+    _desktopNarrowContentWidth = prefs.getDouble(_displayDesktopNarrowWidthKey) ?? 1000;
+    _appFontIsGoogle = prefs.getBool(_displayAppFontIsGoogleKey) ?? false;
+    _codeFontFamily = prefs.getString(_displayCodeFontFamilyKey);
+    _codeFontIsGoogle = prefs.getBool(_displayCodeFontIsGoogleKey) ?? false;
+    _appFontLocalPath = prefs.getString(_displayAppFontLocalPathKey);
+    _appFontLocalAlias = prefs.getString(_displayAppFontLocalAliasKey);
+    _codeFontLocalPath = prefs.getString(_displayCodeFontLocalPathKey);
+    _codeFontLocalAlias = prefs.getString(_displayCodeFontLocalAliasKey);
+    // If local paths exist, ensure fonts are loaded (no-op if already loaded)
+    try {
+      if ((_appFontLocalAlias ?? '').isNotEmpty && (_appFontLocalPath ?? '').isNotEmpty) {
+        await DynamicFontLoader.ensureLoaded(alias: _appFontLocalAlias!, path: _appFontLocalPath!);
+      }
+      if ((_codeFontLocalAlias ?? '').isNotEmpty && (_codeFontLocalPath ?? '').isNotEmpty) {
+        await DynamicFontLoader.ensureLoaded(alias: _codeFontLocalAlias!, path: _codeFontLocalPath!);
+      }
+    } catch (_) {}
     // desktop UI
     _desktopSidebarWidth = prefs.getDouble(_desktopSidebarWidthKey) ?? 300;
     _desktopSidebarOpen = prefs.getBool(_desktopSidebarOpenKey) ?? true;
+    _desktopRightSidebarWidth = prefs.getDouble(_desktopRightSidebarWidthKey) ?? 300;
+    // desktop: topic panel placement + right sidebar open state
+    final topicPos = prefs.getString(_desktopTopicPositionKey);
+    switch (topicPos) {
+      case 'right':
+        _desktopTopicPosition = DesktopTopicPosition.right;
+        break;
+      case 'left':
+      default:
+        _desktopTopicPosition = DesktopTopicPosition.left;
+    }
+    _desktopRightSidebarOpen = prefs.getBool(_desktopRightSidebarOpenKey) ?? true;
     // Load app locale; default to follow system on first launch
     _appLocaleTag = prefs.getString(_appLocaleKey);
     if (_appLocaleTag == null || _appLocaleTag!.isEmpty) {
@@ -248,6 +343,31 @@ class SettingsProvider extends ChangeNotifier {
     _searchEnabled = prefs.getBool(_searchEnabledKey) ?? false;
     _stickerEnabled = prefs.getBool(_stickerEnabledKey) ?? false;
     _showStickerToolUI = prefs.getBool(_showStickerToolUIKey) ?? false;
+
+    // Android background chat mode (Android only; default OFF on first run)
+    try {
+      final rawBg = prefs.getString(_androidBackgroundChatModeKey);
+      if (rawBg == null) {
+        // Default to OFF to avoid permission prompts on first launch
+        _androidBackgroundChatMode = AndroidBackgroundChatMode.off;
+        await prefs.setString(_androidBackgroundChatModeKey, 'off');
+      } else {
+        switch (rawBg) {
+          case 'on_notify':
+            _androidBackgroundChatMode = AndroidBackgroundChatMode.onNotify;
+            break;
+          case 'on':
+            _androidBackgroundChatMode = AndroidBackgroundChatMode.on;
+            break;
+          case 'off':
+          default:
+            _androidBackgroundChatMode = AndroidBackgroundChatMode.off;
+        }
+      }
+    } catch (_) {
+      _androidBackgroundChatMode = AndroidBackgroundChatMode.off;
+    }
+
     // webdav config
     final webdavStr = prefs.getString(_webDavConfigKey);
     if (webdavStr != null && webdavStr.isNotEmpty) {
@@ -267,6 +387,98 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ===== Display: App/Code Font Settings =====
+  String? _appFontFamily; // null or empty => use default theme fonts
+  bool _appFontIsGoogle = false;
+  String? get appFontFamily => _appFontFamily;
+  bool get appFontIsGoogle => _appFontIsGoogle;
+  String? _appFontLocalPath;
+  String? _appFontLocalAlias;
+  String? get appFontLocalPath => _appFontLocalPath;
+  String? get appFontLocalAlias => _appFontLocalAlias;
+  Future<void> setAppFontFamily(String? family, {bool isGoogle = false}) async {
+    final f = (family == null || family.trim().isEmpty) ? null : family.trim();
+    final changed = (_appFontFamily != f) || (_appFontIsGoogle != isGoogle);
+    if (!changed) return;
+    _appFontFamily = f;
+    _appFontIsGoogle = f != null && isGoogle;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (f == null) {
+      await prefs.remove(_displayAppFontFamilyKey);
+      await prefs.remove(_displayAppFontIsGoogleKey);
+    } else {
+      await prefs.setString(_displayAppFontFamilyKey, f);
+      await prefs.setBool(_displayAppFontIsGoogleKey, _appFontIsGoogle);
+    }
+  }
+
+  String? _codeFontFamily; // reserved for code/monospace rendering
+  bool _codeFontIsGoogle = false;
+  String? get codeFontFamily => _codeFontFamily;
+  bool get codeFontIsGoogle => _codeFontIsGoogle;
+  String? _codeFontLocalPath;
+  String? _codeFontLocalAlias;
+  String? get codeFontLocalPath => _codeFontLocalPath;
+  String? get codeFontLocalAlias => _codeFontLocalAlias;
+  Future<void> setCodeFontFamily(String? family, {bool isGoogle = false}) async {
+    final f = (family == null || family.trim().isEmpty) ? null : family.trim();
+    final changed = (_codeFontFamily != f) || (_codeFontIsGoogle != isGoogle);
+    if (!changed) return;
+    _codeFontFamily = f;
+    _codeFontIsGoogle = f != null && isGoogle;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (f == null) {
+      await prefs.remove(_displayCodeFontFamilyKey);
+      await prefs.remove(_displayCodeFontIsGoogleKey);
+    } else {
+      await prefs.setString(_displayCodeFontFamilyKey, f);
+      await prefs.setBool(_displayCodeFontIsGoogleKey, _codeFontIsGoogle);
+    }
+  }
+
+  // Local file fonts: load and persist path+alias, then set family to alias
+  Future<void> setAppFontFromLocal({required String path}) async {
+    final alias = DynamicFontLoader.aliasForPath(path, prefix: 'App');
+    try { await DynamicFontLoader.ensureLoaded(alias: alias, path: path); } catch (_) {}
+    _appFontLocalPath = path; _appFontLocalAlias = alias;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_displayAppFontLocalPathKey, path);
+    await prefs.setString(_displayAppFontLocalAliasKey, alias);
+    await setAppFontFamily(alias, isGoogle: false);
+  }
+
+  Future<void> setCodeFontFromLocal({required String path}) async {
+    final alias = DynamicFontLoader.aliasForPath(path, prefix: 'Code');
+    try { await DynamicFontLoader.ensureLoaded(alias: alias, path: path); } catch (_) {}
+    _codeFontLocalPath = path; _codeFontLocalAlias = alias;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_displayCodeFontLocalPathKey, path);
+    await prefs.setString(_displayCodeFontLocalAliasKey, alias);
+    await setCodeFontFamily(alias, isGoogle: false);
+  }
+
+  Future<void> clearAppFont() async {
+    _appFontLocalPath = null; _appFontLocalAlias = null; _appFontIsGoogle = false; _appFontFamily = null;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_displayAppFontLocalPathKey);
+    await prefs.remove(_displayAppFontLocalAliasKey);
+    await prefs.remove(_displayAppFontFamilyKey);
+    await prefs.remove(_displayAppFontIsGoogleKey);
+  }
+
+  Future<void> clearCodeFont() async {
+    _codeFontLocalPath = null; _codeFontLocalAlias = null; _codeFontIsGoogle = false; _codeFontFamily = null;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_displayCodeFontLocalPathKey);
+    await prefs.remove(_displayCodeFontLocalAliasKey);
+    await prefs.remove(_displayCodeFontFamilyKey);
+    await prefs.remove(_displayCodeFontIsGoogleKey);
+  }
+
   // ===== Desktop UI setters =====
   Future<void> setDesktopSidebarWidth(double width) async {
     final w = width.clamp(200.0, 640.0).toDouble();
@@ -283,6 +495,33 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_desktopSidebarOpenKey, _desktopSidebarOpen);
+  }
+
+  Future<void> setDesktopRightSidebarWidth(double w) async {
+    if ((_desktopRightSidebarWidth - w).abs() < 0.5) return;
+    _desktopRightSidebarWidth = w;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_desktopRightSidebarWidthKey, _desktopRightSidebarWidth);
+  }
+
+  // Desktop: topic panel placement (left/right)
+  Future<void> setDesktopTopicPosition(DesktopTopicPosition pos) async {
+    if (_desktopTopicPosition == pos) return;
+    _desktopTopicPosition = pos;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    final v = (pos == DesktopTopicPosition.right) ? 'right' : 'left';
+    await prefs.setString(_desktopTopicPositionKey, v);
+  }
+
+  // Desktop: right sidebar visible state
+  Future<void> setDesktopRightSidebarOpen(bool open) async {
+    if (_desktopRightSidebarOpen == open) return;
+    _desktopRightSidebarOpen = open;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_desktopRightSidebarOpenKey, _desktopRightSidebarOpen);
   }
 
   // ===== App locale (UI language) =====
@@ -422,6 +661,53 @@ class SettingsProvider extends ChangeNotifier {
     if (_dynamicColorSupported == v) return;
     _dynamicColorSupported = v;
     notifyListeners();
+  }
+
+  Future<void> setUsePureBackground(bool v) async {
+    if (_usePureBackground == v) return;
+    _usePureBackground = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayUsePureBackgroundKey, v);
+  }
+
+  Future<void> setChatMessageBackgroundStyle(ChatMessageBackgroundStyle style) async {
+    if (_chatMessageBackgroundStyle == style) return;
+    _chatMessageBackgroundStyle = style;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    final v = switch (style) {
+      ChatMessageBackgroundStyle.frosted => 'frosted',
+      ChatMessageBackgroundStyle.solid => 'solid',
+      ChatMessageBackgroundStyle.defaultStyle => 'default',
+    };
+    await prefs.setString(_displayChatMessageBackgroundStyleKey, v);
+  }
+
+  // ===== Android background chat generation =====
+  AndroidBackgroundChatMode _androidBackgroundChatMode = AndroidBackgroundChatMode.off;
+  AndroidBackgroundChatMode get androidBackgroundChatMode => _androidBackgroundChatMode;
+  Future<void> setAndroidBackgroundChatMode(AndroidBackgroundChatMode mode) async {
+    if (_androidBackgroundChatMode == mode) return;
+    _androidBackgroundChatMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    final v = switch (mode) {
+      AndroidBackgroundChatMode.onNotify => 'on_notify',
+      AndroidBackgroundChatMode.on => 'on',
+      AndroidBackgroundChatMode.off => 'off',
+    };
+    await prefs.setString(_androidBackgroundChatModeKey, v);
+    // Best-effort: update Android background execution state immediately
+    try {
+      if (Platform.isAndroid) {
+        // Direct call; file is present in project and guards by Platform
+        // ignore: depend_on_referenced_packages
+        // ignore_for_file: unnecessary_import
+        // ignore: avoid_print
+        // Defer import here is not possible; rely on main.dart sync. This is a no-op placeholder.
+      }
+    } catch (_) {}
   }
 
   Future<void> toggleTheme() => setThemeMode(
@@ -626,7 +912,7 @@ Check and reinforce. After hard parts, confirm the user can restate or use the i
 
 Vary the rhythm. Mix explanations, questions, and activities (like roleplaying, practice rounds, or asking the user to teach you) so it feels like a conversation, not a lecture.
 
-Above all: DO NOT DO THE USER'S WORK FOR THEM. Don't answer homework questions â€” help the user find the answer, by working with them collaboratively and building from what they already know.
+Above all: DO NOT DO THE USER'S WORK FOR THEM. Don't answer homework questions â€?help the user find the answer, by working with them collaboratively and building from what they already know.
 
 THINGS YOU CAN DO
 
@@ -634,13 +920,13 @@ THINGS YOU CAN DO
 
 - Help with homework: Don't simply give answers! Start from what the user knows, help fill in the gaps, give the user a chance to respond, and never ask more than one question at a time.
 
-- Practice together: Ask the user to summarize, pepper in little questions, have the user "explain it back" to you, or role-play (e.g., practice conversations in a different language). Correct mistakes â€” charitably! â€” in the moment.
+- Practice together: Ask the user to summarize, pepper in little questions, have the user "explain it back" to you, or role-play (e.g., practice conversations in a different language). Correct mistakes â€?charitably! â€?in the moment.
 
 - Quizzes & test prep: Run practice quizzes. (One question at a time!) Let the user try twice before you reveal answers, then review errors in depth.
 
 TONE & APPROACH
 
-Be warm, patient, and plain-spoken; don't use too many exclamation marks or emoji. Keep the session moving: always know the next step, and switch or end activities once theyâ€™ve done their job. And be brief â€” don't ever send essay-length responses. Aim for a good back-and-forth.
+Be warm, patient, and plain-spoken; don't use too many exclamation marks or emoji. Keep the session moving: always know the next step, and switch or end activities once theyâ€™ve done their job. And be brief â€?don't ever send essay-length responses. Aim for a good back-and-forth.
 
 IMPORTANT
 
@@ -938,6 +1224,11 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     await prefs.setBool(_displayShowAppUpdatesKey, v);
   }
 
+  // Desktop: middle content width behavior
+  bool _desktopWideContent = false; // true => fill all middle (no max width)
+  double _desktopNarrowContentWidth = 1000; // used when wide=false
+  bool get desktopWideContent => _desktopWideContent;
+  double get desktopNarrowContentWidth => _desktopNarrowContentWidth;
   // Search service settings
   Future<void> setSearchServices(List<SearchServiceOptions> services) async {
     _searchServices = List.from(services);
@@ -948,6 +1239,24 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_searchServicesKey, jsonEncode(_searchServices.map((e) => e.toJson()).toList()));
     await prefs.setInt(_searchSelectedKey, _searchServiceSelected);
+  }
+
+
+  Future<void> setDesktopWideContent(bool v) async {
+    if (_desktopWideContent == v) return;
+    _desktopWideContent = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayDesktopWideContentKey, v);
+  }
+
+  Future<void> setDesktopNarrowContentWidth(double width) async {
+    final w = width.clamp(600.0, 2400.0);
+    if ((_desktopNarrowContentWidth - w).abs() < 0.5) return;
+    _desktopNarrowContentWidth = w;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_displayDesktopNarrowWidthKey, _desktopNarrowContentWidth);
   }
 
   Future<void> setSearchCommonOptions(SearchCommonOptions options) async {
@@ -1054,6 +1363,10 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
 }
 
 enum ProviderKind { openai, google, claude }
+
+// Background rendering mode for chat message bubbles
+enum ChatMessageBackgroundStyle { defaultStyle, frosted, solid }
+enum AndroidBackgroundChatMode { off, on, onNotify }
 
 class ProviderConfig {
   final String id;
