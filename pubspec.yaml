@@ -34,7 +34,7 @@ dependencies:
   logging: ^1.2.0
   
   # Desktop window control (caption buttons, drag area, title bar style)
-  window_manager: ^0.4.3
+  window_manager: ^0.5.1
   screen_retriever: ^0.2.0
 
   # Localizations for Chinese/English UI strings
@@ -88,6 +88,9 @@ dependencies:
   restart_app: ^1.3.1
   image: ^4.0.17  # For avatar compression
   crypto: ^3.0.6  # For unique avatar filename hashing
+  # Fonts (optional): system fonts preload + Google Fonts
+  system_fonts: ^1.0.1
+  google_fonts: ^6.3.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

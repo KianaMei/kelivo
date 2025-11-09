@@ -30,6 +30,8 @@ import 'utils/sandbox_path_resolver.dart';
 import 'utils/app_dirs.dart';
 import 'shared/widgets/snackbar.dart';
 import 'utils/restart_widget.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:system_fonts/system_fonts.dart';
 
 final RouteObserver<ModalRoute<dynamic>> routeObserver = RouteObserver<ModalRoute<dynamic>>();
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -43,6 +45,8 @@ Future<void> main() async {
   await AppDirs.init();
   // Desktop (Windows) window setup: hide native title bar for custom Flutter bar
   await _initDesktopWindow();
+  // Preload system fonts on desktop so saved font selections render on launch
+  await _preloadDesktopSystemFonts();
   // Debug logging and global error handlers were enabled previously for diagnosis.
   // They are commented out now per request to reduce log noise.
   // FlutterError.onError = (FlutterErrorDetails details) { ... };
@@ -59,7 +63,7 @@ Future<void> main() async {
 
 Future<void> _initDesktopWindow() async {
   if (kIsWeb || !PlatformUtils.isDesktop) return;
-  
+
   try {
     if (PlatformUtils.isWindows) {
       // Windows-specific initialization
@@ -72,6 +76,21 @@ Future<void> _initDesktopWindow() async {
     await DesktopWindowController.instance.initializeAndShow(title: 'Kelivo');
   } catch (e) {
     debugPrint('Desktop window initialization failed: $e');
+  }
+}
+
+Future<void> _preloadDesktopSystemFonts() async {
+  if (kIsWeb) return;
+  final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
+  if (!isDesktop) return;
+  try {
+    final sf = SystemFonts();
+    // Best-effort: ensure system font families are registered before first frame
+    await sf.loadAllFonts();
+  } catch (_) {
+    // Ignore failures; fallback fonts will still work
   }
 }
 
@@ -135,14 +154,68 @@ class MyApp extends StatelessWidget {
               final light = buildLightThemeForScheme(
                 palette.light,
                 dynamicScheme: useDyn ? lightDynamic : null,
+                pureBackground: settings.usePureBackground,
               );
               final dark = buildDarkThemeForScheme(
                 palette.dark,
                 dynamicScheme: useDyn ? darkDynamic : null,
+                pureBackground: settings.usePureBackground,
               );
+              // Resolve effective app font family (system/Google/local alias)
+              String? _effectiveAppFontFamily() {
+                final fam = settings.appFontFamily;
+                if (fam == null || fam.isEmpty) return null;
+                if (settings.appFontIsGoogle) {
+                  try {
+                    final s = GoogleFonts.getFont(fam);
+                    return s.fontFamily ?? fam;
+                  } catch (_) {
+                    return fam;
+                  }
+                }
+                return fam;
+              }
+              final effectiveAppFont = _effectiveAppFontFamily();
+
+              // Apply user-selected app font to theme text styles and app bar
+              ThemeData _applyAppFont(ThemeData base) {
+                if (effectiveAppFont == null || effectiveAppFont.isEmpty) return base;
+                TextStyle? _f(TextStyle? s) => s?.copyWith(fontFamily: effectiveAppFont);
+                TextTheme _apply(TextTheme t) => t.copyWith(
+                      displayLarge: _f(t.displayLarge),
+                      displayMedium: _f(t.displayMedium),
+                      displaySmall: _f(t.displaySmall),
+                      headlineLarge: _f(t.headlineLarge),
+                      headlineMedium: _f(t.headlineMedium),
+                      headlineSmall: _f(t.headlineSmall),
+                      titleLarge: _f(t.titleLarge),
+                      titleMedium: _f(t.titleMedium),
+                      titleSmall: _f(t.titleSmall),
+                      bodyLarge: _f(t.bodyLarge),
+                      bodyMedium: _f(t.bodyMedium),
+                      bodySmall: _f(t.bodySmall),
+                      labelLarge: _f(t.labelLarge),
+                      labelMedium: _f(t.labelMedium),
+                      labelSmall: _f(t.labelSmall),
+                    );
+                final bar = base.appBarTheme;
+                final appBar = bar.copyWith(
+                  titleTextStyle: (bar.titleTextStyle ?? const TextStyle()).copyWith(fontFamily: effectiveAppFont),
+                  toolbarTextStyle: (bar.toolbarTextStyle ?? const TextStyle()).copyWith(fontFamily: effectiveAppFont),
+                );
+                // Apply as default family to all text in ThemeData
+                return base.copyWith(
+                  textTheme: _apply(base.textTheme),
+                  primaryTextTheme: _apply(base.primaryTextTheme),
+                  appBarTheme: appBar,
+                );
+              }
+              final themedLight = _applyAppFont(light);
+              final themedDark = _applyAppFont(dark);
               // Log top-level colors likely used by widgets (card/bg/shadow approximations)
               // debugPrint('[Theme/App] Light scaffoldBg=${light.colorScheme.surface.value.toRadixString(16)} card≈${light.colorScheme.surface.value.toRadixString(16)} shadow=${light.colorScheme.shadow.value.toRadixString(16)}');
               // debugPrint('[Theme/App] Dark scaffoldBg=${dark.colorScheme.surface.value.toRadixString(16)} card≈${dark.colorScheme.surface.value.toRadixString(16)} shadow=${dark.colorScheme.shadow.value.toRadixString(16)}');
+
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
                 title: 'Kelivo',
@@ -151,8 +224,8 @@ class MyApp extends StatelessWidget {
                 locale: settings.appLocaleForMaterialApp,
                 supportedLocales: AppLocalizations.supportedLocales,
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
-                theme: light,
-                darkTheme: dark,
+                theme: themedLight,
+                darkTheme: themedDark,
                 themeMode: settings.themeMode,
                 navigatorObservers: <NavigatorObserver>[routeObserver],
                 home: _selectHome(),
@@ -187,6 +260,17 @@ class MyApp extends StatelessWidget {
                 });
               }
 
+                  final wrappedChild = AppSnackBarOverlay(
+                    child: child ?? const SizedBox.shrink(),
+                  );
+
+                  final withFont = effectiveAppFont == null
+                      ? wrappedChild
+                      : DefaultTextStyle.merge(
+                          style: TextStyle(fontFamily: effectiveAppFont),
+                          child: wrappedChild,
+                        );
+
                   return Shortcuts(
                       shortcuts: <LogicalKeySet, Intent>{
                         // ESC: close dialog/sheet or pop route
@@ -210,9 +294,7 @@ class MyApp extends StatelessWidget {
                           autofocus: true,
                           child: AnnotatedRegion<SystemUiOverlayStyle>(
                             value: overlay,
-                            child: AppSnackBarOverlay(
-                              child: child ?? const SizedBox.shrink(),
-                            ),
+                            child: withFont,
                           ),
                         ),
                       ),

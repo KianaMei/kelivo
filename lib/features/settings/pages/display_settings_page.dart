@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -90,6 +91,30 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
             _iosDivider(context),
             _iosNavRow(
               context,
+              icon: Lucide.MessageSquare,
+              label: l10n.displaySettingsPageChatMessageBackgroundTitle,
+              detailBuilder: (ctx) {
+                final sp = ctx.watch<SettingsProvider>();
+                String labelOf() {
+                  switch (sp.chatMessageBackgroundStyle) {
+                    case ChatMessageBackgroundStyle.frosted:
+                      return l10n.displaySettingsPageChatMessageBackgroundFrosted;
+                    case ChatMessageBackgroundStyle.solid:
+                      return l10n.displaySettingsPageChatMessageBackgroundSolid;
+                    case ChatMessageBackgroundStyle.defaultStyle:
+                      return l10n.displaySettingsPageChatMessageBackgroundDefault;
+                  }
+                }
+                return Text(
+                  labelOf(),
+                  style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 13),
+                );
+              },
+              onTap: () => _showChatMessageBackgroundSheet(context),
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
               icon: Lucide.MessageCircleMore,
               label: l10n.displaySettingsPageChatItemDisplayTitle,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatItemDisplaySettingsPage())),
@@ -116,6 +141,42 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HapticsSettingsPage())),
             ),
             _iosDivider(context),
+            if (Platform.isAndroid) _iosNavRow(
+              context,
+              icon: Lucide.Monitor,
+              label: l10n.displaySettingsPageAndroidBackgroundChatTitle,
+              detailBuilder: (ctx) {
+                final sp = ctx.watch<SettingsProvider>();
+                switch (sp.androidBackgroundChatMode) {
+                  case AndroidBackgroundChatMode.off:
+                    return Text(
+                      l10n.displaySettingsPageAndroidBackgroundChatOff,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 13),
+                    );
+                  case AndroidBackgroundChatMode.on:
+                    return Text(
+                      l10n.displaySettingsPageAndroidBackgroundChatOn,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 13),
+                    );
+                  case AndroidBackgroundChatMode.onNotify:
+                    return Text(
+                      l10n.displaySettingsPageAndroidBackgroundChatOnNotify,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 13),
+                    );
+                }
+              },
+              onTap: () => _showAndroidBackgroundChatSheet(context),
+            ),
+            if (Platform.isAndroid) _iosDivider(context),
             _iosNavRow(
               context,
               icon: Lucide.CaseSensitive,
@@ -451,6 +512,83 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         );
       },
     );
+  }
+
+  Future<void> _showChatMessageBackgroundSheet(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _sheetOption(ctx, label: l10n.displaySettingsPageChatMessageBackgroundDefault, onTap: () => Navigator.of(ctx).pop('default')),
+              _sheetDividerNoIcon(ctx),
+              _sheetOption(ctx, label: l10n.displaySettingsPageChatMessageBackgroundFrosted, onTap: () => Navigator.of(ctx).pop('frosted')),
+              _sheetDividerNoIcon(ctx),
+              _sheetOption(ctx, label: l10n.displaySettingsPageChatMessageBackgroundSolid, onTap: () => Navigator.of(ctx).pop('solid')),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null) return;
+    final sp = context.read<SettingsProvider>();
+    switch (choice) {
+      case 'frosted':
+        await sp.setChatMessageBackgroundStyle(ChatMessageBackgroundStyle.frosted);
+        break;
+      case 'solid':
+        await sp.setChatMessageBackgroundStyle(ChatMessageBackgroundStyle.solid);
+        break;
+      default:
+        await sp.setChatMessageBackgroundStyle(ChatMessageBackgroundStyle.defaultStyle);
+    }
+  }
+
+  Future<void> _showAndroidBackgroundChatSheet(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _sheetOption(ctx, label: l10n.displaySettingsPageAndroidBackgroundChatOff, onTap: () => Navigator.of(ctx).pop('off')),
+              _sheetDividerNoIcon(ctx),
+              _sheetOption(ctx, label: l10n.displaySettingsPageAndroidBackgroundChatOn, onTap: () => Navigator.of(ctx).pop('on')),
+              _sheetDividerNoIcon(ctx),
+              _sheetOption(ctx, label: l10n.displaySettingsPageAndroidBackgroundChatOnNotify, onTap: () => Navigator.of(ctx).pop('on_notify')),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null) return;
+    final sp = context.read<SettingsProvider>();
+    switch (choice) {
+      case 'on_notify':
+        await sp.setAndroidBackgroundChatMode(AndroidBackgroundChatMode.onNotify);
+        // TODO: Implement Android background service
+        // Currently only saves the setting, actual background functionality needs to be implemented
+        break;
+      case 'on':
+        await sp.setAndroidBackgroundChatMode(AndroidBackgroundChatMode.on);
+        // TODO: Implement Android background service
+        break;
+      default:
+        await sp.setAndroidBackgroundChatMode(AndroidBackgroundChatMode.off);
+    }
   }
 }
 

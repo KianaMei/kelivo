@@ -44,15 +44,18 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
               },
             ),
             Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                child: () {
-                  if (_tabIndex == 0) return const DesktopChatPage();
-                  if (_tabIndex == 1) return _TranslatePlaceholder(key: const ValueKey('translate_placeholder'));
-                  return const DesktopSettingsPage(key: ValueKey('settings_page'));
-                }(),
+              // Keep all pages alive so ongoing chat streams are not canceled
+              // when switching tabs (Chat/Translate/Settings) on desktop.
+              child: IndexedStack(
+                index: _tabIndex,
+                children: const [
+                  // Chat page remains mounted
+                  DesktopChatPage(),
+                  // Translate page remains mounted
+                  _TranslatePlaceholder(key: ValueKey('translate_placeholder')),
+                  // Settings page remains mounted
+                  DesktopSettingsPage(key: ValueKey('settings_page')),
+                ],
               ),
             ),
           ],
@@ -62,7 +65,12 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
         final content = isWindows
             ? Column(
                 children: [
-                  const WindowTitleBar(),
+                  // Align custom title bar to match kelivo-remote (icon + title on the left)
+                  WindowTitleBar(
+                    leftChildren: const [
+                      _TitleBarLeading(),
+                    ],
+                  ),
                   Expanded(child: body),
                 ],
               )
@@ -109,3 +117,35 @@ class _TranslatePlaceholder extends StatelessWidget {
 }
 
 // No extra router/shim; we import DesktopSettingsPage directly above.
+
+class _TitleBarLeading extends StatelessWidget {
+  const _TitleBarLeading({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // App icon
+        Image.asset(
+          'assets/icons/kelivo.png',
+          width: 16,
+          height: 16,
+          filterQuality: FilterQuality.medium,
+        ),
+        const SizedBox(width: 8),
+        // App name
+        Text(
+          'Kelivo',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface.withOpacity(0.8),
+            decoration: TextDecoration.none,
+          ),
+        ),
+      ],
+    );
+  }
+}

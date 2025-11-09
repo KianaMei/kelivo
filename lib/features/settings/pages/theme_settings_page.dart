@@ -57,6 +57,17 @@ class ThemeSettingsPage extends StatelessWidget {
             ]),
             const SizedBox(height: 12),
           ],
+          _iosSectionCard(children: [
+            _iosSwitchRow(
+              context,
+              icon: Lucide.Square,
+              label: l10n.themeSettingsPageUsePureBackgroundTitle,
+              subtitle: l10n.themeSettingsPageUsePureBackgroundSubtitle,
+              value: settings.usePureBackground,
+              onChanged: (v) => context.read<SettingsProvider>().setUsePureBackground(v),
+            ),
+          ]),
+          const SizedBox(height: 12),
           // header(l10n.themeSettingsPageColorPalettesSection),
           _iosSectionCard(children: [
             for (int i = 0; i < ThemePalettes.all.length; i++) ...[
@@ -77,7 +88,10 @@ Widget _iosSectionCard({required List<Widget> children}) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    final Color bg = isDark ? Colors.white10 : Colors.white.withOpacity(0.96);
+    final settings = context.watch<SettingsProvider>();
+    final Color bg = settings.usePureBackground
+        ? (isDark ? Colors.black : const Color(0xFFFFFFFF))
+        : (isDark ? Colors.white10 : Colors.white.withOpacity(0.96));
     return Container(
       decoration: BoxDecoration(
         color: bg,

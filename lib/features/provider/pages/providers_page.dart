@@ -1283,8 +1283,8 @@ class _BrandAvatar extends StatelessWidget {
           },
         );
       }
-      // 3. Emoji - Display as text
-      else {
+  // 3. Emoji - Display as text
+  else {
         return Container(
           width: size,
           height: size,
@@ -1298,6 +1298,13 @@ class _BrandAvatar extends StatelessWidget {
               style: TextStyle(
                 fontSize: size * 0.5,
                 fontWeight: FontWeight.w700,
+                // Ensure emoji renders even when app font is customized
+                fontFamilyFallback: const [
+                  'Segoe UI Emoji',
+                  'Apple Color Emoji',
+                  'Noto Color Emoji',
+                  'Twemoji Mozilla',
+                ],
               ),
             ),
           ),

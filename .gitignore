@@ -81,4 +81,8 @@ commit_message*.txt
 tmp/
 *.tgz
 AIaW/
+rikkahub-master/
+kelivo-remote/
 
+\ndocs/\ngitmerge/
+docs/

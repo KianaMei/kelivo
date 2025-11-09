@@ -11,15 +11,12 @@ const List<String> kDefaultFontFamilyFallback = <String>[
   'Roboto',
 ];
 
-// Better CJK fallback for Windows to avoid serif/sim-sun look and ensure glyph coverage.
+// Windows font fallback with emoji support (from kelivo-remote)
 const List<String> kWindowsFontFamilyFallback = <String>[
-  'Microsoft YaHei UI',
-  'Microsoft YaHei',
-  'Segoe UI Variable',
+  'Twemoji Country Flags',
   'Segoe UI',
-  'Noto Sans CJK SC',
-  'Roboto',
-  'Arial Unicode MS',
+  'Microsoft YaHei',
+  'SimHei',
 ];
 
 TextTheme _withFontFallback(TextTheme base, List<String> fallback) {
@@ -192,8 +189,16 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
 }
 
 // New: Build themes from a provided static palette (with optional dynamic override)
-ThemeData buildLightThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynamicScheme}) {
-  final scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
+ThemeData buildLightThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynamicScheme, bool pureBackground = false}) {
+  var scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
+  if (pureBackground) {
+    scheme = scheme.copyWith(
+      surface: const Color(0xFFFFFFFF),
+      background: const Color(0xFFFFFFFF),
+      inverseSurface: const Color(0xFF000000),
+      onInverseSurface: const Color(0xFFFFFFFF),
+    );
+  }
   // Align logging behavior with buildLightTheme so diagnostics are consistent.
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
   final fallback = PlatformUtils.isWindows ? kWindowsFontFamilyFallback : kDefaultFontFamilyFallback;
@@ -326,8 +331,16 @@ ThemeData buildDarkTheme(ColorScheme? dynamicScheme) {
   );
 }
 
-ThemeData buildDarkThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynamicScheme}) {
-  final scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
+ThemeData buildDarkThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynamicScheme, bool pureBackground = false}) {
+  var scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
+  if (pureBackground) {
+    scheme = scheme.copyWith(
+      surface: const Color(0xFF000000),
+      background: const Color(0xFF000000),
+      inverseSurface: const Color(0xFFFFFFFF),
+      onInverseSurface: const Color(0xFF000000),
+    );
+  }
   // Align logging behavior with buildDarkTheme so diagnostics are consistent.
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
   final fallback = PlatformUtils.isWindows ? kWindowsFontFamilyFallback : kDefaultFontFamilyFallback;
