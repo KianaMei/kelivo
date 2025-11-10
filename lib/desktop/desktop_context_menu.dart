@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:ui' as ui;
 import '../shared/widgets/ios_tactile.dart';
 import '../core/services/haptics.dart';
@@ -7,12 +8,14 @@ import '../core/services/haptics.dart';
 /// Shows a Material menu near the cursor or an anchor widget with a subtle animation.
 class DesktopContextMenuItem {
   final IconData? icon;
+  final String? svgAsset;
   final String label;
   final VoidCallback? onTap;
   final bool danger;
 
   const DesktopContextMenuItem({
     this.icon,
+    this.svgAsset,
     required this.label,
     this.onTap,
     this.danger = false,
@@ -97,6 +100,7 @@ Future<void> showDesktopContextMenuAt(
                                   for (final it in items)
                                     _GlassMenuItem(
                                       icon: it.icon,
+                                      svgAsset: it.svgAsset,
                                       label: it.label,
                                       danger: it.danger,
                                       onTap: () {
@@ -143,7 +147,7 @@ double _estimateMenuWidth(
       maxLines: 1,
     )..layout(maxWidth: maxW);
     double width = 12 /*left*/ + tp.width + 12 /*right*/;
-    if (it.icon != null) {
+    if (it.icon != null || it.svgAsset != null) {
       width += 18 /*icon*/ + 10 /*gap*/;
     }
     if (width > maxText) maxText = width;
@@ -204,37 +208,60 @@ class _AnimatedFadeState extends State<_AnimatedFade> {
   }
 }
 
-class _GlassMenuItem extends StatelessWidget {
-  const _GlassMenuItem({this.icon, required this.label, this.onTap, this.danger = false});
+class _GlassMenuItem extends StatefulWidget {
+  const _GlassMenuItem({this.icon, this.svgAsset, required this.label, this.onTap, this.danger = false});
   final IconData? icon;
+  final String? svgAsset;
   final String label;
   final VoidCallback? onTap;
   final bool danger;
 
   @override
+  State<_GlassMenuItem> createState() => _GlassMenuItemState();
+}
+
+class _GlassMenuItemState extends State<_GlassMenuItem> {
+  bool _hover = false;
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final fg = danger ? Colors.red.shade600 : cs.onSurface;
-    final ic = danger ? Colors.red.shade600 : cs.onSurface.withOpacity(0.9);
-    return IosCardPress(
-      borderRadius: BorderRadius.zero,
-      baseColor: Colors.transparent,
-      onTap: () {
-        try { Haptics.light(); } catch (_) {}
-        onTap?.call();
-      },
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        alignment: Alignment.centerLeft,
-        child: Row(
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 18, color: ic),
-              const SizedBox(width: 10),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg = widget.danger ? Colors.red.shade600 : cs.onSurface;
+    final ic = widget.danger ? Colors.red.shade600 : cs.onSurface.withOpacity(0.9);
+    final bg = _hover ? (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05)) : Colors.transparent;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: IosCardPress(
+        borderRadius: BorderRadius.zero,
+        baseColor: Colors.transparent,
+        onTap: () {
+          try { Haptics.light(); } catch (_) {}
+          widget.onTap?.call();
+        },
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(color: bg),
+          child: Row(
+            children: [
+              if (widget.icon != null || widget.svgAsset != null) ...[
+                if (widget.icon != null)
+                  Icon(widget.icon, size: 18, color: ic)
+                else
+                  SvgPicture.asset(
+                    widget.svgAsset!,
+                    width: 18,
+                    height: 18,
+                    colorFilter: ColorFilter.mode(ic, BlendMode.srcIn),
+                  ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(child: Text(widget.label, style: TextStyle(fontSize: 14.5, color: fg, decoration: TextDecoration.none))),
             ],
-            Expanded(child: Text(label, style: TextStyle(fontSize: 14.5, color: fg, decoration: TextDecoration.none))),
-          ],
+          ),
         ),
       ),
     );

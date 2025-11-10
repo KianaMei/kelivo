@@ -23,6 +23,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../desktop/desktop_context_menu.dart';
 
 class ChatInputBarController {
   _ChatInputBarState? _state;
@@ -76,6 +77,9 @@ class ChatInputBar extends StatefulWidget {
     this.showQuickPhraseButton = false,
     this.onQuickPhrase,
     this.onLongPressQuickPhrase,
+    this.searchAnchorKey,
+    this.reasoningAnchorKey,
+    this.mcpAnchorKey,
   });
 
   final ValueChanged<ChatInputData>? onSend;
@@ -116,6 +120,9 @@ class ChatInputBar extends StatefulWidget {
   final bool showQuickPhraseButton;
   final VoidCallback? onQuickPhrase;
   final VoidCallback? onLongPressQuickPhrase;
+  final GlobalKey? searchAnchorKey;
+  final GlobalKey? reasoningAnchorKey;
+  final GlobalKey? mcpAnchorKey;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -627,12 +634,14 @@ class _ChatInputBarState extends State<ChatInputBar> {
                               onLongPress: widget.onLongPressSelectModel,
                             ),
                             const SizedBox(width: 8),
-                            (() {
-                              // Determine current search state to render icon
-                              final settings = context.watch<SettingsProvider>();
-                              final ap = context.watch<AssistantProvider>();
-                              final a = ap.currentAssistant;
-                              final currentProviderKey = a?.chatModelProvider ?? settings.currentModelProvider;
+                            Container(
+                              key: widget.searchAnchorKey,
+                              child: (() {
+                                // Determine current search state to render icon
+                                final settings = context.watch<SettingsProvider>();
+                                final ap = context.watch<AssistantProvider>();
+                                final a = ap.currentAssistant;
+                                final currentProviderKey = a?.chatModelProvider ?? settings.currentModelProvider;
                               final currentModelId = a?.chatModelId ?? settings.currentModelId;
                               final cfg = (currentProviderKey != null)
                                   ? settings.getProviderConfig(currentProviderKey)
@@ -714,45 +723,57 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 },
                               );
                             })(),
+                            ),
                             if (widget.supportsReasoning) ...[
                               const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.chatInputBarReasoningStrengthTooltip,
-                                icon: Lucide.Brain,
-                                active: widget.reasoningActive,
-                                onTap: widget.onConfigureReasoning,
-                                childBuilder: (c) => SvgPicture.asset(
-                                  'assets/icons/deepthink.svg',
-                                  width: 20,
-                                  height: 20,
-                                  colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+                              Container(
+                                key: widget.reasoningAnchorKey,
+                                child: _CompactIconButton(
+                                  tooltip: AppLocalizations.of(context)!.chatInputBarReasoningStrengthTooltip,
+                                  icon: Lucide.Brain,
+                                  active: widget.reasoningActive,
+                                  onTap: widget.onConfigureReasoning,
+                                  childBuilder: (c) => SvgPicture.asset(
+                                    'assets/icons/deepthink.svg',
+                                    width: 20,
+                                    height: 20,
+                                    colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
+                                  ),
                                 ),
                               ),
                             ],
                             if (widget.showMcpButton) ...[
                               const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.chatInputBarMcpServersTooltip,
-                                icon: Lucide.Hammer,
-                                active: widget.mcpActive,
-                                onTap: widget.onOpenMcp,
-                                onLongPress: widget.onLongPressMcp,
-                              ),
-                              if (widget.mcpToolCount > 0) ...[
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${widget.mcpToolCount}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: widget.mcpActive
-                                      ? Theme.of(context).colorScheme.primary
-                                      : (Theme.of(context).brightness == Brightness.dark
-                                          ? Colors.white70
-                                          : Colors.black54),
-                                  ),
+                              Container(
+                                key: widget.mcpAnchorKey,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _CompactIconButton(
+                                      tooltip: AppLocalizations.of(context)!.chatInputBarMcpServersTooltip,
+                                      icon: Lucide.Hammer,
+                                      active: widget.mcpActive,
+                                      onTap: widget.onOpenMcp,
+                                      onLongPress: widget.onLongPressMcp,
+                                    ),
+                                    if (widget.mcpToolCount > 0) ...[
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${widget.mcpToolCount}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: widget.mcpActive
+                                            ? Theme.of(context).colorScheme.primary
+                                            : (Theme.of(context).brightness == Brightness.dark
+                                                ? Colors.white70
+                                                : Colors.black54),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                              ],
+                              ),
                             ],
                             //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?
                             // Quick Phrase button placed immediately to the right of Tool Loop
@@ -900,6 +921,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
 // New compact button for the integrated input bar
 class _CompactIconButton extends StatelessWidget {
   const _CompactIconButton({
+    super.key,
     required this.icon,
     this.onTap,
     this.onLongPress,

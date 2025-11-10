@@ -48,6 +48,13 @@ import '../widgets/mini_map_sheet.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../../desktop/search_provider_popover.dart';
+import '../../../desktop/reasoning_budget_popover.dart';
+import '../../../desktop/mcp_servers_popover.dart';
+import '../../../desktop/max_tokens_popover.dart';
+import '../../../desktop/tool_loop_popover.dart';
+import '../../../desktop/mini_map_popover.dart';
+import '../../../desktop/quick_phrase_popover.dart';
 import '../../../utils/brand_assets.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
@@ -101,6 +108,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final ChatInputBarController _mediaController = ChatInputBarController();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _inputBarKey = GlobalKey();
+  // Desktop popover anchor keys
+  final GlobalKey _searchAnchorKey = GlobalKey(debugLabel: 'search-anchor');
+  final GlobalKey _reasoningAnchorKey = GlobalKey(debugLabel: 'reasoning-anchor');
+  final GlobalKey _mcpAnchorKey = GlobalKey(debugLabel: 'mcp-anchor');
   late final AnimationController _convoFadeController;
   late final Animation<double> _convoFade;
   double _inputBarHeight = 72;
@@ -3061,26 +3072,41 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final assistantPhrases = assistant != null
         ? quickPhraseProvider.getForAssistant(assistant.id)
         : <QuickPhrase>[];
-    
+
     final allAvailable = [...globalPhrases, ...assistantPhrases];
     if (allAvailable.isEmpty) return;
 
-    // Get input bar height for positioning menu above it
-    final RenderBox? inputBox = _inputBarKey.currentContext?.findRenderObject() as RenderBox?;
-    if (inputBox == null) return;
-    
-    final inputBarHeight = inputBox.size.height;
-    final topLeft = inputBox.localToGlobal(Offset.zero);
-    final position = Offset(topLeft.dx, inputBarHeight); // dx = global left, dy = input height
-    
     // Dismiss keyboard before showing menu to prevent flickering
     _dismissKeyboard();
-    
-    final selected = await showQuickPhraseMenu(
-      context: context,
-      phrases: allAvailable,
-      position: position,
-    );
+
+    final QuickPhrase? selected;
+
+    // Desktop: use popover; Mobile: use bottom menu
+    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
+
+    if (isDesktop) {
+      selected = await showDesktopQuickPhrasePopover(
+        context,
+        anchorKey: _inputBarKey,
+        phrases: allAvailable,
+      );
+    } else {
+      // Get input bar height for positioning menu above it
+      final RenderBox? inputBox = _inputBarKey.currentContext?.findRenderObject() as RenderBox?;
+      if (inputBox == null) return;
+
+      final inputBarHeight = inputBox.size.height;
+      final topLeft = inputBox.localToGlobal(Offset.zero);
+      final position = Offset(topLeft.dx, inputBarHeight);
+
+      selected = await showQuickPhraseMenu(
+        context: context,
+        phrases: allAvailable,
+        position: position,
+      );
+    }
 
     if (selected != null && mounted) {
       // Insert content at cursor position
@@ -3610,11 +3636,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           }),
           // Mini map button (to the left of new conversation)
           IosIconButton(
+            key: _inputBarKey,
             size: 20,
             minSize: 44,
             onTap: () async {
               final collapsed = _collapseVersions(_messages);
-              final selectedId = await showMiniMapSheet(context, collapsed);
+              // Desktop: use popover; Mobile: use sheet
+              final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                  defaultTargetPlatform == TargetPlatform.macOS ||
+                  defaultTargetPlatform == TargetPlatform.linux;
+
+              final String? selectedId;
+              if (isDesktop) {
+                selectedId = await showDesktopMiniMapPopover(
+                  context,
+                  anchorKey: _inputBarKey,
+                  messages: collapsed,
+                );
+              } else {
+                selectedId = await showMiniMapSheet(context, collapsed);
+              }
+
               if (!mounted) return;
               if (selectedId != null && selectedId.isNotEmpty) {
                 await _scrollToMessageId(selectedId);
@@ -4148,7 +4190,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         onOpenMcp: () {
                           final a = context.read<AssistantProvider>().currentAssistant;
                           if (a != null) {
-                            showAssistantMcpSheet(context, assistantId: a.id);
+                            // Desktop: use popover; Mobile: use sheet
+                            final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                defaultTargetPlatform == TargetPlatform.macOS ||
+                                defaultTargetPlatform == TargetPlatform.linux;
+                            if (isDesktop) {
+                              showDesktopMcpServersPopover(
+                                context,
+                                anchorKey: _inputBarKey,
+                                assistantId: a.id,
+                              );
+                            } else {
+                              showAssistantMcpSheet(context, assistantId: a.id);
+                            }
                           }
                         },
                         onLongPressMcp: () {
@@ -4175,7 +4229,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             if (assistant.thinkingBudget != null) {
                               context.read<SettingsProvider>().setThinkingBudget(assistant.thinkingBudget);
                             }
-                            await showReasoningBudgetSheet(context);
+                            // Desktop: use popover; Mobile: use sheet
+                            final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                defaultTargetPlatform == TargetPlatform.macOS ||
+                                defaultTargetPlatform == TargetPlatform.linux;
+                            if (isDesktop) {
+                              await showDesktopReasoningBudgetPopover(
+                                context,
+                                anchorKey: _inputBarKey,
+                              );
+                            } else {
+                              await showReasoningBudgetSheet(context);
+                            }
                             final chosen = context.read<SettingsProvider>().thinkingBudget;
                             await context.read<AssistantProvider>().updateAssistant(
                               assistant.copyWith(thinkingBudget: chosen),
@@ -4187,13 +4252,51 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             ? _isReasoningModel(pk, mid)
                             : false,
                         onConfigureMaxTokens: () async {
-                          await showMaxTokensSheet(context);
+                          // Desktop: use popover; Mobile: use sheet
+                          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                              defaultTargetPlatform == TargetPlatform.macOS ||
+                              defaultTargetPlatform == TargetPlatform.linux;
+                          if (isDesktop) {
+                            await showDesktopMaxTokensPopover(
+                              context,
+                              anchorKey: _inputBarKey,
+                            );
+                          } else {
+                            await showMaxTokensSheet(context);
+                          }
                         },
                         onConfigureToolLoop: () async {
-                          await showToolLoopSheet(context);
+                          // Desktop: use popover; Mobile: use sheet
+                          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                              defaultTargetPlatform == TargetPlatform.macOS ||
+                              defaultTargetPlatform == TargetPlatform.linux;
+                          if (isDesktop) {
+                            await showDesktopToolLoopPopover(
+                              context,
+                              anchorKey: _inputBarKey,
+                            );
+                          } else {
+                            await showToolLoopSheet(context);
+                          }
                         },
                         maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
-                        onOpenSearch: () => showSearchSettingsSheet(context),
+                        onOpenSearch: () {
+                          // Desktop: use popover; Mobile: use sheet
+                          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                              defaultTargetPlatform == TargetPlatform.macOS ||
+                              defaultTargetPlatform == TargetPlatform.linux;
+                          if (isDesktop) {
+                            showDesktopSearchProviderPopover(
+                              context,
+                              anchorKey: _inputBarKey,
+                            );
+                          } else {
+                            showSearchSettingsSheet(context);
+                          }
+                        },
+                        searchAnchorKey: _searchAnchorKey,
+                        reasoningAnchorKey: _reasoningAnchorKey,
+                        mcpAnchorKey: _mcpAnchorKey,
                         onSend: (text) {
                           _sendMessage(text);
                           _inputController.clear();
@@ -5112,7 +5215,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     onOpenMcp: () {
                                       final a = context.read<AssistantProvider>().currentAssistant;
                                       if (a != null) {
-                                        showAssistantMcpSheet(context, assistantId: a.id);
+                                        // Desktop: use popover; Mobile: use sheet
+                                        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                            defaultTargetPlatform == TargetPlatform.macOS ||
+                                            defaultTargetPlatform == TargetPlatform.linux;
+                                        if (isDesktop) {
+                                          showDesktopMcpServersPopover(
+                                            context,
+                                            anchorKey: _inputBarKey,
+                                            assistantId: a.id,
+                                          );
+                                        } else {
+                                          showAssistantMcpSheet(context, assistantId: a.id);
+                                        }
                                       }
                                     },
                                     onLongPressMcp: () {
@@ -5139,7 +5254,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     showMiniMapButton: true,
                                     onOpenMiniMap: () async {
                                       final collapsed = _collapseVersions(_messages);
-                                      final selectedId = await showMiniMapSheet(context, collapsed);
+                                      // Desktop: use popover; Mobile: use sheet
+                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                          defaultTargetPlatform == TargetPlatform.macOS ||
+                                          defaultTargetPlatform == TargetPlatform.linux;
+
+                                      final String? selectedId;
+                                      if (isDesktop) {
+                                        selectedId = await showDesktopMiniMapPopover(
+                                          context,
+                                          anchorKey: _inputBarKey,
+                                          messages: collapsed,
+                                        );
+                                      } else {
+                                        selectedId = await showMiniMapSheet(context, collapsed);
+                                      }
+
                                       if (selectedId != null && selectedId.isNotEmpty) {
                                         await _scrollToMessageId(selectedId);
                                       }
@@ -5175,7 +5305,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                         if (assistant.thinkingBudget != null) {
                                           context.read<SettingsProvider>().setThinkingBudget(assistant.thinkingBudget);
                                         }
-                                        await showReasoningBudgetSheet(context);
+                                        // Desktop: use popover; Mobile: use sheet
+                                        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                            defaultTargetPlatform == TargetPlatform.macOS ||
+                                            defaultTargetPlatform == TargetPlatform.linux;
+                                        if (isDesktop) {
+                                          await showDesktopReasoningBudgetPopover(
+                                            context,
+                                            anchorKey: _inputBarKey,
+                                          );
+                                        } else {
+                                          await showReasoningBudgetSheet(context);
+                                        }
                                         final chosen = context.read<SettingsProvider>().thinkingBudget;
                                         await context.read<AssistantProvider>().updateAssistant(
                                           assistant.copyWith(thinkingBudget: chosen),
@@ -5185,13 +5326,51 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     reasoningActive: _isReasoningEnabled((context.watch<AssistantProvider>().currentAssistant?.thinkingBudget) ?? settings.thinkingBudget),
                                     supportsReasoning: (pk != null && mid != null) ? _isReasoningModel(pk, mid) : false,
                                     onConfigureMaxTokens: () async {
-                                      await showMaxTokensSheet(context);
+                                      // Desktop: use popover; Mobile: use sheet
+                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                          defaultTargetPlatform == TargetPlatform.macOS ||
+                                          defaultTargetPlatform == TargetPlatform.linux;
+                                      if (isDesktop) {
+                                        await showDesktopMaxTokensPopover(
+                                          context,
+                                          anchorKey: _inputBarKey,
+                                        );
+                                      } else {
+                                        await showMaxTokensSheet(context);
+                                      }
                                     },
                                     onConfigureToolLoop: () async {
-                                      await showToolLoopSheet(context);
+                                      // Desktop: use popover; Mobile: use sheet
+                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                          defaultTargetPlatform == TargetPlatform.macOS ||
+                                          defaultTargetPlatform == TargetPlatform.linux;
+                                      if (isDesktop) {
+                                        await showDesktopToolLoopPopover(
+                                          context,
+                                          anchorKey: _inputBarKey,
+                                        );
+                                      } else {
+                                        await showToolLoopSheet(context);
+                                      }
                                     },
                                     maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
-                                    onOpenSearch: () => showSearchSettingsSheet(context),
+                                    onOpenSearch: () {
+                                      // Desktop: use popover; Mobile: use sheet
+                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                          defaultTargetPlatform == TargetPlatform.macOS ||
+                                          defaultTargetPlatform == TargetPlatform.linux;
+                                      if (isDesktop) {
+                                        showDesktopSearchProviderPopover(
+                                          context,
+                                          anchorKey: _inputBarKey,
+                                        );
+                                      } else {
+                                        showSearchSettingsSheet(context);
+                                      }
+                                    },
+                                    searchAnchorKey: _searchAnchorKey,
+                                    reasoningAnchorKey: _reasoningAnchorKey,
+                                    mcpAnchorKey: _mcpAnchorKey,
                                     onSend: (text) {
                                       _sendMessage(text);
                                       _inputController.clear();
