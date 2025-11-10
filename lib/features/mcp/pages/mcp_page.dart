@@ -7,15 +7,13 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../theme/design_tokens.dart';
 import '../widgets/mcp_server_edit_sheet.dart';
+import '../widgets/mcp_json_edit_sheet.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../core/services/haptics.dart';
 
 class McpPage extends StatelessWidget {
-  const McpPage({super.key, this.embedded = false});
-
-  /// Whether this page is embedded in a desktop settings layout (no Scaffold/AppBar)
-  final bool embedded;
+  const McpPage({super.key});
 
   Color _statusColor(BuildContext context, McpStatus s) {
     final cs = Theme.of(context).colorScheme;
@@ -239,7 +237,11 @@ class McpPage extends StatelessWidget {
                                           color: st == McpStatus.connected
                                               ? Colors.green
                                               : (st == McpStatus.connecting ? cs.primary : Colors.redAccent)),
-                                      tagStyled(s.transport == McpTransportType.sse ? 'SSE' : 'HTTP'),
+                                      tagStyled(
+                                        s.transport == McpTransportType.inmemory
+                                            ? l10n.mcpTransportTagInmemory
+                                            : (s.transport == McpTransportType.sse ? 'SSE' : 'HTTP'),
+                                      ),
                                       tagStyled(l10n.mcpPageToolsCount(s.tools.where((t) => t.enabled).length, s.tools.length)),
                                       if (!s.enabled) tagStyled(l10n.mcpPageStatusDisabled, color: cs.onSurface.withOpacity(0.7)),
                                     ],
@@ -359,43 +361,7 @@ class McpPage extends StatelessWidget {
               },
             );
 
-    // If embedded, return body content with inline toolbar (no Scaffold)
-    if (embedded) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(
-              children: [
-                Text(
-                  l10n.settingsPageMcp,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
-                ),
-                const Spacer(),
-                Tooltip(
-                  message: l10n.mcpPageAddMcpTooltip,
-                  child: _TactileIconButton(
-                    icon: Lucide.Plus,
-                    color: cs.onSurface,
-                    size: 22,
-                    onTap: () async { await showMcpServerEditSheet(context); },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
-          Expanded(child: bodyContent),
-        ],
-      );
-    }
-
-    // Otherwise, return full page with Scaffold and AppBar
+    // Return full page with Scaffold and AppBar
     return Scaffold(
       appBar: AppBar(
         leading: Tooltip(
@@ -409,6 +375,16 @@ class McpPage extends StatelessWidget {
         ),
         title: const Text('MCP'),
         actions: [
+          Tooltip(
+            message: l10n.mcpJsonEditButtonTooltip,
+            child: _TactileIconButton(
+              icon: Lucide.Edit,
+              color: cs.onSurface,
+              size: 22,
+              onTap: () async { await showMcpJsonEditSheet(context); },
+            ),
+          ),
+          const SizedBox(width: 12),
           Tooltip(
             message: l10n.mcpPageAddMcpTooltip,
             child: _TactileIconButton(

@@ -6,8 +6,8 @@ import 'package:mcp_client/mcp_client.dart' as mcp;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-/// Transport type supported on mobile: SSE and Streamable HTTP.
-enum McpTransportType { sse, http }
+/// Transport type supported on mobile: SSE, Streamable HTTP, and inmemory.
+enum McpTransportType { sse, http, inmemory }
 
 /// Connection status for an MCP server.
 enum McpStatus { idle, connecting, connected, error }
@@ -877,6 +877,153 @@ class McpProvider extends ChangeNotifier {
       tools.addAll(s.tools.where((t) => t.enabled));
     }
     return tools;
+  }
+
+  /// Export all MCP servers as JSON for UI editing.
+  /// Returns a JSON string with format:
+  /// ```json
+  /// {
+  ///   "mcpServers": {
+  ///     "server-id": {
+  ///       "name": "Server Name",
+  ///       "type": "sse" | "streamableHttp" | "inmemory",
+  ///       "isActive": true,
+  ///       "baseUrl": "https://...",
+  ///       "headers": { "key": "value" }
+  ///     }
+  ///   }
+  /// }
+  /// ```
+  String exportServersAsUiJson() {
+    final map = <String, dynamic>{
+      'mcpServers': {
+        for (final s in _servers)
+          s.id: {
+            'name': s.name,
+            if (s.transport == McpTransportType.http) 'type': 'streamableHttp',
+            if (s.transport == McpTransportType.sse) 'type': 'sse',
+            if (s.transport == McpTransportType.inmemory) 'type': 'inmemory',
+            'description': '',
+            'isActive': s.enabled,
+            if (s.transport != McpTransportType.inmemory) 'baseUrl': s.url,
+            if (s.transport != McpTransportType.inmemory && s.headers.isNotEmpty) 'headers': s.headers,
+          }
+      }
+    };
+    return const JsonEncoder.withIndent('  ').convert(map);
+  }
+
+  /// Replace all MCP servers from a JSON string.
+  /// Accepts either the UI JSON (with top-level `mcpServers`) or direct server map.
+  /// JSON format:
+  /// ```json
+  /// {
+  ///   "mcpServers": {
+  ///     "server-id": {
+  ///       "name": "Server Name",
+  ///       "type": "sse" | "streamableHttp" | "inmemory",
+  ///       "isActive": true,
+  ///       "baseUrl": "https://...",
+  ///       "headers": { "key": "value" }
+  ///     }
+  ///   }
+  /// }
+  /// ```
+  Future<void> replaceAllFromJson(String rawJson) async {
+    // Parse JSON
+    dynamic data;
+    try {
+      data = jsonDecode(rawJson);
+    } catch (e) {
+      throw FormatException('Invalid JSON: ${e.toString()}');
+    }
+
+    // Extract server map
+    Map<String, dynamic>? serversFromMap;
+    if (data is Map && data.containsKey('mcpServers')) {
+      serversFromMap = (data['mcpServers'] as Map).cast<String, dynamic>();
+    } else if (data is Map && data.isNotEmpty) {
+      // Allow raw map format: { id: { ... } }
+      final ok = data.values.every((v) => v is Map);
+      if (ok) serversFromMap = data.cast<String, dynamic>();
+    }
+
+    if (serversFromMap == null) {
+      throw FormatException('Invalid format: Expected "mcpServers" object or direct server map');
+    }
+
+    // Parse servers
+    List<McpServerConfig> nextServers = [];
+    serversFromMap.forEach((id, cfgAny) {
+      if (cfgAny is! Map) return;
+      final cfg = cfgAny.cast<String, dynamic>();
+
+      // Determine transport type
+      final typeRaw = (cfg['type'] ?? '').toString().toLowerCase();
+      McpTransportType transport;
+      if (typeRaw == 'inmemory') {
+        transport = McpTransportType.inmemory;
+      } else if (typeRaw.contains('http')) {
+        transport = McpTransportType.http;
+      } else {
+        transport = McpTransportType.sse;
+      }
+
+      // Parse fields
+      final enabled = (cfg['isActive'] as bool?) ?? true;
+      final name = (cfg['name'] as String?)?.trim() ?? id;
+      final url = (cfg['baseUrl'] as String?)?.trim() ?? '';
+
+      // Skip inmemory servers with invalid config
+      if (transport == McpTransportType.inmemory) {
+        // Inmemory servers don't need URL validation
+        nextServers.add(McpServerConfig(
+          id: id,
+          enabled: enabled,
+          name: name,
+          transport: transport,
+          url: '',
+          headers: const {},
+        ));
+        return;
+      }
+
+      // For SSE/HTTP, require valid URL
+      if (url.isEmpty) return; // Skip invalid entries
+
+      // Parse headers
+      Map<String, String> headers = const {};
+      final headersAny = cfg['headers'];
+      if (headersAny is Map) {
+        headers = headersAny.map((k, v) => MapEntry(k.toString(), v.toString()));
+      }
+
+      nextServers.add(McpServerConfig(
+        id: id,
+        enabled: enabled,
+        name: name,
+        transport: transport,
+        url: url,
+        headers: headers,
+      ));
+    });
+
+    // Replace all servers
+    // Disconnect all current servers
+    for (final s in _servers.toList()) {
+      await disconnect(s.id);
+    }
+
+    _servers.clear();
+    _servers.addAll(nextServers);
+    await _persist();
+
+    // Reconnect enabled servers
+    for (final s in _servers.where((s) => s.enabled)) {
+      await connect(s.id);
+    }
+
+    notifyListeners();
   }
 
   @override

@@ -1391,6 +1391,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpPageServerDeleted => '已删除服务器';
 
   @override
+  String get mcpTransportTagInmemory => '内置';
+
+  @override
+  String get mcpJsonEditButtonTooltip => '编辑 JSON';
+
+  @override
+  String get mcpJsonEditTitle => '编辑 MCP 服务器 JSON';
+
+  @override
+  String get mcpJsonEditParseFailed => 'JSON 格式错误';
+
+  @override
+  String get mcpJsonEditSavedApplied => '已保存并应用';
+
+  @override
   String get mcpPageUndo => '撤销';
 
   @override

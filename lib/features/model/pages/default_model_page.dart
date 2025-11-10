@@ -12,10 +12,7 @@ import '../../../utils/brand_assets.dart';
 import '../../../core/services/haptics.dart';
 
 class DefaultModelPage extends StatelessWidget {
-  const DefaultModelPage({super.key, this.embedded = false});
-
-  /// Whether this page is embedded in a desktop settings layout (no Scaffold/AppBar)
-  final bool embedded;
+  const DefaultModelPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -90,12 +87,7 @@ class DefaultModelPage extends StatelessWidget {
       ],
     );
 
-    // If embedded, return body content directly without Scaffold
-    if (embedded) {
-      return bodyContent;
-    }
-
-    // Otherwise, return full page with Scaffold and AppBar
+    // Return full page with Scaffold and AppBar
     return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(

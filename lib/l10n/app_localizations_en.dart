@@ -1432,6 +1432,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mcpPageServerDeleted => 'Server deleted';
 
   @override
+  String get mcpTransportTagInmemory => 'Built-in';
+
+  @override
+  String get mcpJsonEditButtonTooltip => 'Edit JSON';
+
+  @override
+  String get mcpJsonEditTitle => 'Edit MCP Servers JSON';
+
+  @override
+  String get mcpJsonEditParseFailed => 'Invalid JSON format';
+
+  @override
+  String get mcpJsonEditSavedApplied => 'Saved and applied';
+
+  @override
   String get mcpPageUndo => 'Undo';
 
   @override

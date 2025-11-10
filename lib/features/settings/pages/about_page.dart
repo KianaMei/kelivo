@@ -487,7 +487,23 @@ class _AboutPageState extends State<AboutPage> {
 
     // If embedded, return body content directly without Scaffold
     if (widget.embedded) {
-      return bodyContent;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              l10n.settingsPageAbout,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+          Expanded(child: bodyContent),
+        ],
+      );
     }
 
     // Otherwise, return full page with Scaffold and AppBar

@@ -13,12 +13,13 @@ import '../core/providers/assistant_provider.dart';
 import '../shared/widgets/ios_switch.dart';
 import '../features/assistant/pages/assistant_settings_page.dart';
 import '../features/provider/pages/providers_page.dart';
-import '../features/model/pages/default_model_page.dart';
+import 'setting/desktop_default_model_pane.dart';
 import '../features/search/pages/search_services_page.dart';
-import '../features/mcp/pages/mcp_page.dart';
+import 'setting/desktop_mcp_pane.dart';
 import '../features/quick_phrase/pages/quick_phrases_page.dart';
 import '../features/settings/pages/tts_services_page.dart';
 import '../features/backup/pages/backup_page.dart';
+import 'desktop_backup_pane.dart';
 import '../features/settings/pages/about_page.dart';
 import '../features/settings/pages/google_fonts_picker_page.dart';
 import '../features/settings/pages/google_fonts_dialog.dart';
@@ -317,15 +318,29 @@ class _DisplaySettingsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
     return Container(
       alignment: Alignment.topCenter,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 960),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                child: Text(
+                  l10n.settingsPageDisplay,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ),
+              Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+              const SizedBox(height: 8),
               _SettingsCard(
                 title: l10n.settingsPageDisplay,
                 children: [
@@ -2187,24 +2202,24 @@ class _DesktopAssistantsBody extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 960),
           child: Column(
             children: [
-              SizedBox(
-                height: 36,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          AppLocalizations.of(context)!.settingsPageAssistant,
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: cs.onSurface.withOpacity(0.9)),
-                        ),
+                    Text(
+                      AppLocalizations.of(context)!.settingsPageAssistant,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
                       ),
                     ),
+                    const Spacer(),
                     _AddAssistantButton(),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
               Expanded(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -2813,8 +2828,8 @@ class _DefaultModelSettingsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Embed DefaultModelPage content directly without navigation
-    return const DefaultModelPage(embedded: true);
+    // Use desktop default model pane
+    return const DesktopDefaultModelPane();
   }
 }
 
@@ -2837,8 +2852,8 @@ class _McpSettingsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Embed McpPage content directly without navigation
-    return const McpPage(embedded: true);
+    // Use desktop MCP pane
+    return const DesktopMcpPane();
   }
 }
 
@@ -2873,8 +2888,8 @@ class _BackupSettingsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Embed BackupPage content directly without navigation
-    return const BackupPage(embedded: true);
+    // Use desktop backup pane with inline WebDAV settings
+    return const DesktopBackupPane();
   }
 }
 
