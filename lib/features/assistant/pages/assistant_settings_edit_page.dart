@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
-import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
@@ -1096,72 +1096,28 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
           padding: const EdgeInsets.symmetric(horizontal: 0),
           child: _iosSectionCard(
             children: [
-              // Temperature
-              _iosNavRow(
-                context,
-                icon: Lucide.Thermometer,
-                label: 'Temperature',
-                detailText:
-                    a.temperature != null
-                        ? a.temperature!.toStringAsFixed(2)
-                        : l10n.assistantEditParameterDisabled,
-                onTap: () => _showTemperatureSheet(context, a),
+              // Temperature - embedded slider
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: _TemperatureSliderInline(assistant: a),
               ),
               _iosDivider(context),
-              // Top P
-              _iosNavRow(
-                context,
-                icon: Lucide.Wand2,
-                label: 'Top P',
-                detailText:
-                    a.topP != null
-                        ? a.topP!.toStringAsFixed(2)
-                        : l10n.assistantEditParameterDisabled,
-                onTap: () => _showTopPSheet(context, a),
+              // Top P - embedded slider
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: _TopPSliderInline(assistant: a),
               ),
               _iosDivider(context),
-              // Context messages
-              _iosNavRow(
-                context,
-                icon: Lucide.MessagesSquare,
-                label: l10n.assistantEditContextMessagesTitle,
-                detailText:
-                    a.limitContextMessages
-                        ? a.contextMessageSize.toString()
-                        : l10n.assistantEditParameterDisabled2,
-                onTap: () => _showContextMessagesSheet(context, a),
+              // Context messages - embedded slider
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: _ContextMessagesSliderInline(assistant: a),
               ),
               _iosDivider(context),
-              // Thinking budget
-              _iosNavRow(
-                context,
-                icon: Lucide.Brain,
-                label: l10n.assistantEditThinkingBudgetTitle,
-                detailText: a.thinkingBudget?.toString() ?? '-',
-                onTap: () async {
-                  final currentBudget = a.thinkingBudget;
-                  if (currentBudget != null) {
-                    context.read<SettingsProvider>().setThinkingBudget(
-                      currentBudget,
-                    );
-                  }
-                  await showReasoningBudgetSheet(context);
-                  final chosen =
-                      context.read<SettingsProvider>().thinkingBudget;
-                  await context.read<AssistantProvider>().updateAssistant(
-                    a.copyWith(thinkingBudget: chosen),
-                  );
-                },
-              ),
-              _iosDivider(context),
-              // Max tokens
-              _iosNavRow(
-                context,
-                icon: Lucide.Hash,
-                label: l10n.assistantEditMaxTokensTitle,
-                detailText:
-                    a.maxTokens?.toString() ?? l10n.assistantEditMaxTokensHint,
-                onTap: () => _showMaxTokensSheet(context, a),
+              // Max tokens - embedded slider (like remote's context messages)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: _MaxTokensSliderInline(assistant: a),
               ),
               _iosDivider(context),
               // Use assistant avatar
@@ -1928,15 +1884,472 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     );
   }
 
-  Future<void> _showMaxTokensSheet(BuildContext context, Assistant a) async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+}
+
+// Inline Max Tokens Slider (styled like remote's sliders with preset chips)
+class _MaxTokensSliderInline extends StatelessWidget {
+  const _MaxTokensSliderInline({required this.assistant});
+  final Assistant assistant;
+
+  String _formatValue(int value, AppLocalizations l10n) {
+    if (value == 0) return l10n.maxTokensSheetUnlimited;
+    if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(value % 1000 == 0 ? 0 : 1)}K';
+    }
+    return value.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final a = context.watch<AssistantProvider>().getById(assistant.id);
+    if (a == null) return const SizedBox.shrink();
+
+    final value = a.maxTokens ?? 0;
+    const maxLimit = 128000;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Lucide.Hash, size: 20, color: cs.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                l10n.assistantEditMaxTokensTitle,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              ),
+            ),
+            Text(
+              _formatValue(value, l10n),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.primary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SfSliderTheme(
+          data: SfSliderThemeData(
+            activeTrackHeight: 8,
+            inactiveTrackHeight: 8,
+            overlayRadius: 14,
+            activeTrackColor: cs.primary,
+            inactiveTrackColor: cs.onSurface.withOpacity(isDark ? 0.25 : 0.20),
+            tooltipBackgroundColor: cs.primary,
+            thumbColor: cs.primary,
+            thumbRadius: 10,
+            activeLabelStyle: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.7)),
+            inactiveLabelStyle: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+          ),
+          child: SfSlider(
+            value: value.toDouble(),
+            min: 0.0,
+            max: maxLimit.toDouble(),
+            interval: 16000.0,
+            minorTicksPerInterval: 3,
+            showTicks: true,
+            showLabels: true,
+            enableTooltip: true,
+            tooltipShape: const SfPaddleTooltipShape(),
+            labelFormatterCallback: (dynamic actualValue, String formattedText) {
+              final val = (actualValue as double).round();
+              if (val == 0) return l10n.maxTokensSheetUnlimited;
+              if (val >= 1000) {
+                return '${(val / 1000).toStringAsFixed(val % 1000 == 0 ? 0 : 1)}K';
+              }
+              return val.toString();
+            },
+            onChanged: (v) {
+              final rounded = (v as double).round();
+              context.read<AssistantProvider>().updateAssistant(
+                a.copyWith(maxTokens: rounded),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 14),
+        // Quick presets - full width responsive layout
+        Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: _PresetChip(label: l10n.maxTokensSheetUnlimited, value: 0, currentValue: value, assistant: a)),
+                const SizedBox(width: 8),
+                Expanded(child: _PresetChip(label: '4K', value: 4000, currentValue: value, assistant: a)),
+                const SizedBox(width: 8),
+                Expanded(child: _PresetChip(label: '8K', value: 8000, currentValue: value, assistant: a)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: _PresetChip(label: '16K', value: 16000, currentValue: value, assistant: a)),
+                const SizedBox(width: 8),
+                Expanded(child: _PresetChip(label: '32K', value: 32000, currentValue: value, assistant: a)),
+                const SizedBox(width: 8),
+                Expanded(child: _PresetChip(label: '64K', value: 64000, currentValue: value, assistant: a)),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PresetChip extends StatefulWidget {
+  const _PresetChip({
+    required this.label,
+    required this.value,
+    required this.currentValue,
+    required this.assistant,
+  });
+
+  final String label;
+  final int value;
+  final int currentValue;
+  final Assistant assistant;
+
+  @override
+  State<_PresetChip> createState() => _PresetChipState();
+}
+
+class _PresetChipState extends State<_PresetChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isSelected = widget.currentValue == widget.value;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: () {
+          context.read<AssistantProvider>().updateAssistant(
+            widget.assistant.copyWith(maxTokens: widget.value),
+          );
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? cs.primary.withOpacity(0.15)
+                : (_hovered
+                    ? (isDark ? Colors.white : Colors.black).withOpacity(isDark ? 0.08 : 0.05)
+                    : Colors.transparent),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? cs.primary.withOpacity(0.4) : cs.onSurface.withOpacity(0.15),
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
       ),
-      builder: (ctx) => _MaxTokensSheetForAssistant(assistant: a),
+    );
+  }
+}
+
+// Temperature Slider Inline (styled like remote's implementation)
+class _TemperatureSliderInline extends StatelessWidget {
+  const _TemperatureSliderInline({required this.assistant});
+  final Assistant assistant;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final a = context.watch<AssistantProvider>().getById(assistant.id);
+    if (a == null) return const SizedBox.shrink();
+
+    final enabled = a.temperature != null;
+    final value = (a.temperature ?? 1.0).clamp(0.0, 2.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Lucide.Thermometer, size: 20, color: cs.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Temperature',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              ),
+            ),
+            if (enabled)
+              Text(
+                value.toStringAsFixed(2),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.primary),
+              ),
+            if (!enabled)
+              Text(
+                l10n.assistantEditParameterDisabled,
+                style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6)),
+              ),
+            const SizedBox(width: 8),
+            IosSwitch(
+              value: enabled,
+              onChanged: (v) {
+                if (v) {
+                  context.read<AssistantProvider>().updateAssistant(
+                    a.copyWith(temperature: 1.0),
+                  );
+                } else {
+                  context.read<AssistantProvider>().updateAssistant(
+                    a.copyWith(clearTemperature: true),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        if (enabled) ...[
+          const SizedBox(height: 12),
+          SfSliderTheme(
+            data: SfSliderThemeData(
+              activeTrackHeight: 8,
+              inactiveTrackHeight: 8,
+              overlayRadius: 14,
+              activeTrackColor: cs.primary,
+              inactiveTrackColor: cs.onSurface.withOpacity(isDark ? 0.25 : 0.20),
+              tooltipBackgroundColor: cs.primary,
+              thumbColor: cs.primary,
+              thumbRadius: 10,
+              activeLabelStyle: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.7)),
+              inactiveLabelStyle: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+            ),
+            child: SfSlider(
+              value: value,
+              min: 0.0,
+              max: 2.0,
+              interval: 0.5,
+              minorTicksPerInterval: 4,
+              showTicks: true,
+              showLabels: true,
+              enableTooltip: true,
+              tooltipShape: const SfPaddleTooltipShape(),
+              labelFormatterCallback: (dynamic actualValue, String formattedText) {
+                return (actualValue as double).toStringAsFixed(1);
+              },
+              onChanged: (v) {
+                context.read<AssistantProvider>().updateAssistant(
+                  a.copyWith(temperature: v as double),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// Context Messages Slider Inline (styled like remote's implementation)
+class _ContextMessagesSliderInline extends StatelessWidget {
+  const _ContextMessagesSliderInline({required this.assistant});
+  final Assistant assistant;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final a = context.watch<AssistantProvider>().getById(assistant.id);
+    if (a == null) return const SizedBox.shrink();
+
+    final value = a.contextMessageSize.clamp(0, 256);
+    final enabled = a.limitContextMessages;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Lucide.MessagesSquare, size: 20, color: cs.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                l10n.assistantEditContextMessagesTitle,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              ),
+            ),
+            if (enabled)
+              Text(
+                value.toString(),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.primary),
+              ),
+            if (!enabled)
+              Text(
+                l10n.assistantEditParameterDisabled2,
+                style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6)),
+              ),
+            const SizedBox(width: 8),
+            IosSwitch(
+              value: enabled,
+              onChanged: (v) {
+                context.read<AssistantProvider>().updateAssistant(
+                  a.copyWith(limitContextMessages: v),
+                );
+              },
+            ),
+          ],
+        ),
+        if (enabled) ...[
+          const SizedBox(height: 12),
+          SfSliderTheme(
+            data: SfSliderThemeData(
+              activeTrackHeight: 8,
+              inactiveTrackHeight: 8,
+              overlayRadius: 14,
+              activeTrackColor: cs.primary,
+              inactiveTrackColor: cs.onSurface.withOpacity(isDark ? 0.25 : 0.20),
+              tooltipBackgroundColor: cs.primary,
+              thumbColor: cs.primary,
+              thumbRadius: 10,
+              activeLabelStyle: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.7)),
+              inactiveLabelStyle: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+            ),
+            child: SfSlider(
+              value: value.toDouble(),
+              min: 0.0,
+              max: 256.0,
+              interval: 64.0,
+              minorTicksPerInterval: 3,
+              showTicks: true,
+              showLabels: true,
+              enableTooltip: true,
+              tooltipShape: const SfPaddleTooltipShape(),
+              labelFormatterCallback: (dynamic actualValue, String formattedText) {
+                return (actualValue as double).round().toString();
+              },
+              onChanged: (v) {
+                context.read<AssistantProvider>().updateAssistant(
+                  a.copyWith(contextMessageSize: (v as double).round()),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// Top P Slider Inline (styled like remote's implementation)
+class _TopPSliderInline extends StatelessWidget {
+  const _TopPSliderInline({required this.assistant});
+  final Assistant assistant;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final a = context.watch<AssistantProvider>().getById(assistant.id);
+    if (a == null) return const SizedBox.shrink();
+
+    final enabled = a.topP != null;
+    final value = (a.topP ?? 1.0).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Lucide.Wand2, size: 20, color: cs.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Top P',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              ),
+            ),
+            if (enabled)
+              Text(
+                value.toStringAsFixed(2),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.primary),
+              ),
+            if (!enabled)
+              Text(
+                l10n.assistantEditParameterDisabled,
+                style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6)),
+              ),
+            const SizedBox(width: 8),
+            IosSwitch(
+              value: enabled,
+              onChanged: (v) {
+                if (v) {
+                  context.read<AssistantProvider>().updateAssistant(
+                    a.copyWith(topP: 1.0),
+                  );
+                } else {
+                  context.read<AssistantProvider>().updateAssistant(
+                    a.copyWith(clearTopP: true),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        if (enabled) ...[
+          const SizedBox(height: 12),
+          SfSliderTheme(
+            data: SfSliderThemeData(
+              activeTrackHeight: 8,
+              inactiveTrackHeight: 8,
+              overlayRadius: 14,
+              activeTrackColor: cs.primary,
+              inactiveTrackColor: cs.onSurface.withOpacity(isDark ? 0.25 : 0.20),
+              tooltipBackgroundColor: cs.primary,
+              thumbColor: cs.primary,
+              thumbRadius: 10,
+              activeLabelStyle: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.7)),
+              inactiveLabelStyle: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+            ),
+            child: SfSlider(
+              value: value,
+              min: 0.0,
+              max: 1.0,
+              interval: 0.2,
+              minorTicksPerInterval: 3,
+              showTicks: true,
+              showLabels: true,
+              enableTooltip: true,
+              tooltipShape: const SfPaddleTooltipShape(),
+              labelFormatterCallback: (dynamic actualValue, String formattedText) {
+                return (actualValue as double).toStringAsFixed(1);
+              },
+              onChanged: (v) {
+                context.read<AssistantProvider>().updateAssistant(
+                  a.copyWith(topP: v as double),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
