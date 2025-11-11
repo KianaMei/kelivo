@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -10,28 +11,47 @@ import '../../../utils/brand_assets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../pages/provider_detail_page.dart';
 
-/// Show provider detail settings sheet
+/// Show provider detail settings dialog with backdrop blur
 Future<void> showProviderDetailSheet(
   BuildContext context, {
   required String keyName,
   required String displayName,
 }) async {
-  await showModalBottomSheet(
+  await showDialog(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (ctx) => _ProviderDetailSheet(
-      keyName: keyName,
-      displayName: displayName,
+    barrierColor: Colors.black.withOpacity(0.5),
+    barrierDismissible: true,
+    builder: (ctx) => _BlurredBackdropDialog(
+      child: _ProviderDetailDialog(
+        keyName: keyName,
+        displayName: displayName,
+      ),
     ),
   );
 }
 
-class _ProviderDetailSheet extends StatefulWidget {
-  const _ProviderDetailSheet({
+/// Dialog wrapper with blurred backdrop
+class _BlurredBackdropDialog extends StatelessWidget {
+  const _BlurredBackdropDialog({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return BackdropFilter(
+      filter: ui.ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _ProviderDetailDialog extends StatefulWidget {
+  const _ProviderDetailDialog({
     required this.keyName,
     required this.displayName,
   });
@@ -40,10 +60,10 @@ class _ProviderDetailSheet extends StatefulWidget {
   final String displayName;
 
   @override
-  State<_ProviderDetailSheet> createState() => _ProviderDetailSheetState();
+  State<_ProviderDetailDialog> createState() => _ProviderDetailDialogState();
 }
 
-class _ProviderDetailSheetState extends State<_ProviderDetailSheet> {
+class _ProviderDetailDialogState extends State<_ProviderDetailDialog> {
   late TextEditingController _apiKeyCtrl;
   late TextEditingController _baseUrlCtrl;
   bool _showApiKey = false;
@@ -73,313 +93,319 @@ class _ProviderDetailSheetState extends State<_ProviderDetailSheet> {
     final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
     final isDark = theme.brightness == Brightness.dark;
 
-    final maxHeight = MediaQuery.of(context).size.height * 0.85;
-    
-    return SafeArea(
-      top: false,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Drag handle
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+    return Container(
+      constraints: const BoxConstraints(
+        maxWidth: 600,
+        maxHeight: 700,
+      ),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            spreadRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header with avatar and name
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: cs.outlineVariant.withOpacity(0.2),
+                  width: 1,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            
-            // Header with avatar and name
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  _BrandAvatar(
-                    name: cfg.name.isNotEmpty ? cfg.name : widget.displayName,
-                    size: 48,
-                    customAvatarPath: cfg.customAvatarPath,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          cfg.name.isNotEmpty ? cfg.name : widget.displayName,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                          ),
+            child: Row(
+              children: [
+                _BrandAvatar(
+                  name: cfg.name.isNotEmpty ? cfg.name : widget.displayName,
+                  size: 52,
+                  customAvatarPath: cfg.customAvatarPath,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cfg.name.isNotEmpty ? cfg.name : widget.displayName,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${cfg.models.length} ${l10n.providerDetailPageModelsTabTitle}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withOpacity(0.6),
-                          ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${cfg.models.length} ${l10n.providerDetailPageModelsTabTitle}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: cs.onSurface.withOpacity(0.6),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  // Close button
-                  IconButton(
-                    icon: Icon(Lucide.X, size: 22, color: cs.onSurface),
-                    onPressed: () => Navigator.of(context).pop(),
-                    tooltip: l10n.searchServicesPageDone,
-                  ),
-                ],
-              ),
+                ),
+                // Close button
+                IconButton(
+                  icon: Icon(Lucide.X, size: 22, color: cs.onSurface),
+                  onPressed: () => Navigator.of(context).pop(),
+                  tooltip: l10n.searchServicesPageDone,
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
+          ),
 
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Enable/Disable toggle
-                    IosCardPress(
-                      borderRadius: BorderRadius.circular(14),
-                      baseColor: cs.surface,
-                      duration: const Duration(milliseconds: 260),
-                      onTap: () {
-                        Haptics.light();
-                        context.read<SettingsProvider>().setProviderConfig(
-                          widget.keyName,
-                          cfg.copyWith(enabled: !cfg.enabled),
-                        );
-                      },
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      child: Row(
-                        children: [
-                          Icon(
-                            cfg.enabled ? Lucide.Check : Lucide.X,
-                            size: 22,
-                            color: cfg.enabled ? Colors.green : Colors.orange,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              l10n.providerDetailPageEnableToggleLabel,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          IosSwitch(
-                            value: cfg.enabled,
-                            onChanged: (v) {
-                              context.read<SettingsProvider>().setProviderConfig(
-                                widget.keyName,
-                                cfg.copyWith(enabled: v),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // API Key section
-                    Text(
-                      l10n.providerDetailPageApiKeyLabel,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _apiKeyCtrl,
-                      obscureText: !_showApiKey,
-                      onChanged: (value) {
-                        // Auto-save on change with debounce would be better,
-                        // but for simplicity we save on focus loss
-                      },
-                      onSubmitted: (value) {
-                        context.read<SettingsProvider>().setProviderConfig(
-                          widget.keyName,
-                          cfg.copyWith(apiKey: value),
-                        );
-                      },
-                      decoration: InputDecoration(
-                        hintText: l10n.providerDetailPageApiKeyHint,
-                        filled: true,
-                        fillColor: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: cs.outlineVariant.withOpacity(0.4),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: cs.outlineVariant.withOpacity(0.4),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: cs.primary.withOpacity(0.6),
-                            width: 1.5,
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _showApiKey ? Lucide.EyeOff : Lucide.Eye,
-                            size: 20,
-                            color: cs.onSurface.withOpacity(0.5),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _showApiKey = !_showApiKey;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Base URL section
-                    Text(
-                      l10n.providerDetailPageBaseUrlLabel,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _baseUrlCtrl,
-                      onSubmitted: (value) {
-                        context.read<SettingsProvider>().setProviderConfig(
-                          widget.keyName,
-                          cfg.copyWith(baseUrl: value),
-                        );
-                      },
-                      decoration: InputDecoration(
-                        hintText: l10n.providerDetailPageBaseUrlHint,
-                        filled: true,
-                        fillColor: isDark ? Colors.white.withOpacity(0.08) : Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: cs.outlineVariant.withOpacity(0.4),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: cs.outlineVariant.withOpacity(0.4),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: cs.primary.withOpacity(0.6),
-                            width: 1.5,
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Action buttons
-                    Row(
+          // Scrollable content
+          Flexible(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Enable/Disable toggle
+                  IosCardPress(
+                    borderRadius: BorderRadius.circular(14),
+                    baseColor: isDark ? Colors.white.withOpacity(0.08) : cs.surface,
+                    duration: const Duration(milliseconds: 260),
+                    onTap: () {
+                      Haptics.light();
+                      context.read<SettingsProvider>().setProviderConfig(
+                        widget.keyName,
+                        cfg.copyWith(enabled: !cfg.enabled),
+                      );
+                    },
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    child: Row(
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              // Save changes
-                              context.read<SettingsProvider>().setProviderConfig(
-                                widget.keyName,
-                                cfg.copyWith(
-                                  apiKey: _apiKeyCtrl.text,
-                                  baseUrl: _baseUrlCtrl.text,
-                                ),
-                              );
-                              Navigator.of(context).pop();
-                            },
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: BorderSide(color: cs.outline),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              l10n.providerDetailPageSaveButton,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: (cfg.enabled ? Colors.green : Colors.orange).withOpacity(0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            cfg.enabled ? Lucide.Check : Lucide.X,
+                            size: 20,
+                            color: cfg.enabled ? Colors.green : Colors.orange,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              // Navigate to full detail page for advanced settings
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => ProviderDetailPage(
-                                    keyName: widget.keyName,
-                                    displayName: widget.displayName,
-                                  ),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              backgroundColor: cs.primary,
-                              foregroundColor: cs.onPrimary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              l10n.providerDetailPageAdvancedButton,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          child: Text(
+                            l10n.providerDetailPageEnableToggleLabel,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
+                        IosSwitch(
+                          value: cfg.enabled,
+                          onChanged: (v) {
+                            context.read<SettingsProvider>().setProviderConfig(
+                              widget.keyName,
+                              cfg.copyWith(enabled: v),
+                            );
+                          },
+                        ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // API Key section
+                  Text(
+                    l10n.providerDetailPageApiKeyLabel,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _apiKeyCtrl,
+                    obscureText: !_showApiKey,
+                    onSubmitted: (value) {
+                      context.read<SettingsProvider>().setProviderConfig(
+                        widget.keyName,
+                        cfg.copyWith(apiKey: value),
+                      );
+                    },
+                    decoration: InputDecoration(
+                      hintText: l10n.providerDetailPageApiKeyHint,
+                      filled: true,
+                      fillColor: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF5F5F7),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: cs.outlineVariant.withOpacity(0.3),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: cs.outlineVariant.withOpacity(0.3),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: cs.primary,
+                          width: 1.8,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _showApiKey ? Lucide.EyeOff : Lucide.Eye,
+                          size: 20,
+                          color: cs.onSurface.withOpacity(0.5),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _showApiKey = !_showApiKey;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Base URL section
+                  Text(
+                    l10n.providerDetailPageBaseUrlLabel,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _baseUrlCtrl,
+                    onSubmitted: (value) {
+                      context.read<SettingsProvider>().setProviderConfig(
+                        widget.keyName,
+                        cfg.copyWith(baseUrl: value),
+                      );
+                    },
+                    decoration: InputDecoration(
+                      hintText: l10n.providerDetailPageBaseUrlHint,
+                      filled: true,
+                      fillColor: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF5F5F7),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: cs.outlineVariant.withOpacity(0.3),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: cs.outlineVariant.withOpacity(0.3),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: cs.primary,
+                          width: 1.8,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            // Save changes
+                            context.read<SettingsProvider>().setProviderConfig(
+                              widget.keyName,
+                              cfg.copyWith(
+                                apiKey: _apiKeyCtrl.text,
+                                baseUrl: _baseUrlCtrl.text,
+                              ),
+                            );
+                            Navigator.of(context).pop();
+                          },
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: cs.outline.withOpacity(0.5)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            l10n.providerDetailPageSaveButton,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            // Navigate to full detail page for advanced settings
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ProviderDetailPage(
+                                  keyName: widget.keyName,
+                                  displayName: widget.displayName,
+                                ),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: cs.primary,
+                            foregroundColor: cs.onPrimary,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            l10n.providerDetailPageAdvancedButton,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
