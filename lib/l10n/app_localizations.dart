@@ -3389,11 +3389,47 @@ abstract class AppLocalizations {
   /// **'Name'**
   String get providerDetailPageNameLabel;
 
+  /// No description provided for @providerDetailPageApiKeyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key'**
+  String get providerDetailPageApiKeyLabel;
+
   /// No description provided for @providerDetailPageApiKeyHint.
   ///
   /// In en, this message translates to:
   /// **'Leave empty to use default'**
   String get providerDetailPageApiKeyHint;
+
+  /// No description provided for @providerDetailPageBaseUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Base URL'**
+  String get providerDetailPageBaseUrlLabel;
+
+  /// No description provided for @providerDetailPageBaseUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter base URL'**
+  String get providerDetailPageBaseUrlHint;
+
+  /// No description provided for @providerDetailPageEnableToggleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Provider'**
+  String get providerDetailPageEnableToggleLabel;
+
+  /// No description provided for @providerDetailPageModelsTabTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Models'**
+  String get providerDetailPageModelsTabTitle;
+
+  /// No description provided for @providerDetailPageAdvancedButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get providerDetailPageAdvancedButton;
 
   /// No description provided for @providerDetailPageHideTooltip.
   ///
