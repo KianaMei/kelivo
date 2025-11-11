@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
+import 'dart:ui' show ImageFilter;
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -170,6 +171,29 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
 }
 
 Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitProviderKey}) async {
+  // Desktop platforms use dialog, mobile keeps bottom sheet UX
+  final platform = defaultTargetPlatform;
+  if (platform == TargetPlatform.macOS || platform == TargetPlatform.windows || platform == TargetPlatform.linux) {
+    return showGeneralDialog<ModelSelection>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'model-select-dialog',
+      barrierColor: Colors.black.withOpacity(0.25),
+      pageBuilder: (ctx, _, __) => _ModelSelectDialog(limitProviderKey: limitProviderKey),
+      transitionBuilder: (ctx, anim, _, child) {
+        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  // Mobile: keep original bottom sheet
   final cs = Theme.of(context).colorScheme;
   return showModalBottomSheet<ModelSelection>(
     context: context,
@@ -178,7 +202,7 @@ Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitPr
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) => _ModelSelectSheet(limitProviderKey: limitProviderKey),
+    builder: (ctx) => _ModelSelectSheetMobile(limitProviderKey: limitProviderKey),
   );
 }
 
@@ -205,18 +229,28 @@ Future<void> showModelSelectSheet(BuildContext context, {bool updateAssistant = 
   }
 }
 
-class _ModelSelectSheet extends StatefulWidget {
-  const _ModelSelectSheet({this.limitProviderKey});
+// Unified widget for both desktop dialog and mobile sheet
+class _ModelSelectDialog extends StatefulWidget {
+  const _ModelSelectDialog({this.limitProviderKey, this.isMobile = false});
   final String? limitProviderKey;
+  final bool isMobile;
   @override
-  State<_ModelSelectSheet> createState() => _ModelSelectSheetState();
+  State<_ModelSelectDialog> createState() => _ModelSelectDialogState();
 }
 
-class _ModelSelectSheetState extends State<_ModelSelectSheet> {
+// Alias for mobile bottom sheet
+class _ModelSelectSheetMobile extends StatelessWidget {
+  const _ModelSelectSheetMobile({this.limitProviderKey});
+  final String? limitProviderKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ModelSelectDialog(limitProviderKey: limitProviderKey, isMobile: true);
+  }
+}
+
+class _ModelSelectDialogState extends State<_ModelSelectDialog> {
   final TextEditingController _search = TextEditingController();
-  final DraggableScrollableController _sheetCtrl = DraggableScrollableController();
-  static const double _initialSize = 0.8;
-  static const double _maxSize = 0.8;
 
   // Provider tabs scroll controller
   final ScrollController _providerTabsScrollController = ScrollController();
@@ -374,7 +408,6 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   @override
   void dispose() {
     _search.dispose();
-    _sheetCtrl.dispose();
     _providerTabsScrollController.dispose();
     _pageController?.dispose();
     super.dispose();
@@ -398,110 +431,164 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
 
-    return SafeArea(
-      top: false,
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: DraggableScrollableSheet(
-          controller: _sheetCtrl,
-          expand: false,
-          initialChildSize: _initialSize,
-          maxChildSize: _maxSize,
-          minChildSize: 0.4,
-          builder: (c, controller) {
-            return Column(
-              children: [
-                // Fixed header section with rounded corners
-                Container(
-                  decoration: BoxDecoration(
-                    color: cs.surface,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: Column(
-                    children: [
-                      // Header drag indicator
-                      Column(children: [
-                        const SizedBox(height: 8),
-                        Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999))),
-                        const SizedBox(height: 8),
-                      ]),
-                      // Fixed search field (iOS-like input style)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                        child: TextField(
+    // Mobile: Use original DraggableScrollableSheet design
+    if (widget.isMobile) {
+      return SafeArea(
+        child: AnimatedPadding(
+          padding: MediaQuery.of(context).viewInsets,
+          duration: const Duration(milliseconds: 150),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.85,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) {
+              return Material(
+                color: cs.surface,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Drag handle
+                    Center(
+                      child: Container(
+                        width: 32,
+                        height: 4,
+                        margin: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    // Search field
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      child: TextField(
+                        controller: _search,
+                        enabled: !_isLoading,
+                        onChanged: (_) => setState(() {}),
+                        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                        cursorColor: cs.primary,
+                        decoration: InputDecoration(
+                          hintText: l10n.modelSelectSheetSearchHint,
+                          prefixIcon: Icon(Lucide.Search, size: 18, color: cs.onSurface.withOpacity(0.6)),
+                          suffixIcon: (widget.limitProviderKey == null && context.watch<SettingsProvider>().pinnedModels.isNotEmpty)
+                              ? Tooltip(
+                                  message: l10n.modelSelectSheetFavoritesSection,
+                                  child: IconButton(
+                                    icon: Icon(Lucide.Bookmark, size: 18, color: cs.onSurface.withOpacity(0.6)),
+                                    onPressed: () => _switchToTab('__fav__'),
+                                  ),
+                                )
+                              : null,
+                          isDense: true,
+                          filled: true,
+                          fillColor: cs.surfaceContainerHighest.withOpacity(0.5),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Provider tabs
+                    _buildBottomTabs(context),
+                    // Scrollable content
+                    Expanded(
+                      child: _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildContent(context),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    // Desktop: Glass morphism dialog
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 460, maxWidth: 680, maxHeight: 600),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Material(
+            color: isDark ? cs.surface.withOpacity(0.75) : cs.surface.withOpacity(0.80),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.25),
+                width: 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Search field at top - clean design
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                    child: TextField(
                           controller: _search,
                           enabled: !_isLoading,
                           onChanged: (_) => setState(() {}),
-                          // Ensure high-contrast input text in both themes
                           style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87),
                           cursorColor: cs.primary,
                           decoration: InputDecoration(
                             hintText: l10n.modelSelectSheetSearchHint,
-                            prefixIcon: Icon(Lucide.Search, size: 18, color: cs.onSurface.withOpacity(_isLoading ? 0.35 : 0.6)),
-                            // Use IconButton for reliable alignment at the far right
+                            prefixIcon: Icon(Lucide.Search, size: 16, color: cs.onSurface.withOpacity(0.6)),
                             suffixIcon: (widget.limitProviderKey == null && context.watch<SettingsProvider>().pinnedModels.isNotEmpty)
                                 ? Tooltip(
                                     message: l10n.modelSelectSheetFavoritesSection,
                                     child: IconButton(
-                                      icon: Icon(Lucide.Bookmark, size: 18, color: cs.onSurface.withOpacity(_isLoading ? 0.35 : 0.7)),
+                                      icon: Icon(Lucide.Bookmark, size: 16, color: cs.onSurface.withOpacity(0.6)),
                                       onPressed: () => _switchToTab('__fav__'),
                                       splashColor: Colors.transparent,
                                       highlightColor: Colors.transparent,
                                       hoverColor: Colors.transparent,
-                                      tooltip: l10n.modelSelectSheetFavoritesSection,
                                     ),
                                   )
                                 : null,
-                            suffixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            filled: true,
-                            fillColor: Theme.of(context).brightness == Brightness.dark
-                                ? Colors.white.withOpacity(0.10)
-                                : Colors.white.withOpacity(0.64),
+                            filled: false,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.3), width: 1),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
-                            ),
-                            disabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.25)),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.3), width: 1),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(color: cs.primary.withOpacity(0.5)),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: cs.primary.withOpacity(0.5), width: 1.5),
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                // Scrollable content
-                Expanded(
-                  child: Container(
-                    color: cs.surface, // Ensure background color continuity
-                    child: _isLoading 
+                  // Provider tabs (seamlessly integrated)
+                  _buildBottomTabs(context),
+                  // Scrollable content
+                  Expanded(
+                    child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : _buildContent(context),
                   ),
-                ),
-                // Fixed bottom tabs
-                Container(
-                  color: cs.surface, // Ensure background color continuity
-                  child: _buildBottomTabs(context),
-                ),
-              ],
-            );
-          },
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -672,8 +759,8 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 
     return RepaintBoundary(
       child: Padding(
-        // SafeArea already applies bottom inset; avoid doubling it here.
-        padding: const EdgeInsets.only(left: 12, right: 12, bottom: 10),
+        // Seamless integration with minimal padding
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         child: Listener(
         onPointerSignal: (event) {
           // Windows 滚轮支持 - 切换到下一个/上一个tab
@@ -722,7 +809,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     final cs = Theme.of(context).colorScheme;
     final settings = context.read<SettingsProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = m.selected ? (isDark ? cs.primary.withOpacity(0.12) : cs.primary.withOpacity(0.08)) : cs.surface;
+    final bg = m.selected ? (isDark ? cs.primary.withOpacity(0.12) : cs.primary.withOpacity(0.08)) : Colors.transparent;
     final effective = m.info; // precomputed effective info
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -806,10 +893,16 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   Widget _providerTab(BuildContext context, String key, String name, {bool selected = false}) {
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
-    // Only fetch provider config for non-favorites tab
-    final cfg = (key == '__fav__') ? null : settings.getProviderConfig(key, defaultName: name);
+    // Fetch provider config (use special key for favorites to support custom avatar)
+    final cfgKey = (key == '__fav__') ? '__favorites__' : key;
+    final cfg = settings.getProviderConfig(cfgKey, defaultName: name);
+
+    // Desktop: show context menu on right-click
+    final platform = defaultTargetPlatform;
+    final isDesktop = platform == TargetPlatform.windows || platform == TargetPlatform.macOS || platform == TargetPlatform.linux;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 3),
       child: _ProviderChip(
         avatar: _BrandAvatar(
           name: name,
@@ -828,8 +921,64 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
               );
               if (mounted) setState(() {});
             },
+        onSecondaryTapDown: isDesktop
+          ? (details) => _showProviderContextMenu(context, key, name, details.globalPosition)
+          : null,
       ),
     );
+  }
+
+  /// Show desktop context menu for provider tab (glass morphism style)
+  void _showProviderContextMenu(BuildContext context, String providerKey, String providerName, Offset position) async {
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
+
+    final isFavorites = providerKey == '__fav__';
+    late OverlayEntry entry;
+
+    void closeMenu() {
+      entry.remove();
+    }
+
+    entry = OverlayEntry(
+      builder: (ctx) => _GlassContextMenu(
+        position: position,
+        isFavorites: isFavorites,
+        onClose: closeMenu,
+        onEditProvider: isFavorites ? null : () async {
+          closeMenu();
+          await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => ProviderDetailPage(keyName: providerKey, displayName: providerName)),
+          );
+          if (mounted) setState(() {});
+        },
+        onEditAvatar: () async {
+          closeMenu();
+          await _showAvatarPicker(context, providerKey, providerName);
+          if (mounted) setState(() {});
+        },
+      ),
+    );
+
+    overlay.insert(entry);
+  }
+
+  /// Show avatar picker - navigate to provider detail page for avatar editing
+  Future<void> _showAvatarPicker(BuildContext context, String providerKey, String providerName) async {
+    // For favorites tab, use a special provider key
+    final editKey = providerKey == '__fav__' ? '__favorites__' : providerKey;
+    final editName = providerKey == '__fav__' ? providerName : providerName;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProviderDetailPage(
+          keyName: editKey,
+          displayName: editName,
+        ),
+      ),
+    );
+
+    if (mounted) setState(() {});
   }
 
   /// Get all tab keys in order: favorites first (if exists), then providers
@@ -931,11 +1080,12 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 }
 
 class _ProviderChip extends StatefulWidget {
-  const _ProviderChip({required this.avatar, required this.label, required this.onTap, this.onLongPress, this.borderColor, this.selected = false});
+  const _ProviderChip({required this.avatar, required this.label, required this.onTap, this.onLongPress, this.onSecondaryTapDown, this.borderColor, this.selected = false});
   final Widget avatar;
   final String label;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final void Function(TapDownDetails)? onSecondaryTapDown;
   final Color? borderColor;
   final bool selected;
 
@@ -954,7 +1104,7 @@ class _ProviderChipState extends State<_ProviderChip> {
     // More visible selection state (stronger background)
     final Color baseBg = isSelected
         ? (isDark ? cs.primary.withOpacity(0.20) : cs.primary.withOpacity(0.18))
-        : cs.surface;
+        : Colors.transparent;
 
     // Press overlay (only for pressed state)
     final Color overlay = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05);
@@ -974,6 +1124,7 @@ class _ProviderChipState extends State<_ProviderChip> {
       onTapCancel: () => setState(() => _pressed = false),
       onTap: widget.onTap,
       onLongPress: widget.onLongPress,
+      onSecondaryTapDown: widget.onSecondaryTapDown,
       child: Container(
         // NO animation for selected state changes - only animate press
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -1195,4 +1346,202 @@ Widget _modelTagWrap(BuildContext context, ModelInfo m) {
     }
   }
   return Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: chips);
+}
+
+/// Glass morphism context menu for provider tabs
+class _GlassContextMenu extends StatefulWidget {
+  const _GlassContextMenu({
+    required this.position,
+    required this.isFavorites,
+    required this.onClose,
+    this.onEditProvider,
+    required this.onEditAvatar,
+  });
+
+  final Offset position;
+  final bool isFavorites;
+  final VoidCallback onClose;
+  final VoidCallback? onEditProvider;
+  final VoidCallback onEditAvatar;
+
+  @override
+  State<_GlassContextMenu> createState() => _GlassContextMenuState();
+}
+
+class _GlassContextMenuState extends State<_GlassContextMenu> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    await _controller.reverse();
+    widget.onClose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screen = MediaQuery.of(context).size;
+
+    // Menu dimensions
+    const menuWidth = 160.0;
+    final menuHeight = widget.isFavorites ? 48.0 : 96.0;
+
+    // Position menu (avoid screen edges)
+    double left = widget.position.dx;
+    double top = widget.position.dy;
+
+    if (left + menuWidth > screen.width - 8) {
+      left = screen.width - menuWidth - 8;
+    }
+    if (top + menuHeight > screen.height - 8) {
+      top = screen.height - menuHeight - 8;
+    }
+
+    return Stack(
+      children: [
+        // Transparent barrier
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _close,
+          ),
+        ),
+        // Glass menu
+        Positioned(
+          left: left,
+          top: top,
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              alignment: Alignment.topLeft,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    width: menuWidth,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? cs.surface.withOpacity(0.75)
+                          : cs.surface.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : cs.outlineVariant.withOpacity(0.3),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!widget.isFavorites && widget.onEditProvider != null)
+                            _GlassMenuItem(
+                              icon: Lucide.Edit,
+                              label: '编辑',
+                              onTap: widget.onEditProvider!,
+                            ),
+                          _GlassMenuItem(
+                            icon: Lucide.Image,
+                            label: '编辑头像',
+                            onTap: widget.onEditAvatar,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Glass menu item
+class _GlassMenuItem extends StatefulWidget {
+  const _GlassMenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_GlassMenuItem> createState() => _GlassMenuItemState();
+}
+
+class _GlassMenuItemState extends State<_GlassMenuItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: _hovered
+                ? (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05))
+                : Colors.transparent,
+          ),
+          child: Row(
+            children: [
+              Icon(widget.icon, size: 16, color: cs.onSurface),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
