@@ -6139,11 +6139,11 @@ void _showAvatarContextMenu(BuildContext context, Assistant a, Offset position) 
       onClose: closeMenu,
       onChooseImage: () async {
         closeMenu();
-        await _pickLocalImage(context, a);
+        await _pickLocalImageForAssistant(context, a);
       },
       onChooseEmoji: () async {
         closeMenu();
-        final emoji = await _pickEmoji(context);
+        final emoji = await _pickEmojiForAssistant(context);
         if (emoji != null && context.mounted) {
           await context.read<AssistantProvider>().updateAssistant(
             a.copyWith(avatar: emoji),
@@ -6152,11 +6152,11 @@ void _showAvatarContextMenu(BuildContext context, Assistant a, Offset position) 
       },
       onEnterLink: () async {
         closeMenu();
-        await _inputAvatarUrl(context, a);
+        await _inputAvatarUrlForAssistant(context, a);
       },
       onImportQQ: () async {
         closeMenu();
-        await _inputQQAvatar(context, a);
+        await _inputQQAvatarForAssistant(context, a);
       },
       onReset: () async {
         closeMenu();
@@ -6170,6 +6170,326 @@ void _showAvatarContextMenu(BuildContext context, Assistant a, Offset position) 
   );
 
   overlay.insert(entry);
+}
+
+// Top-level helper functions for avatar selection
+Future<String?> _pickEmojiForAssistant(BuildContext context) async {
+  final l10n = AppLocalizations.of(context)!;
+  final controller = TextEditingController();
+  String value = '';
+  bool validGrapheme(String s) {
+    final trimmed = s.characters.take(1).toString().trim();
+    return trimmed.isNotEmpty && trimmed == s.trim();
+  }
+
+  final List<String> quick = const [
+    '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😊', '😍', '😘', '😗', '😙', '😚', '🙂', '🤗', '🤩',
+    '🫶', '🤝', '👍', '👎', '👋', '🙏', '💪', '🔥', '✨', '🌟', '💡', '🎉', '🎊', '🎈', '🌈', '☀️',
+    '🌙', '⭐', '⚡', '☁️', '❄️', '🌧️', '🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍒', '🍑', '🥭', '🍍',
+    '🥝', '🍅', '🥕', '🌽', '🍞', '🧀', '🍔', '🍟', '🍕', '🌮', '🌯', '🍣', '🍜', '🍰', '🍪', '🍩',
+    '🍫', '🍻', '☕', '🧋', '🥤', '⚽', '🏀', '🏈', '🎾', '🏐', '🎮', '🎧', '🎸', '🎹', '🎺', '📚',
+    '✏️', '💼', '💻', '🖥️', '📱', '🛩️', '✈️', '🚗', '🚕', '🚙', '🚌', '🚀', '🛰️', '🧠', '🫀', '💊',
+    '🩺', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵',
+  ];
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      return StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final media = MediaQuery.of(ctx);
+          final avail = media.size.height - media.viewInsets.bottom;
+          final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
+          return AlertDialog(
+            scrollable: true,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            backgroundColor: cs.surface,
+            title: Text(l10n.assistantEditEmojiDialogTitle),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(color: cs.primary.withOpacity(0.08), shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: Text(value.isEmpty ? '🙂' : value.characters.take(1).toString(), style: const TextStyle(fontSize: 40)),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    onChanged: (v) => setLocal(() => value = v),
+                    onSubmitted: (_) {
+                      if (validGrapheme(value)) Navigator.of(ctx).pop(value.characters.take(1).toString());
+                    },
+                    decoration: InputDecoration(
+                      hintText: l10n.assistantEditEmojiDialogHint,
+                      filled: true,
+                      fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.4))),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: gridHeight,
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8, mainAxisSpacing: 8, crossAxisSpacing: 8),
+                      itemCount: quick.length,
+                      itemBuilder: (c, i) {
+                        final e = quick[i];
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => Navigator.of(ctx).pop(e),
+                          child: Container(
+                            decoration: BoxDecoration(color: cs.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
+                            alignment: Alignment.center,
+                            child: Text(e, style: const TextStyle(fontSize: 20)),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(l10n.assistantEditEmojiDialogCancel)),
+              TextButton(
+                onPressed: validGrapheme(value) ? () => Navigator.of(ctx).pop(value.characters.take(1).toString()) : null,
+                child: Text(l10n.assistantEditEmojiDialogSave, style: TextStyle(color: validGrapheme(value) ? cs.primary : cs.onSurface.withOpacity(0.38), fontWeight: FontWeight.w600)),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+Future<void> _inputAvatarUrlForAssistant(BuildContext context, Assistant a) async {
+  final l10n = AppLocalizations.of(context)!;
+  final controller = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      bool valid(String s) => s.trim().startsWith('http://') || s.trim().startsWith('https://');
+      String value = '';
+      return StatefulBuilder(
+        builder: (ctx, setLocal) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            backgroundColor: cs.surface,
+            title: Text(l10n.assistantEditImageUrlDialogTitle),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: l10n.assistantEditImageUrlDialogHint,
+                filled: true,
+                fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.4))),
+              ),
+              onChanged: (v) => setLocal(() => value = v),
+              onSubmitted: (_) {
+                if (valid(value)) Navigator.of(ctx).pop(true);
+              },
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.assistantEditImageUrlDialogCancel)),
+              TextButton(
+                onPressed: valid(value) ? () => Navigator.of(ctx).pop(true) : null,
+                child: Text(l10n.assistantEditImageUrlDialogSave, style: TextStyle(color: valid(value) ? cs.primary : cs.onSurface.withOpacity(0.38), fontWeight: FontWeight.w600)),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+  if (ok == true) {
+    final url = controller.text.trim();
+    if (url.isNotEmpty) {
+      await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: url));
+    }
+  }
+}
+
+Future<void> _inputQQAvatarForAssistant(BuildContext context, Assistant a) async {
+  final l10n = AppLocalizations.of(context)!;
+  final controller = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final cs = Theme.of(ctx).colorScheme;
+      String value = '';
+      bool valid(String s) => RegExp(r'^[0-9]{5,12}$').hasMatch(s.trim());
+      String randomQQ() {
+        final lengths = <int>[5, 6, 7, 8, 9, 10, 11];
+        final weights = <int>[1, 20, 80, 100, 500, 5000, 80];
+        final total = weights.fold<int>(0, (a, b) => a + b);
+        final rnd = math.Random();
+        int roll = rnd.nextInt(total) + 1;
+        int chosenLen = lengths.last;
+        int acc = 0;
+        for (int i = 0; i < lengths.length; i++) {
+          acc += weights[i];
+          if (roll <= acc) {
+            chosenLen = lengths[i];
+            break;
+          }
+        }
+        final sb = StringBuffer();
+        final firstGroups = <List<int>>[
+          [1, 2],
+          [3, 4],
+          [5, 6, 7, 8],
+          [9],
+        ];
+        final firstWeights = <int>[128, 4, 2, 1];
+        final firstTotal = firstWeights.fold<int>(0, (a, b) => a + b);
+        int r2 = rnd.nextInt(firstTotal) + 1;
+        int idx = 0;
+        int a2 = 0;
+        for (int i = 0; i < firstGroups.length; i++) {
+          a2 += firstWeights[i];
+          if (r2 <= a2) {
+            idx = i;
+            break;
+          }
+        }
+        final group = firstGroups[idx];
+        sb.write(group[rnd.nextInt(group.length)]);
+        for (int i = 1; i < chosenLen; i++) {
+          sb.write(rnd.nextInt(10));
+        }
+        return sb.toString();
+      }
+
+      return StatefulBuilder(
+        builder: (ctx, setLocal) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            backgroundColor: cs.surface,
+            title: Text(l10n.assistantEditQQAvatarDialogTitle),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: l10n.assistantEditQQAvatarDialogHint,
+                filled: true,
+                fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.4))),
+              ),
+              onChanged: (v) => setLocal(() => value = v),
+              onSubmitted: (_) {
+                if (valid(value)) Navigator.of(ctx).pop(true);
+              },
+            ),
+            actionsAlignment: MainAxisAlignment.spaceBetween,
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  const int maxTries = 20;
+                  bool applied = false;
+                  for (int i = 0; i < maxTries; i++) {
+                    final qq = randomQQ();
+                    final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=' + qq + '&spec=100';
+                    try {
+                      final resp = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+                      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+                        await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: url));
+                        applied = true;
+                        break;
+                      }
+                    } catch (_) {}
+                  }
+                  if (applied) {
+                    if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop(false);
+                  } else {
+                    showAppSnackBar(context, message: l10n.assistantEditQQAvatarFailedMessage, type: NotificationType.error);
+                  }
+                },
+                child: Text(l10n.assistantEditQQAvatarRandomButton),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.assistantEditQQAvatarDialogCancel)),
+                  TextButton(
+                    onPressed: valid(value) ? () => Navigator.of(ctx).pop(true) : null,
+                    child: Text(l10n.assistantEditQQAvatarDialogSave, style: TextStyle(color: valid(value) ? cs.primary : cs.onSurface.withOpacity(0.38), fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+  if (ok == true) {
+    final qq = controller.text.trim();
+    if (qq.isNotEmpty) {
+      final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=' + qq + '&spec=100';
+      await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: url));
+    }
+  }
+}
+
+Future<void> _pickLocalImageForAssistant(BuildContext context, Assistant a) async {
+  try {
+    final res = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
+    if (res == null || res.files.isEmpty) return;
+    final f = res.files.first;
+    Uint8List? bytes = f.bytes;
+    String? path = f.path;
+    if (bytes == null && (path == null || path.isEmpty)) return;
+    if (bytes == null && path != null) {
+      try {
+        bytes = await File(path).readAsBytes();
+      } catch (_) {}
+    }
+    if (bytes == null) return;
+    final tmp = await getTemporaryDirectory();
+    final ext = _extFromName(f.name);
+    final tmpFile = File('${tmp.path}/assistant_avatar_${a.id}_${DateTime.now().millisecondsSinceEpoch}.$ext');
+    await tmpFile.writeAsBytes(bytes);
+    await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: tmpFile.path));
+    return;
+  } on PlatformException catch (e) {
+    final l10n = AppLocalizations.of(context)!;
+    showAppSnackBar(context, message: l10n.assistantEditGalleryErrorMessage, type: NotificationType.error);
+    await _inputAvatarUrlForAssistant(context, a);
+    return;
+  } catch (_) {
+    final l10n = AppLocalizations.of(context)!;
+    showAppSnackBar(context, message: l10n.assistantEditGeneralErrorMessage, type: NotificationType.error);
+    await _inputAvatarUrlForAssistant(context, a);
+    return;
+  }
+}
+
+String _extFromName(String name) {
+  final lower = name.toLowerCase();
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'jpg';
+  if (lower.endsWith('.png')) return 'png';
+  if (lower.endsWith('.webp')) return 'webp';
+  if (lower.endsWith('.gif')) return 'gif';
+  return 'jpg';
 }
 
 // Glass morphism context menu for assistant avatar
