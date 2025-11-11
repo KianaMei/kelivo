@@ -5033,6 +5033,60 @@ abstract class AppLocalizations {
   /// **'Enter memory content'**
   String get assistantEditMemoryDialogHint;
 
+  /// No description provided for @assistantEditPresetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset Messages'**
+  String get assistantEditPresetTitle;
+
+  /// No description provided for @assistantEditPresetAddUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Add User Message'**
+  String get assistantEditPresetAddUser;
+
+  /// No description provided for @assistantEditPresetAddAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Assistant Message'**
+  String get assistantEditPresetAddAssistant;
+
+  /// No description provided for @assistantEditPresetInputHintUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter user message…'**
+  String get assistantEditPresetInputHintUser;
+
+  /// No description provided for @assistantEditPresetInputHintAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter assistant message…'**
+  String get assistantEditPresetInputHintAssistant;
+
+  /// No description provided for @assistantEditPresetEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No preset messages yet'**
+  String get assistantEditPresetEmpty;
+
+  /// No description provided for @assistantEditPresetEditDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Preset Message'**
+  String get assistantEditPresetEditDialogTitle;
+
+  /// No description provided for @assistantEditPresetRoleUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get assistantEditPresetRoleUser;
+
+  /// No description provided for @assistantEditPresetRoleAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistant'**
+  String get assistantEditPresetRoleAssistant;
+
   /// No description provided for @assistantEditAddQuickPhraseButton.
   ///
   /// In en, this message translates to:

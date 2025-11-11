@@ -2571,6 +2571,33 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditMemoryDialogHint => '输入记忆内容';
 
   @override
+  String get assistantEditPresetTitle => '预设对话信息';
+
+  @override
+  String get assistantEditPresetAddUser => '添加预设用户信息';
+
+  @override
+  String get assistantEditPresetAddAssistant => '添加预设助手信息';
+
+  @override
+  String get assistantEditPresetInputHintUser => '输入用户消息…';
+
+  @override
+  String get assistantEditPresetInputHintAssistant => '输入助手消息…';
+
+  @override
+  String get assistantEditPresetEmpty => '暂无预设消息';
+
+  @override
+  String get assistantEditPresetEditDialogTitle => '编辑预设消息';
+
+  @override
+  String get assistantEditPresetRoleUser => '用户';
+
+  @override
+  String get assistantEditPresetRoleAssistant => '助手';
+
+  @override
   String get assistantEditAddQuickPhraseButton => '添加快捷短语';
 
   @override

@@ -2661,6 +2661,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditMemoryDialogHint => 'Enter memory content';
 
   @override
+  String get assistantEditPresetTitle => 'Preset Messages';
+
+  @override
+  String get assistantEditPresetAddUser => 'Add User Message';
+
+  @override
+  String get assistantEditPresetAddAssistant => 'Add Assistant Message';
+
+  @override
+  String get assistantEditPresetInputHintUser => 'Enter user message…';
+
+  @override
+  String get assistantEditPresetInputHintAssistant =>
+      'Enter assistant message…';
+
+  @override
+  String get assistantEditPresetEmpty => 'No preset messages yet';
+
+  @override
+  String get assistantEditPresetEditDialogTitle => 'Edit Preset Message';
+
+  @override
+  String get assistantEditPresetRoleUser => 'User';
+
+  @override
+  String get assistantEditPresetRoleAssistant => 'Assistant';
+
+  @override
   String get assistantEditAddQuickPhraseButton => 'Add Quick Phrase';
 
   @override

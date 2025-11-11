@@ -18,6 +18,7 @@ import 'package:http/http.dart' as http;
 import '../../../icons/lucide_adapter.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../core/models/assistant.dart';
+import '../../../core/models/preset_message.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../model/widgets/model_select_sheet.dart';
@@ -3508,6 +3509,10 @@ class _PromptTabState extends State<_PromptTab> {
   late final TextEditingController _tmplCtrl;
   late final FocusNode _sysFocus;
   late final FocusNode _tmplFocus;
+  late final TextEditingController _presetCtrl;
+  bool _showPresetInput = false;
+  String _presetRole = 'user';
+  final GlobalKey _presetHeaderKey = GlobalKey(debugLabel: 'presetHeader');
 
   @override
   void initState() {
@@ -3518,6 +3523,7 @@ class _PromptTabState extends State<_PromptTab> {
     _tmplCtrl = TextEditingController(text: a.messageTemplate);
     _sysFocus = FocusNode(debugLabel: 'systemPromptFocus');
     _tmplFocus = FocusNode(debugLabel: 'messageTemplateFocus');
+    _presetCtrl = TextEditingController();
   }
 
   @override
@@ -3537,6 +3543,7 @@ class _PromptTabState extends State<_PromptTab> {
     _tmplCtrl.dispose();
     _sysFocus.dispose();
     _tmplFocus.dispose();
+    _presetCtrl.dispose();
     super.dispose();
   }
 
@@ -3563,6 +3570,214 @@ class _PromptTabState extends State<_PromptTab> {
     final a = ap.getById(widget.assistantId)!;
     ap.updateAssistant(a.copyWith(systemPrompt: _sysCtrl.text));
     setState(() {});
+  }
+
+  Widget presetCard() {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final ap = context.watch<AssistantProvider>();
+    final a = ap.getById(widget.assistantId)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final items = a.presetMessages;
+    final isDesktop = Theme.of(context).platform == TargetPlatform.macOS || Theme.of(context).platform == TargetPlatform.linux || Theme.of(context).platform == TargetPlatform.windows;
+
+    Widget dragWrapper({required int index, required Widget child}) {
+      return isDesktop
+          ? ReorderableDragStartListener(index: index, child: child)
+          : ReorderableDelayedDragStartListener(index: index, child: child);
+    }
+
+    Widget headerButtons() {
+      Widget makeButtons() => Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _HoverPillButton(
+                icon: Lucide.User,
+                color: cs.primary,
+                label: l10n.assistantEditPresetAddUser,
+                onTap: () {
+                  setState(() {
+                    _presetRole = 'user';
+                    _presetCtrl.text = '';
+                    _showPresetInput = true;
+                  });
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    final ctx = _presetHeaderKey.currentContext;
+                    if (ctx != null) {
+                      Scrollable.ensureVisible(ctx, alignment: 0.0, duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic);
+                    }
+                  });
+                },
+              ),
+              _HoverPillButton(
+                icon: Lucide.Bot,
+                color: cs.secondary,
+                label: l10n.assistantEditPresetAddAssistant,
+                onTap: () {
+                  setState(() {
+                    _presetRole = 'assistant';
+                    _presetCtrl.text = '';
+                    _showPresetInput = true;
+                  });
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    final ctx = _presetHeaderKey.currentContext;
+                    if (ctx != null) {
+                      Scrollable.ensureVisible(ctx, alignment: 0.0, duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic);
+                    }
+                  });
+                },
+              ),
+            ],
+          );
+
+      return Container(
+        key: _presetHeaderKey,
+        child: LayoutBuilder(
+          builder: (ctx, constraints) {
+            final textScale = MediaQuery.of(ctx).textScaleFactor;
+            final narrow = constraints.maxWidth < 420 || textScale > 1.15;
+            if (narrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.assistantEditPresetTitle,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  makeButtons(),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.assistantEditPresetTitle,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                makeButtons(),
+              ],
+            );
+          },
+        ),
+      );
+    }
+
+    final baseBg = isDark ? Colors.white10 : Colors.white.withOpacity(0.96);
+
+    return Container(
+      decoration: BoxDecoration(color: baseBg, borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            headerButtons(),
+            const SizedBox(height: 10),
+
+            if (items.isEmpty)
+              Text(l10n.assistantEditPresetEmpty, style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12)),
+
+            if (items.isNotEmpty)
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                proxyDecorator: (child, index, anim) {
+                  return AnimatedBuilder(
+                    animation: anim,
+                    builder: (_, __) => ClipRRect(borderRadius: BorderRadius.circular(18), child: child),
+                  );
+                },
+                itemCount: items.length,
+                onReorder: (oldIndex, newIndex) async {
+                  if (newIndex > oldIndex) newIndex -= 1;
+                  final list = List<PresetMessage>.of(a.presetMessages);
+                  final item = list.removeAt(oldIndex);
+                  list.insert(newIndex, item);
+                  await context.read<AssistantProvider>().updateAssistant(a.copyWith(presetMessages: list));
+                },
+                itemBuilder: (ctx, i) {
+                  final m = items[i];
+                  final card = _PresetMessageCard(
+                    role: m.role,
+                    content: m.content,
+                    onEdit: () async => _showEditPresetDialog(context, a, m),
+                    onDelete: () async {
+                      final list = List<PresetMessage>.of(a.presetMessages);
+                      list.removeWhere((e) => e.id == m.id);
+                      await context.read<AssistantProvider>().updateAssistant(a.copyWith(presetMessages: list));
+                    },
+                  );
+                  return KeyedSubtree(
+                    key: ValueKey(m.id),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: dragWrapper(index: i, child: card),
+                    ),
+                  );
+                },
+              ),
+
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: !_showPresetInput
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: _presetCtrl,
+                              minLines: 1,
+                              maxLines: 6,
+                              decoration: InputDecoration(
+                                hintText: _presetRole == 'assistant' ? l10n.assistantEditPresetInputHintAssistant : l10n.assistantEditPresetInputHintUser,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.35))),
+                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+                                contentPadding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                              ),
+                              autofocus: false,
+                              onSubmitted: (_) async {
+                                final text = _presetCtrl.text.trim();
+                                if (text.isEmpty) return;
+                                final list = List<PresetMessage>.of(a.presetMessages);
+                                list.add(PresetMessage(role: _presetRole, content: text));
+                                await context.read<AssistantProvider>().updateAssistant(a.copyWith(presetMessages: list));
+                                if (!mounted) return;
+                                setState(() {
+                                  _showPresetInput = false;
+                                  _presetCtrl.clear();
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _IosButton(label: l10n.assistantEditEmojiDialogCancel, onTap: () { setState(() { _showPresetInput = false; _presetCtrl.clear(); }); }, filled: false, neutral: true),
+                                const SizedBox(width: 8),
+                                _IosButton(label: l10n.assistantEditEmojiDialogSave, onTap: () async { final text = _presetCtrl.text.trim(); if (text.isEmpty) return; final list = List<PresetMessage>.of(a.presetMessages); list.add(PresetMessage(role: _presetRole, content: text)); await context.read<AssistantProvider>().updateAssistant(a.copyWith(presetMessages: list)); if (!mounted) return; setState(() { _showPresetInput = false; _presetCtrl.clear(); }); }, filled: true, neutral: false),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -3910,9 +4125,152 @@ class _PromptTabState extends State<_PromptTab> {
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-      children: [sysCard, const SizedBox(height: 12), tmplCard],
+      children: [
+        sysCard,
+        const SizedBox(height: 12),
+        tmplCard,
+        const SizedBox(height: 12),
+        presetCard(),
+      ],
     );
   }
+}
+
+Future<void> _showEditPresetDialog(BuildContext context, Assistant a, PresetMessage m) async {
+  final l10n = AppLocalizations.of(context)!;
+  final cs = Theme.of(context).colorScheme;
+  final controller = TextEditingController(text: m.content);
+  final platform = Theme.of(context).platform;
+  final isDesktop = platform == TargetPlatform.macOS || platform == TargetPlatform.linux || platform == TargetPlatform.windows;
+  Future<void> save() async {
+    final text = controller.text.trim();
+    if (text.isEmpty) return;
+    final list = List<PresetMessage>.of(a.presetMessages);
+    final idx = list.indexWhere((e) => e.id == m.id);
+    if (idx != -1) {
+      list[idx] = list[idx].copyWith(content: text);
+    }
+    await context.read<AssistantProvider>().updateAssistant(a.copyWith(presetMessages: list));
+  }
+  if (isDesktop) {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: cs.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: Text(l10n.assistantEditPresetEditDialogTitle, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700))),
+                    IconButton(
+                      tooltip: MaterialLocalizations.of(ctx).closeButtonTooltip,
+                      icon: const Icon(Lucide.X, size: 18),
+                      color: cs.onSurface,
+                      onPressed: () => Navigator.of(ctx).maybePop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  minLines: 3,
+                  maxLines: 8,
+                  decoration: InputDecoration(
+                    hintText: m.role == 'assistant' ? l10n.assistantEditPresetInputHintAssistant : l10n.assistantEditPresetInputHintUser,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _IosButton(label: l10n.assistantEditEmojiDialogCancel, onTap: () => Navigator.of(ctx).pop(), filled: false, neutral: true),
+                    const SizedBox(width: 8),
+                    _IosButton(label: l10n.assistantEditEmojiDialogSave, onTap: () async { await save(); if (context.mounted) Navigator.of(ctx).pop(); }, filled: true, neutral: false),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: cs.surface,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+    builder: (ctx) {
+      final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+      return SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Lucide.MessageSquare, size: 18, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(l10n.assistantEditPresetEditDialogTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                minLines: 1,
+                maxLines: 8,
+                decoration: InputDecoration(
+                  hintText: m.role == 'assistant' ? l10n.assistantEditPresetInputHintAssistant : l10n.assistantEditPresetInputHintUser,
+                  filled: true,
+                  fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF7F7F9),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.2))),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _IosButton(
+                      label: l10n.assistantEditEmojiDialogCancel,
+                      icon: Lucide.X,
+                      onTap: () => Navigator.of(ctx).pop(),
+                      filled: false,
+                      neutral: true,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _IosButton(
+                      label: l10n.assistantEditEmojiDialogSave,
+                      icon: Lucide.Check,
+                      onTap: () async { await save(); if (context.mounted) Navigator.of(ctx).pop(); },
+                      filled: true,
+                      neutral: false,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _VarExplainList extends StatelessWidget {
@@ -3953,6 +4311,132 @@ class _VarExplainList extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+}
+
+class _PresetMessageCard extends StatefulWidget {
+  const _PresetMessageCard({required this.role, required this.content, required this.onEdit, required this.onDelete});
+  final String role; // 'user' | 'assistant'
+  final String content;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  @override
+  State<_PresetMessageCard> createState() => _PresetMessageCardState();
+}
+
+class _PresetMessageCardState extends State<_PresetMessageCard> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseBg = isDark ? Colors.white10 : Colors.white.withOpacity(0.96);
+    final borderColor = _hover ? cs.primary.withOpacity(isDark ? 0.35 : 0.45) : cs.outlineVariant.withOpacity(isDark ? 0.12 : 0.08);
+    final icon = widget.role == 'assistant' ? Lucide.Bot : Lucide.User;
+    final badgeColor = widget.role == 'assistant' ? cs.secondary : cs.primary;
+
+    final card = Container(
+      decoration: BoxDecoration(color: baseBg, borderRadius: BorderRadius.circular(18), border: Border.all(color: borderColor, width: 1.0)),
+      padding: const EdgeInsets.all(14),
+      constraints: const BoxConstraints(minHeight: 64),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Icon(icon, size: 18, color: badgeColor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(widget.content, maxLines: 4, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13.5, color: cs.onSurface.withOpacity(0.9))),
+          ),
+        ),
+        const SizedBox(width: 8),
+        _HoverIconButton(icon: Lucide.Settings2, onTap: widget.onEdit),
+        const SizedBox(width: 4),
+        _HoverIconButton(icon: Lucide.Trash2, onTap: widget.onDelete),
+      ]),
+    );
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: card,
+    );
+  }
+}
+
+class _HoverIconButton extends StatefulWidget {
+  const _HoverIconButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+  @override
+  State<_HoverIconButton> createState() => _HoverIconButtonState();
+}
+
+class _HoverIconButtonState extends State<_HoverIconButton> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: _hover ? cs.primary.withOpacity(0.10) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(widget.icon, size: 16, color: _hover ? cs.primary : cs.onSurface.withOpacity(0.9)),
+        ),
+      ),
+    );
+  }
+}
+
+class _HoverPillButton extends StatefulWidget {
+  const _HoverPillButton({required this.icon, required this.color, required this.label, required this.onTap});
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+  @override
+  State<_HoverPillButton> createState() => _HoverPillButtonState();
+}
+
+class _HoverPillButtonState extends State<_HoverPillButton> {
+  bool _hover = false;
+  bool _press = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _press = true),
+        onTapCancel: () => setState(() => _press = false),
+        onTapUp: (_) => setState(() => _press = false),
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: widget.color.withOpacity(_press ? 0.18 : _hover ? 0.14 : 0.10),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(widget.icon, size: 14, color: widget.color),
+            const SizedBox(width: 6),
+            Text(widget.label, style: TextStyle(color: widget.color, fontSize: 12, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      ),
     );
   }
 }
