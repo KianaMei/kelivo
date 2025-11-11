@@ -501,14 +501,14 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
                         ),
                       ),
                     ),
-                    // Provider tabs
-                    _buildBottomTabs(context),
                     // Scrollable content
                     Expanded(
                       child: _isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : _buildContent(context),
                     ),
+                    // Provider tabs at bottom (mobile design)
+                    _buildBottomTabs(context),
                   ],
                 ),
               );

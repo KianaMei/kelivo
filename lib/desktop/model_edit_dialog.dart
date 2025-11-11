@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -122,25 +123,28 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 540, maxWidth: 700, maxHeight: 650),
-        child: Material(
-          color: cs.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.25)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 540, maxWidth: 700, maxHeight: 650),
+          child: Material(
+            color: isDark ? const Color(0xFF1C1C1E).withOpacity(0.85) : Colors.white.withOpacity(0.90),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: isDark ? Colors.white.withOpacity(0.12) : cs.outlineVariant.withOpacity(0.3)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Header
                 Container(
                   height: 52,
-                  color: cs.surface,
+                  color: Colors.transparent,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 10, 0),
                     child: Row(
@@ -165,7 +169,7 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
                 // Body
                 Expanded(
                   child: Container(
-                    color: cs.surface,
+                    color: Colors.transparent,
                     child: Column(
                       children: [
                         Padding(
@@ -187,7 +191,7 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
                 ),
                 // Footer: right aligned confirm/add
                 Container(
-                  color: cs.surface,
+                  color: Colors.transparent,
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: Row(
                     children: [
@@ -201,6 +205,7 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody> with SingleT
                   ),
                 ),
               ],
+              ),
             ),
           ),
         ),

@@ -736,7 +736,6 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
       ),
     );
   }
-
   // ========== Action Methods ==========
 
   Future<void> _showProviderSettingsDialog(BuildContext context) async {
@@ -929,7 +928,7 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
   Future<void> _showTestConnectionDialog(BuildContext context) async {
     await showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (ctx) => _DesktopConnectionTestDialog(
         providerKey: widget.keyName,
         displayName: widget.displayName,
@@ -943,6 +942,14 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
       providerKey: widget.keyName,
       providerDisplayName: widget.displayName,
     );
+  }
+
+  Future<void> _addModel(BuildContext context) async {
+    final ok = await showDesktopCreateModelDialog(context, providerKey: widget.keyName);
+    if (!mounted) return;
+    if (ok == true) {
+      setState(() {});
+    }
   }
 
   // Old inline implementation (replaced by imported dialog)
@@ -1319,12 +1326,6 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
     }
   }
 
-  Future<void> _addModel(BuildContext context) async {
-    await showModelSelector(
-      context,
-      limitProviderKey: widget.keyName,
-    );
-  }
 }
 
 // ========== Helper Widgets ==========
@@ -1689,31 +1690,70 @@ class _ModelRow extends StatelessWidget {
       }
     }
     
-    return InkWell(
-      onTap: () {
-        showDesktopModelEditDialog(context, modelId: modelId, providerKey: providerKey);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: cs.outlineVariant.withOpacity(0.1)),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: cs.outlineVariant.withOpacity(0.1)),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                modelId,
-                style: const TextStyle(fontSize: 13),
-              ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              modelId,
+              style: const TextStyle(fontSize: 13),
             ),
-            const SizedBox(width: 8),
-            ...caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)),
-            const SizedBox(width: 8),
-            Icon(Lucide.ChevronRight, size: 14, color: cs.onSurface.withOpacity(0.5)),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          ...caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)),
+          const SizedBox(width: 8),
+          // Settings button
+          _IconBtn(
+            icon: Lucide.Settings2,
+            onTap: () {
+              showDesktopModelEditDialog(context, modelId: modelId, providerKey: providerKey);
+            },
+          ),
+          const SizedBox(width: 6),
+          // Delete button
+          _IconBtn(
+            icon: Lucide.Trash2,
+            color: cs.error,
+            onTap: () async {
+              final l10n = AppLocalizations.of(context)!;
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (dctx) => AlertDialog(
+                  backgroundColor: cs.surface,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  title: Text(l10n.providerDetailPageConfirmDeleteTitle),
+                  content: Text(l10n.providerDetailPageConfirmDeleteContent),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dctx).pop(false),
+                      child: Text(l10n.providerDetailPageCancelButton),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(dctx).pop(true),
+                      style: TextButton.styleFrom(foregroundColor: cs.error),
+                      child: Text(l10n.providerDetailPageDeleteButton),
+                    ),
+                  ],
+                ),
+              );
+              if (ok != true || !context.mounted) return;
+              
+              final settings = context.read<SettingsProvider>();
+              final old = settings.getProviderConfig(providerKey);
+              final prevList = List<String>.from(old.models);
+              final prevOverrides = Map<String, dynamic>.from(old.modelOverrides);
+              final newList = prevList.where((e) => e != modelId).toList();
+              final newOverrides = Map<String, dynamic>.from(prevOverrides)..remove(modelId);
+              await settings.setProviderConfig(providerKey, old.copyWith(models: newList, modelOverrides: newOverrides));
+            },
+          ),
+        ],
       ),
     );
   }
@@ -2859,6 +2899,8 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
   String? _selectedModelId;
   _TestState _state = _TestState.idle;
   String _errorMessage = '';
+  bool _selectorOpen = false;
+  final TextEditingController _selectorSearchCtrl = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -2872,22 +2914,37 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 560),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Text(
-                  l10n.providerDetailPageTestConnectionTitle,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
+              Row(
+                children: [
+                  const SizedBox(width: 40),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        l10n.providerDetailPageTestConnectionTitle,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: IconButton(
+                      icon: Icon(Lucide.X, size: 18, color: cs.onSurface.withOpacity(0.7)),
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      tooltip: l10n.providerDetailPageCancelButton,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               _buildBody(context, cs, l10n),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -2896,11 +2953,8 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
                     child: Text(l10n.providerDetailPageCancelButton),
                   ),
                   const SizedBox(width: 8),
-                  TextButton(
+                  FilledButton(
                     onPressed: canTest ? _doTest : null,
-                    style: TextButton.styleFrom(
-                      foregroundColor: canTest ? cs.primary : cs.onSurface.withOpacity(0.4),
-                    ),
                     child: Text(l10n.providerDetailPageTestButton),
                   ),
                 ],
@@ -2910,6 +2964,12 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _selectorSearchCtrl.dispose();
+    super.dispose();
   }
 
   Widget _buildBody(BuildContext context, ColorScheme cs, AppLocalizations l10n) {
@@ -2940,34 +3000,9 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
   Widget _buildIdle(BuildContext context, ColorScheme cs, AppLocalizations l10n) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_selectedModelId == null)
-          TextButton(
-            onPressed: _pickModel,
-            child: Text(l10n.providerDetailPageSelectModelButton),
-          )
-        else
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _BrandAvatar(name: _selectedModelId!, size: 24),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  _selectedModelId!,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 10),
-              TextButton(
-                onPressed: _pickModel,
-                child: Text(l10n.providerDetailPageChangeButton),
-              ),
-            ],
-          ),
+        _modelSelectorField(context, cs, l10n, enabled: true),
       ],
     );
   }
@@ -2975,30 +3010,16 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
   Widget _buildLoading(BuildContext context, ColorScheme cs, AppLocalizations l10n) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_selectedModelId != null)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _BrandAvatar(name: _selectedModelId!, size: 24),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  _selectedModelId!,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
+        _modelSelectorField(context, cs, l10n, enabled: false),
         const SizedBox(height: 16),
         const LinearProgressIndicator(minHeight: 4),
         const SizedBox(height: 12),
         Text(
           l10n.providerDetailPageTestingMessage,
           style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -3014,37 +3035,9 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
     final color = success ? Colors.green : cs.error;
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_selectedModelId != null)
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: _pickModel,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    _BrandAvatar(name: _selectedModelId!, size: 24),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _selectedModelId!,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(Lucide.ChevronDown, size: 16, color: cs.onSurface.withOpacity(0.7)),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        _modelSelectorField(context, cs, l10n, enabled: true),
         const SizedBox(height: 14),
         Text(
           message,
@@ -3055,23 +3048,193 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
     );
   }
 
-  Future<void> _pickModel() async {
-    // Pick from existing models in the provider
-    final sp = context.read<SettingsProvider>();
+  Widget _modelSelectorField(BuildContext context, ColorScheme cs, AppLocalizations l10n, {bool enabled = true}) {
+    final sp = context.watch<SettingsProvider>();
     final cfg = sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName);
-    if (cfg.models.isEmpty) {
-      showAppSnackBar(context, message: 'No models configured for this provider', type: NotificationType.error);
-      return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final all = cfg.models;
+    final q = _selectorSearchCtrl.text.trim().toLowerCase();
+    final list = [
+      for (final id in all)
+        if (q.isEmpty || id.toLowerCase().contains(q) || ModelRegistry.infer(ModelInfo(id: id, displayName: id)).displayName.toLowerCase().contains(q))
+          id,
+    ];
+
+    final borderColor = cs.outlineVariant.withOpacity(isDark ? 0.25 : 0.4);
+    final hoverBg = isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03);
+    final selectedBg = isDark ? cs.primary.withOpacity(0.10) : cs.primary.withOpacity(0.08);
+
+    Widget fieldContent() {
+      final id = _selectedModelId;
+      final name = id == null ? null : ModelRegistry.infer(ModelInfo(id: id, displayName: id)).displayName;
+      return Row(
+        children: [
+          if (id != null) _BrandAvatar(name: id, size: 20) else Icon(Lucide.BadgeInfo, size: 18, color: cs.onSurface.withOpacity(0.6)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              id == null ? l10n.providerDetailPageSelectModelButton : name ?? id,
+              style: TextStyle(color: cs.onSurface, fontWeight: id == null ? FontWeight.w400 : FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Icon(_selectorOpen ? Lucide.ChevronUp : Lucide.ChevronDown, size: 18, color: cs.onSurface.withOpacity(0.6)),
+        ],
+      );
     }
 
-    final selected = await showModelSelector(context, limitProviderKey: widget.providerKey);
-    if (selected != null && mounted) {
-      setState(() {
-        _selectedModelId = selected.modelId;
-        _state = _TestState.idle;
-        _errorMessage = '';
-      });
-    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: enabled ? () => setState(() => _selectorOpen = !_selectorOpen) : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+              color: isDark ? Colors.white.withOpacity(0.02) : const Color(0xFFF6F7F9),
+            ),
+            child: fieldContent(),
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _selectorSearchCtrl,
+                  onChanged: (_) => setState(() {}),
+                  enabled: enabled,
+                  decoration: InputDecoration(
+                    hintText: l10n.providerDetailPageSelectModelButton,
+                    prefixIcon: Icon(Lucide.Search, size: 18, color: cs.onSurface.withOpacity(0.6)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    filled: true,
+                    fillColor: isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF6F7F9),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: cs.primary.withOpacity(0.35))),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF151517) : Colors.white,
+                      border: Border.all(color: borderColor),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        if (!isDark)
+                          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 6)),
+                      ],
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 260),
+                      child: Scrollbar(
+                        thickness: 4,
+                        radius: const Radius.circular(999),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: list.length,
+                          itemBuilder: (ctx, i) {
+                            final id = list[i];
+                            final selected = _selectedModelId == id;
+                            final info = _getEffectiveModelInfo(id, cfg);
+                            final caps = <Widget>[];
+                            Widget pill(Widget icon, Color color) {
+                              final bg = isDark ? color.withOpacity(0.18) : color.withOpacity(0.14);
+                              final bd = color.withOpacity(0.22);
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: bg,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: bd, width: 0.5),
+                              ),
+                              child: icon,
+                            );
+                          }
+                          if (info.input.contains(Modality.image)) {
+                            caps.add(pill(Icon(Lucide.Eye, size: 11, color: cs.secondary), cs.secondary));
+                          }
+                          if (info.output.contains(Modality.image)) {
+                            caps.add(pill(Icon(Lucide.Image, size: 11, color: cs.tertiary), cs.tertiary));
+                          }
+                          for (final ab in info.abilities) {
+                            if (ab == ModelAbility.tool) {
+                              caps.add(pill(Icon(Lucide.Hammer, size: 11, color: cs.primary), cs.primary));
+                            } else if (ab == ModelAbility.reasoning) {
+                              caps.add(pill(
+                                SvgPicture.asset('assets/icons/deepthink.svg', width: 11, height: 11, colorFilter: ColorFilter.mode(cs.secondary, BlendMode.srcIn)),
+                                cs.secondary,
+                              ));
+                            }
+                          }
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: enabled
+                                  ? () => setState(() {
+                                        _selectedModelId = id;
+                                        _state = _TestState.idle;
+                                        _errorMessage = '';
+                                        _selectorOpen = false;
+                                      })
+                                  : null,
+                              hoverColor: hoverBg,
+                              splashColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: selected ? selectedBg : Colors.transparent,
+                                  border: Border(
+                                    top: BorderSide(color: i == 0 ? Colors.transparent : borderColor.withOpacity(0.6)),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    _BrandAvatar(name: id, size: 20),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        info.displayName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(fontWeight: selected ? FontWeight.w700 : FontWeight.w500),
+                                      ),
+                                    ),
+                                    ...caps.take(3).map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)),
+                                    const SizedBox(width: 6),
+                                    if (selected) Icon(Lucide.Check, size: 16, color: cs.primary),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          crossFadeState: _selectorOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 180),
+          sizeCurve: Curves.easeOutCubic,
+        ),
+      ],
+    );
   }
 
   Future<void> _doTest() async {

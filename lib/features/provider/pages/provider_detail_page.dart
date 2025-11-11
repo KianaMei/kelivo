@@ -102,6 +102,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   final _proxyPortCtrl = TextEditingController(text: '8080');
   final _proxyUserCtrl = TextEditingController();
   final _proxyPassCtrl = TextEditingController();
+  // Model grouping state
+  final Set<String> _collapsedGroups = {};
 
   @override
   void initState() {
@@ -143,6 +145,26 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     _proxyUserCtrl.dispose();
     _proxyPassCtrl.dispose();
     super.dispose();
+  }
+
+  // Group models by prefix (/, :, -)
+  Map<String, List<String>> _groupModels(List<String> models) {
+    final map = <String, List<String>>{};
+    for (final m in models) {
+      var g = m;
+      if (m.contains('/')) {
+        g = m.split('/').first;
+      } else if (m.contains(':')) {
+        g = m.split(':').first;
+      } else if (m.contains('-')) {
+        g = m.split('-').first;
+      }
+      (map[g] ??= <String>[]).add(m);
+    }
+    // Stable sort by key
+    final entries = map.entries.toList()
+      ..sort((a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()));
+    return {for (final e in entries) e.key: e.value};
   }
 
   @override
@@ -637,9 +659,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       );
     }
     final models = cfg.models;
-    return Stack(
-      children: [
-        if (models.isEmpty)
+    
+    if (models.isEmpty) {
+      return Stack(
+        children: [
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -653,199 +676,200 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 ),
               ],
             ),
-          )
-        else
-          ReorderableListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            itemCount: models.length,
-            buildDefaultDragHandles: false, // 禁用默认拖动手柄，使用自定义的
-            onReorder: (oldIndex, newIndex) async {
-              if (newIndex > oldIndex) newIndex -= 1;
-              final id = models[oldIndex];
-              final list = List<String>.from(models);
-              final item = list.removeAt(oldIndex);
-              list.insert(newIndex, item);
-              setState(() {});
-              await context.read<SettingsProvider>().setProviderConfig(
-                widget.keyName,
-                cfg.copyWith(models: list),
-              );
-            },
-            proxyDecorator: (child, index, animation) {
-              return AnimatedBuilder(
-                animation: animation,
-                builder: (context, _) {
-                  final t = Curves.easeOut.transform(animation.value);
-                  return Transform.scale(
-                    scale: 0.98 + 0.02 * t,
-                    child: child,
-                  );
-                },
-                child: child,
-              );
-            },
-            itemBuilder: (c, i) {
-              final id = models[i];
-              final cs = Theme.of(context).colorScheme;
-              return KeyedSubtree(
-                key: ValueKey('reorder-model-$id'),
-                child: Slidable(
-                  key: ValueKey('model-$id'),
-                  endActionPane: ActionPane(
-                    motion: const StretchMotion(),
-                    extentRatio: 0.42,
-                    children: [
-                      CustomSlidableAction(
-                        autoClose: true,
-                        backgroundColor: Colors.transparent,
-                        child: Container(
-                          width: double.infinity,
-                          height: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).brightness == Brightness.dark ? cs.error.withOpacity(0.22) : cs.error.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: cs.error.withOpacity(0.35)),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          alignment: Alignment.center,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Lucide.Trash2, color: cs.error, size: 18),
-                                const SizedBox(width: 6),
-                                Text(l10n.providerDetailPageDeleteModelButton, style: TextStyle(color: cs.error, fontWeight: FontWeight.w700)),
-                              ],
-                            ),
-                          ),
-                        ),
-                        onPressed: (_) async {
-                            final ok = await showDialog<bool>(
-                              context: context,
-                              builder: (dctx) => AlertDialog(
-                                backgroundColor: cs.surface,
-                                title: Text(l10n.providerDetailPageConfirmDeleteTitle),
-                                content: Text(l10n.providerDetailPageConfirmDeleteContent),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: Text(l10n.providerDetailPageCancelButton)),
-                                  TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: Text(l10n.providerDetailPageDeleteButton)),
-                                ],
-                              ),
-                            );
-                            if (ok != true) return;
-                            final settings = context.read<SettingsProvider>();
-                            final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-                            final prevList = List<String>.from(old.models);
-                            final prevOverrides = Map<String, dynamic>.from(old.modelOverrides);
-                            final removeIndex = prevList.indexOf(id);
-                            final newList = prevList.where((e) => e != id).toList();
-                            final newOverrides = Map<String, dynamic>.from(prevOverrides)..remove(id);
-                            await settings.setProviderConfig(widget.keyName, old.copyWith(models: newList, modelOverrides: newOverrides));
-                            if (!mounted) return;
-                            showAppSnackBar(
-                              context,
-                              message: l10n.providerDetailPageModelDeletedSnackbar,
-                              type: NotificationType.info,
-                              actionLabel: l10n.providerDetailPageUndoButton,
-                              onAction: () {
-                                Future(() async {
-                                  final cfg2 = context.read<SettingsProvider>().getProviderConfig(widget.keyName, defaultName: widget.displayName);
-                                  final restoredList = List<String>.from(cfg2.models);
-                                  if (!restoredList.contains(id)) {
-                                    if (removeIndex >= 0 && removeIndex <= restoredList.length) {
-                                      restoredList.insert(removeIndex, id);
-                                    } else {
-                                      restoredList.add(id);
-                                    }
-                                  }
-                                  final restoredOverrides = Map<String, dynamic>.from(cfg2.modelOverrides);
-                                  if (!restoredOverrides.containsKey(id) && prevOverrides.containsKey(id)) {
-                                    restoredOverrides[id] = prevOverrides[id];
-                                  }
-                                  await settings.setProviderConfig(widget.keyName, cfg2.copyWith(models: restoredList, modelOverrides: restoredOverrides));
-                                });
-                              },
-                            );
-                          },
-                        ),
+          ),
+          _buildFloatingButtons(context, cs, l10n),
+        ],
+      );
+    }
+    
+    // Group models by prefix
+    final grouped = _groupModels(models);
+    final groupKeys = grouped.keys.toList();
+    
+    return Stack(
+      children: [
+        ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          itemCount: groupKeys.length,
+          itemBuilder: (context, groupIndex) {
+            final groupName = groupKeys[groupIndex];
+            final groupModels = grouped[groupName]!;
+            final isCollapsed = _collapsedGroups.contains(groupName);
+            
+            return _MobileModelGroup(
+              key: ValueKey('group-$groupName'),
+              groupName: groupName,
+              modelIds: groupModels,
+              providerKey: widget.keyName,
+              isCollapsed: isCollapsed,
+              onToggle: () {
+                setState(() {
+                  if (isCollapsed) {
+                    _collapsedGroups.remove(groupName);
+                  } else {
+                    _collapsedGroups.add(groupName);
+                  }
+                });
+              },
+              onDelete: (modelId) => _deleteModel(modelId, cfg),
+              onReorder: (oldIdx, newIdx) => _reorderModelsInGroup(groupName, oldIdx, newIdx, cfg),
+            );
+          },
+        ),
+        _buildFloatingButtons(context, cs, l10n),
+      ],
+    );
+  }
+
+  Widget _buildFloatingButtons(BuildContext context, ColorScheme cs, AppLocalizations l10n) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 12 + MediaQuery.of(context).padding.bottom,
+      child: Center(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? Color.alphaBlend(Colors.white.withOpacity(0.12), cs.surface)
+                : const Color(0xFFF2F3F5),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _TactileRow(
+                pressedScale: 0.97,
+                haptics: false,
+                onTap: () => _showModelPicker(context),
+                builder: (pressed) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: cs.primary.withOpacity(0.35)),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Lucide.Boxes, size: 20, color: cs.primary),
+                        const SizedBox(width: 8),
+                        Text(l10n.providerDetailPageFetchModelsButton, style: TextStyle(color: cs.primary, fontSize: 14, fontWeight: FontWeight.w600)),
                       ],
                     ),
-                  child: _ModelCard(providerKey: widget.keyName, modelId: id, reorderIndex: i),
-                ),
-              );
-            },
-          ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 12 + MediaQuery.of(context).padding.bottom,
-          child: Center(
-            child: Container(
-              decoration: BoxDecoration(
-                // Solid color: dark theme uses an opaque lightened surface; light uses input-like gray
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Color.alphaBlend(Colors.white.withOpacity(0.12), cs.surface)
-                    : const Color(0xFFF2F3F5),
-                borderRadius: BorderRadius.circular(999),
+                  );
+                },
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _TactileRow(
-                    pressedScale: 0.97,
-                    haptics: false,
-                    onTap: () => _showModelPicker(context),
-                    builder: (pressed) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: cs.primary.withOpacity(0.35)),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Lucide.Boxes, size: 20, color: cs.primary),
-                            const SizedBox(width: 8),
-                            Text(l10n.providerDetailPageFetchModelsButton, style: TextStyle(color: cs.primary, fontSize: 14, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 10),
-                  _TactileRow(
-                    pressedScale: 0.97,
-                    haptics: false,
-                    onTap: () async {
-                      await showDesktopCreateModelDialog(context, providerKey: widget.keyName);
-                    },
-                    builder: (pressed) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: cs.primary.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Lucide.Plus, size: 20, color: cs.primary),
-                            const SizedBox(width: 8),
-                            Text(l10n.providerDetailPageAddNewModelButton, style: TextStyle(color: cs.primary, fontSize: 14)),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ],
+              const SizedBox(width: 10),
+              _TactileRow(
+                pressedScale: 0.97,
+                haptics: false,
+                onTap: () async {
+                  await showDesktopCreateModelDialog(context, providerKey: widget.keyName);
+                },
+                builder: (pressed) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Lucide.Plus, size: 20, color: cs.primary),
+                        const SizedBox(width: 8),
+                        Text(l10n.providerDetailPageAddNewModelButton, style: TextStyle(color: cs.primary, fontSize: 14)),
+                      ],
+                    ),
+                  );
+                },
               ),
-            ),
+            ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  Future<void> _deleteModel(String modelId, ProviderConfig cfg) async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: cs.surface,
+        title: Text(l10n.providerDetailPageConfirmDeleteTitle),
+        content: Text(l10n.providerDetailPageConfirmDeleteContent),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: Text(l10n.providerDetailPageCancelButton)),
+          TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: Text(l10n.providerDetailPageDeleteButton)),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    
+    final settings = context.read<SettingsProvider>();
+    final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    final prevList = List<String>.from(old.models);
+    final prevOverrides = Map<String, dynamic>.from(old.modelOverrides);
+    final removeIndex = prevList.indexOf(modelId);
+    final newList = prevList.where((e) => e != modelId).toList();
+    final newOverrides = Map<String, dynamic>.from(prevOverrides)..remove(modelId);
+    await settings.setProviderConfig(widget.keyName, old.copyWith(models: newList, modelOverrides: newOverrides));
+    
+    if (!mounted) return;
+    showAppSnackBar(
+      context,
+      message: l10n.providerDetailPageModelDeletedSnackbar,
+      type: NotificationType.info,
+      actionLabel: l10n.providerDetailPageUndoButton,
+      onAction: () {
+        Future(() async {
+          final cfg2 = context.read<SettingsProvider>().getProviderConfig(widget.keyName, defaultName: widget.displayName);
+          final restoredList = List<String>.from(cfg2.models);
+          if (!restoredList.contains(modelId)) {
+            if (removeIndex >= 0 && removeIndex <= restoredList.length) {
+              restoredList.insert(removeIndex, modelId);
+            } else {
+              restoredList.add(modelId);
+            }
+          }
+          final restoredOverrides = Map<String, dynamic>.from(cfg2.modelOverrides);
+          if (!restoredOverrides.containsKey(modelId) && prevOverrides.containsKey(modelId)) {
+            restoredOverrides[modelId] = prevOverrides[modelId];
+          }
+          await settings.setProviderConfig(widget.keyName, cfg2.copyWith(models: restoredList, modelOverrides: restoredOverrides));
+        });
+      },
+    );
+  }
+
+  Future<void> _reorderModelsInGroup(String groupName, int oldIdx, int newIdx, ProviderConfig cfg) async {
+    if (newIdx > oldIdx) newIdx -= 1;
+    
+    // Get all models in order
+    final allModels = List<String>.from(cfg.models);
+    final grouped = _groupModels(allModels);
+    final groupModels = List<String>.from(grouped[groupName]!);
+    
+    // Reorder within group
+    final item = groupModels.removeAt(oldIdx);
+    groupModels.insert(newIdx, item);
+    
+    // Rebuild full model list with new order
+    final newAllModels = <String>[];
+    for (final key in grouped.keys) {
+      if (key == groupName) {
+        newAllModels.addAll(groupModels);
+      } else {
+        newAllModels.addAll(grouped[key]!);
+      }
+    }
+    
+    await context.read<SettingsProvider>().setProviderConfig(
+      widget.keyName,
+      cfg.copyWith(models: newAllModels),
     );
   }
 
@@ -3194,6 +3218,171 @@ class _BottomTabItemState extends State<_BottomTabItem> {
           );
         },
       ),
+    );
+  }
+}
+
+// Mobile model group widget with collapsible header
+class _MobileModelGroup extends StatelessWidget {
+  const _MobileModelGroup({
+    super.key,
+    required this.groupName,
+    required this.modelIds,
+    required this.providerKey,
+    required this.isCollapsed,
+    required this.onToggle,
+    required this.onDelete,
+    required this.onReorder,
+  });
+
+  final String groupName;
+  final List<String> modelIds;
+  final String providerKey;
+  final bool isCollapsed;
+  final VoidCallback onToggle;
+  final Function(String) onDelete;
+  final Function(int, int) onReorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Group header
+        InkWell(
+          onTap: onToggle,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.03) : cs.primary.withOpacity(0.04),
+              border: Border(
+                bottom: BorderSide(
+                  color: cs.outlineVariant.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                AnimatedRotation(
+                  turns: isCollapsed ? 0.0 : 0.25, // right -> down
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    Lucide.ChevronRight,
+                    size: 18,
+                    color: cs.onSurface.withOpacity(0.8),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    groupName,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFE8E9EC),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${modelIds.length}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface.withOpacity(0.85),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Models list
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            buildDefaultDragHandles: false,
+            itemCount: modelIds.length,
+            onReorder: onReorder,
+            proxyDecorator: (child, index, animation) {
+              return AnimatedBuilder(
+                animation: animation,
+                builder: (context, _) {
+                  final t = Curves.easeOut.transform(animation.value);
+                  return Transform.scale(
+                    scale: 0.98 + 0.02 * t,
+                    child: child,
+                  );
+                },
+                child: child,
+              );
+            },
+            itemBuilder: (c, i) {
+              final id = modelIds[i];
+              final l10n = AppLocalizations.of(context)!;
+              return KeyedSubtree(
+                key: ValueKey('reorder-model-$id-$groupName'),
+                child: Slidable(
+                  key: ValueKey('model-$id'),
+                  endActionPane: ActionPane(
+                    motion: const StretchMotion(),
+                    extentRatio: 0.42,
+                    children: [
+                      CustomSlidableAction(
+                        autoClose: true,
+                        backgroundColor: Colors.transparent,
+                        child: Container(
+                          width: double.infinity,
+                          height: double.infinity,
+                          decoration: BoxDecoration(
+                            color: isDark ? cs.error.withOpacity(0.22) : cs.error.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: cs.error.withOpacity(0.35)),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          alignment: Alignment.center,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Lucide.Trash2, color: cs.error, size: 18),
+                                const SizedBox(width: 6),
+                                Text(l10n.providerDetailPageDeleteModelButton, style: TextStyle(color: cs.error, fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        onPressed: (_) => onDelete(id),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                    child: _ModelCard(providerKey: providerKey, modelId: id, reorderIndex: i),
+                  ),
+                ),
+              );
+            },
+          ),
+          crossFadeState: isCollapsed ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+          duration: const Duration(milliseconds: 200),
+          sizeCurve: Curves.easeOutCubic,
+        ),
+      ],
     );
   }
 }

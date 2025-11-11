@@ -1046,13 +1046,23 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
       } else {
         inner = initial();
       }
-      return InkWell(
-        customBorder: const CircleBorder(),
-        onTap: () => _showAvatarPicker(context, a),
-        child: CircleAvatar(
-          radius: size / 2,
-          backgroundColor: bg,
-          child: inner,
+      return GestureDetector(
+        onTapDown: (details) {
+          final position = details.globalPosition;
+          _showAvatarPicker(context, a, position);
+        },
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {},
+            child: CircleAvatar(
+              radius: size / 2,
+              backgroundColor: bg,
+              child: inner,
+            ),
+          ),
         ),
       );
     }
@@ -1410,8 +1420,17 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     );
   }
 
-  Future<void> _showAvatarPicker(BuildContext context, Assistant a) async {
+  Future<void> _showAvatarPicker(BuildContext context, Assistant a, Offset position) async {
     final l10n = AppLocalizations.of(context)!;
+    
+    // Desktop: show context menu instead of bottom sheet
+    final platform = defaultTargetPlatform;
+    if (platform == TargetPlatform.windows || platform == TargetPlatform.macOS || platform == TargetPlatform.linux) {
+      _showAvatarContextMenu(context, a, position);
+      return;
+    }
+    
+    // Mobile: keep bottom sheet
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -6098,6 +6117,273 @@ class _DesktopAssistantMenuState extends State<_DesktopAssistantMenu> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// Desktop context menu for assistant avatar selection
+void _showAvatarContextMenu(BuildContext context, Assistant a, Offset position) {
+  final overlay = Overlay.of(context);
+  if (overlay == null) return;
+
+  late OverlayEntry entry;
+
+  void closeMenu() {
+    entry.remove();
+  }
+
+  entry = OverlayEntry(
+    builder: (ctx) => _AssistantAvatarContextMenu(
+      position: position,
+      onClose: closeMenu,
+      onChooseImage: () async {
+        closeMenu();
+        await _pickLocalImage(context, a);
+      },
+      onChooseEmoji: () async {
+        closeMenu();
+        final emoji = await _pickEmoji(context);
+        if (emoji != null && context.mounted) {
+          await context.read<AssistantProvider>().updateAssistant(
+            a.copyWith(avatar: emoji),
+          );
+        }
+      },
+      onEnterLink: () async {
+        closeMenu();
+        await _inputAvatarUrl(context, a);
+      },
+      onImportQQ: () async {
+        closeMenu();
+        await _inputQQAvatar(context, a);
+      },
+      onReset: () async {
+        closeMenu();
+        if (context.mounted) {
+          await context.read<AssistantProvider>().updateAssistant(
+            a.copyWith(clearAvatar: true),
+          );
+        }
+      },
+    ),
+  );
+
+  overlay.insert(entry);
+}
+
+// Glass morphism context menu for assistant avatar
+class _AssistantAvatarContextMenu extends StatefulWidget {
+  const _AssistantAvatarContextMenu({
+    required this.position,
+    required this.onClose,
+    required this.onChooseImage,
+    required this.onChooseEmoji,
+    required this.onEnterLink,
+    required this.onImportQQ,
+    required this.onReset,
+  });
+
+  final Offset position;
+  final VoidCallback onClose;
+  final VoidCallback onChooseImage;
+  final VoidCallback onChooseEmoji;
+  final VoidCallback onEnterLink;
+  final VoidCallback onImportQQ;
+  final VoidCallback onReset;
+
+  @override
+  State<_AssistantAvatarContextMenu> createState() => _AssistantAvatarContextMenuState();
+}
+
+class _AssistantAvatarContextMenuState extends State<_AssistantAvatarContextMenu> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    await _controller.reverse();
+    widget.onClose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
+    final screen = MediaQuery.of(context).size;
+
+    // Menu dimensions
+    const menuWidth = 160.0;
+    const menuHeight = 240.0; // 5 items * 48px per item
+
+    // Position menu (avoid screen edges)
+    double left = widget.position.dx;
+    double top = widget.position.dy;
+
+    if (left + menuWidth > screen.width - 8) {
+      left = screen.width - menuWidth - 8;
+    }
+    if (top + menuHeight > screen.height - 8) {
+      top = screen.height - menuHeight - 8;
+    }
+
+    return Stack(
+      children: [
+        // Transparent barrier
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: _close,
+          ),
+        ),
+        // Glass menu
+        Positioned(
+          left: left,
+          top: top,
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              alignment: Alignment.topLeft,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    width: menuWidth,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? cs.surface.withOpacity(0.75)
+                          : cs.surface.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.1)
+                            : cs.outlineVariant.withOpacity(0.3),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _AvatarMenuItem(
+                            icon: Lucide.Image,
+                            label: l10n.assistantEditAvatarChooseImage,
+                            onTap: widget.onChooseImage,
+                          ),
+                          _AvatarMenuItem(
+                            icon: Lucide.Smile,
+                            label: l10n.assistantEditAvatarChooseEmoji,
+                            onTap: widget.onChooseEmoji,
+                          ),
+                          _AvatarMenuItem(
+                            icon: Lucide.Link,
+                            label: l10n.assistantEditAvatarEnterLink,
+                            onTap: widget.onEnterLink,
+                          ),
+                          _AvatarMenuItem(
+                            icon: Lucide.User,
+                            label: l10n.assistantEditAvatarImportQQ,
+                            onTap: widget.onImportQQ,
+                          ),
+                          _AvatarMenuItem(
+                            icon: Lucide.RotateCcw,
+                            label: l10n.assistantEditAvatarReset,
+                            onTap: widget.onReset,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Avatar context menu item
+class _AvatarMenuItem extends StatefulWidget {
+  const _AvatarMenuItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_AvatarMenuItem> createState() => _AvatarMenuItemState();
+}
+
+class _AvatarMenuItemState extends State<_AvatarMenuItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: _hovered
+                ? (isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05))
+                : Colors.transparent,
+          ),
+          child: Row(
+            children: [
+              Icon(widget.icon, size: 16, color: cs.onSurface),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
