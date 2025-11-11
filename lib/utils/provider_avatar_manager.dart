@@ -100,14 +100,27 @@ class ProviderAvatarManager {
     }
   }
 
-  /// Gets the relative file path for a provider's custom avatar if it exists.
-  /// Returns the most recent avatar file (by filename timestamp).
-  /// Returns: Relative path like 'avatars/providers/xxx_timestamp.png' or null if not found
-  static Future<String?> getAvatarPath(String providerId) async {
+  /// Resolves a relative avatar path to an absolute file path.
+  /// If the input is already a relative path like 'avatars/providers/xxx.png', converts it to absolute.
+  /// Otherwise, treats it as a provider ID and searches for the avatar file.
+  /// Returns: Absolute file path or null if not found
+  static Future<String?> getAvatarPath(String relativePathOrProviderId) async {
     if (kIsWeb) return null;
 
     try {
-      final safeName = _safeFileName(providerId);
+      // Check if it's already a relative path (contains 'avatars/providers/')
+      if (relativePathOrProviderId.startsWith('avatars/providers/')) {
+        final root = await AppDirs.dataRoot();
+        final absolutePath = p.join(root.path, relativePathOrProviderId);
+        final file = File(absolutePath);
+        if (await file.exists()) {
+          return absolutePath;
+        }
+        return null;
+      }
+
+      // Otherwise, treat as provider ID and search
+      final safeName = _safeFileName(relativePathOrProviderId);
 
       // Search in new location first
       final newDir = await _avatarDir();
@@ -120,9 +133,7 @@ class ProviderAvatarManager {
 
       if (matches.isNotEmpty) {
         matches.sort((a, b) => b.path.compareTo(a.path));
-        final mostRecent = matches.first;
-        final filename = mostRecent.path.split(Platform.pathSeparator).last;
-        return 'avatars/providers/$filename';
+        return matches.first.path;
       }
 
       // Fallback: look in legacy cache location and migrate the most recent file
@@ -145,7 +156,7 @@ class ProviderAvatarManager {
             if (!await dest.exists()) {
               await mostRecent.copy(dest.path);
             }
-            return 'avatars/providers/$newFilename';
+            return dest.path;
           }
         }
       } catch (_) {}

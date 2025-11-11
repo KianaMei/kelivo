@@ -17,6 +17,8 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../model/widgets/model_detail_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
+import '../../../desktop/model_fetch_dialog.dart';
+import '../../../desktop/model_edit_dialog.dart';
 import '../widgets/share_provider_sheet.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../l10n/app_localizations.dart';
@@ -27,6 +29,45 @@ import 'multi_key_manager_page.dart';
 import 'provider_network_page.dart';
 import '../../../core/services/haptics.dart';
 import '../../../desktop/window_title_bar.dart';
+
+/// Remove all control characters (newlines, carriage returns, tabs, etc.) from a string
+/// This prevents URL parsing errors when users paste URLs with hidden control characters
+String _sanitizeUrl(String input) {
+  return input.trim().replaceAll(RegExp(r'[\r\n\t\f\v\x00-\x1F\x7F]'), '');
+}
+
+/// Get effective ModelInfo with user overrides applied
+ModelInfo _getEffectiveModelInfo(String modelId, ProviderConfig cfg) {
+  // Start with inferred model info
+  ModelInfo base = ModelRegistry.infer(ModelInfo(id: modelId, displayName: modelId));
+  
+  // Apply user overrides if they exist
+  final ov = cfg.modelOverrides[modelId] as Map?;
+  if (ov != null) {
+    final name = (ov['name'] as String?)?.trim() ?? base.displayName;
+    final typeStr = (ov['type'] as String?) ?? '';
+    final type = typeStr == 'embedding' ? ModelType.embedding : ModelType.chat;
+    
+    final inArr = (ov['input'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final outArr = (ov['output'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final abArr = (ov['abilities'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    
+    final input = inArr.isEmpty ? base.input : inArr.map((e) => e == 'image' ? Modality.image : Modality.text).toList();
+    final output = outArr.isEmpty ? base.output : outArr.map((e) => e == 'image' ? Modality.image : Modality.text).toList();
+    final abilities = abArr.isEmpty ? base.abilities : abArr.map((e) => e == 'reasoning' ? ModelAbility.reasoning : ModelAbility.tool).toList();
+    
+    return ModelInfo(
+      id: modelId,
+      displayName: name,
+      type: type,
+      input: input,
+      output: output,
+      abilities: abilities,
+    );
+  }
+  
+  return base;
+}
 
 class ProviderDetailPage extends StatefulWidget {
   const ProviderDetailPage({super.key, required this.keyName, required this.displayName});
@@ -779,7 +820,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     pressedScale: 0.97,
                     haptics: false,
                     onTap: () async {
-                      await showCreateModelSheet(context, providerKey: widget.keyName);
+                      await showDesktopCreateModelDialog(context, providerKey: widget.keyName);
                     },
                     builder: (pressed) {
                       return Container(
@@ -1473,9 +1514,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       enabled: _enabled,
       name: _nameCtrl.text.trim().isEmpty ? widget.displayName : _nameCtrl.text.trim(),
       apiKey: _keyCtrl.text.trim(),
-      baseUrl: _baseCtrl.text.trim(),
+      baseUrl: _sanitizeUrl(_baseCtrl.text),
       providerType: _kind,  // Save the selected provider type
-      chatPath: _kind == ProviderKind.openai ? _pathCtrl.text.trim() : old.chatPath,
+      chatPath: _kind == ProviderKind.openai ? _sanitizeUrl(_pathCtrl.text) : old.chatPath,
       useResponseApi: _kind == ProviderKind.openai ? _useResp : old.useResponseApi,
       vertexAI: _kind == ProviderKind.google ? _vertexAI : old.vertexAI,
       location: _kind == ProviderKind.google ? _locationCtrl.text.trim() : old.location,
@@ -1729,9 +1770,279 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   }
 
   Future<void> _showModelPicker(BuildContext context) async {
+    // Platform-specific UI: dialog for desktop, bottom sheet for mobile
+    if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux) {
+      // Desktop: use dialog
+      await showDesktopModelFetchDialog(
+        context,
+        providerKey: widget.keyName,
+        providerDisplayName: widget.displayName,
+      );
+    } else {
+      // Mobile: use bottom sheet with capability icons
+      await _showMobileModelPickerSheet(context);
+    }
+  }
+
+  Future<void> _showMobileModelPickerSheet(BuildContext context) async {
     final cs = Theme.of(context).colorScheme;
     final settings = context.read<SettingsProvider>();
-    final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    final rawCfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    // Clean URLs before using config for API calls
+    final cfg = rawCfg.copyWith(
+      baseUrl: _sanitizeUrl(rawCfg.baseUrl),
+      chatPath: rawCfg.chatPath != null ? _sanitizeUrl(rawCfg.chatPath!) : null,
+    );
+    final bool _isDefaultSilicon = widget.keyName.toLowerCase() == 'siliconflow';
+    final bool _hasUserKey = (cfg.multiKeyEnabled == true && (cfg.apiKeys?.isNotEmpty == true)) || cfg.apiKey.trim().isNotEmpty;
+    final bool _restrictToFree = _isDefaultSilicon && !_hasUserKey;
+    final controller = TextEditingController();
+    List<dynamic> items = const [];
+    bool loading = true;
+    String error = '';
+    final Map<String, bool> collapsed = <String, bool>{};
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setLocal) {
+          final l10n = AppLocalizations.of(ctx)!;
+          Future<void> _load() async {
+            try {
+              if (_restrictToFree) {
+                final list = <ModelInfo>[
+                  ModelRegistry.infer(ModelInfo(id: 'THUDM/GLM-4-9B-0414', displayName: 'THUDM/GLM-4-9B-0414')),
+                  ModelRegistry.infer(ModelInfo(id: 'Qwen/Qwen3-8B', displayName: 'Qwen/Qwen3-8B')),
+                ];
+                setLocal(() {
+                  items = list;
+                  loading = false;
+                });
+              } else {
+                final list = await ProviderManager.listModels(cfg);
+                setLocal(() {
+                  items = list;
+                  loading = false;
+                });
+              }
+            } catch (e) {
+              setLocal(() {
+                items = const [];
+                loading = false;
+                error = '$e';
+              });
+            }
+          }
+
+          if (loading) {
+            Future.microtask(_load);
+          }
+
+          final selected = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName).models.toSet();
+          final query = controller.text.trim().toLowerCase();
+          final filtered = <ModelInfo>[
+            for (final m in items)
+              if (m is ModelInfo && (query.isEmpty || m.id.toLowerCase().contains(query) || m.displayName.toLowerCase().contains(query))) m
+          ];
+
+          String _groupFor(ModelInfo m) {
+            final id = m.id.toLowerCase();
+            if (m.type == ModelType.embedding || id.contains('embedding') || id.contains('embed')) {
+              return l10n.providerDetailPageEmbeddingsGroupTitle;
+            }
+            if (id.contains('gpt') || RegExp(r'(^|[^a-z])o[134]').hasMatch(id)) return 'GPT';
+            if (id.contains('gemini-2.0')) return 'Gemini 2.0';
+            if (id.contains('gemini-2.5')) return 'Gemini 2.5';
+            if (id.contains('gemini-1.5')) return 'Gemini 1.5';
+            if (id.contains('gemini')) return 'Gemini';
+            if (id.contains('claude-3.5')) return 'Claude 3.5';
+            if (id.contains('claude-3')) return 'Claude 3';
+            if (id.contains('claude-4')) return 'Claude 4';
+            if (id.contains('deepseek')) return 'DeepSeek';
+            if (RegExp(r'qwen|qwq|qvq|dashscope').hasMatch(id)) return 'Qwen';
+            if (RegExp(r'doubao|ark|volc').hasMatch(id)) return 'Doubao';
+            if (id.contains('glm') || id.contains('zhipu')) return 'GLM';
+            if (id.contains('mistral')) return 'Mistral';
+            if (id.contains('grok') || id.contains('xai')) return 'Grok';
+            return l10n.providerDetailPageOtherModelsGroupTitle;
+          }
+
+          // Build model row with capability icons
+          Widget _buildModelRow(ModelInfo m) {
+            final added = selected.contains(m.id);
+            // Build capability capsules
+            final caps = <Widget>[];
+            Widget pillCapsule(Widget icon, Color color) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final bg = isDark ? color.withOpacity(0.20) : color.withOpacity(0.16);
+              final bd = color.withOpacity(0.25);
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: bd, width: 0.5),
+                ),
+                child: icon,
+              );
+            }
+            
+            // Vision input
+            if (m.input.contains(Modality.image)) {
+              caps.add(pillCapsule(Icon(Lucide.Eye, size: 11, color: cs.secondary), cs.secondary));
+            }
+            // Image output
+            if (m.output.contains(Modality.image)) {
+              caps.add(pillCapsule(Icon(Lucide.Image, size: 11, color: cs.tertiary), cs.tertiary));
+            }
+            // Abilities
+            for (final ab in m.abilities) {
+              if (ab == ModelAbility.tool) {
+                caps.add(pillCapsule(Icon(Lucide.Hammer, size: 11, color: cs.primary), cs.primary));
+              } else if (ab == ModelAbility.reasoning) {
+                caps.add(pillCapsule(
+                  SvgPicture.asset('assets/icons/deepthink.svg', width: 11, height: 11, colorFilter: ColorFilter.mode(cs.secondary, BlendMode.srcIn)), 
+                  cs.secondary,
+                ));
+              }
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: _TactileRow(
+                pressedScale: 0.98,
+                haptics: false,
+                onTap: () async {
+                  final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+                  final list = old.models.toList();
+                  if (added) {
+                    list.removeWhere((e) => e == m.id);
+                  } else {
+                    list.add(m.id);
+                  }
+                  await settings.setProviderConfig(widget.keyName, old.copyWith(models: list));
+                  setLocal(() {});
+                },
+                builder: (_) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: added ? cs.primary.withOpacity(0.06) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          m.displayName,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: added ? FontWeight.w600 : FontWeight.w500,
+                            color: added ? cs.primary : cs.onSurface,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ...caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)),
+                      const SizedBox(width: 8),
+                      Icon(added ? Lucide.Check : Lucide.Plus, size: 20, color: added ? cs.primary : cs.onSurface.withOpacity(0.5)),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          final Map<String, List<ModelInfo>> grouped = {};
+          for (final m in filtered) {
+            final g = _groupFor(m);
+            (grouped[g] ??= []).add(m);
+          }
+          final groupKeys = grouped.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+          return SafeArea(
+            top: false,
+            child: AnimatedPadding(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.7,
+                maxChildSize: 0.8,
+                minChildSize: 0.4,
+                builder: (c, scrollController) {
+                  return Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999))),
+                      const SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          controller: controller,
+                          onChanged: (_) => setLocal(() {}),
+                          decoration: InputDecoration(
+                            hintText: l10n.providerDetailPageFilterHint,
+                            filled: true,
+                            fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.4))),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: loading
+                            ? const Center(child: CircularProgressIndicator())
+                            : error.isNotEmpty
+                                ? Center(child: Text(error, style: TextStyle(color: cs.error)))
+                                : ListView(
+                                    controller: scrollController,
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    children: [
+                                      for (final g in groupKeys) ...[
+                                        // Group header
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                                          child: Text(g, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                                        ),
+                                        // Models
+                                        for (final m in grouped[g]!) _buildModelRow(m),
+                                      ],
+                                    ],
+                                  ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  // Legacy bottom sheet method (kept for reference, not used)
+  Future<void> _showModelPickerOld(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    final settings = context.read<SettingsProvider>();
+    final rawCfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
+    // Clean URLs before using config for API calls
+    final cfg = rawCfg.copyWith(
+      baseUrl: _sanitizeUrl(rawCfg.baseUrl),
+      chatPath: rawCfg.chatPath != null ? _sanitizeUrl(rawCfg.chatPath!) : null,
+    );
     final bool _isDefaultSilicon = widget.keyName.toLowerCase() == 'siliconflow';
     final bool _hasUserKey = (cfg.multiKeyEnabled == true && (cfg.apiKeys?.isNotEmpty == true)) || cfg.apiKey.trim().isNotEmpty;
     final bool _restrictToFree = _isDefaultSilicon && !_hasUserKey;
@@ -2133,7 +2444,7 @@ class _ModelCard extends StatelessWidget {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(8),
                           onTap: () async {
-                            await showModelDetailSheet(context, providerKey: providerKey, modelId: modelId);
+                            await showDesktopModelEditDialog(context, providerKey: providerKey, modelId: modelId);
                           },
                           child: Center(
                             child: Icon(
@@ -2431,7 +2742,12 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
       _errorMessage = '';
     });
     try {
-      final cfg = context.read<SettingsProvider>().getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+      final rawCfg = context.read<SettingsProvider>().getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+      // Clean URLs before testing connection
+      final cfg = rawCfg.copyWith(
+        baseUrl: _sanitizeUrl(rawCfg.baseUrl),
+        chatPath: rawCfg.chatPath != null ? _sanitizeUrl(rawCfg.chatPath!) : null,
+      );
       await ProviderManager.testConnection(cfg, _selectedModelId!);
       if (!mounted) return;
       setState(() => _state = _TestState.success);

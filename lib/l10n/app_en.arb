@@ -763,6 +763,7 @@
   "modelDetailSheetHeaderValueHint": "Header Value",
   "modelDetailSheetBodyKeyHint": "Body Key",
   "modelDetailSheetBodyJsonHint": "Body JSON",
+  "modelFetchInvertTooltip": "Invert",
   "modelSelectSheetSearchHint": "Search models or providers",
   "modelSelectSheetFavoritesSection": "Favorites",
   "modelSelectSheetFavoriteTooltip": "Favorite",

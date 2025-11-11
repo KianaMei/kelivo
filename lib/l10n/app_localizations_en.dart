@@ -1718,6 +1718,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelDetailSheetBodyJsonHint => 'Body JSON';
 
   @override
+  String get modelFetchInvertTooltip => 'Invert';
+
+  @override
   String get modelSelectSheetSearchHint => 'Search models or providers';
 
   @override

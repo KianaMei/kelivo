@@ -334,7 +334,9 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
           // Initialize PageController with current tab index
           final allTabs = _getAllTabKeys();
           final initialPage = _currentTab != null ? allTabs.indexOf(_currentTab!) : 0;
-          _pageController = PageController(initialPage: initialPage.clamp(0, allTabs.length - 1));
+          _pageController = allTabs.isNotEmpty 
+              ? PageController(initialPage: initialPage.clamp(0, allTabs.length - 1))
+              : PageController(initialPage: 0);
         });
         // Scroll to the selected tab after UI is built
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -397,7 +399,9 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
       // Initialize PageController with current tab index
       final allTabs = _getAllTabKeys();
       final initialPage = _currentTab != null ? allTabs.indexOf(_currentTab!) : 0;
-      _pageController = PageController(initialPage: initialPage.clamp(0, allTabs.length - 1));
+      _pageController = allTabs.isNotEmpty 
+          ? PageController(initialPage: initialPage.clamp(0, allTabs.length - 1))
+          : PageController(initialPage: 0);
     });
     // Scroll to the selected tab after UI is built
     WidgetsBinding.instance.addPostFrameCallback((_) {

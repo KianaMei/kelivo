@@ -526,6 +526,7 @@
   "modelDetailSheetHeaderValueHint": "Header Value",
   "modelDetailSheetBodyKeyHint": "Body Key",
   "modelDetailSheetBodyJsonHint": "Body JSON",
+  "modelFetchInvertTooltip": "反選",
   "modelSelectSheetSearchHint": "搜尋模型或供應商",
   "modelSelectSheetFavoritesSection": "收藏",
   "modelSelectSheetFavoriteTooltip": "收藏",

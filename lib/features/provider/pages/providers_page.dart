@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'provider_detail_page.dart';
+import '../../../desktop/desktop_provider_detail_page.dart' show showDesktopProviderDetailDialog;
 import '../widgets/import_provider_sheet.dart';
 import '../widgets/add_provider_sheet.dart';
 import 'package:provider/provider.dart';
@@ -556,19 +557,32 @@ class _ProviderCard extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         if (selectMode) {
           Haptics.light();
           onToggleSelect(provider.keyName);
         } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ProviderDetailPage(
-                keyName: provider.keyName,
-                displayName: provider.name,
+          // Use desktop detail dialog on Windows/macOS/Linux, mobile page on others
+          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.linux;
+
+          if (isDesktop) {
+            await showDesktopProviderDetailDialog(
+              context,
+              providerKey: provider.keyName,
+              displayName: provider.name,
+            );
+          } else {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ProviderDetailPage(
+                  keyName: provider.keyName,
+                  displayName: provider.name,
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
       },
       child: Container(
@@ -711,19 +725,32 @@ class _ProviderRow extends StatelessWidget {
     final isLast = index == total - 1;
 
     final row = _TactileRow(
-      onTap: () {
+      onTap: () async {
         if (selectMode) {
           Haptics.light();
           onToggleSelect(provider.keyName);
         } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ProviderDetailPage(
-                keyName: provider.keyName,
-                displayName: provider.name,
+          // Use desktop detail dialog on Windows/macOS/Linux, mobile page on others
+          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.linux;
+
+          if (isDesktop) {
+            await showDesktopProviderDetailDialog(
+              context,
+              providerKey: provider.keyName,
+              displayName: provider.name,
+            );
+          } else {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ProviderDetailPage(
+                  keyName: provider.keyName,
+                  displayName: provider.name,
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
       },
       pressedScale: 1.00, // no scale per spec

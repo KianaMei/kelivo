@@ -3281,6 +3281,12 @@ abstract class AppLocalizations {
   /// **'Body JSON'**
   String get modelDetailSheetBodyJsonHint;
 
+  /// No description provided for @modelFetchInvertTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Invert'**
+  String get modelFetchInvertTooltip;
+
   /// No description provided for @modelSelectSheetSearchHint.
   ///
   /// In en, this message translates to:
