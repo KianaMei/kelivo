@@ -208,6 +208,27 @@ jobs:
       - name: Build Windows app
         run: flutter build windows --release --no-tree-shake-icons
 
+      - name: Build MSIX installer
+        shell: pwsh
+        run: |
+          Write-Host "Building MSIX installer..."
+          flutter pub run msix:create
+          
+          # Verify MSIX was created
+          $msixFiles = Get-ChildItem -Path "build\windows\x64\runner\Release" -Filter "*.msix" -Recurse
+          if ($msixFiles) {
+            foreach ($msix in $msixFiles) {
+              Write-Host "✓ MSIX created: $($msix.FullName)"
+              $msixSize = $msix.Length / 1MB
+              Write-Host "  Size: ${msixSize:N2} MB"
+              
+              # Copy to root for easier upload
+              Copy-Item $msix.FullName -Destination "kelivo-windows-installer.msix" -Force
+            }
+          } else {
+            Write-Host "⚠ Warning: No MSIX file found, continuing with portable only..."
+          }
+
       - name: Create portable package
         shell: pwsh
         run: |
@@ -266,4 +287,6 @@ jobs:
       - name: Upload Windows build to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: kelivo-windows-x64.zip
+          files: |
+            kelivo-windows-x64.zip
+            kelivo-windows-installer.msix
