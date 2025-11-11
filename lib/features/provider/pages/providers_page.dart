@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
@@ -9,6 +9,7 @@ import '../../../icons/lucide_adapter.dart';
 import 'provider_detail_page.dart';
 import '../widgets/import_provider_sheet.dart';
 import '../widgets/add_provider_sheet.dart';
+import '../widgets/provider_detail_sheet.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -561,13 +562,10 @@ class _ProviderCard extends StatelessWidget {
           Haptics.light();
           onToggleSelect(provider.keyName);
         } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ProviderDetailPage(
-                keyName: provider.keyName,
-                displayName: provider.name,
-              ),
-            ),
+          showProviderDetailSheet(
+            context,
+            keyName: provider.keyName,
+            displayName: provider.name,
           );
         }
       },

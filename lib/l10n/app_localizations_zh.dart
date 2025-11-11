@@ -1723,7 +1723,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providerDetailPageNameLabel => '名称';
 
   @override
+  String get providerDetailPageApiKeyLabel => 'API 密钥';
+
+  @override
   String get providerDetailPageApiKeyHint => '留空则使用上层默认';
+
+  @override
+  String get providerDetailPageBaseUrlLabel => '基础 URL';
+
+  @override
+  String get providerDetailPageBaseUrlHint => '请输入基础 URL';
+
+  @override
+  String get providerDetailPageEnableToggleLabel => '启用供应商';
+
+  @override
+  String get providerDetailPageModelsTabTitle => '模型';
+
+  @override
+  String get providerDetailPageAdvancedButton => '高级设置';
 
   @override
   String get providerDetailPageHideTooltip => '隐藏';

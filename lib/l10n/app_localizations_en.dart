@@ -1773,7 +1773,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerDetailPageNameLabel => 'Name';
 
   @override
+  String get providerDetailPageApiKeyLabel => 'API Key';
+
+  @override
   String get providerDetailPageApiKeyHint => 'Leave empty to use default';
+
+  @override
+  String get providerDetailPageBaseUrlLabel => 'Base URL';
+
+  @override
+  String get providerDetailPageBaseUrlHint => 'Enter base URL';
+
+  @override
+  String get providerDetailPageEnableToggleLabel => 'Enable Provider';
+
+  @override
+  String get providerDetailPageModelsTabTitle => 'Models';
+
+  @override
+  String get providerDetailPageAdvancedButton => 'Advanced';
 
   @override
   String get providerDetailPageHideTooltip => 'Hide';
