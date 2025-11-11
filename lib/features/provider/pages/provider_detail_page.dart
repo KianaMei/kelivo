@@ -1876,6 +1876,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
           // Build model row with capability icons
           Widget _buildModelRow(ModelInfo m) {
+            final eff = _effectiveFor(context, widget.keyName, widget.displayName, m);
             final added = selected.contains(m.id);
             // Build capability capsules
             final caps = <Widget>[];
@@ -1895,15 +1896,15 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             }
             
             // Vision input
-            if (m.input.contains(Modality.image)) {
+            if (eff.input.contains(Modality.image)) {
               caps.add(pillCapsule(Icon(Lucide.Eye, size: 11, color: cs.secondary), cs.secondary));
             }
             // Image output
-            if (m.output.contains(Modality.image)) {
+            if (eff.output.contains(Modality.image)) {
               caps.add(pillCapsule(Icon(Lucide.Image, size: 11, color: cs.tertiary), cs.tertiary));
             }
             // Abilities
-            for (final ab in m.abilities) {
+            for (final ab in eff.abilities) {
               if (ab == ModelAbility.tool) {
                 caps.add(pillCapsule(Icon(Lucide.Hammer, size: 11, color: cs.primary), cs.primary));
               } else if (ab == ModelAbility.reasoning) {
@@ -1940,7 +1941,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     children: [
                       Expanded(
                         child: Text(
-                          m.displayName,
+                          eff.displayName,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: added ? FontWeight.w600 : FontWeight.w500,
@@ -1963,8 +1964,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
           final Map<String, List<ModelInfo>> grouped = {};
           for (final m in filtered) {
-            final g = _groupFor(m);
-            (grouped[g] ??= []).add(m);
+            final eff = _effectiveFor(context, widget.keyName, widget.displayName, m);
+            final g = _groupFor(eff);
+            (grouped[g] ??= []).add(eff);
           }
           final groupKeys = grouped.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 

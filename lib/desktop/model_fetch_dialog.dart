@@ -9,6 +9,35 @@ import '../l10n/app_localizations.dart';
 import '../icons/lucide_adapter.dart';
 import '../utils/brand_assets.dart';
 
+/// Merge user overrides onto a base ModelInfo for a given provider
+ModelInfo _effectiveFor(BuildContext context, String providerKey, String providerDisplayName, ModelInfo base) {
+  final cfg = context.read<SettingsProvider>().getProviderConfig(providerKey, defaultName: providerDisplayName);
+  final ov = cfg.modelOverrides[base.id] as Map?;
+  if (ov == null) return base;
+  ModelType? type;
+  final t = (ov['type'] as String?) ?? '';
+  if (t == 'embedding') type = ModelType.embedding; else if (t == 'chat') type = ModelType.chat;
+  List<Modality>? input;
+  if (ov['input'] is List) {
+    input = [for (final e in (ov['input'] as List)) (e.toString() == 'image' ? Modality.image : Modality.text)];
+  }
+  List<Modality>? output;
+  if (ov['output'] is List) {
+    output = [for (final e in (ov['output'] as List)) (e.toString() == 'image' ? Modality.image : Modality.text)];
+  }
+  List<ModelAbility>? abilities;
+  if (ov['abilities'] is List) {
+    abilities = [for (final e in (ov['abilities'] as List)) (e.toString() == 'reasoning' ? ModelAbility.reasoning : ModelAbility.tool)];
+  }
+  return base.copyWith(
+    displayName: (ov['name'] as String?)?.isNotEmpty == true ? ov['name'] as String : base.displayName,
+    type: type ?? base.type,
+    input: input ?? base.input,
+    output: output ?? base.output,
+    abilities: abilities ?? base.abilities,
+  );
+}
+
 /// Show desktop-style model fetch dialog for selecting models from provider API
 Future<void> showDesktopModelFetchDialog(
   BuildContext context, {
@@ -341,8 +370,9 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
 
     final Map<String, List<ModelInfo>> grouped = {};
     for (final m in filtered) {
-      final g = _groupFor(context, m);
-      (grouped[g] ??= []).add(m);
+      final eff = _effectiveFor(context, widget.providerKey, widget.providerDisplayName, m);
+      final g = _groupFor(context, eff);
+      (grouped[g] ??= []).add(eff);
     }
     final groupKeys = grouped.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
