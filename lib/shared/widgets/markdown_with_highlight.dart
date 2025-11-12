@@ -3,15 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:gpt_markdown/custom_widgets/markdown_config.dart' show GptMarkdownConfig;
-import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/github.dart';
 import 'package:flutter_highlight/themes/atom-one-dark-reasonable.dart';
+import 'package:highlight/highlight.dart' show highlight, Node;
 import '../../icons/lucide_adapter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
-import '../../utils/sandbox_path_resolver.dart';
 import '../../features/chat/pages/image_viewer_page.dart';
 import 'snackbar.dart';
 import 'mermaid_bridge.dart';
@@ -39,8 +38,6 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cs = Theme.of(context).colorScheme;
     final imageUrls = _extractImageUrls(text);
 
     final normalized = _preprocessFences(text);
@@ -79,12 +76,10 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     }
     components.insert(0, AtxHeadingMd());
     components.insert(0, FencedCodeBlockMd());
-    return GptMarkdown(
-      normalized,
+    final markdownConfig = GptMarkdownConfig(
+      textDirection: Directionality.of(context),
       style: baseTextStyle,
       followLinkColor: true,
-      // Disable built-in $...$ LaTeX so our custom scrollable handlers take over
-      useDollarSignsForLatex: false,
       onLinkTap: (url, title) => _handleLinkTap(context, url),
       components: components,
       imageBuilder: (ctx, url) {
@@ -408,6 +403,14 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         );
       },
     );
+
+    return ClipRRect(
+      child: _SelectableMarkdownBody(
+        markdownContext: context,
+        text: normalized,
+        config: markdownConfig,
+      ),
+    );
   }
 
   static bool _isZh(BuildContext context) {
@@ -674,19 +677,19 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                     color: bodyBg,
                     padding: const EdgeInsets.fromLTRB(10, 6, 6, 10),
                     child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        primary: false,
-                        child: HighlightView(
-                          widget.code,
-                          language: MarkdownWithCodeHighlight._normalizeLanguage(widget.language) ?? 'plaintext',
-                          theme: MarkdownWithCodeHighlight._transparentBgTheme(
-                            isDark ? atomOneDarkReasonableTheme : githubTheme,
-                          ),
-                          padding: EdgeInsets.zero,
-                          textStyle: MarkdownWithCodeHighlight._codeStyleBase(context, size: 13, height: 1.5),
+                      scrollDirection: Axis.horizontal,
+                      primary: false,
+                      child: _SelectableHighlightView(
+                        widget.code,
+                        language: MarkdownWithCodeHighlight._normalizeLanguage(widget.language) ?? 'plaintext',
+                        theme: MarkdownWithCodeHighlight._transparentBgTheme(
+                          isDark ? atomOneDarkReasonableTheme : githubTheme,
                         ),
-                      )
-                    )
+                        padding: EdgeInsets.zero,
+                        textStyle: MarkdownWithCodeHighlight._codeStyleBase(context, size: 13, height: 1.5),
+                      ),
+                    ),
+                  )
                 : const SizedBox.shrink(key: ValueKey('code-collapsed')),
           ),
           ],
@@ -1599,5 +1602,141 @@ class ModernRadioMd extends BlockMd {
       try { return GoogleFonts.getFont(fam, textStyle: base); } catch (_) { return base.copyWith(fontFamily: fam); }
     }
     return base.copyWith(fontFamily: fam);
+  }
+}
+
+class _SelectableMarkdownBody extends StatefulWidget {
+  const _SelectableMarkdownBody({
+    required this.markdownContext,
+    required this.text,
+    required this.config,
+    this.includeGlobalComponents = true,
+  });
+
+  final BuildContext markdownContext;
+  final String text;
+  final GptMarkdownConfig config;
+  final bool includeGlobalComponents;
+
+  @override
+  State<_SelectableMarkdownBody> createState() => _SelectableMarkdownBodyState();
+}
+
+class _SelectableMarkdownBodyState extends State<_SelectableMarkdownBody> {
+  late List<InlineSpan> _spans;
+
+  @override
+  void initState() {
+    super.initState();
+    _spans = _generateSpans();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SelectableMarkdownBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text ||
+        oldWidget.includeGlobalComponents != widget.includeGlobalComponents ||
+        oldWidget.markdownContext != widget.markdownContext ||
+        !oldWidget.config.isSame(widget.config)) {
+      _spans = _generateSpans();
+    }
+  }
+
+  List<InlineSpan> _generateSpans() {
+    return MarkdownComponent.generate(
+      widget.markdownContext,
+      widget.text,
+      widget.config,
+      widget.includeGlobalComponents,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final span = TextSpan(style: widget.config.style, children: _spans);
+    return SelectableText.rich(
+      span,
+      textDirection: widget.config.textDirection,
+      textAlign: widget.config.textAlign,
+      textScaler: widget.config.textScaler,
+      maxLines: widget.config.maxLines,
+    );
+  }
+}
+
+class _SelectableHighlightView extends StatelessWidget {
+  _SelectableHighlightView(
+    String input, {
+    this.language,
+    this.theme = const {},
+    this.padding,
+    this.textStyle,
+    int tabSize = 8,
+  }) : source = input.replaceAll('\t', ' ' * tabSize);
+
+  final String source;
+  final String? language;
+  final Map<String, TextStyle> theme;
+  final EdgeInsetsGeometry? padding;
+  final TextStyle? textStyle;
+  static const _rootKey = 'root';
+  static const _defaultFontColor = Color(0xff000000);
+  static const _defaultBackgroundColor = Color(0xffffffff);
+  static const _defaultFontFamily = 'monospace';
+
+  List<TextSpan> _convert(List<Node> nodes) {
+    final spans = <TextSpan>[];
+    var currentSpans = spans;
+    final stack = <List<TextSpan>>[];
+
+    void traverse(Node node) {
+      if (node.value != null) {
+        currentSpans.add(
+          node.className == null
+              ? TextSpan(text: node.value)
+              : TextSpan(text: node.value, style: theme[node.className!]),
+        );
+      } else if (node.children != null && node.children!.isNotEmpty) {
+        final tmp = <TextSpan>[];
+        currentSpans.add(TextSpan(children: tmp, style: node.className == null ? null : theme[node.className!]));
+        stack.add(currentSpans);
+        currentSpans = tmp;
+        for (final child in node.children!) {
+          traverse(child);
+          if (child == node.children!.last) {
+            currentSpans = stack.isEmpty ? spans : stack.removeLast();
+          }
+        }
+      }
+    }
+
+    for (final node in nodes) {
+      traverse(node);
+    }
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    var baseStyle = TextStyle(
+      fontFamily: _defaultFontFamily,
+      color: theme[_rootKey]?.color ?? _defaultFontColor,
+    );
+    if (textStyle != null) {
+      baseStyle = baseStyle.merge(textStyle);
+    }
+
+    final parsed = highlight.parse(source, language: language).nodes ?? const <Node>[];
+    return Container(
+      color: theme[_rootKey]?.backgroundColor ?? _defaultBackgroundColor,
+      padding: padding,
+      child: SelectableText.rich(
+        TextSpan(style: baseStyle, children: _convert(parsed)),
+        maxLines: null,
+        scrollPhysics: const NeverScrollableScrollPhysics(),
+        softWrap: false,
+        textWidthBasis: TextWidthBasis.longestLine,
+      ),
+    );
   }
 }

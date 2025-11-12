@@ -74,6 +74,7 @@ dependencies:
   permission_handler: ^11.3.1
   mcp_client: ^1.0.2
   flutter_highlight: ^0.7.0
+  highlight: ^0.7.0
   syncfusion_flutter_sliders: ^30.2.6
   # TTS 功能: Windows 平台通过条件导入使用 stub 实现,不会实际调用 flutter_tts
   #   flutter_tts: ^4.2.3  # Disabled for Windows build
