@@ -20,39 +20,64 @@ class ZhipuSearchService extends SearchService<ZhipuOptions> {
     required SearchCommonOptions commonOptions,
     required ZhipuOptions serviceOptions,
   }) async {
-    try {
-      final body = jsonEncode({
-        'search_query': query,
-        'search_engine': 'search_std',
-        'count': commonOptions.resultSize,
-      });
+    Exception? lastError;
+    final tried = <String>{};
+    final maxAttempts = serviceOptions.apiKeys.length;
+    int attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      final keyConfig = serviceOptions.getNextAvailableKey(excludeIds: tried);
+      if (keyConfig == null) break;
+      tried.add(keyConfig.id);
+      attempts++;
       
-      final response = await http.post(
-        Uri.parse('https://open.bigmodel.cn/api/paas/v4/web_search'),
-        headers: {
-          'Authorization': 'Bearer ${serviceOptions.apiKey}',
-          'Content-Type': 'application/json',
-        },
-        body: body,
-      ).timeout(Duration(milliseconds: commonOptions.timeout));
-      
-      if (response.statusCode != 200) {
-        throw Exception('API request failed: ${response.statusCode}');
+      try {
+        final body = jsonEncode({
+          'search_query': query,
+          'search_engine': 'search_std',
+          'count': commonOptions.resultSize,
+        });
+        
+        final response = await http.post(
+          Uri.parse('https://open.bigmodel.cn/api/paas/v4/web_search'),
+          headers: {
+            'Authorization': 'Bearer ${keyConfig.key}',
+            'Content-Type': 'application/json',
+          },
+          body: body,
+        ).timeout(Duration(milliseconds: commonOptions.timeout));
+        
+        if (response.statusCode == 429) {
+          serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
+          lastError = Exception('Rate limit reached for key: ${keyConfig.name ?? keyConfig.id}');
+          continue;
+        }
+        
+        if (response.statusCode != 200) {
+          serviceOptions.markKeyFailure(keyConfig.id, error: 'http_${response.statusCode}');
+          lastError = Exception('API request failed: ${response.statusCode}');
+          continue;
+        }
+        
+        final data = jsonDecode(response.body);
+        final searchResult = data['search_result'] ?? [];
+        final results = (searchResult as List).map((item) {
+          return SearchResultItem(
+            title: item['title'] ?? '',
+            url: item['link'] ?? '',
+            text: item['content'] ?? '',
+          );
+        }).toList();
+        
+        serviceOptions.markKeyAsUsed(keyConfig.id);
+        return SearchResult(items: results);
+      } catch (e) {
+        serviceOptions.markKeyFailure(keyConfig.id, error: e.toString());
+        lastError = e is Exception ? e : Exception('Zhipu search failed: $e');
+        continue;
       }
-      
-      final data = jsonDecode(response.body);
-      final searchResult = data['search_result'] ?? [];
-      final results = (searchResult as List).map((item) {
-        return SearchResultItem(
-          title: item['title'] ?? '',
-          url: item['link'] ?? '',
-          text: item['content'] ?? '',
-        );
-      }).toList();
-      
-      return SearchResult(items: results);
-    } catch (e) {
-      throw Exception('Zhipu search failed: $e');
     }
+    
+    throw lastError ?? Exception('All API keys failed or unavailable');
   }
 }

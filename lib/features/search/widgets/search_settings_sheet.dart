@@ -40,16 +40,52 @@ class _SearchSettingsSheet extends StatelessWidget {
       if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
       return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
     }
-    if (s is ExaOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (s is ZhipuOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (s is ExaOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (s is ZhipuOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
     if (s is SearXNGOptions) return s.url.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageUrlRequiredStatus;
-    if (s is LinkUpOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (s is BraveOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (s is MetasoOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (s is OllamaOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (s is JinaOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (s is PerplexityOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (s is BochaOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (s is LinkUpOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (s is BraveOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (s is MetasoOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (s is OllamaOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (s is JinaOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (s is PerplexityOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (s is BochaOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
     return null;
   }
 

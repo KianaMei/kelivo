@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
@@ -40,22 +41,38 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
   }
 
   void _addService() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
-      ),
-      backgroundColor: Colors.transparent,
-      builder: (context) => _AddServiceBottomSheet(
-        onAdd: (service) {
-          setState(() {
-            _services.add(service);
-          });
-          _saveChanges();
-        },
-      ),
-    );
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      // 桌面端：使用Dialog
+      showDialog(
+        context: context,
+        builder: (context) => _AddServiceDialog(
+          onAdd: (service) {
+            setState(() {
+              _services.add(service);
+            });
+            _saveChanges();
+          },
+        ),
+      );
+    } else {
+      // 移动端：使用BottomSheet
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        backgroundColor: Colors.transparent,
+        builder: (context) => _AddServiceBottomSheet(
+          onAdd: (service) {
+            setState(() {
+              _services.add(service);
+            });
+            _saveChanges();
+          },
+        ),
+      );
+    }
   }
 
   void _editService(int index) {
@@ -111,7 +128,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     }
   }
 
-  void _deleteService(int index) {
+  Future<void> _deleteService(int index) async {
     if (_services.length <= 1) {
       final l10n = AppLocalizations.of(context)!;
       showAppSnackBar(
@@ -121,6 +138,14 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       );
       return;
     }
+
+    final service = _services[index];
+    final serviceName = SearchService.getService(service).name;
+    final l10n = AppLocalizations.of(context)!;
+    
+    // 显示确认对话框
+    final confirm = await _showDeleteConfirmDialog(context, serviceName);
+    if (confirm != true) return;
     
     setState(() {
       _services.removeAt(index);
@@ -148,6 +173,131 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
         searchServiceSelected: _selectedIndex,
       ),
     );
+  }
+
+  Future<bool?> _showDeleteConfirmDialog(BuildContext context, String serviceName) async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      // 桌面端：使用AlertDialog
+      return showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: cs.surface,
+          title: Text('删除搜索服务'),
+          content: Text('确定要删除 "$serviceName" 搜索服务吗？\n\n此操作无法撤销。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('删除', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // 移动端：使用BottomSheet确认对话框
+      return showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: cs.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 拖拽条
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: cs.onSurface.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // 警告图标
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.warning,
+                      color: Colors.red,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // 标题
+                  Text(
+                    '删除搜索服务',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // 内容
+                  Text(
+                    '确定要删除 "$serviceName" 搜索服务吗？\n\n此操作无法撤销。',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: cs.onSurface.withOpacity(0.8),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // 按钮
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: const Text('删除', style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: const Text('取消'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
   }
 
   Future<void> _testConnection(int index) async {
@@ -432,7 +582,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
           builder: (c) {
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onLongPress: () => _showServiceActions(context, index),
+              onLongPress: widget.embedded ? null : () => _showServiceActions(context, index),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                 child: Row(
@@ -464,7 +614,23 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
                       ),
                     ],
                     const SizedBox(width: 8),
-                    Icon(Lucide.ChevronRight, size: 16, color: c),
+                    // 桌面端显示删除按钮，移动端显示箭头
+                    if (widget.embedded) ...[
+                      // 桌面端：删除按钮
+                      if (_services.length > 1)
+                        Tooltip(
+                          message: '删除服务',
+                          child: _TactileIconButton(
+                            icon: Lucide.Trash2,
+                            color: cs.error.withOpacity(0.8),
+                            size: 18,
+                            onTap: () => _deleteService(index),
+                          ),
+                        ),
+                    ] else ...[
+                      // 移动端：箭头图标
+                      Icon(Lucide.ChevronRight, size: 16, color: c),
+                    ],
                   ],
                 ),
               ),
@@ -524,16 +690,57 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
   String? _getServiceStatus(SearchServiceOptions service) {
     final l10n = AppLocalizations.of(context)!;
     if (service is BingLocalOptions) return null;
-    if (service is TavilyOptions) return (service.apiKeys.isNotEmpty && service.apiKeys.any((k) => k.key.isNotEmpty)) ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (service is ExaOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (service is ZhipuOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is TavilyOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (service is ExaOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (service is ZhipuOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
     if (service is SearXNGOptions) return service.url.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageUrlRequiredStatus;
-    if (service is LinkUpOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (service is BraveOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (service is MetasoOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (service is OllamaOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (service is JinaOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
-    if (service is BochaOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is LinkUpOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (service is BraveOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (service is MetasoOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (service is OllamaOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (service is JinaOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (service is PerplexityOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
+    if (service is BochaOptions) {
+      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
     return null;
   }
 
@@ -939,12 +1146,12 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
           apiKey: _controllers['apiKey']!.text,
         );
       case 'exa':
-        return ExaOptions(
+        return ExaOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
       case 'zhipu':
-        return ZhipuOptions(
+        return ZhipuOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
@@ -958,37 +1165,37 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
           password: _controllers['password']!.text,
         );
       case 'linkup':
-        return LinkUpOptions(
+        return LinkUpOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
       case 'brave':
-        return BraveOptions(
+        return BraveOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
       case 'metaso':
-        return MetasoOptions(
+        return MetasoOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
       case 'jina':
-        return JinaOptions(
+        return JinaOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
       case 'ollama':
-        return OllamaOptions(
+        return OllamaOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
       case 'perplexity':
-        return PerplexityOptions(
+        return PerplexityOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
       case 'bocha':
-        return BochaOptions(
+        return BochaOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
@@ -1027,9 +1234,9 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
     if (service is TavilyOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is ExaOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is ZhipuOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is SearXNGOptions) {
       _controllers['url'] = TextEditingController(text: service.url);
       _controllers['engines'] = TextEditingController(text: service.engines);
@@ -1037,17 +1244,19 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['username'] = TextEditingController(text: service.username);
       _controllers['password'] = TextEditingController(text: service.password);
     } else if (service is LinkUpOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is BraveOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is MetasoOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is OllamaOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is JinaOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
+    } else if (service is PerplexityOptions) {
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is BochaOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     }
   }
 
@@ -1237,12 +1446,12 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         apiKey: _controllers['apiKey']!.text,
       );
     } else if (service is ExaOptions) {
-      return ExaOptions(
+      return ExaOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
     } else if (service is ZhipuOptions) {
-      return ZhipuOptions(
+      return ZhipuOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
@@ -1256,32 +1465,32 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         password: _controllers['password']!.text,
       );
     } else if (service is LinkUpOptions) {
-      return LinkUpOptions(
+      return LinkUpOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
     } else if (service is BraveOptions) {
-      return BraveOptions(
+      return BraveOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
     } else if (service is MetasoOptions) {
-      return MetasoOptions(
+      return MetasoOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
     } else if (service is OllamaOptions) {
-      return OllamaOptions(
+      return OllamaOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
     } else if (service is JinaOptions) {
-      return JinaOptions(
+      return JinaOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
     } else if (service is PerplexityOptions) {
-      return PerplexityOptions(
+      return PerplexityOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
         country: service.country,
@@ -1289,7 +1498,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         maxTokensPerPage: service.maxTokensPerPage,
       );
     } else if (service is BochaOptions) {
-      return BochaOptions(
+      return BochaOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
         freshness: service.freshness,
@@ -1326,9 +1535,18 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isTavily = _current is TavilyOptions;
-    final double w = isTavily ? 680 : 520;
-    final double h = isTavily ? 720 : 600;
+    final isMultiKey = _current is TavilyOptions || 
+                      _current is ExaOptions || 
+                      _current is ZhipuOptions || 
+                      _current is LinkUpOptions || 
+                      _current is BraveOptions || 
+                      _current is MetasoOptions || 
+                      _current is OllamaOptions || 
+                      _current is JinaOptions || 
+                      _current is PerplexityOptions || 
+                      _current is BochaOptions;
+    final double w = isMultiKey ? 680 : 520;
+    final double h = isMultiKey ? 720 : 600;
     final bg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.06 : 0.03), cs.surface);
 
     return ConstrainedBox(
@@ -1367,9 +1585,9 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
                   ),
                   const SizedBox(height: 8),
                   Expanded(
-                    child: isTavily
-                        ? _TavilyEditor(
-                            initial: _current as TavilyOptions,
+                    child: isMultiKey
+                        ? _MultiKeyEditor(
+                            initial: _current,
                             onChanged: (v) => setState(() => _current = v),
                           )
                         : _GenericServiceEditor(key: _genericKey, initial: _current),
@@ -1385,7 +1603,7 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
                       const SizedBox(width: 12),
                       FilledButton(
                         onPressed: () {
-                          if (!isTavily) {
+                          if (!isMultiKey) {
                             final updated = _genericKey.currentState?.buildUpdated();
                             if (updated != null) _current = updated;
                           }
@@ -1406,16 +1624,16 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
   }
 }
 
-class _TavilyEditor extends StatefulWidget {
-  const _TavilyEditor({required this.initial, required this.onChanged});
-  final TavilyOptions initial;
-  final ValueChanged<TavilyOptions> onChanged;
+class _MultiKeyEditor extends StatefulWidget {
+  const _MultiKeyEditor({required this.initial, required this.onChanged});
+  final SearchServiceOptions initial;
+  final ValueChanged<SearchServiceOptions> onChanged;
 
   @override
-  State<_TavilyEditor> createState() => _TavilyEditorState();
+  State<_MultiKeyEditor> createState() => _MultiKeyEditorState();
 }
 
-class _TavilyEditorState extends State<_TavilyEditor> {
+class _MultiKeyEditorState extends State<_MultiKeyEditor> {
   late List<ApiKeyConfig> _keys;
   late LoadBalanceStrategy _strategy;
   int? _editingIndex;
@@ -1429,12 +1647,90 @@ class _TavilyEditorState extends State<_TavilyEditor> {
   @override
   void initState() {
     super.initState();
-    _keys = widget.initial.apiKeys.map((k) => k).toList();
-    _strategy = widget.initial.strategy;
+    final initial = widget.initial;
+    
+    // 获取 apiKeys 和 strategy
+    if (initial is TavilyOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is ExaOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is ZhipuOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is LinkUpOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is BraveOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is MetasoOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is OllamaOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is JinaOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is PerplexityOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else if (initial is BochaOptions) {
+      _keys = initial.apiKeys.map((k) => k).toList();
+      _strategy = initial.strategy;
+    } else {
+      // 默认值（不应该发生）
+      _keys = [];
+      _strategy = LoadBalanceStrategy.roundRobin;
+    }
   }
 
   void _emit() {
-    widget.onChanged(TavilyOptions(id: widget.initial.id, apiKeys: _keys, strategy: _strategy));
+    final initial = widget.initial;
+    SearchServiceOptions updated;
+    
+    if (initial is TavilyOptions) {
+      updated = TavilyOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
+    } else if (initial is ExaOptions) {
+      updated = ExaOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
+    } else if (initial is ZhipuOptions) {
+      updated = ZhipuOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
+    } else if (initial is LinkUpOptions) {
+      updated = LinkUpOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
+    } else if (initial is BraveOptions) {
+      updated = BraveOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
+    } else if (initial is MetasoOptions) {
+      updated = MetasoOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
+    } else if (initial is OllamaOptions) {
+      updated = OllamaOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
+    } else if (initial is JinaOptions) {
+      updated = JinaOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
+    } else if (initial is PerplexityOptions) {
+      updated = PerplexityOptions(
+        id: initial.id, 
+        apiKeys: _keys, 
+        strategy: _strategy,
+        country: initial.country,
+        searchDomainFilter: initial.searchDomainFilter,
+        maxTokensPerPage: initial.maxTokensPerPage,
+      );
+    } else if (initial is BochaOptions) {
+      updated = BochaOptions(
+        id: initial.id, 
+        apiKeys: _keys, 
+        strategy: _strategy,
+        freshness: initial.freshness,
+        summary: initial.summary,
+        include: initial.include,
+        exclude: initial.exclude,
+      );
+    } else {
+      return; // Should not happen
+    }
+    
+    widget.onChanged(updated);
   }
 
   @override
@@ -1623,9 +1919,23 @@ class _TavilyEditorState extends State<_TavilyEditor> {
                   ],
                 ),
               ),
-              if (_editingIndex != index)
+              if (_editingIndex != index) ...[
+                IconButton(
+                  onPressed: _testingKeys.contains(index) ? null : () => _testSingleKey(index), 
+                  icon: _testingKeys.contains(index) 
+                    ? SizedBox(
+                        width: 18, 
+                        height: 18, 
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                        ),
+                      )
+                    : const Icon(Lucide.HeartPulse, size: 18),
+                  tooltip: _testingKeys.contains(index) ? '正在测试...' : '测试连接',
+                ),
                 IconButton(onPressed: () => _beginEdit(index), icon: const Icon(Icons.edit, size: 18))
-              else
+              ] else
                 const SizedBox.shrink(),
               IconButton(onPressed: () => _deleteKey(index), icon: const Icon(Icons.delete, size: 18)),
             ],
@@ -1855,6 +2165,378 @@ class _TavilyEditorState extends State<_TavilyEditor> {
       _emit();
     });
   }
+
+  // 添加测试状态跟踪
+  final Set<int> _testingKeys = <int>{};
+
+  Future<void> _testSingleKey(int index) async {
+    if (index < 0 || index >= _keys.length || _testingKeys.contains(index)) return;
+    final k = _keys[index];
+    final initial = widget.initial;
+    
+    // 标记正在测试
+    setState(() {
+      _testingKeys.add(index);
+    });
+    
+    // 显示测试开始的消息
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('开始测试 Key "${k.name ?? k.key.substring(0, 8)}..."'),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    
+    try {
+      // 创建一个临时的服务配置，只使用这一个Key
+      SearchServiceOptions testConfig;
+      if (initial is TavilyOptions) {
+        testConfig = TavilyOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
+      } else if (initial is ExaOptions) {
+        testConfig = ExaOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
+      } else if (initial is ZhipuOptions) {
+        testConfig = ZhipuOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
+      } else if (initial is LinkUpOptions) {
+        testConfig = LinkUpOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
+      } else if (initial is BraveOptions) {
+        testConfig = BraveOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
+      } else if (initial is MetasoOptions) {
+        testConfig = MetasoOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
+      } else if (initial is OllamaOptions) {
+        testConfig = OllamaOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
+      } else if (initial is JinaOptions) {
+        testConfig = JinaOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
+      } else if (initial is PerplexityOptions) {
+        testConfig = PerplexityOptions(
+          id: initial.id, 
+          apiKeys: [k], 
+          strategy: LoadBalanceStrategy.roundRobin,
+          country: initial.country,
+          searchDomainFilter: initial.searchDomainFilter,
+          maxTokensPerPage: initial.maxTokensPerPage,
+        );
+      } else if (initial is BochaOptions) {
+        testConfig = BochaOptions(
+          id: initial.id, 
+          apiKeys: [k], 
+          strategy: LoadBalanceStrategy.roundRobin,
+          freshness: initial.freshness,
+          summary: initial.summary,
+          include: initial.include,
+          exclude: initial.exclude,
+        );
+      } else {
+        return; // 不支持的服务类型
+      }
+      
+      // 执行真实的搜索测试
+      final svc = SearchService.getService(testConfig);
+      final results = await svc.search(
+        query: 'test connectivity',
+        commonOptions: const SearchCommonOptions(
+          resultSize: 1, 
+          timeout: 10000, // 10秒超时
+        ),
+        serviceOptions: testConfig,
+      );
+      
+      // 检查是否真的得到了结果
+      if (results.items.isEmpty) {
+        throw Exception('API 返回了空结果');
+      }
+      
+      // 测试成功 - 更新Key状态
+      setState(() {
+        _keys[index] = k.copyWith(
+          status: ApiKeyStatus.active,
+          usage: k.usage.copyWith(
+            totalRequests: k.usage.totalRequests + 1,
+            successfulRequests: k.usage.successfulRequests + 1,
+            lastUsed: DateTime.now().millisecondsSinceEpoch,
+            consecutiveFailures: 0,
+          ),
+          lastError: null,
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+        _emit();
+      });
+      
+      // 显示成功弹窗
+      if (mounted) {
+        await _showTestResultDialog(
+          context,
+          success: true,
+          keyName: k.name ?? k.key.substring(0, 8),
+          message: '连接测试成功！\n\n✅ API Key 有效\n✅ 网络连接正常\n✅ 返回了搜索结果',
+          details: 'Key: ${k.key.substring(0, 12)}***\n查询: test connectivity\n结果数量: ${results.items.length}',
+        );
+      }
+    } catch (e) {
+      // 测试失败 - 更新Key状态
+      setState(() {
+        _keys[index] = k.copyWith(
+          status: ApiKeyStatus.error,
+          usage: k.usage.copyWith(
+            totalRequests: k.usage.totalRequests + 1,
+            failedRequests: k.usage.failedRequests + 1,
+            consecutiveFailures: k.usage.consecutiveFailures + 1,
+            lastUsed: DateTime.now().millisecondsSinceEpoch,
+          ),
+          lastError: e.toString(),
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+        _emit();
+      });
+      
+      // 显示失败弹窗
+      if (mounted) {
+        await _showTestResultDialog(
+          context,
+          success: false,
+          keyName: k.name ?? k.key.substring(0, 8),
+          message: '连接测试失败',
+          details: 'Key: ${k.key.substring(0, 12)}***\n错误信息: $e',
+        );
+      }
+    } finally {
+      // 清除测试状态
+      if (mounted) {
+        setState(() {
+          _testingKeys.remove(index);
+        });
+      }
+    }
+  }
+
+  Future<void> _showTestResultDialog(
+    BuildContext context, {
+    required bool success,
+    required String keyName,
+    required String message,
+    required String details,
+  }) async {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      // 桌面端：使用Dialog
+      return showDialog<void>(
+        context: context,
+        builder: (BuildContext context) {
+          return Dialog(
+          backgroundColor: cs.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480, maxHeight: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 标题行
+                  Row(
+                    children: [
+                      Icon(
+                        success ? Icons.check_circle : Icons.error,
+                        color: success ? Colors.green : Colors.red,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Key "$keyName"',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // 消息内容
+                  Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: success ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // 详细信息（可选择和复制）
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[800] : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: cs.outlineVariant.withOpacity(0.5),
+                      ),
+                    ),
+                    child: SelectableText(
+                      details,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: cs.onSurface.withOpacity(0.8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // 按钮
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          // 复制详细信息到剪贴板
+                          Clipboard.setData(ClipboardData(text: details));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('详细信息已复制到剪贴板'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: const Text('复制详情'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('确定'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    } else {
+      // 移动端：使用BottomSheet
+      return showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: cs.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (BuildContext context) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 拖拽条
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: cs.onSurface.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // 标题行
+                  Row(
+                    children: [
+                      Icon(
+                        success ? Icons.check_circle : Icons.error,
+                        color: success ? Colors.green : Colors.red,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Key "$keyName"',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // 消息内容
+                  Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: success ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // 详细信息（可选择和复制）
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[800] : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: cs.outlineVariant.withOpacity(0.5),
+                      ),
+                    ),
+                    child: SelectableText(
+                      details,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                        color: cs.onSurface.withOpacity(0.8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // 按钮
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          // 复制详细信息到剪贴板
+                          Clipboard.setData(ClipboardData(text: details));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('详细信息已复制到剪贴板'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: const Text('复制详情'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('确定'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+  }
 }
 
 class _GenericServiceEditor extends StatefulWidget {
@@ -1872,15 +2554,7 @@ class _GenericServiceEditorState extends State<_GenericServiceEditor> {
   void initState() {
     super.initState();
     final s = widget.initial;
-    if (s is ExaOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
-    if (s is ZhipuOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
-    if (s is LinkUpOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
-    if (s is BraveOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
-    if (s is MetasoOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
-    if (s is OllamaOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
-    if (s is JinaOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
-    if (s is PerplexityOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
-    if (s is BochaOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    // 这些服务现在使用多Key，不应该在这里处理
     if (s is SearXNGOptions) {
       _c['url'] = TextEditingController(text: s.url);
       _c['engines'] = TextEditingController(text: s.engines);
@@ -1938,37 +2612,13 @@ class _GenericServiceEditorState extends State<_GenericServiceEditor> {
       return Center(child: Text('无额外配置', style: TextStyle(color: cs.onSurface.withOpacity(0.8))));
     }
 
-    return SingleChildScrollView(child: field('apiKey', 'API Key'));
+    // 所有单Key服务都已转换为多Key，这里应该不会执行到
+    return const Center(child: Text('此服务应使用多Key编辑器'));
   }
 
   SearchServiceOptions? buildUpdated() {
     final s = widget.initial;
-    if (s is ExaOptions) return ExaOptions(id: s.id, apiKey: _c['apiKey']!.text);
-    if (s is ZhipuOptions) return ZhipuOptions(id: s.id, apiKey: _c['apiKey']!.text);
-    if (s is LinkUpOptions) return LinkUpOptions(id: s.id, apiKey: _c['apiKey']!.text);
-    if (s is BraveOptions) return BraveOptions(id: s.id, apiKey: _c['apiKey']!.text);
-    if (s is MetasoOptions) return MetasoOptions(id: s.id, apiKey: _c['apiKey']!.text);
-    if (s is OllamaOptions) return OllamaOptions(id: s.id, apiKey: _c['apiKey']!.text);
-    if (s is JinaOptions) return JinaOptions(id: s.id, apiKey: _c['apiKey']!.text);
-    if (s is PerplexityOptions) {
-      return PerplexityOptions(
-        id: s.id,
-        apiKey: _c['apiKey']!.text,
-        country: s.country,
-        searchDomainFilter: s.searchDomainFilter,
-        maxTokensPerPage: s.maxTokensPerPage,
-      );
-    }
-    if (s is BochaOptions) {
-      return BochaOptions(
-        id: s.id,
-        apiKey: _c['apiKey']!.text,
-        freshness: s.freshness,
-        summary: s.summary,
-        include: s.include,
-        exclude: s.exclude,
-      );
-    }
+    // 所有这些服务现在都使用多Key，应该由MultiKeyEditor处理
     if (s is SearXNGOptions) {
       return SearXNGOptions(
         id: s.id,
@@ -2285,6 +2935,412 @@ class _SmallTactileIconState extends State<_SmallTactileIcon> {
         child: Icon(widget.icon, size: 18, color: c),
       ),
     );
+  }
+}
+
+// 桌面端添加服务Dialog
+class _AddServiceDialog extends StatefulWidget {
+  final Function(SearchServiceOptions) onAdd;
+
+  const _AddServiceDialog({required this.onAdd});
+
+  @override
+  State<_AddServiceDialog> createState() => _AddServiceDialogState();
+}
+
+class _AddServiceDialogState extends State<_AddServiceDialog> {
+  String? _selectedType;
+  final _formKey = GlobalKey<FormState>();
+  final Map<String, TextEditingController> _controllers = {};
+
+  @override
+  void dispose() {
+    for (var controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Dialog(
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 680),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 标题栏
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _selectedType == null ? l10n.searchServicesAddDialogTitle : _getServiceName(_selectedType!),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            
+            Divider(height: 1, color: cs.outlineVariant.withOpacity(0.2)),
+            
+            // 内容区域
+            Flexible(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  );
+                },
+                child: _selectedType == null
+                    ? _buildServiceTypeList()
+                    : _buildFormView(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildServiceTypeList() {
+    final l10n = AppLocalizations.of(context)!;
+    final services = [
+      {'type': 'bing_local', 'name': l10n.searchServiceNameBingLocal},
+      {'type': 'tavily', 'name': l10n.searchServiceNameTavily},
+      {'type': 'exa', 'name': l10n.searchServiceNameExa},
+      {'type': 'zhipu', 'name': l10n.searchServiceNameZhipu},
+      {'type': 'searxng', 'name': l10n.searchServiceNameSearXNG},
+      {'type': 'linkup', 'name': l10n.searchServiceNameLinkUp},
+      {'type': 'brave', 'name': l10n.searchServiceNameBrave},
+      {'type': 'metaso', 'name': l10n.searchServiceNameMetaso},
+      {'type': 'jina', 'name': l10n.searchServiceNameJina},
+      {'type': 'ollama', 'name': l10n.searchServiceNameOllama},
+      {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
+      {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
+    ];
+    
+    return ListView.builder(
+      key: const ValueKey('service_list'),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      shrinkWrap: true,
+      itemCount: services.length,
+      itemBuilder: (context, index) {
+        final item = services[index];
+        final cs = Theme.of(context).colorScheme;
+        
+        return InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            setState(() => _selectedType = item['type'] as String);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                _ServiceIcon(type: item['type'] as String, name: item['name'] as String, size: 36),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    item['name'] as String,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                  ),
+                ),
+                Icon(Lucide.ChevronRight, size: 16, color: cs.onSurface.withOpacity(0.5)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFormView() {
+    final l10n = AppLocalizations.of(context)!;
+    
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 返回按钮
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _selectedType = null),
+                icon: const Icon(Icons.arrow_back, size: 18),
+                label: const Text('返回'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // 表单字段
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: _buildFieldsForType(_selectedType!),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // 按钮
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      final service = _createService();
+                      widget.onAdd(service);
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: Text(l10n.searchServicesAddDialogAdd),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 其他方法保持与BottomSheet版本相同
+  String _getServiceName(String type) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (type) {
+      case 'bing_local': return l10n.searchServiceNameBingLocal;
+      case 'tavily': return l10n.searchServiceNameTavily;
+      case 'exa': return l10n.searchServiceNameExa;
+      case 'zhipu': return l10n.searchServiceNameZhipu;
+      case 'searxng': return l10n.searchServiceNameSearXNG;
+      case 'linkup': return l10n.searchServiceNameLinkUp;
+      case 'brave': return l10n.searchServiceNameBrave;
+      case 'metaso': return l10n.searchServiceNameMetaso;
+      case 'jina': return l10n.searchServiceNameJina;
+      case 'ollama': return l10n.searchServiceNameOllama;
+      case 'perplexity': return l10n.searchServiceNamePerplexity;
+      case 'bocha': return l10n.searchServiceNameBocha;
+      default: return '';
+    }
+  }
+
+  List<Widget> _buildFieldsForType(String type) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    Widget _buildTextField({
+      required String key,
+      required String label,
+      String? hint,
+      bool obscureText = false,
+      String? Function(String?)? validator,
+    }) {
+      _controllers[key] ??= TextEditingController();
+      return Container(
+        decoration: BoxDecoration(
+          color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: TextFormField(
+          controller: _controllers[key],
+          obscureText: obscureText,
+          style: const TextStyle(fontSize: 16),
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+          validator: validator,
+        ),
+      );
+    }
+    
+    switch (type) {
+      case 'bing_local':
+        return [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Lucide.Search, size: 20, color: cs.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.searchServiceNameBingLocal,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: cs.onSurface.withOpacity(0.8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ];
+      case 'tavily':
+      case 'exa':
+      case 'zhipu':
+      case 'linkup':
+      case 'brave':
+      case 'metaso':
+      case 'jina':
+      case 'ollama':
+      case 'perplexity':
+      case 'bocha':
+        return [
+          _buildTextField(
+            key: 'apiKey',
+            label: 'API Key',
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogApiKeyRequired;
+              }
+              return null;
+            },
+          ),
+        ];
+      case 'searxng':
+        return [
+          _buildTextField(
+            key: 'url',
+            label: l10n.searchServicesAddDialogInstanceUrl,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.searchServicesAddDialogUrlRequired;
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'engines',
+            label: l10n.searchServicesAddDialogEnginesOptional,
+            hint: 'google,duckduckgo',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'language',
+            label: l10n.searchServicesAddDialogLanguageOptional,
+            hint: 'en-US',
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'username',
+            label: l10n.searchServicesAddDialogUsernameOptional,
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'password',
+            label: l10n.searchServicesAddDialogPasswordOptional,
+            obscureText: true,
+          ),
+        ];
+      default:
+        return [];
+    }
+  }
+
+  SearchServiceOptions _createService() {
+    final uuid = const Uuid();
+    final id = uuid.v4().substring(0, 8);
+    
+    switch (_selectedType) {
+      case 'bing_local':
+        return BingLocalOptions(id: id);
+      case 'tavily':
+        return TavilyOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'exa':
+        return ExaOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'zhipu':
+        return ZhipuOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'searxng':
+        return SearXNGOptions(
+          id: id,
+          url: _controllers['url']!.text,
+          engines: _controllers['engines']!.text,
+          language: _controllers['language']!.text,
+          username: _controllers['username']!.text,
+          password: _controllers['password']!.text,
+        );
+      case 'linkup':
+        return LinkUpOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'brave':
+        return BraveOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'metaso':
+        return MetasoOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'jina':
+        return JinaOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'ollama':
+        return OllamaOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'perplexity':
+        return PerplexityOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      case 'bocha':
+        return BochaOptions.single(
+          id: id,
+          apiKey: _controllers['apiKey']!.text,
+        );
+      default:
+        return BingLocalOptions(id: id);
+    }
   }
 }
 

@@ -391,45 +391,379 @@ class TavilyOptions extends SearchServiceOptions {
 }
 
 class ExaOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
+  int _currentIndex = 0;  // For round-robin strategy
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
   
   ExaOptions({
     required String id,
-    required this.apiKey,
-  }) : super(id: id);
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  // Backward compatibility: single key constructor
+  factory ExaOptions.single({
+    required String id,
+    required String apiKey,
+  }) {
+    return ExaOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  // Mark key as used
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  
+  // Update a key configuration
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  
+  // Add a new key
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  
+  // Remove a key
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
   
   @override
   Map<String, dynamic> toJson() => {
     'type': 'exa',
     'id': id,
-    'apiKey': apiKey,
+    'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+    'strategy': strategy.name,
   };
   
-  factory ExaOptions.fromJson(Map<String, dynamic> json) => ExaOptions(
-    id: json['id'],
-    apiKey: json['apiKey'],
-  );
+  factory ExaOptions.fromJson(Map<String, dynamic> json) {
+    // Backward compatibility: support old single apiKey format
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return ExaOptions.single(
+        id: json['id'],
+        apiKey: json['apiKey'],
+      );
+    }
+    
+    return ExaOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+    );
+  }
 }
 
 class ZhipuOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
+  int _currentIndex = 0;  // For round-robin strategy
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
   
   ZhipuOptions({
     required String id,
-    required this.apiKey,
-  }) : super(id: id);
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  // Backward compatibility: single key constructor
+  factory ZhipuOptions.single({
+    required String id,
+    required String apiKey,
+  }) {
+    return ZhipuOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  // Mark key as used
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  
+  // Update a key configuration
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  
+  // Add a new key
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  
+  // Remove a key
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
   
   @override
   Map<String, dynamic> toJson() => {
     'type': 'zhipu',
     'id': id,
-    'apiKey': apiKey,
+    'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+    'strategy': strategy.name,
   };
   
-  factory ZhipuOptions.fromJson(Map<String, dynamic> json) => ZhipuOptions(
-    id: json['id'],
-    apiKey: json['apiKey'],
-  );
+  factory ZhipuOptions.fromJson(Map<String, dynamic> json) {
+    // Backward compatibility: support old single apiKey format
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return ZhipuOptions.single(
+        id: json['id'],
+        apiKey: json['apiKey'],
+      );
+    }
+    
+    return ZhipuOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+    );
+  }
 }
 
 class SearXNGOptions extends SearchServiceOptions {
@@ -470,172 +804,1234 @@ class SearXNGOptions extends SearchServiceOptions {
 }
 
 class LinkUpOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
+  int _currentIndex = 0;
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
   
   LinkUpOptions({
     required String id,
-    required this.apiKey,
-  }) : super(id: id);
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  factory LinkUpOptions.single({
+    required String id,
+    required String apiKey,
+  }) {
+    return LinkUpOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
   
   @override
   Map<String, dynamic> toJson() => {
     'type': 'linkup',
     'id': id,
-    'apiKey': apiKey,
+    'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+    'strategy': strategy.name,
   };
   
-  factory LinkUpOptions.fromJson(Map<String, dynamic> json) => LinkUpOptions(
-    id: json['id'],
-    apiKey: json['apiKey'],
-  );
+  factory LinkUpOptions.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return LinkUpOptions.single(
+        id: json['id'],
+        apiKey: json['apiKey'],
+      );
+    }
+    return LinkUpOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+    );
+  }
 }
 
 class BraveOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
+  int _currentIndex = 0;
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
   
   BraveOptions({
     required String id,
-    required this.apiKey,
-  }) : super(id: id);
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  factory BraveOptions.single({
+    required String id,
+    required String apiKey,
+  }) {
+    return BraveOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
   
   @override
   Map<String, dynamic> toJson() => {
     'type': 'brave',
     'id': id,
-    'apiKey': apiKey,
+    'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+    'strategy': strategy.name,
   };
   
-  factory BraveOptions.fromJson(Map<String, dynamic> json) => BraveOptions(
-    id: json['id'],
-    apiKey: json['apiKey'],
-  );
+  factory BraveOptions.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return BraveOptions.single(
+        id: json['id'],
+        apiKey: json['apiKey'],
+      );
+    }
+    return BraveOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+    );
+  }
 }
 
 class MetasoOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
+  int _currentIndex = 0;
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
   
   MetasoOptions({
     required String id,
-    required this.apiKey,
-  }) : super(id: id);
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  factory MetasoOptions.single({
+    required String id,
+    required String apiKey,
+  }) {
+    return MetasoOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
   
   @override
   Map<String, dynamic> toJson() => {
     'type': 'metaso',
     'id': id,
-    'apiKey': apiKey,
+    'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+    'strategy': strategy.name,
   };
   
-  factory MetasoOptions.fromJson(Map<String, dynamic> json) => MetasoOptions(
-    id: json['id'],
-    apiKey: json['apiKey'],
-  );
+  factory MetasoOptions.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return MetasoOptions.single(
+        id: json['id'],
+        apiKey: json['apiKey'],
+      );
+    }
+    return MetasoOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+    );
+  }
 }
 
 class OllamaOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
+  int _currentIndex = 0;
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
 
   OllamaOptions({
     required String id,
-    required this.apiKey,
-  }) : super(id: id);
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  factory OllamaOptions.single({
+    required String id,
+    required String apiKey,
+  }) {
+    return OllamaOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
 
   @override
   Map<String, dynamic> toJson() => {
     'type': 'ollama',
     'id': id,
-    'apiKey': apiKey,
+    'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+    'strategy': strategy.name,
   };
 
-  factory OllamaOptions.fromJson(Map<String, dynamic> json) => OllamaOptions(
-    id: json['id'],
-    apiKey: json['apiKey'],
-  );
+  factory OllamaOptions.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return OllamaOptions.single(
+        id: json['id'],
+        apiKey: json['apiKey'],
+      );
+    }
+    return OllamaOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+    );
+  }
 }
 
 class JinaOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
+  int _currentIndex = 0;
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
 
   JinaOptions({
     required String id,
-    required this.apiKey,
-  }) : super(id: id);
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  factory JinaOptions.single({
+    required String id,
+    required String apiKey,
+  }) {
+    return JinaOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
 
   @override
   Map<String, dynamic> toJson() => {
         'type': 'jina',
         'id': id,
-        'apiKey': apiKey,
+        'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+        'strategy': strategy.name,
       };
 
-  factory JinaOptions.fromJson(Map<String, dynamic> json) => JinaOptions(
+  factory JinaOptions.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return JinaOptions.single(
         id: json['id'],
         apiKey: json['apiKey'],
       );
+    }
+    return JinaOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+    );
+  }
 }
 
 class PerplexityOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
   final String? country; // ISO 3166-1 alpha-2
   final List<String>? searchDomainFilter; // domains/URLs
   final int? maxTokensPerPage; // default 1024
+  int _currentIndex = 0;
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
 
   PerplexityOptions({
     required String id,
-    required this.apiKey,
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
     this.country,
     this.searchDomainFilter,
     this.maxTokensPerPage,
-  }) : super(id: id);
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  factory PerplexityOptions.single({
+    required String id,
+    required String apiKey,
+    String? country,
+    List<String>? searchDomainFilter,
+    int? maxTokensPerPage,
+  }) {
+    return PerplexityOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+      country: country,
+      searchDomainFilter: searchDomainFilter,
+      maxTokensPerPage: maxTokensPerPage,
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
 
   @override
   Map<String, dynamic> toJson() => {
         'type': 'perplexity',
         'id': id,
-        'apiKey': apiKey,
+        'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+        'strategy': strategy.name,
         if (country != null) 'country': country,
         if (searchDomainFilter != null) 'searchDomainFilter': searchDomainFilter,
         if (maxTokensPerPage != null) 'maxTokensPerPage': maxTokensPerPage,
       };
 
-  factory PerplexityOptions.fromJson(Map<String, dynamic> json) => PerplexityOptions(
+  factory PerplexityOptions.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return PerplexityOptions.single(
         id: json['id'],
         apiKey: json['apiKey'],
         country: json['country'],
         searchDomainFilter: (json['searchDomainFilter'] as List?)?.map((e) => e.toString()).toList(),
         maxTokensPerPage: json['maxTokensPerPage'],
       );
+    }
+    return PerplexityOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+      country: json['country'],
+      searchDomainFilter: (json['searchDomainFilter'] as List?)?.map((e) => e.toString()).toList(),
+      maxTokensPerPage: json['maxTokensPerPage'],
+    );
+  }
 }
 
 class BochaOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
   // Optional parameters supported by Bocha API
   final String? freshness; // e.g., 'noLimit', 'week', 'month', etc.
   final bool summary; // whether to include textual summary
   final String? include; // e.g., 'qq.com|m.163.com'
   final String? exclude; // e.g., 'qq.com|m.163.com'
+  int _currentIndex = 0;
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
 
   BochaOptions({
     required String id,
-    required this.apiKey,
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
     this.freshness,
     this.summary = true,
     this.include,
     this.exclude,
-  }) : super(id: id);
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  factory BochaOptions.single({
+    required String id,
+    required String apiKey,
+    String? freshness,
+    bool summary = true,
+    String? include,
+    String? exclude,
+  }) {
+    return BochaOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+      freshness: freshness,
+      summary: summary,
+      include: include,
+      exclude: exclude,
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
 
   @override
   Map<String, dynamic> toJson() => {
         'type': 'bocha',
         'id': id,
-        'apiKey': apiKey,
+        'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+        'strategy': strategy.name,
         if (freshness != null) 'freshness': freshness,
         'summary': summary,
         if (include != null) 'include': include,
         if (exclude != null) 'exclude': exclude,
       };
 
-  factory BochaOptions.fromJson(Map<String, dynamic> json) => BochaOptions(
+  factory BochaOptions.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return BochaOptions.single(
         id: json['id'],
         apiKey: json['apiKey'],
         freshness: json['freshness'],
@@ -643,4 +2039,20 @@ class BochaOptions extends SearchServiceOptions {
         include: json['include'],
         exclude: json['exclude'],
       );
+    }
+    return BochaOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+      freshness: json['freshness'],
+      summary: (json['summary'] ?? true) as bool,
+      include: json['include'],
+      exclude: json['exclude'],
+    );
+  }
 }

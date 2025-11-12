@@ -20,41 +20,66 @@ class MetasoSearchService extends SearchService<MetasoOptions> {
     required SearchCommonOptions commonOptions,
     required MetasoOptions serviceOptions,
   }) async {
-    try {
-      final body = jsonEncode({
-        'q': query,
-        'scope': 'webpage',
-        'size': commonOptions.resultSize,
-        'includeSummary': false,
-      });
+    Exception? lastError;
+    final tried = <String>{};
+    final maxAttempts = serviceOptions.apiKeys.length;
+    int attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      final keyConfig = serviceOptions.getNextAvailableKey(excludeIds: tried);
+      if (keyConfig == null) break;
+      tried.add(keyConfig.id);
+      attempts++;
       
-      final response = await http.post(
-        Uri.parse('https://metaso.cn/api/v1/search'),
-        headers: {
-          'Authorization': 'Bearer ${serviceOptions.apiKey}',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: body,
-      ).timeout(Duration(milliseconds: commonOptions.timeout));
-      
-      if (response.statusCode != 200) {
-        throw Exception('API request failed: ${response.statusCode}');
+      try {
+        final body = jsonEncode({
+          'q': query,
+          'scope': 'webpage',
+          'size': commonOptions.resultSize,
+          'includeSummary': false,
+        });
+        
+        final response = await http.post(
+          Uri.parse('https://metaso.cn/api/v1/search'),
+          headers: {
+            'Authorization': 'Bearer ${keyConfig.key}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: body,
+        ).timeout(Duration(milliseconds: commonOptions.timeout));
+        
+        if (response.statusCode == 429) {
+          serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
+          lastError = Exception('Rate limit reached for key: ${keyConfig.name ?? keyConfig.id}');
+          continue;
+        }
+        
+        if (response.statusCode != 200) {
+          serviceOptions.markKeyFailure(keyConfig.id, error: 'http_${response.statusCode}');
+          lastError = Exception('API request failed: ${response.statusCode}');
+          continue;
+        }
+        
+        final data = jsonDecode(response.body);
+        final webpages = data['webpages'] as List? ?? [];
+        final results = webpages.map((item) {
+          return SearchResultItem(
+            title: item['title'] ?? '',
+            url: item['link'] ?? '',
+            text: item['snippet'] ?? '',
+          );
+        }).toList();
+        
+        serviceOptions.markKeyAsUsed(keyConfig.id);
+        return SearchResult(items: results);
+      } catch (e) {
+        serviceOptions.markKeyFailure(keyConfig.id, error: e.toString());
+        lastError = e is Exception ? e : Exception('Metaso search failed: $e');
+        continue;
       }
-      
-      final data = jsonDecode(response.body);
-      final webpages = data['webpages'] as List? ?? [];
-      final results = webpages.map((item) {
-        return SearchResultItem(
-          title: item['title'] ?? '',
-          url: item['link'] ?? '',
-          text: item['snippet'] ?? '',
-        );
-      }).toList();
-      
-      return SearchResult(items: results);
-    } catch (e) {
-      throw Exception('Metaso search failed: $e');
     }
+    
+    throw lastError ?? Exception('All API keys failed or unavailable');
   }
 }

@@ -20,35 +20,60 @@ class BraveSearchService extends SearchService<BraveOptions> {
     required SearchCommonOptions commonOptions,
     required BraveOptions serviceOptions,
   }) async {
-    try {
-      final encodedQuery = Uri.encodeComponent(query);
-      final url = 'https://api.search.brave.com/res/v1/web/search?q=$encodedQuery&count=${commonOptions.resultSize}';
+    Exception? lastError;
+    final tried = <String>{};
+    final maxAttempts = serviceOptions.apiKeys.length;
+    int attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      final keyConfig = serviceOptions.getNextAvailableKey(excludeIds: tried);
+      if (keyConfig == null) break;
+      tried.add(keyConfig.id);
+      attempts++;
       
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Accept': 'application/json',
-          'X-Subscription-Token': serviceOptions.apiKey,
-        },
-      ).timeout(Duration(milliseconds: commonOptions.timeout));
-      
-      if (response.statusCode != 200) {
-        throw Exception('API request failed: ${response.statusCode}');
+      try {
+        final encodedQuery = Uri.encodeComponent(query);
+        final url = 'https://api.search.brave.com/res/v1/web/search?q=$encodedQuery&count=${commonOptions.resultSize}';
+        
+        final response = await http.get(
+          Uri.parse(url),
+          headers: {
+            'Accept': 'application/json',
+            'X-Subscription-Token': keyConfig.key,
+          },
+        ).timeout(Duration(milliseconds: commonOptions.timeout));
+        
+        if (response.statusCode == 429) {
+          serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
+          lastError = Exception('Rate limit reached for key: ${keyConfig.name ?? keyConfig.id}');
+          continue;
+        }
+        
+        if (response.statusCode != 200) {
+          serviceOptions.markKeyFailure(keyConfig.id, error: 'http_${response.statusCode}');
+          lastError = Exception('API request failed: ${response.statusCode}');
+          continue;
+        }
+        
+        final data = jsonDecode(response.body);
+        final webResults = data['web']?['results'] as List? ?? [];
+        final results = webResults.map((item) {
+          return SearchResultItem(
+            title: item['title'] ?? '',
+            url: item['url'] ?? '',
+            text: item['description'] ?? '',
+          );
+        }).toList();
+        
+        serviceOptions.markKeyAsUsed(keyConfig.id);
+        return SearchResult(items: results);
+      } catch (e) {
+        serviceOptions.markKeyFailure(keyConfig.id, error: e.toString());
+        lastError = e is Exception ? e : Exception('Brave search failed: $e');
+        continue;
       }
-      
-      final data = jsonDecode(response.body);
-      final webResults = data['web']?['results'] as List? ?? [];
-      final results = webResults.map((item) {
-        return SearchResultItem(
-          title: item['title'] ?? '',
-          url: item['url'] ?? '',
-          text: item['description'] ?? '',
-        );
-      }).toList();
-      
-      return SearchResult(items: results);
-    } catch (e) {
-      throw Exception('Brave search failed: $e');
     }
+    
+    throw lastError ?? Exception('All API keys failed or unavailable');
   }
 }

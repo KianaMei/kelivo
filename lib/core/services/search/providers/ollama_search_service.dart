@@ -20,42 +20,67 @@ class OllamaSearchService extends SearchService<OllamaOptions> {
     required SearchCommonOptions commonOptions,
     required OllamaOptions serviceOptions,
   }) async {
-    try {
-      final body = jsonEncode({
-        'query': query,
-        'max_results': commonOptions.resultSize.clamp(1, 10),
-      });
+    Exception? lastError;
+    final tried = <String>{};
+    final maxAttempts = serviceOptions.apiKeys.length;
+    int attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      final keyConfig = serviceOptions.getNextAvailableKey(excludeIds: tried);
+      if (keyConfig == null) break;
+      tried.add(keyConfig.id);
+      attempts++;
+      
+      try {
+        final body = jsonEncode({
+          'query': query,
+          'max_results': commonOptions.resultSize.clamp(1, 10),
+        });
 
-      final response = await http
-          .post(
-            Uri.parse('https://ollama.com/api/web_search'),
-            headers: {
-              'Authorization': 'Bearer ${serviceOptions.apiKey}',
-              'Content-Type': 'application/json',
-            },
-            body: body,
-          )
-          .timeout(Duration(milliseconds: commonOptions.timeout));
+        final response = await http
+            .post(
+              Uri.parse('https://ollama.com/api/web_search'),
+              headers: {
+                'Authorization': 'Bearer ${keyConfig.key}',
+                'Content-Type': 'application/json',
+              },
+              body: body,
+            )
+            .timeout(Duration(milliseconds: commonOptions.timeout));
 
-      if (response.statusCode != 200) {
-        throw Exception('API request failed: ${response.statusCode}');
+        if (response.statusCode == 429) {
+          serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
+          lastError = Exception('Rate limit reached for key: ${keyConfig.name ?? keyConfig.id}');
+          continue;
+        }
+
+        if (response.statusCode != 200) {
+          serviceOptions.markKeyFailure(keyConfig.id, error: 'http_${response.statusCode}');
+          lastError = Exception('API request failed: ${response.statusCode}');
+          continue;
+        }
+
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final list = (data['results'] as List? ?? const []);
+        final results = list.map((item) {
+          final map = item as Map<String, dynamic>;
+          return SearchResultItem(
+            title: (map['title'] ?? '').toString(),
+            url: (map['url'] ?? '').toString(),
+            text: (map['content'] ?? '').toString(),
+          );
+        }).toList();
+
+        serviceOptions.markKeyAsUsed(keyConfig.id);
+        return SearchResult(items: results);
+      } catch (e) {
+        serviceOptions.markKeyFailure(keyConfig.id, error: e.toString());
+        lastError = e is Exception ? e : Exception('Ollama search failed: $e');
+        continue;
       }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final list = (data['results'] as List? ?? const []);
-      final results = list.map((item) {
-        final map = item as Map<String, dynamic>;
-        return SearchResultItem(
-          title: (map['title'] ?? '').toString(),
-          url: (map['url'] ?? '').toString(),
-          text: (map['content'] ?? '').toString(),
-        );
-      }).toList();
-
-      return SearchResult(items: results);
-    } catch (e) {
-      throw Exception('Ollama search failed: $e');
     }
+    
+    throw lastError ?? Exception('All API keys failed or unavailable');
   }
 }
 
