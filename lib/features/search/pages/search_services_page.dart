@@ -1,16 +1,18 @@
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../core/providers/settings_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/models/api_keys.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../core/services/haptics.dart';
+import 'key_management_widgets.dart';
 
 class SearchServicesPage extends StatefulWidget {
   const SearchServicesPage({super.key, this.embedded = false});
@@ -58,22 +60,55 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
 
   void _editService(int index) {
     final service = _services[index];
-    final cs = Theme.of(context).colorScheme;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => _EditServiceSheet(
-        service: service,
-        onSave: (updated) {
-          setState(() {
-            _services[index] = updated;
-          });
-          _saveChanges();
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      showGeneralDialog(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'edit-service',
+        barrierColor: Colors.black.withOpacity(0.25),
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (ctx, a1, a2) {
+          return Center(
+            child: _EditServiceDialog(
+              service: service,
+              onSave: (updated) {
+                setState(() {
+                  _services[index] = updated;
+                });
+                _saveChanges();
+              },
+            ),
+          );
         },
-      ),
-    );
+        transitionBuilder: (ctx, anim, sec, child) {
+          final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+          return FadeTransition(
+            opacity: curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+    } else {
+      final cs = Theme.of(context).colorScheme;
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: cs.surface,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+        builder: (ctx) => _EditServiceSheet(
+          service: service,
+          onSave: (updated) {
+            setState(() {
+              _services[index] = updated;
+            });
+            _saveChanges();
+          },
+        ),
+      );
+    }
   }
 
   void _deleteService(int index) {
@@ -489,7 +524,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
   String? _getServiceStatus(SearchServiceOptions service) {
     final l10n = AppLocalizations.of(context)!;
     if (service is BingLocalOptions) return null;
-    if (service is TavilyOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (service is TavilyOptions) return (service.apiKeys.isNotEmpty && service.apiKeys.any((k) => k.key.isNotEmpty)) ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
     if (service is ExaOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
     if (service is ZhipuOptions) return service.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
     if (service is SearXNGOptions) return service.url.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageUrlRequiredStatus;
@@ -892,14 +927,14 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
   }
 
   SearchServiceOptions _createService() {
-    final uuid = const Uuid();
+    final uuid = Uuid();
     final id = uuid.v4().substring(0, 8);
     
     switch (_selectedType) {
       case 'bing_local':
         return BingLocalOptions(id: id);
       case 'tavily':
-        return TavilyOptions(
+        return TavilyOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
@@ -990,7 +1025,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
   void _initControllers() {
     final service = widget.service;
     if (service is TavilyOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKey);
+      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is ExaOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKey);
     } else if (service is ZhipuOptions) {
@@ -1197,7 +1232,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
     final service = widget.service;
     
     if (service is TavilyOptions) {
-      return TavilyOptions(
+      return TavilyOptions.single(
         id: service.id,
         apiKey: _controllers['apiKey']!.text,
       );
@@ -1265,6 +1300,440 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
     }
     
     return service;
+  }
+}
+
+class _EditServiceDialog extends StatefulWidget {
+  const _EditServiceDialog({required this.service, required this.onSave});
+  final SearchServiceOptions service;
+  final Function(SearchServiceOptions) onSave;
+
+  @override
+  State<_EditServiceDialog> createState() => _EditServiceDialogState();
+}
+
+class _EditServiceDialogState extends State<_EditServiceDialog> {
+  late SearchServiceOptions _current;
+  final GlobalKey<_GenericServiceEditorState> _genericKey = GlobalKey<_GenericServiceEditorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.service;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTavily = _current is TavilyOptions;
+    final double w = isTavily ? 680 : 520;
+    final double h = isTavily ? 720 : 600;
+    final bg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.06 : 0.03), cs.surface);
+
+    return ConstrainedBox(
+      constraints: BoxConstraints.tightFor(width: w, height: h),
+      child: Material(
+        color: Colors.transparent,
+        elevation: 12,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.25), width: 1),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              color: bg,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          SearchService.getService(_current).name,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: isTavily
+                        ? _TavilyEditor(
+                            initial: _current as TavilyOptions,
+                            onChanged: (v) => setState(() => _current = v),
+                          )
+                        : _GenericServiceEditor(key: _genericKey, initial: _current),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        child: const Text('取消'),
+                      ),
+                      const SizedBox(width: 12),
+                      FilledButton(
+                        onPressed: () {
+                          if (!isTavily) {
+                            final updated = _genericKey.currentState?.buildUpdated();
+                            if (updated != null) _current = updated;
+                          }
+                          widget.onSave(_current);
+                          Navigator.of(context).maybePop();
+                        },
+                        child: const Text('保存'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TavilyEditor extends StatefulWidget {
+  const _TavilyEditor({required this.initial, required this.onChanged});
+  final TavilyOptions initial;
+  final ValueChanged<TavilyOptions> onChanged;
+
+  @override
+  State<_TavilyEditor> createState() => _TavilyEditorState();
+}
+
+class _TavilyEditorState extends State<_TavilyEditor> {
+  late List<ApiKeyConfig> _keys;
+  late LoadBalanceStrategy _strategy;
+
+  @override
+  void initState() {
+    super.initState();
+    _keys = widget.initial.apiKeys.map((k) => k).toList();
+    _strategy = widget.initial.strategy;
+  }
+
+  void _emit() {
+    widget.onChanged(TavilyOptions(id: widget.initial.id, apiKeys: _keys, strategy: _strategy));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<LoadBalanceStrategy>(
+          segments: const <ButtonSegment<LoadBalanceStrategy>>[
+            ButtonSegment(
+              value: LoadBalanceStrategy.roundRobin,
+              icon: Icon(Lucide.RotateCw, size: 16),
+              label: Text('轮询'),
+            ),
+            ButtonSegment(
+              value: LoadBalanceStrategy.random,
+              icon: Icon(Lucide.Shuffle, size: 16),
+              label: Text('随机'),
+            ),
+            ButtonSegment(
+              value: LoadBalanceStrategy.leastUsed,
+              icon: Icon(Lucide.ListOrdered, size: 16),
+              label: Text('最少使用'),
+            ),
+            ButtonSegment(
+              value: LoadBalanceStrategy.priority,
+              icon: Icon(Lucide.Sparkles, size: 16),
+              label: Text('优先级'),
+            ),
+          ],
+          selected: <LoadBalanceStrategy>{_strategy},
+          onSelectionChanged: (s) {
+            if (s.isNotEmpty) {
+              setState(() => _strategy = s.first);
+              _emit();
+            }
+          },
+          showSelectedIcon: false,
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            itemCount: _keys.length,
+            itemBuilder: (ctx, i) => _keyCard(context, i, cs, isDark),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => _showKeyDialog(context, null),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('添加 Key'),
+            ),
+            const Spacer(),
+            Text('${_keys.length} 个 Key', style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _keyCard(BuildContext context, int index, ColorScheme cs, bool isDark) {
+    final k = _keys[index];
+    final bg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.05 : 0.03), cs.surface);
+    final border = cs.outlineVariant.withOpacity(isDark ? 0.16 : 0.18);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Row(
+        children: [
+          Switch(value: k.isEnabled, onChanged: (v) {
+            setState(() {
+              _keys[index] = k.copyWith(isEnabled: v, updatedAt: DateTime.now().millisecondsSinceEpoch);
+              _emit();
+            });
+          }),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(k.name ?? 'API Key ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Lucide.Activity, size: 14, color: cs.primary),
+                    const SizedBox(width: 6),
+                    Text('已使用 ${k.usage.totalRequests}', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
+                    const SizedBox(width: 12),
+                    Icon(k.maxRequestsPerMinute == null ? Lucide.Repeat : Lucide.Thermometer, size: 14, color: cs.primary),
+                    const SizedBox(width: 6),
+                    Text(k.maxRequestsPerMinute == null ? '无限制' : '限流 ${k.maxRequestsPerMinute}/分', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(onPressed: () => _showKeyDialog(context, index), icon: const Icon(Icons.edit, size: 18)),
+          IconButton(onPressed: () => _deleteKey(index), icon: const Icon(Icons.delete, size: 18)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showKeyDialog(BuildContext context, int? editIndex) async {
+    final keyController = TextEditingController();
+    final nameController = TextEditingController();
+    final limitController = TextEditingController();
+    if (editIndex != null) {
+      final c = _keys[editIndex];
+      keyController.text = c.key;
+      nameController.text = c.name ?? '';
+      limitController.text = c.maxRequestsPerMinute?.toString() ?? '';
+    }
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(editIndex == null ? '添加 API Key' : '编辑 API Key'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: keyController, decoration: const InputDecoration(labelText: 'API Key')),
+                const SizedBox(height: 12),
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: '名称（可选）')),
+                const SizedBox(height: 12),
+                TextField(controller: limitController, decoration: const InputDecoration(labelText: '每分钟限流（可选）'), keyboardType: TextInputType.number),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            FilledButton(
+              onPressed: () {
+                final key = keyController.text.trim();
+                if (key.isEmpty) return;
+                final cfg = (editIndex == null ? ApiKeyConfig.create(key) : _keys[editIndex!])
+                    .copyWith(
+                      key: key,
+                      name: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
+                      maxRequestsPerMinute: limitController.text.trim().isEmpty ? null : int.tryParse(limitController.text.trim()),
+                      updatedAt: DateTime.now().millisecondsSinceEpoch,
+                    );
+                setState(() {
+                  if (editIndex == null) {
+                    _keys.add(cfg);
+                  } else {
+                    _keys[editIndex!] = cfg;
+                  }
+                  _emit();
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _deleteKey(int index) {
+    if (_keys.length <= 1) return;
+    setState(() {
+      _keys.removeAt(index);
+      _emit();
+    });
+  }
+}
+
+class _GenericServiceEditor extends StatefulWidget {
+  const _GenericServiceEditor({super.key, required this.initial});
+  final SearchServiceOptions initial;
+
+  @override
+  State<_GenericServiceEditor> createState() => _GenericServiceEditorState();
+}
+
+class _GenericServiceEditorState extends State<_GenericServiceEditor> {
+  final Map<String, TextEditingController> _c = {};
+
+  @override
+  void initState() {
+    super.initState();
+    final s = widget.initial;
+    if (s is ExaOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is ZhipuOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is LinkUpOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is BraveOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is MetasoOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is OllamaOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is JinaOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is PerplexityOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is BochaOptions) _c['apiKey'] = TextEditingController(text: s.apiKey);
+    if (s is SearXNGOptions) {
+      _c['url'] = TextEditingController(text: s.url);
+      _c['engines'] = TextEditingController(text: s.engines);
+      _c['language'] = TextEditingController(text: s.language);
+      _c['username'] = TextEditingController(text: s.username);
+      _c['password'] = TextEditingController(text: s.password);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final v in _c.values) v.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final s = widget.initial;
+
+    Widget field(String k, String label, {bool obscure = false, String? hint}) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: TextField(
+            controller: _c.putIfAbsent(k, () => TextEditingController()),
+            obscureText: obscure,
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: hint,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+          ),
+        );
+
+    if (s is SearXNGOptions) {
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            field('url', '实例地址'),
+            field('engines', '引擎（可选）', hint: 'google,duckduckgo'),
+            field('language', '语言（可选）', hint: 'en-US'),
+            field('username', '用户名（可选）'),
+            field('password', '密码（可选）', obscure: true),
+          ],
+        ),
+      );
+    }
+
+    if (s is BingLocalOptions) {
+      return Center(child: Text('无额外配置', style: TextStyle(color: cs.onSurface.withOpacity(0.8))));
+    }
+
+    return SingleChildScrollView(child: field('apiKey', 'API Key'));
+  }
+
+  SearchServiceOptions? buildUpdated() {
+    final s = widget.initial;
+    if (s is ExaOptions) return ExaOptions(id: s.id, apiKey: _c['apiKey']!.text);
+    if (s is ZhipuOptions) return ZhipuOptions(id: s.id, apiKey: _c['apiKey']!.text);
+    if (s is LinkUpOptions) return LinkUpOptions(id: s.id, apiKey: _c['apiKey']!.text);
+    if (s is BraveOptions) return BraveOptions(id: s.id, apiKey: _c['apiKey']!.text);
+    if (s is MetasoOptions) return MetasoOptions(id: s.id, apiKey: _c['apiKey']!.text);
+    if (s is OllamaOptions) return OllamaOptions(id: s.id, apiKey: _c['apiKey']!.text);
+    if (s is JinaOptions) return JinaOptions(id: s.id, apiKey: _c['apiKey']!.text);
+    if (s is PerplexityOptions) {
+      return PerplexityOptions(
+        id: s.id,
+        apiKey: _c['apiKey']!.text,
+        country: s.country,
+        searchDomainFilter: s.searchDomainFilter,
+        maxTokensPerPage: s.maxTokensPerPage,
+      );
+    }
+    if (s is BochaOptions) {
+      return BochaOptions(
+        id: s.id,
+        apiKey: _c['apiKey']!.text,
+        freshness: s.freshness,
+        summary: s.summary,
+        include: s.include,
+        exclude: s.exclude,
+      );
+    }
+    if (s is SearXNGOptions) {
+      return SearXNGOptions(
+        id: s.id,
+        url: _c['url']!.text,
+        engines: _c['engines']!.text,
+        language: _c['language']!.text,
+        username: _c['username']!.text,
+        password: _c['password']!.text,
+      );
+    }
+    if (s is BingLocalOptions) return s;
+    return null;
   }
 }
 

@@ -310,7 +310,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
             ],
           );
 
-          return 
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               primary: false,
@@ -396,290 +397,133 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       },
       // Inline `code` styling via highlightBuilder in gpt_markdown
       highlightBuilder: (ctx, inline, style) {
-        String softened = _softBreakInline(inline);
-        final bg = isDark ? Colors.white12 : const Color(0xFFF1F3F5);
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: cs.outlineVariant.withOpacity(0.22)),
-          ),
-          child: Text(
-            softened,
-            style: _codeStyleBase(context, size: 13, height: 1.4).copyWith(color: Theme.of(context).colorScheme.onSurface),
-            softWrap: true,
-            overflow: TextOverflow.visible,
-          ),
+        final cs = Theme.of(ctx).colorScheme;
+        final softened = _softBreakInline(inline);
+        return Text(
+          softened,
+          style: MarkdownWithCodeHighlight._codeStyleBase(ctx, size: 13, height: 1.4)
+              .copyWith(color: cs.onSurface),
+          softWrap: true,
+          overflow: TextOverflow.visible,
         );
-      },
-      // Fenced code block styling via codeBuilder (with collapse/expand)
-      codeBuilder: (ctx, name, code, closed) {
-        final lang = name.trim();
-        if (lang.toLowerCase() == 'mermaid') {
-          return _MermaidBlock(code: code);
-        }
-        return _CollapsibleCodeBlock(language: lang, code: code);
       },
     );
   }
 
-  static String _displayLanguage(BuildContext context, String? raw) {
-    final zh = _isZh(context);
-    final t = raw?.trim();
-    if (t != null && t.isNotEmpty) return t;
-    return zh ? '代码' : 'Code';
+  static bool _isZh(BuildContext context) {
+    final locale = Localizations.localeOf(context);
+    return locale.languageCode.toLowerCase().startsWith('zh');
   }
 
-  static bool _isZh(BuildContext context) => Localizations.localeOf(context).languageCode == 'zh';
+  static String _preprocessFences(String input) {
+    return input;
+  }
+
+  static List<String> _extractImageUrls(String input) {
+    final re = RegExp(r'(https?:\/\/[^\s)]+|file:[^\s)]+|data:image\/[^\s)]+)', caseSensitive: false);
+    return re.allMatches(input).map((m) => m.group(0)!).toList();
+  }
+
+  static String _softBreakInline(String s) {
+    return s.replaceAll('\n', ' ');
+  }
 
   static Map<String, TextStyle> _transparentBgTheme(Map<String, TextStyle> base) {
-    final m = Map<String, TextStyle>.from(base);
-    final root = base['root'];
-    if (root != null) {
-      m['root'] = root.copyWith(backgroundColor: Colors.transparent);
-    } else {
-      m['root'] = const TextStyle(backgroundColor: Colors.transparent);
-    }
-    return m;
+    final root = (base['root'] ?? const TextStyle()).copyWith(backgroundColor: Colors.transparent);
+    return {...base, 'root': root};
   }
 
-  static String? _normalizeLanguage(String? lang) {
-    if (lang == null || lang.trim().isEmpty) return null;
+  static String? _normalizeLanguage(String lang) {
     final l = lang.trim().toLowerCase();
+    if (l.isEmpty) return null;
     switch (l) {
       case 'js':
       case 'javascript':
+      case 'node':
+      case 'nodejs':
         return 'javascript';
       case 'ts':
       case 'typescript':
         return 'typescript';
-      case 'sh':
-      case 'zsh':
-      case 'bash':
       case 'shell':
+      case 'bash':
+      case 'sh':
         return 'bash';
-      case 'yml':
-        return 'yaml';
       case 'py':
       case 'python':
         return 'python';
-      case 'rb':
-      case 'ruby':
-        return 'ruby';
-      case 'kt':
-      case 'kotlin':
-        return 'kotlin';
-      case 'java':
-        return 'java';
-      case 'c#':
-      case 'cs':
-      case 'csharp':
-        return 'csharp';
-      case 'objc':
-      case 'objectivec':
-        return 'objectivec';
-      case 'swift':
-        return 'swift';
-      case 'go':
-      case 'golang':
-        return 'go';
-      case 'php':
-        return 'php';
       case 'dart':
         return 'dart';
       case 'json':
         return 'json';
-      case 'html':
-        return 'xml';
+      case 'yml':
+      case 'yaml':
+        return 'yaml';
       case 'md':
       case 'markdown':
         return 'markdown';
-      case 'sql':
-        return 'sql';
       default:
-        return l; // try as-is
+        return l;
     }
   }
 
-  static String _preprocessFences(String input) {
-    // Normalize newlines to simplify regex handling
-    var out = input.replaceAll('\r\n', '\n');
-
-    // 2025-10-23 Fix: Remove title attributes from markdown links to work around gpt_markdown's
-    // link regex limitation. The package's regex `[^\s]*` stops at spaces, so
-    // [text](url "title") breaks. Strip titles while preserving the URL.
-    // Matches: [text](url "title") or [text](url 'title') or [text](url title)
-    final linkWithTitle = RegExp(
-      r'\[([^\]]+)\]\(([^\s)]+)\s+[^)]*\)',
-    );
-    out = out.replaceAllMapped(linkWithTitle, (match) {
-      final text = match.group(1);
-      final url = match.group(2);
-      return '[$text]($url)';
-    });
-
-    // 1) Move fenced code from list lines to the next line: "* ```lang" -> "*\n```lang"
-    final bulletFence = RegExp(r"^(\s*(?:[*+-]|\d+\.)\s+)```([^\s`]*)\s*$", multiLine: true);
-    out = out.replaceAllMapped(bulletFence, (m) => "${m[1]}\n```${m[2]}" );
-
-    // 2) Dedent opening fences: leading spaces before ```lang
-    final dedentOpen = RegExp(r"^[ \t]+```([^\n`]*)\s*$", multiLine: true);
-    out = out.replaceAllMapped(dedentOpen, (m) => "```${m[1]}" );
-
-    // 3) Dedent closing fences: leading spaces before ```
-    final dedentClose = RegExp(r"^[ \t]+```\s*$", multiLine: true);
-    out = out.replaceAllMapped(dedentClose, (m) => "```" );
-
-    // 4) Ensure closing fences are on their own line: transform "} ```" or "}```" into "}\n```"
-    final inlineClosing = RegExp(r"([^\r\n`])```(?=\s*(?:\r?\n|$))");
-    out = out.replaceAllMapped(inlineClosing, (m) => "${m[1]}\n```");
-
-    // 5) Disambiguate Setext vs HR after label-value lines:
-    // If a line of only dashes follows a bold label line (e.g., "**作者:** 张三"),
-    // insert a blank line so it's treated as an HR, not a Setext heading underline.
-    final labelThenDash = RegExp(r"^(\*\*[^\n*]+\*\*.*)\n(\s*-{3,}\s*$)", multiLine: true);
-    out = out.replaceAllMapped(labelThenDash, (m) => "${m[1]}\n\n${m[2]}");
-
-    // 6) Allow ATX headings starting with enumerations like "## 1.引言" or "## 1. 引言"
-    // Insert a zero-width non-joiner after the dot to prevent list parsing without changing visual text.
-    final atxEnum = RegExp(r"^(\s{0,3}#{1,6}\s+\d+)\.(\s*)(\S)", multiLine: true);
-    out = out.replaceAllMapped(atxEnum, (m) => "${m[1]}.\u200C${m[2]}${m[3]}");
-
-    // 7) Auto-close an unmatched opening code fence at EOF
-    final fenceAtBol = RegExp(r"^\s*```", multiLine: true);
-    final count = fenceAtBol.allMatches(out).length;
-    if (count % 2 == 1) {
-      if (!out.endsWith('\n')) out += '\n';
-      out += '```';
-    }
-
-    // 8) Fix: when multiple markdown links are placed on separate lines using
-    //    trailing double-spaces (hard line breaks), gpt_markdown may treat them
-    //    as a single paragraph and only render the first link correctly.
-    //    To avoid this, convert such lines into separate paragraphs by
-    //    inserting an extra blank line after lines that end with a markdown
-    //    link and have at least two trailing spaces.
-    //    Example affected pattern:
-    //      Label：[text](url)  \nNext： [text](url)  \n
-    final linkWithTrailingSpaces = RegExp(r"\[[^\]]+\]\([^\)]+\)\s{2,}$");
-    final lines = out.split('\n');
-    if (lines.length > 1) {
-      final buf = StringBuffer();
-      for (int i = 0; i < lines.length; i++) {
-        final line = lines[i];
-        buf.write(line);
-        if (i < lines.length - 1) buf.write('\n');
-        if (linkWithTrailingSpaces.hasMatch(line)) {
-          // Ensure a blank line to break the paragraph for the next line
-          buf.write('\n');
-        }
-      }
-      out = buf.toString();
-    }
-
-    // 9) Convert [STICKER:pack:id] tags to markdown image syntax
-    // Example: [STICKER:nachoneko:1] -> ![sticker](sticker://nachoneko/1)
-    final stickerPattern = RegExp(r'\[STICKER:([a-zA-Z0-9_-]+):(\d+)\]');
-    out = out.replaceAllMapped(stickerPattern, (match) {
-      final pack = match.group(1);
-      final id = match.group(2);
-      return '![sticker](sticker://$pack/$id)';
-    });
-
-    return out;
-  }
-
-  static String _softBreakInline(String input) {
-    // Insert zero-width break for inline code segments with long tokens.
-    if (input.length < 60) return input;
-    final buf = StringBuffer();
-    for (int i = 0; i < input.length; i++) {
-      buf.write(input[i]);
-      if ((i + 1) % 24 == 0) buf.write('\u200B');
-    }
-    return buf.toString();
-  }
-
-  Future<void> _handleLinkTap(BuildContext context, String url) async {
-    Uri uri;
-    try {
-      uri = _normalizeUrl(url);
-    } catch (_) {
-      showAppSnackBar(
-        context,
-        message: _isZh(context) ? '无效链接' : 'Invalid link',
-        type: NotificationType.error,
-      );
-      return;
-    }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && context.mounted) {
-      showAppSnackBar(
-        context,
-        message: _isZh(context) ? '无法打开链接' : 'Cannot open link',
-        type: NotificationType.error,
-      );
-    }
-  }
-
-  Uri _normalizeUrl(String url) {
-    var u = url.trim();
-    if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*:').hasMatch(u)) {
-      u = 'https://'+u;
-    }
-    return Uri.parse(u);
-  }
-
-  static List<String> _extractImageUrls(String md) {
-    final re = RegExp(r"!\[[^\]]*\]\(([^)\s]+)\)");
-    return re
-        .allMatches(md)
-        .map((m) => (m.group(1) ?? '').trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
+  static String _displayLanguage(BuildContext ctx, String lang) {
+    final n = _normalizeLanguage(lang) ?? 'text';
+    return n;
   }
 
   static ImageProvider? _imageProviderFor(String src) {
-    // Handle sticker:// protocol for custom sticker images
-    if (src.startsWith('sticker://')) {
+    try {
+      final uri = Uri.parse(src);
+      if (uri.scheme == 'http' || uri.scheme == 'https') {
+        return NetworkImage(src);
+      }
+      if (uri.scheme == 'file') {
+        return FileImage(File(uri.toFilePath()));
+      }
+    } catch (_) {
+    }
+    if (Platform.isWindows && RegExp(r'^[a-zA-Z]:\\').hasMatch(src)) {
+      return FileImage(File(src));
+    }
+    return null;
+  }
+
+  static TextStyle _codeStyleBase(BuildContext ctx, {double size = 13, double height = 1.5}) {
+    final base = TextStyle(fontSize: size, height: height);
+    final sp = Provider.of<SettingsProvider>(ctx, listen: false);
+    final fam = sp.codeFontFamily;
+    if (fam == null || fam.isEmpty) {
+      return base.copyWith(fontFamily: 'monospace');
+    }
+    if (sp.codeFontIsGoogle) {
       try {
-        // Parse: sticker://pack/id -> assets/stickers/pack/id.webp
-        final uri = Uri.parse(src);
-        final pack = uri.host;
-        final id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '0';
-        final assetPath = 'assets/stickers/$pack/$id.webp';
-        return AssetImage(assetPath);
+        return GoogleFonts.getFont(fam, textStyle: base);
       } catch (_) {
-        return null;
+        return base.copyWith(fontFamily: fam);
       }
     }
-    if (src.startsWith('http://') || src.startsWith('https://')) {
-      return NetworkImage(src);
+    return base.copyWith(fontFamily: fam);
+  }
+
+  static Future<void> _handleLinkTap(BuildContext context, String url) async {
+    try {
+      final uri = Uri.parse(url);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (!context.mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Failed to open link: $url',
+        type: NotificationType.error,
+      );
     }
-    if (src.startsWith('data:')) {
-      try {
-        final base64Marker = 'base64,';
-        final idx = src.indexOf(base64Marker);
-        if (idx != -1) {
-          final b64 = src.substring(idx + base64Marker.length);
-          return MemoryImage(base64Decode(b64));
-        }
-      } catch (_) {}
-    }
-    if (kIsWeb) {
-      // Web: avoid Image.file assertions
-      return null;
-    }
-    final fixed = SandboxPathResolver.fix(src);
-    return FileImage(File(fixed));
   }
 }
 
 class _CollapsibleCodeBlock extends StatefulWidget {
   final String language;
   final String code;
-
   const _CollapsibleCodeBlock({required this.language, required this.code});
 
   @override
@@ -839,11 +683,10 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                             isDark ? atomOneDarkReasonableTheme : githubTheme,
                           ),
                           padding: EdgeInsets.zero,
-                          textStyle: _codeStyleBase(context, size: 13, height: 1.5),
+                          textStyle: MarkdownWithCodeHighlight._codeStyleBase(context, size: 13, height: 1.5),
                         ),
-                      ),
-                    ),
-                  )
+                      )
+                    )
                 : const SizedBox.shrink(key: ValueKey('code-collapsed')),
           ),
           ],
@@ -1104,7 +947,8 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                           ),
                         ] else ...[
                           // Fallback: show raw code and a preview button (opens browser)
-                          
+                          SizedBox(
+                            width: double.infinity,
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: HighlightView(
@@ -1268,12 +1112,10 @@ class LatexBlockScrollableMd extends BlockMd {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return 
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              primary: false,
-              child: math,
-            ),
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            primary: false,
+            child: math,
           );
         },
       ),
@@ -1306,12 +1148,10 @@ class InlineLatexScrollableMd extends InlineMd {
     // Wrap in horizontal scroll to prevent line overflow; no extra background
     final w = LayoutBuilder(
       builder: (context, constraints) {
-        return 
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            primary: false,
-            child: math,
-          ),
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          primary: false,
+          child: math,
         );
       },
     );
@@ -1346,12 +1186,10 @@ class InlineLatexDollarScrollableMd extends InlineMd {
     );
     final w = LayoutBuilder(
       builder: (context, constraints) {
-        return 
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            primary: false,
-            child: math,
-          ),
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          primary: false,
+          child: math,
         );
       },
     );
@@ -1385,12 +1223,10 @@ class InlineLatexParenScrollableMd extends InlineMd {
     );
     final w = LayoutBuilder(
       builder: (context, constraints) {
-        return 
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            primary: false,
-            child: math,
-          ),
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          primary: false,
+          child: math,
         );
       },
     );
@@ -1751,16 +1587,17 @@ class ModernRadioMd extends BlockMd {
       ),
     );
   }
-}
-    TextStyle _codeStyleBase(BuildContext ctx, {double size = 13, double height = 1.5}) {
-      final base = TextStyle(fontSize: size, height: height);
-      final sp = Provider.of<SettingsProvider>(ctx, listen: false);
-      final fam = sp.codeFontFamily;
-      if (fam == null || fam.isEmpty) {
-        return base.copyWith(fontFamily: 'monospace');
-      }
-      if (sp.codeFontIsGoogle) {
-        try { return GoogleFonts.getFont(fam, textStyle: base); } catch (_) { return base.copyWith(fontFamily: fam); }
-      }
-      return base.copyWith(fontFamily: fam);
+
+  static TextStyle _codeStyleBase(BuildContext ctx, {double size = 13, double height = 1.5}) {
+    final base = TextStyle(fontSize: size, height: height);
+    final sp = Provider.of<SettingsProvider>(ctx, listen: false);
+    final fam = sp.codeFontFamily;
+    if (fam == null || fam.isEmpty) {
+      return base.copyWith(fontFamily: 'monospace');
     }
+    if (sp.codeFontIsGoogle) {
+      try { return GoogleFonts.getFont(fam, textStyle: base); } catch (_) { return base.copyWith(fontFamily: fam); }
+    }
+    return base.copyWith(fontFamily: fam);
+  }
+}
