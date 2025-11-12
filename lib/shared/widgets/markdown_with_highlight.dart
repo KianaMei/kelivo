@@ -310,7 +310,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
             ],
           );
 
-          return SelectionContainer.disabled(
+          return 
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               primary: false,
@@ -829,8 +829,7 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                     width: double.infinity,
                     color: bodyBg,
                     padding: const EdgeInsets.fromLTRB(10, 6, 6, 10),
-                    child: SelectionContainer.disabled(
-                      child: SingleChildScrollView(
+                    child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         primary: false,
                         child: HighlightView(
@@ -1105,7 +1104,7 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                           ),
                         ] else ...[
                           // Fallback: show raw code and a preview button (opens browser)
-                          SelectionContainer.disabled(
+                          
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: HighlightView(
@@ -1269,7 +1268,7 @@ class LatexBlockScrollableMd extends BlockMd {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return SelectionContainer.disabled(
+          return 
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               primary: false,
@@ -1307,7 +1306,7 @@ class InlineLatexScrollableMd extends InlineMd {
     // Wrap in horizontal scroll to prevent line overflow; no extra background
     final w = LayoutBuilder(
       builder: (context, constraints) {
-        return SelectionContainer.disabled(
+        return 
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             primary: false,
@@ -1347,7 +1346,7 @@ class InlineLatexDollarScrollableMd extends InlineMd {
     );
     final w = LayoutBuilder(
       builder: (context, constraints) {
-        return SelectionContainer.disabled(
+        return 
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             primary: false,
@@ -1386,7 +1385,7 @@ class InlineLatexParenScrollableMd extends InlineMd {
     );
     final w = LayoutBuilder(
       builder: (context, constraints) {
-        return SelectionContainer.disabled(
+        return 
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             primary: false,
