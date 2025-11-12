@@ -3926,7 +3926,6 @@ class _PromptTabState extends State<_PromptTab> {
               enableInteractiveSelection: true,
               keyboardType: TextInputType.multiline,
               textInputAction: TextInputAction.newline,
-              enableInteractiveSelection: true,
               contextMenuBuilder:
                   (BuildContext context, EditableTextState state) {
                     final items = <ContextMenuButtonItem>[...state.contextMenuButtonItems];

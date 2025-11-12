@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 // Import statements for service implementations
 import 'providers/bing_search_service.dart';
@@ -12,6 +13,8 @@ import 'providers/ollama_search_service.dart';
 import 'providers/jina_search_service.dart';
 import 'providers/bocha_search_service.dart';
 import 'providers/perplexity_search_service.dart';
+// Import existing ApiKeyConfig and LoadBalanceStrategy
+import '../../models/api_keys.dart';
 
 // Base interface for all search services
 abstract class SearchService<T extends SearchServiceOptions> {
@@ -200,24 +203,191 @@ class BingLocalOptions extends SearchServiceOptions {
 }
 
 class TavilyOptions extends SearchServiceOptions {
-  final String apiKey;
+  final List<ApiKeyConfig> apiKeys;
+  final LoadBalanceStrategy strategy;
+  int _currentIndex = 0;  // For round-robin strategy
+  static const int _cooldownMinutes = 5;
+  static const int _maxFailuresBeforeError = 3;
   
   TavilyOptions({
     required String id,
-    required this.apiKey,
-  }) : super(id: id);
+    required this.apiKeys,
+    this.strategy = LoadBalanceStrategy.roundRobin,
+  }) : super(id: id) {
+    if (apiKeys.isEmpty) {
+      throw ArgumentError('At least one API key is required');
+    }
+  }
+  
+  // Backward compatibility: single key constructor
+  factory TavilyOptions.single({
+    required String id,
+    required String apiKey,
+  }) {
+    return TavilyOptions(
+      id: id,
+      apiKeys: [ApiKeyConfig.create(apiKey)],
+    );
+  }
+  
+  ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final cooldownMs = _cooldownMinutes * 60 * 1000;
+
+    bool isTemporarilyBlocked(ApiKeyConfig k) {
+      if (!k.isEnabled) return true;
+      if (excludeIds.contains(k.id)) return true;
+      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
+        final since = now - k.updatedAt;
+        if (since < cooldownMs) return true;
+      }
+      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+      }
+      return false;
+    }
+
+    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
+    for (int i = 0; i < candidates.length; i++) {
+      final k = candidates[i];
+      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
+        final idx = apiKeys.indexWhere((e) => e.id == k.id);
+        if (idx >= 0) {
+          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
+        }
+      }
+    }
+
+    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    if (candidates.isEmpty) return null;
+
+    switch (strategy) {
+      case LoadBalanceStrategy.roundRobin:
+        final active = candidates;
+        _currentIndex = (_currentIndex + 1) % active.length;
+        return active[_currentIndex];
+      case LoadBalanceStrategy.random:
+        final random = Random();
+        return candidates[random.nextInt(candidates.length)];
+      case LoadBalanceStrategy.leastUsed:
+        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        return candidates.first;
+      case LoadBalanceStrategy.priority:
+        candidates.sort((a, b) => a.priority.compareTo(b.priority));
+        return candidates.first;
+    }
+  }
+  
+  // Mark key as used
+  void markKeyAsUsed(String keyId) {
+    final index = apiKeys.indexWhere((k) => k.id == keyId);
+    if (index != -1) {
+      final oldConfig = apiKeys[index];
+      final newUsage = oldConfig.usage.copyWith(
+        totalRequests: oldConfig.usage.totalRequests + 1,
+        successfulRequests: oldConfig.usage.successfulRequests + 1,
+        lastUsed: DateTime.now().millisecondsSinceEpoch,
+        consecutiveFailures: 0,
+      );
+      apiKeys[index] = oldConfig.copyWith(
+        usage: newUsage,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        status: ApiKeyStatus.active,
+        lastError: null,
+      );
+    }
+  }
+
+  void markKeyRateLimited(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: k.usage.consecutiveFailures + 1,
+        lastUsed: now,
+      );
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: ApiKeyStatus.rateLimited,
+        lastError: error ?? 'rate_limited',
+        updatedAt: now,
+      );
+    }
+  }
+
+  void markKeyFailure(String keyId, {String? error}) {
+    final i = apiKeys.indexWhere((k) => k.id == keyId);
+    if (i >= 0) {
+      final k = apiKeys[i];
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final nextFails = k.usage.consecutiveFailures + 1;
+      final u = k.usage.copyWith(
+        totalRequests: k.usage.totalRequests + 1,
+        failedRequests: k.usage.failedRequests + 1,
+        consecutiveFailures: nextFails,
+        lastUsed: now,
+      );
+      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
+      apiKeys[i] = k.copyWith(
+        usage: u,
+        status: st,
+        lastError: error ?? 'request_failed',
+        updatedAt: now,
+      );
+    }
+  }
+  
+  // Update a key configuration
+  void updateKey(int index, ApiKeyConfig newConfig) {
+    if (index >= 0 && index < apiKeys.length) {
+      apiKeys[index] = newConfig;
+    }
+  }
+  
+  // Add a new key
+  void addKey(ApiKeyConfig config) {
+    apiKeys.add(config);
+  }
+  
+  // Remove a key
+  void removeKey(int index) {
+    if (apiKeys.length > 1 && index >= 0 && index < apiKeys.length) {
+      apiKeys.removeAt(index);
+    }
+  }
   
   @override
   Map<String, dynamic> toJson() => {
     'type': 'tavily',
     'id': id,
-    'apiKey': apiKey,
+    'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+    'strategy': strategy.name,
   };
   
-  factory TavilyOptions.fromJson(Map<String, dynamic> json) => TavilyOptions(
-    id: json['id'],
-    apiKey: json['apiKey'],
-  );
+  factory TavilyOptions.fromJson(Map<String, dynamic> json) {
+    // Backward compatibility: support old single apiKey format
+    if (json.containsKey('apiKey') && json['apiKey'] is String) {
+      return TavilyOptions.single(
+        id: json['id'],
+        apiKey: json['apiKey'],
+      );
+    }
+    
+    return TavilyOptions(
+      id: json['id'],
+      apiKeys: (json['apiKeys'] as List)
+          .map((k) => ApiKeyConfig.fromJson(k as Map<String, dynamic>))
+          .toList(),
+      strategy: LoadBalanceStrategy.values.firstWhere(
+        (s) => s.name == json['strategy'],
+        orElse: () => LoadBalanceStrategy.roundRobin,
+      ),
+    );
+  }
 }
 
 class ExaOptions extends SearchServiceOptions {

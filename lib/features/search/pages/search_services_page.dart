@@ -1418,6 +1418,13 @@ class _TavilyEditor extends StatefulWidget {
 class _TavilyEditorState extends State<_TavilyEditor> {
   late List<ApiKeyConfig> _keys;
   late LoadBalanceStrategy _strategy;
+  int? _editingIndex;
+  bool _adding = false;
+  final TextEditingController _editKeyController = TextEditingController();
+  final TextEditingController _editNameController = TextEditingController();
+  final TextEditingController _editLimitController = TextEditingController();
+  int _editPriority = 5;
+  bool _editUnlimited = true;
 
   @override
   void initState() {
@@ -1428,6 +1435,78 @@ class _TavilyEditorState extends State<_TavilyEditor> {
 
   void _emit() {
     widget.onChanged(TavilyOptions(id: widget.initial.id, apiKeys: _keys, strategy: _strategy));
+  }
+
+  @override
+  void dispose() {
+    _editKeyController.dispose();
+    _editNameController.dispose();
+    _editLimitController.dispose();
+    super.dispose();
+  }
+
+  void _beginEdit(int index) {
+    final k = _keys[index];
+    _editingIndex = index;
+    _adding = false;
+    _editKeyController.text = k.key;
+    _editNameController.text = k.name ?? '';
+    _editLimitController.text = k.maxRequestsPerMinute?.toString() ?? '';
+    _editUnlimited = k.maxRequestsPerMinute == null || k.maxRequestsPerMinute == 0;
+    _editPriority = k.priority;
+    setState(() {});
+  }
+
+  void _beginAdd() {
+    _editingIndex = -1;
+    _adding = true;
+    _editKeyController.text = '';
+    _editNameController.text = '';
+    _editLimitController.text = '';
+    _editUnlimited = true;
+    _editPriority = 5;
+    setState(() {});
+  }
+
+  void _cancelEdit() {
+    _editingIndex = null;
+    _adding = false;
+    setState(() {});
+  }
+
+  void _commitEdit() {
+    final key = _editKeyController.text.trim();
+    if (key.isEmpty) return;
+    final rpmText = _editLimitController.text.trim();
+    final rpm = (!_editUnlimited && rpmText.isNotEmpty) ? int.tryParse(rpmText) : null;
+    final clampedPri = _editPriority.clamp(1, 10);
+    if (_adding) {
+      final cfg = ApiKeyConfig.create(key).copyWith(
+        name: _editNameController.text.trim().isEmpty ? null : _editNameController.text.trim(),
+        maxRequestsPerMinute: (rpm == null || rpm <= 0) ? null : rpm,
+        priority: clampedPri,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      setState(() {
+        _keys.add(cfg);
+        _emit();
+        _cancelEdit();
+      });
+    } else if (_editingIndex != null && _editingIndex! >= 0 && _editingIndex! < _keys.length) {
+      final old = _keys[_editingIndex!];
+      final cfg = old.copyWith(
+        key: key,
+        name: _editNameController.text.trim().isEmpty ? null : _editNameController.text.trim(),
+        maxRequestsPerMinute: (rpm == null || rpm <= 0) ? null : rpm,
+        priority: clampedPri,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      setState(() {
+        _keys[_editingIndex!] = cfg;
+        _emit();
+        _cancelEdit();
+      });
+    }
   }
 
   @override
@@ -1474,15 +1553,20 @@ class _TavilyEditorState extends State<_TavilyEditor> {
         Expanded(
           child: ListView.builder(
             padding: EdgeInsets.zero,
-            itemCount: _keys.length,
-            itemBuilder: (ctx, i) => _keyCard(context, i, cs, isDark),
+            itemCount: _keys.length + (_adding ? 1 : 0),
+            itemBuilder: (ctx, i) {
+              if (_adding && i == _keys.length) {
+                return _newKeyCard(cs, isDark);
+              }
+              return _keyCard(context, i, cs, isDark);
+            },
           ),
         ),
         const SizedBox(height: 8),
         Row(
           children: [
             OutlinedButton.icon(
-              onPressed: () => _showKeyDialog(context, null),
+              onPressed: _beginAdd,
               icon: const Icon(Icons.add, size: 18),
               label: const Text('添加 Key'),
             ),
@@ -1507,37 +1591,189 @@ class _TavilyEditorState extends State<_TavilyEditor> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: border, width: 1),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Switch(value: k.isEnabled, onChanged: (v) {
-            setState(() {
-              _keys[index] = k.copyWith(isEnabled: v, updatedAt: DateTime.now().millisecondsSinceEpoch);
-              _emit();
-            });
-          }),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(k.name ?? 'API Key ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Row(
+          Row(
+            children: [
+              Switch(value: k.isEnabled, onChanged: (v) {
+                setState(() {
+                  _keys[index] = k.copyWith(isEnabled: v, updatedAt: DateTime.now().millisecondsSinceEpoch);
+                  _emit();
+                });
+              }),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Lucide.Activity, size: 14, color: cs.primary),
-                    const SizedBox(width: 6),
-                    Text('已使用 ${k.usage.totalRequests}', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
-                    const SizedBox(width: 12),
-                    Icon(k.maxRequestsPerMinute == null ? Lucide.Repeat : Lucide.Thermometer, size: 14, color: cs.primary),
-                    const SizedBox(width: 6),
-                    Text(k.maxRequestsPerMinute == null ? '无限制' : '限流 ${k.maxRequestsPerMinute}/分', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
+                    Text(k.name ?? 'API Key ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Lucide.Activity, size: 14, color: cs.primary),
+                        const SizedBox(width: 6),
+                        Text('已使用 ${k.usage.totalRequests}', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
+                        const SizedBox(width: 12),
+                        Icon(k.maxRequestsPerMinute == null ? Lucide.Repeat : Lucide.Thermometer, size: 14, color: cs.primary),
+                        const SizedBox(width: 6),
+                        Text(k.maxRequestsPerMinute == null ? '无限制' : '限流 ${k.maxRequestsPerMinute}/分', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
+                      ],
+                    ),
                   ],
                 ),
+              ),
+              if (_editingIndex != index)
+                IconButton(onPressed: () => _beginEdit(index), icon: const Icon(Icons.edit, size: 18))
+              else
+                const SizedBox.shrink(),
+              IconButton(onPressed: () => _deleteKey(index), icon: const Icon(Icons.delete, size: 18)),
+            ],
+          ),
+          if (_editingIndex == index) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _editNameController,
+              decoration: const InputDecoration(labelText: '名称（可选）', hintText: '例如：google / 备用Key'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _editKeyController,
+              decoration: const InputDecoration(labelText: 'API Key'),
+            ),
+            const SizedBox(height: 10),
+            SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 0, label: Text('无限制')),
+                ButtonSegment(value: 1, label: Text('自定义')),
+              ],
+              selected: {_editUnlimited ? 0 : 1},
+              onSelectionChanged: (s) {
+                if (s.isNotEmpty) setState(() => _editUnlimited = s.first == 0);
+              },
+              showSelectedIcon: false,
+            ),
+            const SizedBox(height: 8),
+            if (!_editUnlimited)
+              TextField(
+                controller: _editLimitController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '每分钟限流',
+                  hintText: '例如 60',
+                  helperText: '留空或 0 表示无限制。示例：60 表示每分钟最多 60 次请求。',
+                  suffixText: '/分',
+                ),
+              ),
+            if (!_editUnlimited) const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text('优先级'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Slider(
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    label: '$_editPriority',
+                    value: _editPriority.toDouble(),
+                    onChanged: (v) => setState(() => _editPriority = v.round().clamp(1, 10)),
+                  ),
+                ),
+                Text('$_editPriority'),
               ],
             ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: _cancelEdit, child: const Text('取消')),
+                const SizedBox(width: 8),
+                FilledButton(onPressed: _commitEdit, child: const Text('保存')),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _newKeyCard(ColorScheme cs, bool isDark) {
+    final bg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.05 : 0.03), cs.surface);
+    final border = cs.outlineVariant.withOpacity(isDark ? 0.16 : 0.18);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('添加新的 API Key', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _editNameController,
+            decoration: const InputDecoration(labelText: '名称（可选）', hintText: '例如：google / 备用Key'),
           ),
-          IconButton(onPressed: () => _showKeyDialog(context, index), icon: const Icon(Icons.edit, size: 18)),
-          IconButton(onPressed: () => _deleteKey(index), icon: const Icon(Icons.delete, size: 18)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _editKeyController,
+            decoration: const InputDecoration(labelText: 'API Key'),
+          ),
+          const SizedBox(height: 10),
+          SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 0, label: Text('无限制')),
+              ButtonSegment(value: 1, label: Text('自定义')),
+            ],
+            selected: {_editUnlimited ? 0 : 1},
+            onSelectionChanged: (s) {
+              if (s.isNotEmpty) setState(() => _editUnlimited = s.first == 0);
+            },
+            showSelectedIcon: false,
+          ),
+          const SizedBox(height: 8),
+          if (!_editUnlimited)
+            TextField(
+              controller: _editLimitController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '每分钟限流',
+                hintText: '例如 60',
+                helperText: '留空或 0 表示无限制。示例：60 表示每分钟最多 60 次请求。',
+                suffixText: '/分',
+              ),
+            ),
+          if (!_editUnlimited) const SizedBox(height: 10),
+          Row(
+            children: [
+              const Text('优先级'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Slider(
+                  min: 1,
+                  max: 10,
+                  divisions: 9,
+                  label: '$_editPriority',
+                  value: _editPriority.toDouble(),
+                  onChanged: (v) => setState(() => _editPriority = v.round().clamp(1, 10)),
+                ),
+              ),
+              Text('$_editPriority'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(onPressed: _cancelEdit, child: const Text('取消')),
+              const SizedBox(width: 8),
+              FilledButton(onPressed: _commitEdit, child: const Text('添加')),
+            ],
+          ),
         ],
       ),
     );
@@ -1547,11 +1783,13 @@ class _TavilyEditorState extends State<_TavilyEditor> {
     final keyController = TextEditingController();
     final nameController = TextEditingController();
     final limitController = TextEditingController();
+    final priorityController = TextEditingController(text: '5');
     if (editIndex != null) {
       final c = _keys[editIndex];
       keyController.text = c.key;
       nameController.text = c.name ?? '';
       limitController.text = c.maxRequestsPerMinute?.toString() ?? '';
+      priorityController.text = c.priority.toString();
     }
     await showDialog(
       context: context,
@@ -1567,6 +1805,12 @@ class _TavilyEditorState extends State<_TavilyEditor> {
                 TextField(controller: nameController, decoration: const InputDecoration(labelText: '名称（可选）')),
                 const SizedBox(height: 12),
                 TextField(controller: limitController, decoration: const InputDecoration(labelText: '每分钟限流（可选）'), keyboardType: TextInputType.number),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: priorityController,
+                  decoration: const InputDecoration(labelText: '优先级 1-10（可选，默认5，数字越小优先级越高）'),
+                  keyboardType: TextInputType.number,
+                ),
               ],
             ),
           ),
@@ -1576,11 +1820,14 @@ class _TavilyEditorState extends State<_TavilyEditor> {
               onPressed: () {
                 final key = keyController.text.trim();
                 if (key.isEmpty) return;
+                final pr = int.tryParse(priorityController.text.trim());
+                final clampedPri = pr == null ? null : pr.clamp(1, 10) as int;
                 final cfg = (editIndex == null ? ApiKeyConfig.create(key) : _keys[editIndex!])
                     .copyWith(
                       key: key,
                       name: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
                       maxRequestsPerMinute: limitController.text.trim().isEmpty ? null : int.tryParse(limitController.text.trim()),
+                      priority: clampedPri ?? (editIndex == null ? 5 : _keys[editIndex!].priority),
                       updatedAt: DateTime.now().millisecondsSinceEpoch,
                     );
                 setState(() {

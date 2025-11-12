@@ -35,7 +35,11 @@ class _SearchSettingsSheet extends StatelessWidget {
   String? _statusOf(BuildContext context, SearchServiceOptions s) {
     final l10n = AppLocalizations.of(context)!;
     if (s is BingLocalOptions) return null;
-    if (s is TavilyOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
+    if (s is TavilyOptions) {
+      final enabledCount = s.apiKeys.where((k) => k.isEnabled).length;
+      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
+      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
+    }
     if (s is ExaOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
     if (s is ZhipuOptions) return s.apiKey.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageApiKeyRequiredStatus;
     if (s is SearXNGOptions) return s.url.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageUrlRequiredStatus;

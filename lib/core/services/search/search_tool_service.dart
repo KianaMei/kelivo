@@ -67,6 +67,12 @@ class SearchToolService {
       return jsonEncode({
         'error': 'Search failed: $e',
       });
+    } finally {
+      try {
+        // Persist current services (mutations on options like TavilyOptions.apiKeys/status/usage)
+        final cur = settings.searchServices;
+        await settings.setSearchServices(cur);
+      } catch (_) {}
     }
   }
   
