@@ -8,6 +8,7 @@ import '../core/providers/assistant_provider.dart';
 import '../core/providers/settings_provider.dart';
 import 'user_profile_dialog.dart';
 import '../icons/lucide_adapter.dart' as lucide;
+import '../utils/safe_tooltip.dart';
 
 /// A compact left rail for desktop with avatar, primary actions, and bottom system toggles.
 class DesktopNavRail extends StatelessWidget {
@@ -198,7 +199,7 @@ class _CircleAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Tooltip(
+    return wrapWithSafeTooltip(
       message: tooltip,
       waitDuration: const Duration(milliseconds: 300),
       child: GestureDetector(

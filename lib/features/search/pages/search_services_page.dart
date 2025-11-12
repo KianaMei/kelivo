@@ -13,6 +13,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../core/services/haptics.dart';
+import '../../../utils/safe_tooltip.dart';
 import 'key_management_widgets.dart';
 
 class SearchServicesPage extends StatefulWidget {
@@ -1921,18 +1922,18 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
               ),
               if (_editingIndex != index) ...[
                 IconButton(
-                  onPressed: _testingKeys.contains(index) ? null : () => _testSingleKey(index), 
-                  icon: _testingKeys.contains(index) 
-                    ? SizedBox(
-                        width: 18, 
-                        height: 18, 
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
-                        ),
-                      )
-                    : const Icon(Lucide.HeartPulse, size: 18),
-                  tooltip: _testingKeys.contains(index) ? '正在测试...' : '测试连接',
+                  onPressed: _testingKeys.contains(index) ? null : () => _testSingleKey(index),
+                  icon: _testingKeys.contains(index)
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                          ),
+                        )
+                      : const Icon(Lucide.HeartPulse, size: 18),
+                  tooltip: safeTooltipMessage(_testingKeys.contains(index) ? '正在测试...' : '测试连接'),
                 ),
                 IconButton(onPressed: () => _beginEdit(index), icon: const Icon(Icons.edit, size: 18))
               ] else

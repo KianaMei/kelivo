@@ -36,6 +36,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
+import '../../../utils/safe_tooltip.dart';
 
 class ChatMessageWidget extends StatefulWidget {
   final ChatMessage message;
@@ -896,7 +897,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                   IconButton(
                     icon: Icon(Lucide.RefreshCw, size: 16),
                     onPressed: widget.onResend,
-                    tooltip: l10n.chatMessageWidgetResendTooltip,
+                    tooltip: safeTooltipMessage(l10n.chatMessageWidgetResendTooltip),
                     visualDensity: VisualDensity.compact,
                     iconSize: 16,
                   ),
@@ -927,7 +928,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                   }
                                   widget.onMore!();
                                 },
-                        tooltip: l10n.chatMessageWidgetMoreTooltip,
+                        tooltip: safeTooltipMessage(l10n.chatMessageWidgetMoreTooltip),
                         visualDensity: VisualDensity.compact,
                         iconSize: 16,
                       );
@@ -1495,7 +1496,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 IconButton(
                   icon: Icon(Lucide.RefreshCw, size: 16),
                   onPressed: widget.onRegenerate,
-                  tooltip: l10n.chatMessageWidgetRegenerateTooltip,
+                  tooltip: safeTooltipMessage(l10n.chatMessageWidgetRegenerateTooltip),
                   visualDensity: VisualDensity.compact,
                   iconSize: 16,
                 ),
@@ -1519,10 +1520,11 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           ),
                         ),
                         onPressed: widget.onSpeak,
-                        tooltip:
-                            tts.isSpeaking
-                                ? l10n.chatMessageWidgetStopTooltip
-                                : l10n.chatMessageWidgetSpeakTooltip,
+                        tooltip: safeTooltipMessage(
+                          tts.isSpeaking
+                              ? l10n.chatMessageWidgetStopTooltip
+                              : l10n.chatMessageWidgetSpeakTooltip,
+                        ),
                         visualDensity: VisualDensity.compact,
                         iconSize: 16,
                       ),
@@ -1530,14 +1532,14 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 IconButton(
                   icon: Icon(Lucide.Languages, size: 16),
                   onPressed: widget.onTranslate,
-                  tooltip: l10n.chatMessageWidgetTranslateTooltip,
+                  tooltip: safeTooltipMessage(l10n.chatMessageWidgetTranslateTooltip),
                   visualDensity: VisualDensity.compact,
                   iconSize: 16,
                 ),
                 IconButton(
                   icon: Icon(Lucide.Trash2, size: 16),
                   onPressed: widget.onDelete,
-                  tooltip: l10n.homePageDelete,
+                  tooltip: safeTooltipMessage(l10n.homePageDelete),
                   visualDensity: VisualDensity.compact,
                   iconSize: 16,
                 ),
@@ -1567,7 +1569,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 }
                                 widget.onMore!();
                               },
-                      tooltip: l10n.chatMessageWidgetMoreTooltip,
+                      tooltip: safeTooltipMessage(l10n.chatMessageWidgetMoreTooltip),
                       visualDensity: VisualDensity.compact,
                       iconSize: 16,
                     );

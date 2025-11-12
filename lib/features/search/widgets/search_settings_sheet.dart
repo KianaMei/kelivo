@@ -11,6 +11,7 @@ import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
+import '../../../utils/safe_tooltip.dart';
 
 Future<void> showSearchSettingsSheet(BuildContext context) async {
   await showModalBottomSheet(
@@ -269,7 +270,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        tooltip: l10n.searchSettingsSheetOpenSearchServicesTooltip,
+                        tooltip: safeTooltipMessage(l10n.searchSettingsSheetOpenSearchServicesTooltip),
                         icon: Icon(Lucide.Settings, size: 20),
                         onPressed: () {
                           Navigator.of(context).push(

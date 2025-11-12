@@ -8,6 +8,7 @@ import '../../../core/providers/mcp_provider.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../utils/safe_tooltip.dart';
 
 Future<void> showMcpJsonEditSheet(BuildContext context) async {
   final cs = Theme.of(context).colorScheme;
@@ -99,7 +100,7 @@ class _McpJsonEditSheetState extends State<_McpJsonEditSheet> {
                   IconButton(
                     onPressed: () => Navigator.of(context).maybePop(),
                     icon: Icon(Lucide.X, size: 20, color: cs.onSurface),
-                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                    tooltip: safeTooltipMessage(MaterialLocalizations.of(context).closeButtonTooltip),
                   ),
                   const Spacer(),
                   Text(AppLocalizations.of(context)!.mcpJsonEditTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
@@ -107,7 +108,7 @@ class _McpJsonEditSheetState extends State<_McpJsonEditSheet> {
                   IconButton(
                     onPressed: _save,
                     icon: Icon(Lucide.Check, size: 20, color: cs.primary),
-                    tooltip: AppLocalizations.of(context)!.mcpServerEditSheetSave,
+                    tooltip: safeTooltipMessage(AppLocalizations.of(context)!.mcpServerEditSheetSave),
                   ),
                 ],
               ),
