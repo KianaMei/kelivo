@@ -302,6 +302,45 @@ class AssistantProvider extends ChangeNotifier {
     // Then persist the changes
     await _persist();
   }
+
+  Future<void> reorderAssistantsWithin({
+    required List<String> subsetIds,
+    required int oldIndex,
+    required int newIndex,
+  }) async {
+    if (oldIndex == newIndex) return;
+    if (subsetIds.isEmpty) return;
+
+    final idSet = subsetIds.toSet();
+    final subsetIndices = <int>[];
+    for (int i = 0; i < _assistants.length; i++) {
+      if (idSet.contains(_assistants[i].id)) subsetIndices.add(i);
+    }
+    if (subsetIndices.isEmpty) return;
+    if (oldIndex < 0 || oldIndex >= subsetIndices.length) return;
+    if (newIndex < 0 || newIndex >= subsetIndices.length) return;
+
+    final subset = subsetIndices.map((i) => _assistants[i]).toList(growable: true);
+    final moved = subset.removeAt(oldIndex);
+    subset.insert(newIndex, moved);
+
+    final merged = <Assistant>[];
+    int take = 0;
+    for (int i = 0; i < _assistants.length; i++) {
+      final a = _assistants[i];
+      if (idSet.contains(a.id)) {
+        merged.add(subset[take++]);
+      } else {
+        merged.add(a);
+      }
+    }
+    _assistants
+      ..clear()
+      ..addAll(merged);
+
+    notifyListeners();
+    await _persist();
+  }
 }
 
 

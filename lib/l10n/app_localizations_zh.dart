@@ -146,10 +146,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String get languageDisplayItalian => 'Italiano';
 
   @override
+  String get languageDisplaySpanish => 'Español';
+
+  @override
   String get languageSelectSheetTitle => '选择翻译语言';
 
   @override
   String get languageSelectSheetClearButton => '清空翻译';
+
+  @override
+  String get translatePagePasteButton => '粘贴';
+
+  @override
+  String get translatePageCopyResult => '复制结果';
+
+  @override
+  String get translatePageClearAll => '全部清空';
+
+  @override
+  String get translatePageInputHint => '请输入要翻译的内容…';
+
+  @override
+  String get translatePageOutputHint => '翻译结果会显示在这里…';
 
   @override
   String get homePageClearContext => '清空上下文';
@@ -433,6 +451,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get desktopNavSettingsTooltip => '设置';
+
+  @override
+  String get desktopSidebarTabAssistants => '助手';
+
+  @override
+  String get desktopSidebarTabTopics => '话题';
 
   @override
   String get desktopAvatarMenuUseEmoji => '使用表情符号';
@@ -1281,6 +1305,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sideDrawerSearchHint => '搜索聊天记录';
+
+  @override
+  String get sideDrawerSearchAssistantsHint => '搜索助手';
 
   @override
   String sideDrawerUpdateTitle(String version) {

@@ -370,6 +370,12 @@ abstract class AppLocalizations {
   /// **'Italian'**
   String get languageDisplayItalian;
 
+  /// No description provided for @languageDisplaySpanish.
+  ///
+  /// In en, this message translates to:
+  /// **'Spanish'**
+  String get languageDisplaySpanish;
+
   /// No description provided for @languageSelectSheetTitle.
   ///
   /// In en, this message translates to:
@@ -381,6 +387,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clear Translation'**
   String get languageSelectSheetClearButton;
+
+  /// No description provided for @translatePagePasteButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste'**
+  String get translatePagePasteButton;
+
+  /// No description provided for @translatePageCopyResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy result'**
+  String get translatePageCopyResult;
+
+  /// No description provided for @translatePageClearAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear All'**
+  String get translatePageClearAll;
+
+  /// No description provided for @translatePageInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter text to translate…'**
+  String get translatePageInputHint;
+
+  /// No description provided for @translatePageOutputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Translated result appears here…'**
+  String get translatePageOutputHint;
 
   /// No description provided for @homePageClearContext.
   ///
@@ -922,6 +958,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Settings'**
   String get desktopNavSettingsTooltip;
+
+  /// No description provided for @desktopSidebarTabAssistants.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistants'**
+  String get desktopSidebarTabAssistants;
+
+  /// No description provided for @desktopSidebarTabTopics.
+  ///
+  /// In en, this message translates to:
+  /// **'Topics'**
+  String get desktopSidebarTabTopics;
 
   /// No description provided for @desktopAvatarMenuUseEmoji.
   ///
@@ -2542,6 +2590,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search chat history'**
   String get sideDrawerSearchHint;
+
+  /// No description provided for @sideDrawerSearchAssistantsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search assistants'**
+  String get sideDrawerSearchAssistantsHint;
 
   /// No description provided for @sideDrawerUpdateTitle.
   ///

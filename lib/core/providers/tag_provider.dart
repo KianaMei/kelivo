@@ -8,8 +8,7 @@ import '../models/assistant_tag.dart';
 class TagProvider extends ChangeNotifier {
   static const String _tagsKey = 'assistant_tags_v1';
   static const String _assignKey = 'assistant_tag_map_v1'; // assistantId -> tagId
-  static const String _collapsedKey =
-      'assistant_tag_collapsed_v1'; // tagId -> bool
+  static const String _collapsedKey = 'assistant_tag_collapsed_v1'; // tagId -> bool
 
   final List<AssistantTag> _tags = <AssistantTag>[];
   final Map<String, String> _assignment = <String, String>{};
@@ -46,8 +45,7 @@ class TagProvider extends ChangeNotifier {
         final m = jsonDecode(rawCol) as Map<String, dynamic>;
         _collapsed
           ..clear()
-          ..addAll(m.map((k, v) =>
-              MapEntry(k, (v is bool) ? v : (v.toString() == 'true'))));
+          ..addAll(m.map((k, v) => MapEntry(k, (v is bool) ? v : (v.toString() == 'true'))));
       } catch (_) {}
     }
     notifyListeners();
@@ -132,7 +130,6 @@ class TagProvider extends ChangeNotifier {
     await _persistCollapsed();
   }
 
-  Future<void> toggleCollapsed(String tagId) =>
-      setCollapsed(tagId, !isCollapsed(tagId));
+  Future<void> toggleCollapsed(String tagId) => setCollapsed(tagId, !isCollapsed(tagId));
 }
 

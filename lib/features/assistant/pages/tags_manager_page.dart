@@ -14,34 +14,21 @@ class TagsManagerPage extends StatefulWidget {
 }
 
 class _TagsManagerPageState extends State<TagsManagerPage> {
-  String _t(BuildContext context, String zh, String en) {
-    final locale = AppLocalizations.of(context)!.localeName;
-    return locale.startsWith('zh') ? zh : en;
-  }
-
   Future<void> _createTag(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final TextEditingController c = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(_t(context, '创建标签', 'Create Tag')),
+        title: Text(l10n.assistantTagsCreateDialogTitle),
         content: TextField(
           controller: c,
           autofocus: true,
-          decoration: InputDecoration(
-            hintText: _t(context, '标签名称', 'Tag name'),
-          ),
+          decoration: InputDecoration(hintText: l10n.assistantTagsNameHint),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(_t(context, '取消', 'Cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(_t(context, '创建', 'Create')),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.assistantTagsCreateDialogCancel)),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.assistantTagsCreateDialogOk)),
         ],
       ),
     );
@@ -54,33 +41,21 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
     }
   }
 
-  Future<void> _renameTag(
-    BuildContext context,
-    String tagId,
-    String oldName,
-  ) async {
+  Future<void> _renameTag(BuildContext context, String tagId, String oldName) async {
     final l10n = AppLocalizations.of(context)!;
     final TextEditingController c = TextEditingController(text: oldName);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(_t(context, '重命名标签', 'Rename Tag')),
+        title: Text(l10n.assistantTagsRenameDialogTitle),
         content: TextField(
           controller: c,
           autofocus: true,
-          decoration: InputDecoration(
-            hintText: _t(context, '标签名称', 'Tag name'),
-          ),
+          decoration: InputDecoration(hintText: l10n.assistantTagsNameHint),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(_t(context, '取消', 'Cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(_t(context, '重命名', 'Rename')),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.assistantTagsCreateDialogCancel)),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.assistantTagsRenameDialogOk)),
         ],
       ),
     );
@@ -98,23 +73,11 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(_t(context, '删除标签', 'Delete Tag')),
-        content: Text(
-          _t(
-            context,
-            '确定要删除该标签吗？',
-            'Are you sure you want to delete this tag?',
-          ),
-        ),
+        title: Text(l10n.assistantTagsDeleteConfirmTitle),
+        content: Text(l10n.assistantTagsDeleteConfirmContent),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(_t(context, '取消', 'Cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(_t(context, '删除', 'Delete')),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.assistantTagsDeleteConfirmCancel)),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.assistantTagsDeleteConfirmOk)),
         ],
       ),
     );
@@ -139,7 +102,7 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
             onTap: () => Navigator.of(context).maybePop(),
           ),
         ),
-        title: Text(_t(context, '管理标签', 'Manage Tags')),
+        title: Text(l10n.assistantTagsManageTitle),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -156,16 +119,11 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
         buildDefaultDragHandles: false,
         proxyDecorator: (child, index, animation) {
           // No shadow during drag; slight scale only
-          return ScaleTransition(
-            scale: Tween<double>(begin: 1.0, end: 1.02).animate(animation),
-            child: child,
-          );
+          return ScaleTransition(scale: Tween<double>(begin: 1.0, end: 1.02).animate(animation), child: child);
         },
         onReorder: (oldIndex, newIndex) async {
           if (newIndex > oldIndex) newIndex -= 1;
-          await context
-              .read<TagProvider>()
-              .reorderTags(oldIndex, newIndex);
+          await context.read<TagProvider>().reorderTags(oldIndex, newIndex);
         },
         itemBuilder: (ctx, i) {
           final t = tags[i];
@@ -178,9 +136,7 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
                 child: _MobileTagCard(
                   title: t.name,
                   onTap: () async {
-                    await context
-                        .read<TagProvider>()
-                        .assignAssistantToTag(widget.assistantId, t.id);
+                    await context.read<TagProvider>().assignAssistantToTag(widget.assistantId, t.id);
                     if (mounted) Navigator.of(context).maybePop();
                   },
                   onRename: () => _renameTag(context, t.id, t.name),
@@ -196,28 +152,14 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
 }
 
 class _MobileTagCard extends StatelessWidget {
-  const _MobileTagCard({
-    required this.title,
-    required this.onTap,
-    required this.onRename,
-    required this.onDelete,
-  });
-
-  final String title;
-  final VoidCallback onTap;
-  final VoidCallback onRename;
-  final VoidCallback onDelete;
-
+  const _MobileTagCard({required this.title, required this.onTap, required this.onRename, required this.onDelete});
+  final String title; final VoidCallback onTap; final VoidCallback onRename; final VoidCallback onDelete;
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme; final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? Colors.white10 : const Color(0xFFF7F7F9);
-    final borderColor =
-        cs.outlineVariant.withOpacity(isDark ? 0.12 : 0.10);
-
-    Widget iconBtn(IconData icon, VoidCallback onPressed,
-        {Color? color}) {
+    final borderColor = cs.outlineVariant.withOpacity(isDark ? 0.12 : 0.10);
+    Widget iconBtn(IconData icon, VoidCallback onPressed, {Color? color}) {
       return IosCardPress(
         baseColor: Colors.transparent,
         borderRadius: BorderRadius.circular(10),
@@ -226,7 +168,6 @@ class _MobileTagCard extends StatelessWidget {
         child: Icon(icon, size: 18, color: color ?? cs.onSurface),
       );
     }
-
     return IosCardPress(
       baseColor: bg,
       borderRadius: BorderRadius.circular(14),
@@ -238,8 +179,7 @@ class _MobileTagCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: borderColor, width: 1.0),
         ),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
             Expanded(
@@ -247,10 +187,7 @@ class _MobileTagCard extends StatelessWidget {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
             iconBtn(Lucide.Pencil, onRename),

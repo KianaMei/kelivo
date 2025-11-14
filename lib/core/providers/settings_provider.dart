@@ -53,6 +53,7 @@ class SettingsProvider extends ChangeNotifier {
   // Desktop middle-content width mode
   static const String _displayDesktopWideContentKey = 'display_desktop_wide_content_v1';
   static const String _displayDesktopNarrowWidthKey = 'display_desktop_narrow_width_v1';
+  static const String _displayDesktopAutoSwitchTopicsKey = 'display_desktop_auto_switch_topics_v1';
   // Display: app/code font settings (default off)
   static const String _displayAppFontFamilyKey = 'display_app_font_family_v1';
   static const String _displayAppFontIsGoogleKey = 'display_app_font_is_google_v1';
@@ -113,6 +114,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get desktopSidebarOpen => _desktopSidebarOpen;
   double _desktopRightSidebarWidth = 300;
   double get desktopRightSidebarWidth => _desktopRightSidebarWidth;
+  bool _desktopAutoSwitchTopics = false;
+  bool get desktopAutoSwitchTopics => _desktopAutoSwitchTopics;
 
   // Desktop: topic list position (left or right) and right sidebar open state
   DesktopTopicPosition _desktopTopicPosition = DesktopTopicPosition.left;
@@ -318,6 +321,7 @@ class SettingsProvider extends ChangeNotifier {
         _desktopTopicPosition = DesktopTopicPosition.left;
     }
     _desktopRightSidebarOpen = prefs.getBool(_desktopRightSidebarOpenKey) ?? true;
+    _desktopAutoSwitchTopics = prefs.getBool(_displayDesktopAutoSwitchTopicsKey) ?? false;
     // Load app locale; default to follow system on first launch
     _appLocaleTag = prefs.getString(_appLocaleKey);
     if (_appLocaleTag == null || _appLocaleTag!.isEmpty) {
@@ -522,6 +526,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_desktopRightSidebarOpenKey, _desktopRightSidebarOpen);
+  }
+
+  Future<void> setDesktopAutoSwitchTopics(bool v) async {
+    if (_desktopAutoSwitchTopics == v) return;
+    _desktopAutoSwitchTopics = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayDesktopAutoSwitchTopicsKey, v);
   }
 
   // ===== App locale (UI language) =====

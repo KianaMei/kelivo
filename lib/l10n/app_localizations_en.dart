@@ -147,10 +147,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageDisplayItalian => 'Italian';
 
   @override
+  String get languageDisplaySpanish => 'Spanish';
+
+  @override
   String get languageSelectSheetTitle => 'Select Translation Language';
 
   @override
   String get languageSelectSheetClearButton => 'Clear Translation';
+
+  @override
+  String get translatePagePasteButton => 'Paste';
+
+  @override
+  String get translatePageCopyResult => 'Copy result';
+
+  @override
+  String get translatePageClearAll => 'Clear All';
+
+  @override
+  String get translatePageInputHint => 'Enter text to translate…';
+
+  @override
+  String get translatePageOutputHint => 'Translated result appears here…';
 
   @override
   String get homePageClearContext => 'Clear Context';
@@ -442,6 +460,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get desktopNavSettingsTooltip => 'Settings';
+
+  @override
+  String get desktopSidebarTabAssistants => 'Assistants';
+
+  @override
+  String get desktopSidebarTabTopics => 'Topics';
 
   @override
   String get desktopAvatarMenuUseEmoji => 'Use emoji';
@@ -1318,6 +1342,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sideDrawerSearchHint => 'Search chat history';
+
+  @override
+  String get sideDrawerSearchAssistantsHint => 'Search assistants';
 
   @override
   String sideDrawerUpdateTitle(String version) {

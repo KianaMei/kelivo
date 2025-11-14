@@ -21,16 +21,11 @@ class AssistantTag {
         name: (json['name'] ?? '').toString(),
       );
 
-  static String encodeList(List<AssistantTag> list) =>
-      jsonEncode(list.map((e) => e.toJson()).toList());
-
+  static String encodeList(List<AssistantTag> list) => jsonEncode(list.map((e) => e.toJson()).toList());
   static List<AssistantTag> decodeList(String raw) {
     try {
       final arr = jsonDecode(raw) as List<dynamic>;
-      return [
-        for (final e in arr)
-          AssistantTag.fromJson(e as Map<String, dynamic>),
-      ];
+      return [for (final e in arr) AssistantTag.fromJson(e as Map<String, dynamic>)];
     } catch (_) {
       return const <AssistantTag>[];
     }

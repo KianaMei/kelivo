@@ -11,7 +11,6 @@ class Lucide {
   static const IconData Earth = lucide.LucideIcons.earth;
   static const IconData Plus = lucide.LucideIcons.plus;
   static const IconData X = lucide.LucideIcons.x;
-  static const IconData CircleX = lucide.LucideIcons.circleX;
   static const IconData ArrowUp = lucide.LucideIcons.arrowUp;
   static const IconData ArrowLeft = lucide.LucideIcons.arrowLeft;
   static const IconData Camera = lucide.LucideIcons.camera;
@@ -43,7 +42,7 @@ class Lucide {
   static const IconData ChevronDown = lucide.LucideIcons.chevronDown;
   static const IconData Import = lucide.LucideIcons.import;
   static const IconData GripHorizontal = lucide.LucideIcons.gripHorizontal;
-  static const IconData Move = lucide.LucideIcons.move;
+  static const IconData GripVertical = lucide.LucideIcons.gripVertical;
   static const IconData Settings2 = lucide.LucideIcons.settings2;
   static const IconData Network = lucide.LucideIcons.network;
   static const IconData Cable = lucide.LucideIcons.cable;
@@ -83,6 +82,7 @@ class Lucide {
   static const IconData ChevronLeft = lucide.LucideIcons.chevronLeft;
   static const IconData MessageSquare = lucide.LucideIcons.messageSquare;
   static const IconData CircleStop = lucide.LucideIcons.circleStop;
+  static const IconData CircleX = lucide.LucideIcons.circleX;
   static const IconData Link2 = lucide.LucideIcons.link2;
   static const IconData Shield = lucide.LucideIcons.shield;
   static const IconData Compass = lucide.LucideIcons.compass;
@@ -111,6 +111,7 @@ class Lucide {
   static const IconData HeartPulse = lucide.LucideIcons.heartPulse;
   static const IconData Sun = lucide.LucideIcons.sun;
   static const IconData Moon = lucide.LucideIcons.moon;
+  static const IconData Smile = lucide.LucideIcons.smile;
   static const IconData MessageCircleMore = lucide.LucideIcons.messageCircleMore;
   static const IconData CaseSensitive = lucide.LucideIcons.caseSensitive;
   static const IconData TextInitial = lucide.LucideIcons.textInitial;
@@ -129,7 +130,10 @@ class Lucide {
   static const IconData bookDashed = lucide.LucideIcons.bookDashed;
   static const IconData toggleRight = lucide.LucideIcons.toggleRight;
   static const IconData Calendar = lucide.LucideIcons.calendar;
-  static const IconData Repeat = lucide.LucideIcons.repeat;
-  static const IconData Smile = lucide.LucideIcons.smile;
+  static const IconData ImageOff = lucide.LucideIcons.imageOff;
   static const IconData RotateCcw = lucide.LucideIcons.rotateCcw;
+  static const IconData Loader = lucide.LucideIcons.loader;
+  static const IconData Repeat = lucide.LucideIcons.repeat;
+  static const IconData EthernetPort = lucide.LucideIcons.ethernetPort;
+  static const IconData Cut = lucide.LucideIcons.scissors;
 }

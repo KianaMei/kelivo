@@ -54,8 +54,14 @@
   "languageDisplayFrench": "French",
   "languageDisplayGerman": "German",
   "languageDisplayItalian": "Italian",
+  "languageDisplaySpanish": "Spanish",
   "languageSelectSheetTitle": "Select Translation Language",
   "languageSelectSheetClearButton": "Clear Translation",
+  "translatePagePasteButton": "Paste",
+  "translatePageCopyResult": "Copy result",
+  "translatePageClearAll": "Clear All",
+  "translatePageInputHint": "Enter text to translate…",
+  "translatePageOutputHint": "Translated result appears here…",
   "homePageClearContext": "Clear Context",
   "homePageClearContextWithCount": "Clear Context ({actual}/{configured})",
   "@homePageClearContextWithCount": {
@@ -184,6 +190,8 @@
   "desktopNavTranslateTooltip": "Translate",
   "desktopNavThemeToggleTooltip": "Theme",
   "desktopNavSettingsTooltip": "Settings",
+  "desktopSidebarTabAssistants": "Assistants",
+  "desktopSidebarTabTopics": "Topics",
   "desktopAvatarMenuUseEmoji": "Use emoji",
   "desktopAvatarMenuChangeFromImage": "Change from image…",
   "desktopAvatarMenuReset": "Reset avatar",
@@ -576,6 +584,7 @@
   "sideDrawerDateShortPattern": "MMM d",
   "sideDrawerDateFullPattern": "MMM d, yyyy",
   "sideDrawerSearchHint": "Search chat history",
+  "sideDrawerSearchAssistantsHint": "Search assistants",
   "sideDrawerUpdateTitle": "New version: {version}",
   "@sideDrawerUpdateTitle": {
     "placeholders": {
