@@ -47,7 +47,6 @@ class SideDrawer extends StatefulWidget {
     required this.assistantName,
     this.onSelectConversation,
     this.onNewConversation,
-    this.closePickerTicker,
     this.loadingConversationIds = const <String>{},
     this.embedded = false,
     this.embeddedWidth,
@@ -61,7 +60,6 @@ class SideDrawer extends StatefulWidget {
   final String assistantName;
   final void Function(String id)? onSelectConversation;
   final VoidCallback? onNewConversation;
-  final ValueNotifier<int>? closePickerTicker;
   final Set<String> loadingConversationIds;
   final bool embedded; // when true, render as a fixed side panel instead of a Drawer
   final double? embeddedWidth; // optional explicit width for embedded mode
@@ -78,9 +76,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
-  OverlayEntry? _assistantPickerEntry;
-  ValueNotifier<int>? _closeTicker;
-  bool _assistantsExpanded = false;
   final ScrollController _listController = ScrollController();
   final ScrollController _assistantListController = ScrollController();
   TabController? _tabController; // desktop tabs
@@ -210,7 +205,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _attachCloseTicker(widget.closePickerTicker);
     _searchController.addListener(() {
       if (_query != _searchController.text) {
         setState(() => _query = _searchController.text);
@@ -487,9 +481,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _assistantPickerEntry?.remove();
-    _assistantPickerEntry = null;
-    _closeTicker?.removeListener(_handleCloseTick);
     _searchController.dispose();
     _listController.dispose();
     _assistantListController.dispose();
@@ -498,40 +489,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  @override
-  void deactivate() {
-    _closeAssistantPicker();
-    super.deactivate();
-  }
-
-  @override
-  void didUpdateWidget(covariant SideDrawer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.closePickerTicker != widget.closePickerTicker) {
-      _attachCloseTicker(widget.closePickerTicker);
-    }
-  }
-
-  void _attachCloseTicker(ValueNotifier<int>? ticker) {
-    if (_closeTicker == ticker) return;
-    _closeTicker?.removeListener(_handleCloseTick);
-    _closeTicker = ticker;
-    _closeTicker?.addListener(_handleCloseTick);
-  }
-
-  void _handleCloseTick() {
-    _closeAssistantPicker();
-  }
-
-
-  String _greeting(BuildContext context) {
-    final hour = DateTime.now().hour;
-    final l10n = AppLocalizations.of(context)!;
-    if (hour < 11) return l10n.sideDrawerGreetingMorning;
-    if (hour < 13) return l10n.sideDrawerGreetingNoon;
-    if (hour < 18) return l10n.sideDrawerGreetingAfternoon;
-    return l10n.sideDrawerGreetingEvening;
-  }
 
   String _dateLabel(BuildContext context, DateTime date) {
     final now = DateTime.now();
@@ -871,16 +828,87 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
+
                   SizedBox(height: _isDesktop ? 8 : 12),
-
-                  // Desktop: show assistant/topic tabs when enabled
+                  
+                  // 桌面端：替换为 Tab（助手 / 话题）
                   if (_useTabs)
-                    _DesktopSidebarTabs(textColor: textBase, controller: _tabController!)
+                    _DesktopSidebarTabs(textColor: textBase, controller: _tabController!),
+                  // 注意：内联助手列表已移动至下方可滚动区域
+                ],
+              ),
+            ),
 
+            // Scrollable area below header
+            Expanded(
+              child: () {
+                if (_useTabs) {
+                  return _DesktopTabViews(
+                    controller: _tabController!,
+                    listController: _listController,
+                    buildAssistants: () => _buildAssistantsList(context),
+                    buildConversations: () => _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
+                  );
+                }
+                if (_splitDualPane) {
+                  final settings = context.watch<SettingsProvider>();
+                  final double topPad = settings.showChatListDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
+                  final double assistantPaneWidth = math.min(widget.embeddedWidth ?? 320, 360);
+                  final dividerColor = Theme.of(context).colorScheme.outlineVariant.withOpacity(isDark ? 0.18 : 0.12);
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: assistantPaneWidth,
+                        child: ListView(
+                          controller: _assistantListController,
+                          padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                          children: [
+                            _buildAssistantsList(context, inlineMode: true),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 1,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(color: dividerColor),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView(
+                          controller: _listController,
+                          padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
+                          children: [
+                            _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                if (_assistOnly) {
+                  return ListView(
+                    controller: _listController,
+                    padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                    children: [
+                      _buildAssistantsList(context, inlineMode: true),
+                    ],
+                  );
+                }
+                if (_topicsOnly) {
+                  final isDesktop = _isDesktop;
+                  final topPad = context.watch<SettingsProvider>().showChatListDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
+                  return ListView(
+                    controller: _listController,
+                    padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
+                    children: [
+                      _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
+                    ],
+                  );
+                }
                 return _LegacyListArea(
                   listController: _listController,
                   isDesktop: _isDesktop,
-                  assistantsExpanded: _assistantsExpanded,
                   buildAssistants: () => _buildAssistantsList(context, inlineMode: true),
                   buildConversations: () => _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
                 );
@@ -1030,36 +1058,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     );
   }
 
-  void _toggleAssistantPicker() {
-    final goingToExpand = !_assistantsExpanded;
-    setState(() {
-      _assistantsExpanded = goingToExpand;
-    });
-    if (goingToExpand) {
-      // Smoothly reveal the assistant list at the top
-      if (_listController.hasClients) {
-        // Slight delay to ensure layout is ready before animating
-        Future<void>.delayed(const Duration(milliseconds: 10), () {
-          if (!_listController.hasClients) return;
-          _listController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeOutCubic,
-          );
-        });
-      }
-    }
-  }
-
-  void _closeAssistantPicker() {
-    if (!_assistantsExpanded) return;
-    setState(() {
-      _assistantsExpanded = false;
-    });
-  }
-
   Future<void> _handleSelectAssistant(Assistant assistant) async {
-    _closeAssistantPicker();
     final ap = context.read<AssistantProvider>();
     await ap.setCurrentAssistant(assistant.id);
     // Desktop: optionally switch to Topics tab per user preference
@@ -1093,7 +1092,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   }
 
   void _openAssistantSettings(String id) {
-    _closeAssistantPicker();
     final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
@@ -1137,7 +1135,6 @@ extension on _SideDrawerState {
           icon: Lucide.Bookmark,
           label: l10n.assistantTagsContextMenuManageTags,
           onTap: () async {
-            _closeAssistantPicker();
             await showAssistantTagsManagerDialog(context, assistantId: a.id);
           },
         ),
@@ -2479,45 +2476,24 @@ class _LegacyListArea extends StatelessWidget {
   const _LegacyListArea({
     required this.listController,
     required this.isDesktop,
-    required this.assistantsExpanded,
     required this.buildAssistants,
     required this.buildConversations,
   });
   final ScrollController listController;
   final bool isDesktop;
-  final bool assistantsExpanded;
   final Widget Function() buildAssistants;
   final Widget Function() buildConversations;
 
   @override
   Widget build(BuildContext context) {
+    final showDate = context.watch<SettingsProvider>().showChatListDate;
+    final double topPadding = showDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
     return ListView(
       controller: listController,
-      padding: EdgeInsets.fromLTRB(
-        10,
-        (context.watch<SettingsProvider>().showChatListDate || assistantsExpanded)
-            ? (isDesktop ? 2 : 4)
-            : 10,
-        10,
-        16,
-      ),
+      padding: EdgeInsets.fromLTRB(10, topPadding, 10, 16),
       children: [
-        // Inline assistants
-        AnimatedSize(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeInOutCubic,
-          alignment: Alignment.topCenter,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-            child: !assistantsExpanded
-                ? const SizedBox.shrink()
-                : KeyedSubtree(key: const ValueKey('assistants-inline'), child: buildAssistants()),
-          ),
-        ),
-        // Conversations
+        buildAssistants(),
+        const SizedBox(height: 12),
         buildConversations(),
       ],
     );

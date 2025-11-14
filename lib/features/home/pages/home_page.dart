@@ -102,7 +102,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   static const Duration _postSwitchScrollDelay = Duration(milliseconds: 220);
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final InteractiveDrawerController _drawerController = InteractiveDrawerController();
-  final ValueNotifier<int> _assistantPickerCloseTick = ValueNotifier<int>(0);
   final FocusNode _inputFocus = FocusNode();
   final TextEditingController _inputController = TextEditingController();
   final ChatInputBarController _mediaController = ChatInputBarController();
@@ -792,10 +791,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
       } catch (_) {}
     }
-    // When transitioning from open to closing, close assistant picker overlay
-    if (_lastDrawerValue >= 0.95 && v < 0.95) {
-      _assistantPickerCloseTick.value++;
-    }
     _lastDrawerValue = v;
   }
 
@@ -833,7 +828,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final n = a?.name.trim();
         return (n == null || n.isEmpty) ? l10n.homePageDefaultAssistant : n;
       })(),
-      closePickerTicker: _assistantPickerCloseTick,
       loadingConversationIds: _loadingConversationIds,
       // Hide bottom bar when embedded in DesktopHomePage (which has DesktopNavRail)
       showBottomBar: !widget.isEmbeddedInDesktopNav,
@@ -3496,7 +3490,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           final n = a?.name.trim();
           return (n == null || n.isEmpty) ? l10n.homePageDefaultAssistant : n;
         })(),
-        closePickerTicker: _assistantPickerCloseTick,
         loadingConversationIds: _loadingConversationIds,
         onSelectConversation: (id) {
           // Update current selection for highlight in drawer and animate switch
@@ -5675,7 +5668,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           final n = a?.name.trim();
                           return (n == null || n.isEmpty) ? l10n.homePageDefaultAssistant : n;
                         })(),
-                        closePickerTicker: _assistantPickerCloseTick,
                         loadingConversationIds: _loadingConversationIds,
                         desktopTopicsOnly: true,
                         onSelectConversation: (id) {
