@@ -51,6 +51,8 @@ class SideDrawer extends StatefulWidget {
     this.embedded = false,
     this.embeddedWidth,
     this.showBottomBar = true,
+    this.useDesktopTabs = false,
+    this.desktopAssistantsOnly = false,
     this.desktopTopicsOnly = false,
   });
 
@@ -61,10 +63,13 @@ class SideDrawer extends StatefulWidget {
   final ValueNotifier<int>? closePickerTicker;
   final Set<String> loadingConversationIds;
   final bool
-  embedded; // when true, render as a fixed side panel instead of a Drawer
+      embedded; // when true, render as a fixed side panel instead of a Drawer
   final double? embeddedWidth; // optional explicit width for embedded mode
   final bool showBottomBar; // desktop can hide this bottom area
-  final bool desktopTopicsOnly; // desktop-only: show only topics list
+  // 桌面相关参数：用于 Assistants/Topics 布局切换
+  final bool useDesktopTabs; // 显示顶部 Assistants/Topics Tab
+  final bool desktopAssistantsOnly; // 仅显示助手列表
+  final bool desktopTopicsOnly; // 仅显示话题列表
 
   @override
   State<SideDrawer> createState() => _SideDrawerState();
@@ -75,6 +80,22 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.windows ||
       defaultTargetPlatform == TargetPlatform.linux;
+
+  // 桌面模式下的助手/话题视图控制
+  bool get _assistOnly =>
+      widget.desktopAssistantsOnly && _isDesktop && widget.embedded;
+
+  bool get _topicsOnly =>
+      widget.desktopTopicsOnly && _isDesktop && widget.embedded;
+
+  bool get _useTabs =>
+      widget.useDesktopTabs &&
+      _isDesktop &&
+      widget.embedded &&
+      !_assistOnly &&
+      !_topicsOnly;
+
+  int _desktopTabIndex = 0; // 0 = Assistants, 1 = Topics
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   final GlobalKey _assistantTileKey = GlobalKey();
@@ -589,9 +610,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Desktop topics-only mode: only show topics list, hide assistants & bottom bar
-    final bool topicsOnly = widget.desktopTopicsOnly && _isDesktop && widget.embedded;
-
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
@@ -845,71 +863,70 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     const SizedBox(height: 12),
 
                     // 褰撳墠鍔╂墜鍖哄煙锛堝浐瀹氾級
-                    if (!topicsOnly)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
-                        child: KeyedSubtree(
-                          key: _assistantTileKey,
-                          child: IosCardPress(
-                            baseColor:
-                                widget.embedded ? Colors.transparent : cs.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: _toggleAssistantPicker,
-                            onLongPress: () {
-                              _closeAssistantPicker();
-                              final id =
-                                  context
-                                      .read<AssistantProvider>()
-                                      .currentAssistantId;
-                              if (id != null) {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder:
-                                        (_) => AssistantSettingsEditPage(
-                                          assistantId: id,
-                                        ),
-                                  ),
-                                );
-                              }
-                            },
-                            padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
-                            child: Row(
-                              children: [
-                                _assistantAvatar2(
-                                  context,
-                                  ap.currentAssistant,
-                                  size: 32,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: KeyedSubtree(
+                        key: _assistantTileKey,
+                        child: IosCardPress(
+                          baseColor:
+                              widget.embedded ? Colors.transparent : cs.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: _toggleAssistantPicker,
+                          onLongPress: () {
+                            _closeAssistantPicker();
+                            final id =
+                                context
+                                    .read<AssistantProvider>()
+                                    .currentAssistantId;
+                            if (id != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => AssistantSettingsEditPage(
+                                        assistantId: id,
+                                      ),
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Text(
-                                    (ap.currentAssistant?.name ??
-                                        widget.assistantName),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
-                                      color: textBase,
-                                    ),
+                              );
+                            }
+                          },
+                          padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
+                          child: Row(
+                            children: [
+                              _assistantAvatar2(
+                                context,
+                                ap.currentAssistant,
+                                size: 32,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  (ap.currentAssistant?.name ??
+                                      widget.assistantName),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: textBase,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                AnimatedRotation(
-                                  turns: _assistantsExpanded ? 0.5 : 0.0,
-                                  duration: const Duration(milliseconds: 350),
-                                  curve: Curves.easeOutCubic,
-                                  child: Icon(
-                                    Lucide.ChevronDown,
-                                    size: 18,
-                                    color: textBase.withOpacity(0.7),
-                                  ),
+                              ),
+                              const SizedBox(width: 8),
+                              AnimatedRotation(
+                                turns: _assistantsExpanded ? 0.5 : 0.0,
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                                child: Icon(
+                                  Lucide.ChevronDown,
+                                  size: 18,
+                                  color: textBase.withOpacity(0.7),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
+                    ),
 
                     // 娉ㄦ剰锛氬唴鑱斿姪鎵嬪垪琛ㄥ凡绉诲姩鑷充笅鏂瑰彲婊氬姩鍖哄煙
                   ],
@@ -949,7 +966,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                               child: child,
                             ),
                         child:
-                            (!_assistantsExpanded || topicsOnly)
+                            !_assistantsExpanded
                                 ? const SizedBox.shrink()
                                 : Builder(
                                   key: const ValueKey('assistants-inline'),
@@ -1269,7 +1286,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 ),
               ),
 
-              if (widget.showBottomBar && !topicsOnly)
+              if (widget.showBottomBar)
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                   decoration: BoxDecoration(
@@ -1434,6 +1451,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
   void _openAssistantSettings(String id) {
     _closeAssistantPicker();
+    if (_isDesktop) {
+      showAssistantDesktopDialog(context, assistantId: id);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AssistantSettingsEditPage(assistantId: id),

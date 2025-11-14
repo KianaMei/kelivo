@@ -1420,7 +1420,7 @@ class ChatApiService {
             // Log all event types
             try {
               final timestamp = _timestamp();
-              final logFile = File('c:/mycode/kelivo/debug_tools.log');
+              final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
               logFile.writeAsStringSync('[$timestamp] [Response Event] type: $type, json: ${jsonEncode(json)}\n', mode: FileMode.append);
             } catch (_) {}
 
@@ -1532,7 +1532,7 @@ class ChatApiService {
               if (onToolCall != null && toolAccResp.isNotEmpty) {
                 try {
                   final timestamp = _timestamp();
-                  final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                  final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                   logFile.writeAsStringSync('[$timestamp] [Tool Execution] toolAccResp: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
                 } catch (_) {}
 
@@ -1568,7 +1568,7 @@ class ChatApiService {
 
                   try {
                     final timestamp = _timestamp();
-                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                     logFile.writeAsStringSync('[$timestamp] [Tool Execution] Executed $nm with args $args, result length: ${res.length}\n', mode: FileMode.append);
                   } catch (_) {}
                 }
@@ -1598,7 +1598,7 @@ class ChatApiService {
                 for (int stepIndex = 0; stepIndex < maxToolLoopIterations; stepIndex++) {
                   try {
                     final timestamp = _timestamp();
-                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop] ========================================\n', mode: FileMode.append);
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop] === Step #$stepIndex (max $maxToolLoopIterations) ===\n', mode: FileMode.append);
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop] toolAccResp count: ${toolAccResp.length}\n', mode: FileMode.append);
@@ -1609,7 +1609,7 @@ class ChatApiService {
                   if (toolAccResp.isEmpty) {
                     try {
                       final timestamp = _timestamp();
-                      final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                      final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                       logFile.writeAsStringSync('[$timestamp] [Tool Loop] ✓ No tool calls, exiting loop normally\n', mode: FileMode.append);
                     } catch (_) {}
                     break;
@@ -1619,7 +1619,7 @@ class ChatApiService {
                   if (stepIndex >= maxToolLoopIterations - 1) {
                     try {
                       final timestamp = _timestamp();
-                      final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                      final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                       logFile.writeAsStringSync('[$timestamp] [Tool Loop] ⚠️ WARNING: Reached max iterations ($maxToolLoopIterations), forcing exit to prevent infinite loop\n', mode: FileMode.append);
                       logFile.writeAsStringSync('[$timestamp] [Tool Loop] ⚠️ Remaining tool calls will be ignored: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
                     } catch (_) {}
@@ -1668,7 +1668,7 @@ class ChatApiService {
 
                     try {
                       final timestamp = _timestamp();
-                      final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                      final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                       logFile.writeAsStringSync('[$timestamp] [Tool Loop] Executed $nm, result length: ${res.length}\n', mode: FileMode.append);
                     } catch (_) {}
                   }
@@ -1723,7 +1723,7 @@ class ChatApiService {
 
                   try {
                     final timestamp = _timestamp();
-                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop] Conversation: ${jsonEncode(conversation)}\n', mode: FileMode.append);
                   } catch (_) {}
 
@@ -1769,7 +1769,7 @@ class ChatApiService {
 
                   try {
                     final timestamp = _timestamp();
-                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop] Response status: ${followUpStream.statusCode}\n', mode: FileMode.append);
                   } catch (_) {}
 
@@ -1799,7 +1799,7 @@ class ChatApiService {
 
                         try {
                           final timestamp = _timestamp();
-                          final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                          final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                           logFile.writeAsStringSync('[$timestamp] [Follow-up Event] type: $followUpType\n', mode: FileMode.append);
                           // Only log full JSON for important events to reduce log size
                           if (followUpType == 'response.output_item.added' ||
@@ -1815,7 +1815,7 @@ class ChatApiService {
                           if (delta is String && delta.isNotEmpty) {
                             try {
                               final timestamp = _timestamp();
-                              final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                              final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                               logFile.writeAsStringSync('[$timestamp] [Follow-up Event] 🧠 Reasoning delta: ${delta.length} chars\n', mode: FileMode.append);
                             } catch (_) {}
                             yield ChatStreamChunk(content: '', reasoning: delta, isDone: false, totalTokens: totalTokens, usage: usage);
@@ -1825,7 +1825,7 @@ class ChatApiService {
                           if (delta is String && delta.isNotEmpty) {
                             try {
                               final timestamp = _timestamp();
-                              final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                              final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                               logFile.writeAsStringSync('[$timestamp] [Follow-up Event] 📝 Output text delta: "${delta.substring(0, delta.length > 50 ? 50 : delta.length)}${delta.length > 50 ? '...' : ''}"\n', mode: FileMode.append);
                             } catch (_) {}
                             followUpContent += delta; // 累积文本
@@ -1840,7 +1840,7 @@ class ChatApiService {
                             if (callId.isNotEmpty && itemId.isNotEmpty) {
                               try {
                                 final timestamp = _timestamp();
-                                final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                                final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                                 logFile.writeAsStringSync('[$timestamp] [Follow-up Event] 🔧 New tool call added: $name (callId: $callId, itemId: $itemId)\n', mode: FileMode.append);
                               } catch (_) {}
                               // Map item_id to call_id for later argument accumulation
@@ -1873,7 +1873,7 @@ class ChatApiService {
                                 entry['args'] = args;
                                 try {
                                   final timestamp = _timestamp();
-                                  final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                                  final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                                   final toolName = entry['name'] ?? 'unknown';
                                   logFile.writeAsStringSync('[$timestamp] [Follow-up Event] ✓ Tool arguments complete: $toolName, args: ${args.substring(0, args.length > 100 ? 100 : args.length)}${args.length > 100 ? '...' : ''}\n', mode: FileMode.append);
                                 } catch (_) {}
@@ -1889,7 +1889,7 @@ class ChatApiService {
                             totalTokens = usage!.totalTokens;
                             try {
                               final timestamp = _timestamp();
-                              final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                              final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                               logFile.writeAsStringSync('[$timestamp] [Follow-up Event] ✓ Response completed, tokens: input=$inTok, output=$outTok, total=$totalTokens\n', mode: FileMode.append);
                             } catch (_) {}
                           }
@@ -1897,7 +1897,7 @@ class ChatApiService {
                       } catch (e) {
                         try {
                           final timestamp = _timestamp();
-                          final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                          final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                           logFile.writeAsStringSync('[$timestamp] [Tool Loop] Parse error: $e\n', mode: FileMode.append);
                         } catch (_) {}
                       }
@@ -1918,7 +1918,7 @@ class ChatApiService {
 
                   try {
                     final timestamp = _timestamp();
-                    final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                    final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop] After follow-up response:\n', mode: FileMode.append);
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop]   - New toolAccResp count: ${toolAccResp.length}\n', mode: FileMode.append);
                     logFile.writeAsStringSync('[$timestamp] [Tool Loop]   - New toolAccResp: ${jsonEncode(toolAccResp)}\n', mode: FileMode.append);
@@ -1931,7 +1931,7 @@ class ChatApiService {
 
                 try {
                   final timestamp = _timestamp();
-                  final logFile = File('c:/mycode/kelivo/debug_tools.log');
+                  final logFile = File('c:/mycode/start-kelivo/kelivo/debug_tools.log');
                   logFile.writeAsStringSync('[$timestamp] [Tool Loop] ========================================\n', mode: FileMode.append);
                   logFile.writeAsStringSync('[$timestamp] [Tool Loop] ✓ Exited loop, finishing stream\n', mode: FileMode.append);
                   logFile.writeAsStringSync('[$timestamp] [Tool Loop] ========================================\n', mode: FileMode.append);

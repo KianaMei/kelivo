@@ -16,16 +16,22 @@ Future<void> showDesktopSearchProviderPopover(
   BuildContext context, {
   required GlobalKey anchorKey,
 }) async {
-  await showDesktopPopover(
+  // Obtain a programmatic close callback from the generic popover helper
+  // and wire it into the content so that selecting an option
+  // automatically dismisses the popover (matches remote behaviour).
+  VoidCallback close = () {};
+  close = await showDesktopPopover(
     context,
     anchorKey: anchorKey,
-    child: const _SearchProviderContent(),
+    child: _SearchProviderContent(onDone: () => close()),
     maxHeight: 520,
   );
 }
 
 class _SearchProviderContent extends StatelessWidget {
-  const _SearchProviderContent();
+  const _SearchProviderContent({required this.onDone});
+
+  final VoidCallback onDone;
 
   bool _supportsBuiltInSearch(SettingsProvider settings, AssistantProvider ap) {
     final a = ap.currentAssistant;
@@ -100,7 +106,7 @@ class _SearchProviderContent extends StatelessWidget {
         children: [
           // Built-in search toggle
           if (supportsBuiltIn && providerKey != null && modelId != null) ...[
-            _SettingRow(
+              _SettingRow(
               icon: Lucide.Search,
               label: l10n.searchSettingsSheetBuiltinSearchTitle,
               value: builtInEnabled,
@@ -111,7 +117,7 @@ class _SearchProviderContent extends StatelessWidget {
 
           // Web search toggle
           if (!builtInEnabled) ...[
-            _SettingRow(
+              _SettingRow(
               icon: Lucide.Globe,
               label: l10n.searchSettingsSheetWebSearchTitle,
               value: enabled,
@@ -148,6 +154,7 @@ class _SearchProviderContent extends StatelessWidget {
                   onTap: () async {
                     await sp.setSearchServiceSelected(i);
                     if (!enabled) await sp.setSearchEnabled(true);
+                    onDone();
                   },
                 ),
               );

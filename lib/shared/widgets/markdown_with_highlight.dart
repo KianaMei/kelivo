@@ -419,11 +419,18 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   }
 
   static String _preprocessFences(String input) {
-    return input;
+    // Convert custom sticker tokens like [STICKER:nachoneko:26] into
+    // markdown image syntax using a custom sticker scheme.
+    final re = RegExp(r'\[STICKER:([a-zA-Z0-9_]+):(\d{1,3})\]', caseSensitive: false);
+    return input.replaceAllMapped(re, (m) {
+      final pack = m.group(1)!;
+      final id = m.group(2)!;
+      return '![sticker](sticker://$pack/$id)';
+    });
   }
 
   static List<String> _extractImageUrls(String input) {
-    final re = RegExp(r'(https?:\/\/[^\s)]+|file:[^\s)]+|data:image\/[^\s)]+)', caseSensitive: false);
+    final re = RegExp(r'(https?:\/\/[^\s)]+|file:[^\s)]+|data:image\/[^\s)]+|sticker:\/\/[^\s)]+)', caseSensitive: false);
     return re.allMatches(input).map((m) => m.group(0)!).toList();
   }
 
@@ -483,6 +490,20 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       }
       if (uri.scheme == 'file') {
         return FileImage(File(uri.toFilePath()));
+      }
+      if (uri.scheme == 'sticker') {
+        final pack = uri.host;
+        String id = '';
+        if (uri.pathSegments.isNotEmpty && uri.pathSegments.first.isNotEmpty) {
+          id = uri.pathSegments.first;
+        } else {
+          final auth = uri.authority; // fallback for sticker://pack:26 legacy
+          final parts = auth.split(':');
+          if (parts.length == 2) id = parts[1];
+        }
+        if (pack.isNotEmpty && id.isNotEmpty) {
+          return AssetImage('assets/stickers/$pack/$id.webp');
+        }
       }
     } catch (_) {
     }
@@ -954,7 +975,7 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                             width: double.infinity,
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
-                              child: HighlightView(
+                              child: _SelectableHighlightView(
                                 widget.code,
                                 language: 'plaintext',
                                 theme: MarkdownWithCodeHighlight._transparentBgTheme(
@@ -1734,7 +1755,6 @@ class _SelectableHighlightView extends StatelessWidget {
         TextSpan(style: baseStyle, children: _convert(parsed)),
         maxLines: null,
         scrollPhysics: const NeverScrollableScrollPhysics(),
-        softWrap: false,
         textWidthBasis: TextWidthBasis.longestLine,
       ),
     );

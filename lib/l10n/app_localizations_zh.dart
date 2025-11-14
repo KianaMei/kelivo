@@ -202,6 +202,61 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageLanguageSubtitle => '选择界面语言';
 
   @override
+  String get assistantTagsManageTitle => 'Manage Tags';
+
+  @override
+  String get assistantTagsCreateButton => 'Create';
+
+  @override
+  String get assistantTagsCreateDialogTitle => 'Create Tag';
+
+  @override
+  String get assistantTagsCreateDialogOk => 'Create';
+
+  @override
+  String get assistantTagsCreateDialogCancel => 'Cancel';
+
+  @override
+  String get assistantTagsNameHint => 'Tag name';
+
+  @override
+  String get assistantTagsRenameButton => 'Rename';
+
+  @override
+  String get assistantTagsRenameDialogTitle => 'Rename Tag';
+
+  @override
+  String get assistantTagsRenameDialogOk => 'Rename';
+
+  @override
+  String get assistantTagsDeleteButton => 'Delete';
+
+  @override
+  String get assistantTagsDeleteConfirmTitle => 'Delete Tag';
+
+  @override
+  String get assistantTagsDeleteConfirmContent =>
+      'Are you sure you want to delete this tag?';
+
+  @override
+  String get assistantTagsDeleteConfirmOk => 'Delete';
+
+  @override
+  String get assistantTagsDeleteConfirmCancel => 'Cancel';
+
+  @override
+  String get assistantTagsContextMenuEditAssistant => 'Edit Assistant';
+
+  @override
+  String get assistantTagsContextMenuManageTags => 'Manage Tags';
+
+  @override
+  String get assistantTagsContextMenuDeleteAssistant => 'Delete Assistant';
+
+  @override
+  String get assistantTagsClearTag => 'Clear Tag';
+
+  @override
   String get displaySettingsPageLanguageChineseLabel => '简体中文';
 
   @override

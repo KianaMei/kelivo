@@ -12,16 +12,22 @@ Future<void> showDesktopReasoningBudgetPopover(
   BuildContext context, {
   required GlobalKey anchorKey,
 }) async {
-  await showDesktopPopover(
+  // Obtain a programmatic close callback from the generic popover helper
+  // and wire it into the content so that selecting an option
+  // automatically dismisses the popover (matches remote behaviour).
+  VoidCallback close = () {};
+  close = await showDesktopPopover(
     context,
     anchorKey: anchorKey,
-    child: const _ReasoningBudgetContent(),
+    child: _ReasoningBudgetContent(onDone: () => close()),
     maxHeight: 320,
   );
 }
 
 class _ReasoningBudgetContent extends StatefulWidget {
-  const _ReasoningBudgetContent();
+  const _ReasoningBudgetContent({required this.onDone});
+
+  final VoidCallback onDone;
 
   @override
   State<_ReasoningBudgetContent> createState() =>
@@ -50,6 +56,7 @@ class _ReasoningBudgetContentState extends State<_ReasoningBudgetContent> {
   void _select(int value) {
     setState(() => _selected = value);
     context.read<SettingsProvider>().setThinkingBudget(value);
+    widget.onDone();
   }
 
   @override

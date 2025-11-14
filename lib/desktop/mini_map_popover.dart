@@ -1,40 +1,107 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../core/models/chat_message.dart';
 import 'desktop_popover.dart';
 
-/// Show desktop mini map popover to quickly navigate message history
+/// Show desktop mini map as a centered glass popover to quickly navigate
+/// message history. On desktop我们不再锚定在按钮附近，而是固定居中，
+/// 视觉上更接近一个专注模式的概览。
 Future<String?> showDesktopMiniMapPopover(
   BuildContext context, {
-  required GlobalKey anchorKey,
+  required GlobalKey anchorKey, // 保留参数以兼容调用方，实际不再依赖锚点位置
   required List<ChatMessage> messages,
 }) async {
   if (messages.isEmpty) return null;
 
-  final completer = Completer<String?>();
+  final overlay = Overlay.of(context);
+  if (overlay == null) return null;
 
-  // Get close callback
-  final closePopover = await showDesktopPopover(
-    context,
-    anchorKey: anchorKey,
-    child: _MiniMapContent(
-      messages: messages,
-      onSelect: (id) {
-        if (!completer.isCompleted) {
-          completer.complete(id);
-        }
-      },
-    ),
-    maxHeight: 520,
+  final completer = Completer<String?>();
+  late OverlayEntry entry;
+  bool closed = false;
+
+  void complete(String? id) {
+    if (!completer.isCompleted) {
+      completer.complete(id);
+    }
+  }
+
+  void close() {
+    if (closed) return;
+    closed = true;
+    try {
+      entry.remove();
+    } catch (_) {}
+  }
+
+  entry = OverlayEntry(
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      final isDark = theme.brightness == Brightness.dark;
+      final cs = theme.colorScheme;
+      return Stack(
+        children: [
+          // 半透明点击区域：点击任意空白处关闭迷你地图
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () {
+                complete(null);
+                close();
+              },
+              child: BackdropFilter(
+                // 降低模糊强度，让背景更通透一点
+                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  color: (isDark ? Colors.black : Colors.white)
+                      .withOpacity(isDark ? 0.20 : 0.12),
+                ),
+              ),
+            ),
+          ),
+          // 居中弹出的玻璃卡片
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 720,
+                maxHeight: 520,
+                minWidth: 420,
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    // 边框改为更明显：深色用白，浅色用主题色
+                    color: isDark
+                        ? Colors.white.withOpacity(0.85)
+                        : cs.primary.withOpacity(0.90),
+                    width: 1.4,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: GlassPanel(
+                    borderRadius: BorderRadius.circular(16),
+                    child: _MiniMapContent(
+                      messages: messages,
+                      onSelect: (id) {
+                        complete(id);
+                        close();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    },
   );
 
-  // When selection is made, close popover
-  completer.future.then((result) {
-    if (result != null) {
-      closePopover();
-    }
-  });
+  overlay.insert(entry);
 
   return completer.future;
 }

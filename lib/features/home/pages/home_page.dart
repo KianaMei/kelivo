@@ -107,7 +107,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final TextEditingController _inputController = TextEditingController();
   final ChatInputBarController _mediaController = ChatInputBarController();
   final ScrollController _scrollController = ScrollController();
+  // 底部输入栏锚点（搜索、推理预算等 popover）
   final GlobalKey _inputBarKey = GlobalKey();
+  // 顶部迷你地图按钮的单独锚点，避免与输入栏复用同一个 GlobalKey
+  final GlobalKey _miniMapAnchorKey = GlobalKey(debugLabel: 'mini-map-anchor');
   // Desktop popover anchor keys
   final GlobalKey _searchAnchorKey = GlobalKey(debugLabel: 'search-anchor');
   final GlobalKey _reasoningAnchorKey = GlobalKey(debugLabel: 'reasoning-anchor');
@@ -3636,7 +3639,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           }),
           // Mini map button (to the left of new conversation)
           IosIconButton(
-            key: _inputBarKey,
+            key: _miniMapAnchorKey,
             size: 20,
             minSize: 44,
             onTap: () async {
@@ -3650,7 +3653,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               if (isDesktop) {
                 selectedId = await showDesktopMiniMapPopover(
                   context,
-                  anchorKey: _inputBarKey,
+                  anchorKey: _miniMapAnchorKey,
                   messages: collapsed,
                 );
               } else {
@@ -4762,6 +4765,35 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 );
               }),
               actions: [
+                // Mini map button (to the left of new conversation) for embedded/desktop layout
+                IconButton(
+                  key: _miniMapAnchorKey,
+                  onPressed: () async {
+                    final collapsed = _collapseVersions(_messages);
+                    // Desktop: use popover; Mobile: use sheet
+                    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                        defaultTargetPlatform == TargetPlatform.macOS ||
+                        defaultTargetPlatform == TargetPlatform.linux;
+
+                    final String? selectedId;
+                    if (isDesktop) {
+                      selectedId = await showDesktopMiniMapPopover(
+                        context,
+                        anchorKey: _miniMapAnchorKey,
+                        messages: collapsed,
+                      );
+                    } else {
+                      selectedId = await showMiniMapSheet(context, collapsed);
+                    }
+
+                    if (!mounted) return;
+                    if (selectedId != null && selectedId.isNotEmpty) {
+                      await _scrollToMessageId(selectedId);
+                    }
+                  },
+                  tooltip: AppLocalizations.of(context)!.miniMapTooltip,
+                  icon: const Icon(Lucide.Map, size: 22),
+                ),
                 IconButton(
                   onPressed: () async {
                     await _createNewConversation();
@@ -5198,6 +5230,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
                                   final screenWidth = MediaQuery.sizeOf(context).width;
                                   final isMobile = screenWidth < 600;
+                                  // Windows 桌面端：迷你地图改为放在顶部 AppBar；
+                                  // 这里仅用于控制底部输入栏是否显示迷你地图按钮。
+                                  final isWindowsDesktop = !kIsWeb && Platform.isWindows;
 
                                   Widget input = ChatInputBar(
                                     key: _inputBarKey,
@@ -5251,7 +5286,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                         MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
                                       );
                                     },
-                                    showMiniMapButton: true,
+                                    // Windows 桌面上把迷你地图移动到标题栏，只在非 Windows 桌面/移动端保留底部按钮
+                                    showMiniMapButton: !isWindowsDesktop,
                                     onOpenMiniMap: () async {
                                       final collapsed = _collapseVersions(_messages);
                                       // Desktop: use popover; Mobile: use sheet
