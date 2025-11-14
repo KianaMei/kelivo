@@ -78,13 +78,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
-  final GlobalKey _assistantTileKey = GlobalKey();
   OverlayEntry? _assistantPickerEntry;
   ValueNotifier<int>? _closeTicker;
   bool _assistantsExpanded = false;
   final ScrollController _listController = ScrollController();
   final ScrollController _assistantListController = ScrollController();
-  bool _assistantHeaderHovered = false;
   TabController? _tabController; // desktop tabs
 
   // Assistant avatar renderer shared across drawer views
@@ -699,7 +697,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         widget.useDesktopTabs && _isDesktop && widget.embedded && !_assistOnly && !_topicsOnly;
     final bool _splitDualPane =
         _isDesktop && widget.embedded && !_useTabs && !_assistOnly && !_topicsOnly;
-    const bool _showLegacyHeader = false;
 
     final inner = SafeArea(
       child: Stack(
@@ -874,149 +871,12 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-
                   SizedBox(height: _isDesktop ? 8 : 12),
-                  
-                  // 桌面端：替换为 Tab（助手 / 话题）
+
+                  // Desktop: show assistant/topic tabs when enabled
                   if (_useTabs)
                     _DesktopSidebarTabs(textColor: textBase, controller: _tabController!)
-                  else if (_showLegacyHeader && !_assistOnly && !_topicsOnly)
-                    // 当前助手区域（固定）
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: KeyedSubtree(
-                        key: _assistantTileKey,
-                        child: MouseRegion(
-                          onEnter: (_) { if (_isDesktop) setState(() => _assistantHeaderHovered = true); },
-                          onExit: (_) { if (_isDesktop) setState(() => _assistantHeaderHovered = false); },
-                          cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-                          child: IosCardPress(
-                            baseColor: (() {
-                              final embedded = widget.embedded;
-                              final base = embedded ? Colors.transparent : cs.surface;
-                              if (_isDesktop && _assistantHeaderHovered) {
-                                return embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9);
-                              }
-                              return base;
-                            })(),
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: _toggleAssistantPicker,
-                            onLongPress: _isDesktop ? null : () {
-                              _closeAssistantPicker();
-                              final id = context.read<AssistantProvider>().currentAssistantId;
-                              if (id != null) {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => AssistantSettingsEditPage(assistantId: id)),
-                                );
-                              }
-                            },
-                            padding: const EdgeInsets.fromLTRB(4, 6, 12, 6),
-                            child: Row(
-                              children: [
-                                _assistantAvatar(
-                                  context,
-                                  ap.currentAssistant,
-                                  size: 32,
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Text(
-                                    (ap.currentAssistant?.name ?? widget.assistantName),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: _isDesktop ? 14 : 15, fontWeight: FontWeight.w500, color: textBase),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                AnimatedRotation(
-                                  turns: _assistantsExpanded ? 0.5 : 0.0,
-                                  duration: const Duration(milliseconds: 350),
-                                  curve: Curves.easeOutCubic,
-                                  child: Icon(
-                                    Lucide.ChevronDown,
-                                    size: 18,
-                                    color: textBase.withOpacity(0.7),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
 
-                  // 注意：内联助手列表已移动至下方可滚动区域
-                ],
-              ),
-            ),
-
-            // Scrollable area below header
-            Expanded(
-              child: () {
-                if (_useTabs) {
-                  return _DesktopTabViews(
-                    controller: _tabController!,
-                    listController: _listController,
-                    buildAssistants: () => _buildAssistantsList(context),
-                    buildConversations: () => _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
-                  );
-                }
-                if (_splitDualPane) {
-                  final settings = context.watch<SettingsProvider>();
-                  final double topPad = settings.showChatListDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
-                  final double assistantPaneWidth = math.min(widget.embeddedWidth ?? 320, 360);
-                  final dividerColor = Theme.of(context).colorScheme.outlineVariant.withOpacity(isDark ? 0.18 : 0.12);
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        width: assistantPaneWidth,
-                        child: ListView(
-                          controller: _assistantListController,
-                          padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
-                          children: [
-                            _buildAssistantsList(context, inlineMode: true),
-                          ],
-                        ),
-                      ),
-                      SizedBox(
-                        width: 1,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(color: dividerColor),
-                        ),
-                      ),
-                      Expanded(
-                        child: ListView(
-                          controller: _listController,
-                          padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
-                          children: [
-                            _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }
-                if (_assistOnly) {
-                  return ListView(
-                    controller: _listController,
-                    padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
-                    children: [
-                      _buildAssistantsList(context, inlineMode: true),
-                    ],
-                  );
-                }
-                if (_topicsOnly) {
-                  final isDesktop = _isDesktop;
-                  final topPad = context.watch<SettingsProvider>().showChatListDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
-                  return ListView(
-                    controller: _listController,
-                    padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
-                    children: [
-                      _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
-                    ],
-                  );
-                }
                 return _LegacyListArea(
                   listController: _listController,
                   isDesktop: _isDesktop,
