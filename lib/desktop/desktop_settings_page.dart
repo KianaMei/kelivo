@@ -13,6 +13,7 @@ import '../core/providers/assistant_provider.dart';
 import '../shared/widgets/ios_switch.dart';
 import '../features/assistant/pages/assistant_settings_page.dart';
 import '../features/provider/pages/providers_page.dart';
+import 'desktop_provider_detail_page.dart';
 import 'setting/desktop_default_model_pane.dart';
 import '../features/search/pages/search_services_page.dart';
 import 'setting/desktop_mcp_pane.dart';
@@ -2811,13 +2812,72 @@ class _AssistantAvatarDesktop extends StatelessWidget {
 
 // ===== Providers Settings Body =====
 
-class _ProvidersSettingsBody extends StatelessWidget {
+class _ProvidersSettingsBody extends StatefulWidget {
   const _ProvidersSettingsBody({super.key});
 
   @override
+  State<_ProvidersSettingsBody> createState() => _ProvidersSettingsBodyState();
+}
+
+class _ProvidersSettingsBodyState extends State<_ProvidersSettingsBody> {
+  String? _selectedProviderKey;
+  String? _selectedProviderName;
+
+  void _onProviderTap(String providerKey, String displayName) {
+    setState(() {
+      _selectedProviderKey = providerKey;
+      _selectedProviderName = displayName;
+    });
+  }
+
+  void _onBackToList() {
+    setState(() {
+      _selectedProviderKey = null;
+      _selectedProviderName = null;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Embed ProvidersPage content directly without navigation
-    return const ProvidersPage(embedded: true);
+    final showDetail = _selectedProviderKey != null && _selectedProviderName != null;
+
+    // Animated page switching with fade + slide transition
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        // Slide transition: detail slides in from right, list slides out to left
+        final offsetAnimation = Tween<Offset>(
+          begin: showDetail ? const Offset(0.05, 0) : const Offset(-0.05, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        ));
+
+        return SlideTransition(
+          position: offsetAnimation,
+          child: FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+        );
+      },
+      child: showDetail
+          ? DesktopProviderDetailPage(
+              key: ValueKey(_selectedProviderKey), // Key for AnimatedSwitcher
+              keyName: _selectedProviderKey!,
+              displayName: _selectedProviderName!,
+              embedded: true,
+              onBack: _onBackToList,
+            )
+          : ProvidersPage(
+              key: const ValueKey('providers-list'), // Key for AnimatedSwitcher
+              embedded: true,
+              onProviderTap: _onProviderTap,
+            ),
+    );
   }
 }
 

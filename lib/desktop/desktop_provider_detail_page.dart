@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
@@ -28,6 +29,7 @@ import '../shared/widgets/ios_switch.dart';
 import '../core/services/haptics.dart';
 import 'widgets/desktop_avatar_picker_dialog.dart' show showDesktopAvatarPickerDialog;
 import 'desktop_context_menu.dart' show showDesktopAnchoredMenu, DesktopContextMenuItem;
+import '../features/provider/pages/multi_key_manager_page.dart';
 
 /// Get effective ModelInfo with user overrides applied
 ModelInfo _getEffectiveModelInfo(String modelId, ProviderConfig cfg) {
@@ -100,10 +102,18 @@ class DesktopProviderDetailPage extends StatefulWidget {
     super.key,
     required this.keyName,
     required this.displayName,
+    this.embedded = false,
+    this.onBack,
   });
 
   final String keyName;
   final String displayName;
+
+  /// Whether this page is embedded in a Master-Detail layout (no dialog wrapper)
+  final bool embedded;
+
+  /// Optional callback when back button is pressed in embedded mode
+  final VoidCallback? onBack;
 
   @override
   State<DesktopProviderDetailPage> createState() => _DesktopProviderDetailPageState();
@@ -205,7 +215,14 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
                 child: _IconBtn(
                   icon: Lucide.X,
                   color: cs.onSurface,
-                  onTap: () => Navigator.of(context).maybePop(),
+                  onTap: () {
+                    // If embedded with onBack callback, use it; otherwise pop
+                    if (widget.embedded && widget.onBack != null) {
+                      widget.onBack!();
+                    } else {
+                      Navigator.of(context).maybePop();
+                    }
+                  },
                 ),
               ),
               const Spacer(),
@@ -646,6 +663,29 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
       ),
     );
 
+    // Embedded mode: return content directly without dialog wrapper
+    if (widget.embedded) {
+      return Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          // Listen for ESC key to go back to provider list
+          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+            if (widget.onBack != null) {
+              widget.onBack!();
+              return KeyEventResult.handled;
+            }
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Material(
+          color: cs.surface,  // Use theme surface color for consistency
+          elevation: 0,
+          child: dialogContent,
+        ),
+      );
+    }
+
+    // Dialog mode: return with dialog wrapper
     return Material(
       type: MaterialType.transparency,
       child: dialog,
@@ -1284,11 +1324,55 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
     );
     if (confirm == true && mounted) {
       await context.read<SettingsProvider>().removeProviderConfig(widget.keyName);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        // In embedded mode, use callback to go back; in dialog mode, pop navigator
+        if (widget.embedded && widget.onBack != null) {
+          widget.onBack!();
+        } else {
+          Navigator.of(context).pop();
+        }
+      }
     }
   }
 
   Future<void> _showMultiKeyDialog(BuildContext context) async {
+    // On desktop, show as centered dialog instead of full-page route.
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final theme = Theme.of(context);
+      final size = MediaQuery.of(context).size;
+      final width = size.width.clamp(800.0, 1100.0);
+      final height = size.height.clamp(520.0, 820.0);
+
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'multi-key-manager-dialog',
+        barrierColor: Colors.black.withOpacity(0.25),
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (ctx, _, __) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: width * 0.8,
+                maxHeight: height * 0.8,
+              ),
+              child: Material(
+                color: theme.colorScheme.surface,
+                elevation: 16,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: MultiKeyManagerPage(
+                  providerKey: widget.keyName,
+                  providerDisplayName: widget.displayName,
+                ),
+              ),
+            ),
+          );
+        },
+      );
+      return;
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MultiKeyManagerPage(

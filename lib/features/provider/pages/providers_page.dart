@@ -25,10 +25,14 @@ import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
 
 class ProvidersPage extends StatefulWidget {
-  const ProvidersPage({super.key, this.embedded = false});
+  const ProvidersPage({super.key, this.embedded = false, this.onProviderTap});
 
   /// Whether this page is embedded in a desktop settings layout (no Scaffold/AppBar)
   final bool embedded;
+
+  /// Optional callback when a provider card is tapped (for Master-Detail layout)
+  /// If provided, this overrides the default navigation/dialog behavior
+  final void Function(String providerKey, String displayName)? onProviderTap;
 
   @override
   State<ProvidersPage> createState() => _ProvidersPageState();
@@ -213,6 +217,7 @@ class _ProvidersPageState extends State<ProvidersPage> {
             });
           },
           settlingKeys: _settleKeys,
+          onProviderTap: widget.onProviderTap,
         ),
         Positioned(
           left: 0,
@@ -409,6 +414,7 @@ class _ProvidersList extends StatelessWidget {
     required this.selectMode,
     required this.selectedKeys,
     required this.onToggleSelect,
+    this.onProviderTap,
   });
   final List<_Provider> items;
   final void Function(int oldIndex, int newIndex) onReorder;
@@ -416,6 +422,7 @@ class _ProvidersList extends StatelessWidget {
   final bool selectMode;
   final Set<String> selectedKeys;
   final void Function(String key) onToggleSelect;
+  final void Function(String providerKey, String displayName)? onProviderTap;
 
   @override
   Widget build(BuildContext context) {
@@ -506,6 +513,7 @@ class _ProvidersList extends StatelessWidget {
                     selectMode: selectMode,
                     selected: selectedKeys.contains(p.keyName),
                     onToggleSelect: onToggleSelect,
+                    onProviderTap: onProviderTap,
                   ),
                 );
               },
@@ -525,12 +533,14 @@ class _ProviderCard extends StatelessWidget {
     required this.selectMode,
     required this.selected,
     required this.onToggleSelect,
+    this.onProviderTap,
   });
   final _Provider provider;
   final int index;
   final bool selectMode;
   final bool selected;
   final void Function(String key) onToggleSelect;
+  final void Function(String providerKey, String displayName)? onProviderTap;
 
   @override
   Widget build(BuildContext context) {
@@ -562,7 +572,13 @@ class _ProviderCard extends StatelessWidget {
           Haptics.light();
           onToggleSelect(provider.keyName);
         } else {
-          // Use desktop detail dialog on Windows/macOS/Linux, mobile page on others
+          // If onProviderTap callback is provided (Master-Detail layout), use it
+          if (onProviderTap != null) {
+            onProviderTap!(provider.keyName, provider.name);
+            return;
+          }
+
+          // Otherwise, use desktop detail dialog on Windows/macOS/Linux, mobile page on others
           final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
               defaultTargetPlatform == TargetPlatform.macOS ||
               defaultTargetPlatform == TargetPlatform.linux;
