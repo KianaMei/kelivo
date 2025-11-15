@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:provider/provider.dart';
 
 import '../icons/lucide_adapter.dart';
-import '../core/providers/settings_provider.dart';
 import '../l10n/app_localizations.dart';
 import 'desktop_popover.dart';
 
@@ -11,6 +9,8 @@ import 'desktop_popover.dart';
 Future<void> showDesktopReasoningBudgetPopover(
   BuildContext context, {
   required GlobalKey anchorKey,
+  required int? initialValue,
+  required ValueChanged<int> onValueChanged,
 }) async {
   // Obtain a programmatic close callback from the generic popover helper
   // and wire it into the content so that selecting an option
@@ -19,14 +19,24 @@ Future<void> showDesktopReasoningBudgetPopover(
   close = await showDesktopPopover(
     context,
     anchorKey: anchorKey,
-    child: _ReasoningBudgetContent(onDone: () => close()),
+    child: _ReasoningBudgetContent(
+      initialValue: initialValue,
+      onValueChanged: onValueChanged,
+      onDone: () => close(),
+    ),
     maxHeight: 320,
   );
 }
 
 class _ReasoningBudgetContent extends StatefulWidget {
-  const _ReasoningBudgetContent({required this.onDone});
+  const _ReasoningBudgetContent({
+    required this.initialValue,
+    required this.onValueChanged,
+    required this.onDone,
+  });
 
+  final int? initialValue;
+  final ValueChanged<int> onValueChanged;
   final VoidCallback onDone;
 
   @override
@@ -40,8 +50,8 @@ class _ReasoningBudgetContentState extends State<_ReasoningBudgetContent> {
   @override
   void initState() {
     super.initState();
-    final s = context.read<SettingsProvider>();
-    _selected = s.thinkingBudget ?? -1;
+    _selected = widget.initialValue ?? -1;
+    print('🔍 [ReasoningBudget] initState: initialValue = ${widget.initialValue}, _selected = $_selected');
   }
 
   int _bucket(int? n) {
@@ -54,8 +64,10 @@ class _ReasoningBudgetContentState extends State<_ReasoningBudgetContent> {
   }
 
   void _select(int value) {
+    print('🎯 [ReasoningBudget] Selecting value: $value');
     setState(() => _selected = value);
-    context.read<SettingsProvider>().setThinkingBudget(value);
+    widget.onValueChanged(value);
+    print('✅ [ReasoningBudget] Called onValueChanged with value: $value');
     widget.onDone();
   }
 

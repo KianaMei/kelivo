@@ -721,6 +721,26 @@ class ChatService extends ChangeNotifier {
     return c;
   }
 
+  Future<Conversation?> setConversationThinkingBudget(String conversationId, int? thinkingBudget) async {
+    if (!_initialized) await init();
+    // Draft case
+    if (_draftConversations.containsKey(conversationId)) {
+      final draft = _draftConversations[conversationId]!;
+      draft.thinkingBudget = thinkingBudget;
+      draft.updatedAt = DateTime.now();
+      notifyListeners();
+      return draft;
+    }
+    // Persisted case
+    final c = _conversationsBox.get(conversationId);
+    if (c == null) return null;
+    c.thinkingBudget = thinkingBudget;
+    c.updatedAt = DateTime.now();
+    await c.save();
+    notifyListeners();
+    return c;
+  }
+
   Future<void> deleteMessage(String messageId) async {
     if (!_initialized) return;
 

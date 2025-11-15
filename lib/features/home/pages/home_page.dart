@@ -1587,7 +1587,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       modelId: modelId,
       messages: apiMessages,
       userImagePaths: input.imagePaths,
-      thinkingBudget: assistant?.thinkingBudget ?? settings.thinkingBudget,
+      thinkingBudget: _currentConversation?.thinkingBudget ?? settings.thinkingBudget,
       temperature: assistant?.temperature,
       topP: assistant?.topP,
       maxTokens: assistant?.maxTokens,
@@ -2556,7 +2556,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       config: settings.getProviderConfig(providerKey),
       modelId: modelId,
       messages: apiMessages,
-      thinkingBudget: assistant?.thinkingBudget ?? settings.thinkingBudget,
+      thinkingBudget: _currentConversation?.thinkingBudget ?? settings.thinkingBudget,
       temperature: assistant?.temperature,
       topP: assistant?.topP,
       maxTokens: assistant?.maxTokens,
@@ -4139,13 +4139,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           });
                         }
                         final supportsReasoning = _isReasoningModel(pk, mid);
-                        if (!supportsReasoning && a != null) {
-                          final enabledNow = _isReasoningEnabled(a.thinkingBudget ?? settings.thinkingBudget);
+                        if (!supportsReasoning) {
+                          final enabledNow = _isReasoningEnabled(_currentConversation?.thinkingBudget ?? settings.thinkingBudget);
                           if (enabledNow) {
                             WidgetsBinding.instance.addPostFrameCallback((_) async {
-                              final aa = ap.currentAssistant;
-                              if (aa != null) {
-                                await ap.updateAssistant(aa.copyWith(thinkingBudget: 0));
+                              final convo = _currentConversation;
+                              if (convo != null) {
+                                final updated = await _chatService.setConversationThinkingBudget(convo.id, 0);
+                                if (updated != null && mounted) {
+                                  setState(() {
+                                    _currentConversation = updated;
+                                  });
+                                }
                               }
                             });
                           }
@@ -4220,30 +4225,45 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         controller: _inputController,
                         mediaController: _mediaController,
                         onConfigureReasoning: () async {
-                          final assistant = context.read<AssistantProvider>().currentAssistant;
-                          if (assistant != null) {
-                            if (assistant.thinkingBudget != null) {
-                              context.read<SettingsProvider>().setThinkingBudget(assistant.thinkingBudget);
-                            }
-                            // Desktop: use popover; Mobile: use sheet
-                            final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                defaultTargetPlatform == TargetPlatform.macOS ||
-                                defaultTargetPlatform == TargetPlatform.linux;
-                            if (isDesktop) {
-                              await showDesktopReasoningBudgetPopover(
-                                context,
-                                anchorKey: _inputBarKey,
-                              );
-                            } else {
-                              await showReasoningBudgetSheet(context);
-                            }
-                            final chosen = context.read<SettingsProvider>().thinkingBudget;
-                            await context.read<AssistantProvider>().updateAssistant(
-                              assistant.copyWith(thinkingBudget: chosen),
+                          final convo = _currentConversation;
+                          if (convo == null) return;
+
+                          // Desktop: use popover; Mobile: use sheet
+                          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                              defaultTargetPlatform == TargetPlatform.macOS ||
+                              defaultTargetPlatform == TargetPlatform.linux;
+
+                          if (isDesktop) {
+                            await showDesktopReasoningBudgetPopover(
+                              context,
+                              anchorKey: _inputBarKey,
+                              initialValue: convo.thinkingBudget,
+                              onValueChanged: (value) async {
+                                // Save directly to conversation
+                                final updated = await _chatService.setConversationThinkingBudget(convo.id, value);
+                                if (updated != null && mounted) {
+                                  setState(() {
+                                    _currentConversation = updated;
+                                  });
+                                }
+                              },
                             );
+                          } else {
+                            // Mobile: sync through settings for sheet compatibility
+                            if (convo.thinkingBudget != null) {
+                              await context.read<SettingsProvider>().setThinkingBudget(convo.thinkingBudget);
+                            }
+                            await showReasoningBudgetSheet(context);
+                            final chosen = context.read<SettingsProvider>().thinkingBudget;
+                            final updated = await _chatService.setConversationThinkingBudget(convo.id, chosen);
+                            if (updated != null && mounted) {
+                              setState(() {
+                                _currentConversation = updated;
+                              });
+                            }
                           }
                         },
-                        reasoningActive: _isReasoningEnabled((context.watch<AssistantProvider>().currentAssistant?.thinkingBudget) ?? settings.thinkingBudget),
+                        reasoningActive: _isReasoningEnabled((_currentConversation?.thinkingBudget) ?? settings.thinkingBudget),
                         supportsReasoning: (pk != null && mid != null)
                             ? _isReasoningModel(pk, mid)
                             : false,
@@ -5193,13 +5213,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       });
                                     }
                                     final supportsReasoning = _isReasoningModel(pk, mid);
-                                    if (!supportsReasoning && a != null) {
-                                      final enabledNow = _isReasoningEnabled(a.thinkingBudget ?? settings.thinkingBudget);
+                                    if (!supportsReasoning) {
+                                      final enabledNow = _isReasoningEnabled(_currentConversation?.thinkingBudget ?? settings.thinkingBudget);
                                       if (enabledNow) {
                                         WidgetsBinding.instance.addPostFrameCallback((_) async {
-                                          final aa = ap.currentAssistant;
-                                          if (aa != null) {
-                                            await ap.updateAssistant(aa.copyWith(thinkingBudget: 0));
+                                          final convo = _currentConversation;
+                                          if (convo != null) {
+                                            final updated = await _chatService.setConversationThinkingBudget(convo.id, 0);
+                                            if (updated != null && mounted) {
+                                              setState(() {
+                                                _currentConversation = updated;
+                                              });
+                                            }
                                           }
                                         });
                                       }
@@ -5329,30 +5354,45 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     controller: _inputController,
                                     mediaController: _mediaController,
                                     onConfigureReasoning: () async {
-                                      final assistant = context.read<AssistantProvider>().currentAssistant;
-                                      if (assistant != null) {
-                                        if (assistant.thinkingBudget != null) {
-                                          context.read<SettingsProvider>().setThinkingBudget(assistant.thinkingBudget);
-                                        }
-                                        // Desktop: use popover; Mobile: use sheet
-                                        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                            defaultTargetPlatform == TargetPlatform.macOS ||
-                                            defaultTargetPlatform == TargetPlatform.linux;
-                                        if (isDesktop) {
-                                          await showDesktopReasoningBudgetPopover(
-                                            context,
-                                            anchorKey: _inputBarKey,
-                                          );
-                                        } else {
-                                          await showReasoningBudgetSheet(context);
-                                        }
-                                        final chosen = context.read<SettingsProvider>().thinkingBudget;
-                                        await context.read<AssistantProvider>().updateAssistant(
-                                          assistant.copyWith(thinkingBudget: chosen),
+                                      final convo = _currentConversation;
+                                      if (convo == null) return;
+
+                                      // Desktop: use popover; Mobile: use sheet
+                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                                          defaultTargetPlatform == TargetPlatform.macOS ||
+                                          defaultTargetPlatform == TargetPlatform.linux;
+
+                                      if (isDesktop) {
+                                        await showDesktopReasoningBudgetPopover(
+                                          context,
+                                          anchorKey: _inputBarKey,
+                                          initialValue: convo.thinkingBudget,
+                                          onValueChanged: (value) async {
+                                            // Save directly to conversation
+                                            final updated = await _chatService.setConversationThinkingBudget(convo.id, value);
+                                            if (updated != null && mounted) {
+                                              setState(() {
+                                                _currentConversation = updated;
+                                              });
+                                            }
+                                          },
                                         );
+                                      } else {
+                                        // Mobile: sync through settings for sheet compatibility
+                                        if (convo.thinkingBudget != null) {
+                                          await context.read<SettingsProvider>().setThinkingBudget(convo.thinkingBudget);
+                                        }
+                                        await showReasoningBudgetSheet(context);
+                                        final chosen = context.read<SettingsProvider>().thinkingBudget;
+                                        final updated = await _chatService.setConversationThinkingBudget(convo.id, chosen);
+                                        if (updated != null && mounted) {
+                                          setState(() {
+                                            _currentConversation = updated;
+                                          });
+                                        }
                                       }
                                     },
-                                    reasoningActive: _isReasoningEnabled((context.watch<AssistantProvider>().currentAssistant?.thinkingBudget) ?? settings.thinkingBudget),
+                                    reasoningActive: _isReasoningEnabled((_currentConversation?.thinkingBudget) ?? settings.thinkingBudget),
                                     supportsReasoning: (pk != null && mid != null) ? _isReasoningModel(pk, mid) : false,
                                     onConfigureMaxTokens: () async {
                                       // Desktop: use popover; Mobile: use sheet
