@@ -16,6 +16,8 @@ class ApiKeyManager {
   final Map<String, int> _roundRobinIndexMap = {}; // providerId -> index
   final Map<String, int> _keyUsageMap = {}; // keyId -> total uses (ephemeral)
 
+  int _sortOrder(ApiKeyConfig key) => key.sortIndex;
+
   KeySelectionResult selectForProvider(ProviderConfig provider) {
     final keys = List<ApiKeyConfig>.from((provider.apiKeys ?? const <ApiKeyConfig>[])
         .where((k) => k.isEnabled));
@@ -55,8 +57,8 @@ class ApiKeyManager {
         break;
       case LoadBalanceStrategy.roundRobin:
       default:
-        // Stable by id
-        available.sort((a, b) => a.id.compareTo(b.id));
+        // Stable by manual ordering
+        available.sort((a, b) => _sortOrder(a).compareTo(_sortOrder(b)));
         final cur = _roundRobinIndexMap[provider.id] ?? (provider.keyManagement?.roundRobinIndex ?? 0);
         final idx = cur % available.length;
         chosen = available[idx];

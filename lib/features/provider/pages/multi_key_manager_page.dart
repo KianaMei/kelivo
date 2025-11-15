@@ -14,7 +14,6 @@ import '../../model/widgets/model_select_sheet.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../core/services/haptics.dart';
-import '../../../desktop/window_title_bar.dart';
 
 class MultiKeyManagerPage extends StatefulWidget {
   const MultiKeyManagerPage({super.key, required this.providerKey, required this.providerDisplayName});
@@ -28,6 +27,9 @@ class MultiKeyManagerPage extends StatefulWidget {
 class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
   String? _detectModelId;
   bool _detecting = false;
+  final Set<String> _revealedKeyIds = <String>{};
+
+  String _revealToken(ApiKeyConfig k, int index) => '${index}_${k.id}_${k.key.hashCode}';
 
   @override
   Widget build(BuildContext context) {
@@ -92,8 +94,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
               onTap: _onAddKeys,
             ),
           ),
-          if (defaultTargetPlatform == TargetPlatform.windows)
-            const WindowCaptionActions(),
           const SizedBox(width: 12),
         ],
       ),
@@ -152,6 +152,54 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
   Widget _strategyRow(BuildContext context, ProviderConfig cfg) {
     final cs = Theme.of(context).colorScheme;
     final strategy = cfg.keyManagement?.strategy ?? LoadBalanceStrategy.roundRobin;
+
+    // Desktop: inline dropdown instead of sheet
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final all = LoadBalanceStrategy.values;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                AppLocalizations.of(context)!.multiKeyPageStrategyTitle,
+                style: const TextStyle(fontSize: 15),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final s in all)
+                  ChoiceChip(
+                    label: Text(
+                      _strategyLabel(context, s),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: strategy == s ? cs.onPrimary : cs.onSurface,
+                      ),
+                    ),
+                    selected: strategy == s,
+                    selectedColor: cs.primary,
+                    backgroundColor: cs.surfaceVariant,
+                    shape: StadiumBorder(
+                      side: BorderSide(color: cs.outline.withOpacity(0.4)),
+                    ),
+                    onSelected: (selected) async {
+                      if (!selected || s == strategy) return;
+                      final settings = context.read<SettingsProvider>();
+                      final old = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+                      final km = (old.keyManagement ?? const KeyManagementConfig()).copyWith(strategy: s);
+                      await settings.setProviderConfig(widget.providerKey, old.copyWith(keyManagement: km));
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     return _TactileRow(
       pressedScale: 1.00,
       onTap: _showStrategySheet,
@@ -204,11 +252,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       ]);
     }
 
-    String mask(String key) {
-      if (key.length <= 8) return key;
-      return '${key.substring(0, 4)}••••${key.substring(key.length - 4)}';
-    }
-
     Color statusColor(ApiKeyStatus st) {
       switch (st) {
         case ApiKeyStatus.active:
@@ -238,7 +281,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     return _iosSectionCard(
       children: [
         for (int i = 0; i < keys.length; i++)
-          _keyRow(context, keys[i], statusColor, statusText, mask),
+          _keyRow(context, keys[i], i, statusColor, statusText),
       ],
     );
   }
@@ -246,12 +289,22 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
   Widget _keyRow(
     BuildContext context,
     ApiKeyConfig k,
+    int index,
     Color Function(ApiKeyStatus) statusColor,
     String Function(ApiKeyStatus) statusText,
-    String Function(String) mask,
   ) {
     final cs = Theme.of(context).colorScheme;
-    final name = k.name?.isNotEmpty == true ? k.name! : mask(k.key);
+
+    String mask(String key) {
+      if (key.length <= 8) return key;
+      return '${key.substring(0, 4)}••••${key.substring(key.length - 4)}';
+    }
+
+    final token = _revealToken(k, index);
+    final bool isRevealed = _revealedKeyIds.contains(token);
+    final alias = (k.name ?? '').trim();
+    final keyLabel = isRevealed ? k.key : mask(k.key);
+    final display = alias.isNotEmpty ? alias : keyLabel;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Row(
@@ -270,18 +323,61 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                     style: TextStyle(color: statusColor(k.status), fontSize: 11),
                   ),
                 ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: cs.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'P${k.priority}',
+                    style: TextStyle(color: cs.primary, fontSize: 11),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        display,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (alias.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            keyLabel,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurface.withOpacity(0.7),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
+          _TactileIconButton(
+            icon: isRevealed ? Lucide.EyeOff : Lucide.Eye,
+            color: cs.onSurface.withOpacity(0.8),
+            onTap: () {
+              setState(() {
+                if (isRevealed) {
+                  _revealedKeyIds.remove(token);
+                } else {
+                  _revealedKeyIds.add(token);
+                }
+              });
+            },
+          ),
+          const SizedBox(width: 4),
           IosSwitch(
             value: k.isEnabled,
             onChanged: (v) async {
@@ -586,8 +682,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Only show Round Robin and Random for now
-                for (final s in <LoadBalanceStrategy>[LoadBalanceStrategy.roundRobin, LoadBalanceStrategy.random])
+                for (final s in LoadBalanceStrategy.values)
                   _TactileRow(
                     pressedScale: 1.00,
                     onTap: () => Navigator.of(ctx).pop(s),
@@ -631,6 +726,45 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final inputCtrl = TextEditingController();
+
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final result = await showDialog<List<String>?>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) {
+          return AlertDialog(
+            backgroundColor: cs.surface,
+            title: Text(l10n.multiKeyPageAdd),
+            content: TextField(
+              controller: inputCtrl,
+              minLines: 3,
+              maxLines: 6,
+              decoration: InputDecoration(
+                hintText: l10n.multiKeyPageAddHint,
+                filled: true,
+                fillColor: isDark ? Colors.white10 : Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(null),
+                child: Text(l10n.multiKeyPageCancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(_splitKeys(inputCtrl.text)),
+                child: Text(l10n.multiKeyPageAdd),
+              ),
+            ],
+          );
+        },
+      );
+      return result;
+    }
+
     final result = await showModalBottomSheet<List<String>?>(
       context: context,
       isScrollControlled: true,
@@ -714,6 +848,84 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final aliasCtrl = TextEditingController(text: k.name ?? '');
     final keyCtrl = TextEditingController(text: k.key);
     final priCtrl = TextEditingController(text: k.priority.toString());
+
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      final updated = await showDialog<ApiKeyConfig?>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) {
+          return AlertDialog(
+            backgroundColor: cs.surface,
+            title: Text(l10n.multiKeyPageEdit),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: aliasCtrl,
+                  decoration: InputDecoration(
+                    hintText: l10n.multiKeyPageAlias,
+                    filled: true,
+                    fillColor: isDark ? Colors.white10 : Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: keyCtrl,
+                  decoration: InputDecoration(
+                    hintText: l10n.multiKeyPageKey,
+                    filled: true,
+                    fillColor: isDark ? Colors.white10 : Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: priCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: l10n.multiKeyPagePriority,
+                    filled: true,
+                    fillColor: isDark ? Colors.white10 : Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: cs.primary.withOpacity(0.5))),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(null),
+                child: Text(l10n.multiKeyPageCancel),
+              ),
+              TextButton(
+                onPressed: () {
+                  final p = int.tryParse(priCtrl.text.trim()) ?? k.priority;
+                  final clamped = p.clamp(1, 10) as int;
+                  Navigator.of(ctx).pop(
+                    k.copyWith(
+                      name: aliasCtrl.text.trim().isEmpty ? null : aliasCtrl.text.trim(),
+                      key: keyCtrl.text.trim(),
+                      priority: clamped,
+                    ),
+                  );
+                },
+                child: Text(l10n.multiKeyPageSave),
+              ),
+            ],
+          );
+        },
+      );
+      return updated;
+    }
     final updated = await showModalBottomSheet<ApiKeyConfig?>(
       context: context,
       isScrollControlled: true,

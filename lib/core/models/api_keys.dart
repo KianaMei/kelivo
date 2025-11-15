@@ -55,6 +55,7 @@ class ApiKeyConfig {
   final String? name;
   final bool isEnabled;
   final int priority; // 1-10, smaller means higher priority
+  final int sortIndex; // Determines manual ordering for round-robin
   final int? maxRequestsPerMinute;
   final ApiKeyUsage usage;
   final ApiKeyStatus status;
@@ -68,6 +69,7 @@ class ApiKeyConfig {
     this.name,
     this.isEnabled = true,
     this.priority = 5,
+    this.sortIndex = 0,
     this.maxRequestsPerMinute,
     this.usage = const ApiKeyUsage(),
     this.status = ApiKeyStatus.active,
@@ -82,6 +84,7 @@ class ApiKeyConfig {
     String? name,
     bool? isEnabled,
     int? priority,
+    int? sortIndex,
     int? maxRequestsPerMinute,
     ApiKeyUsage? usage,
     ApiKeyStatus? status,
@@ -94,6 +97,7 @@ class ApiKeyConfig {
         name: name ?? this.name,
         isEnabled: isEnabled ?? this.isEnabled,
         priority: priority ?? this.priority,
+        sortIndex: sortIndex ?? this.sortIndex,
         maxRequestsPerMinute: maxRequestsPerMinute ?? this.maxRequestsPerMinute,
         usage: usage ?? this.usage,
         status: status ?? this.status,
@@ -108,6 +112,7 @@ class ApiKeyConfig {
         'name': name,
         'isEnabled': isEnabled,
         'priority': priority,
+        'sortIndex': sortIndex,
         'maxRequestsPerMinute': maxRequestsPerMinute,
         'usage': usage.toJson(),
         'status': status.name,
@@ -128,6 +133,7 @@ class ApiKeyConfig {
       name: json['name'] as String?,
       isEnabled: (json['isEnabled'] as bool?) ?? true,
       priority: (json['priority'] as int?) ?? 5,
+      sortIndex: (json['sortIndex'] as int?) ?? (json['createdAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
       maxRequestsPerMinute: json['maxRequestsPerMinute'] as int?,
       usage: ApiKeyUsage.fromJson(json['usage'] as Map<String, dynamic>?),
       status: st,
@@ -151,6 +157,7 @@ class ApiKeyConfig {
       name: name,
       isEnabled: true,
       priority: priority,
+      sortIndex: now,
       usage: const ApiKeyUsage(),
       status: ApiKeyStatus.active,
       createdAt: now,
@@ -214,4 +221,3 @@ class KeyManagementConfig {
     );
   }
 }
-
