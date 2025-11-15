@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 
 rem ============================================
 rem build_windows_clean.bat
@@ -40,10 +40,9 @@ echo [OK] flutter found.
 
 rem Step 2: flutter clean
 echo [2/3] Running 'flutter clean'...
-flutter clean
-set "CLEAN_EXITCODE=%errorlevel%"
-if not "%CLEAN_EXITCODE%"=="0" (
-    echo [ERROR] 'flutter clean' failed with code %CLEAN_EXITCODE%.
+call flutter clean
+if errorlevel 1 (
+    echo [ERROR] 'flutter clean' failed with code %errorlevel%.
     set "FINAL_EXITCODE=3"
     goto EXIT
 )
@@ -51,10 +50,9 @@ echo [OK] 'flutter clean' completed successfully.
 
 rem Step 3: flutter pub get
 echo [3/3] Running 'flutter pub get'...
-flutter pub get
-set "PUBGET_EXITCODE=%errorlevel%"
-if not "%PUBGET_EXITCODE%"=="0" (
-    echo [ERROR] 'flutter pub get' failed with code %PUBGET_EXITCODE%.
+call flutter pub get
+if errorlevel 1 (
+    echo [ERROR] 'flutter pub get' failed with code %errorlevel%.
     set "FINAL_EXITCODE=4"
     goto EXIT
 )
@@ -63,13 +61,12 @@ echo [OK] 'flutter pub get' completed successfully.
 rem Step 4: call build_windows_simple.bat
 echo [BUILD] Running 'build_windows_simple.bat'...
 call "%~dp0build_windows_simple.bat"
-set "BUILD_EXITCODE=%errorlevel%"
-set "FINAL_EXITCODE=%BUILD_EXITCODE%"
+set "FINAL_EXITCODE=%errorlevel%"
 
-if "%BUILD_EXITCODE%"=="0" (
-    echo [OK] 'build_windows_simple.bat' completed successfully with code %BUILD_EXITCODE%.
+if "%FINAL_EXITCODE%"=="0" (
+    echo [OK] 'build_windows_simple.bat' completed successfully.
 ) else (
-    echo [ERROR] 'build_windows_simple.bat' failed with code %BUILD_EXITCODE%.
+    echo [ERROR] 'build_windows_simple.bat' failed with code %FINAL_EXITCODE%.
 )
 
 goto EXIT

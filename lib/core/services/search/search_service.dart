@@ -208,6 +208,8 @@ class TavilyOptions extends SearchServiceOptions {
   int _currentIndex = 0;  // For round-robin strategy
   static const int _cooldownMinutes = 5;
   static const int _maxFailuresBeforeError = 3;
+
+  int _sortOrder(ApiKeyConfig k) => k.sortIndex;
   
   TavilyOptions({
     required String id,
@@ -264,7 +266,9 @@ class TavilyOptions extends SearchServiceOptions {
 
     switch (strategy) {
       case LoadBalanceStrategy.roundRobin:
-        final active = candidates;
+        final active = List<ApiKeyConfig>.from(candidates)
+          ..sort((a, b) => _sortOrder(a).compareTo(_sortOrder(b)));
+        if (active.isEmpty) return null;
         _currentIndex = (_currentIndex + 1) % active.length;
         return active[_currentIndex];
       case LoadBalanceStrategy.random:
