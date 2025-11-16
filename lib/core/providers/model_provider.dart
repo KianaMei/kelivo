@@ -327,17 +327,18 @@ class ProviderManager {
         final base = cfg.baseUrl.endsWith('/') ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1) : cfg.baseUrl;
         final path = (cfg.useResponseApi == true) ? '/responses' : (cfg.chatPath ?? '/chat/completions');
         final url = Uri.parse('$base$path');
+        final testMessage = 'What model are you? Please state your model name and version.';
         final body = cfg.useResponseApi == true
             ? {
                 'model': modelId,
                 'input': [
-                  {'role': 'user', 'content': 'hello'}
+                  {'role': 'user', 'content': testMessage}
                 ],
               }
             : {
                 'model': modelId,
                 'messages': [
-                  {'role': 'user', 'content': 'hello'}
+                  {'role': 'user', 'content': testMessage}
                 ],
               };
         // Merge custom body overrides
@@ -362,7 +363,20 @@ class ProviderManager {
           'Content-Type': 'application/json',
         };
         headers.addAll(_customHeaders(cfg, modelId));
+        
+        // Log OpenAI request details
+        print('[TEST API] Provider: ${cfg.id} (OpenAI)');
+        print('[TEST API] Model: $modelId');
+        print('[TEST API] URL: $url');
+        print('[TEST API] Headers: ${headers.map((k,v) => MapEntry(k, k.toLowerCase() == 'authorization' || k.toLowerCase().contains('key') ? '***' : v))}');
+        print('[TEST API] Request Body: ${jsonEncode(body)}');
+        
         final res = await client.post(url, headers: headers, body: jsonEncode(body));
+        
+        // Log response
+        print('[TEST API] Response Status: ${res.statusCode}');
+        print('[TEST API] Response Body: ${res.body.length > 500 ? res.body.substring(0, 500) + '...' : res.body}');
+        
         if (res.statusCode < 200 || res.statusCode >= 300) {
           throw HttpException('HTTP ${res.statusCode}: ${res.body}');
         }
@@ -370,13 +384,14 @@ class ProviderManager {
       } else if (kind == ProviderKind.claude) {
         final base = cfg.baseUrl.endsWith('/') ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1) : cfg.baseUrl;
         final url = Uri.parse('$base/messages');
+        final testMessage = 'What model are you? Please state your model name and version.';
         final body = {
           'model': modelId,
-          'max_tokens': 8,
+          'max_tokens': 50,
           'messages': [
             {
               'role': 'user',
-              'content': 'hello',
+              'content': testMessage,
             }
           ]
         };
@@ -388,7 +403,20 @@ class ProviderManager {
           'Content-Type': 'application/json',
         };
         headers.addAll(_customHeaders(cfg, modelId));
+        
+        // Log Claude request
+        print('[TEST API] Provider: Claude');
+        print('[TEST API] Model: $modelId');
+        print('[TEST API] URL: $url');
+        print('[TEST API] Headers: ${headers.map((k,v) => MapEntry(k, k.toLowerCase().contains('key') ? '***' : v))}');
+        print('[TEST API] Request Body: ${jsonEncode(body)}');
+        
         final res = await client.post(url, headers: headers, body: jsonEncode(body));
+        
+        // Log Claude response
+        print('[TEST API] Response Status: ${res.statusCode}');
+        print('[TEST API] Response Body: ${res.body.length > 500 ? res.body.substring(0, 500) + '...' : res.body}');
+        
         if (res.statusCode < 200 || res.statusCode >= 300) {
           throw HttpException('HTTP ${res.statusCode}: ${res.body}');
         }
@@ -421,7 +449,7 @@ class ProviderManager {
             {
               'role': 'user',
               'parts': [
-                {'text': 'hello'}
+                {'text': 'What model are you? Please state your model name and version.'}
               ]
             }
           ],

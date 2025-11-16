@@ -35,10 +35,26 @@ class ProviderAvatarManager {
       throw UnsupportedError('Custom avatars not supported on web');
     }
 
-    // Decode image
-    final image = img.decodeImage(imageBytes);
-    if (image == null) {
-      throw FormatException('Invalid image format');
+    // Decode image with detailed error handling
+    img.Image? image;
+    try {
+      // Try to decode with all supported formats
+      image = img.decodeImage(imageBytes);
+      
+      if (image == null) {
+        // Try specific decoders if generic decoder fails
+        image ??= img.decodeJpg(imageBytes);
+        image ??= img.decodePng(imageBytes);
+        image ??= img.decodeGif(imageBytes);
+        image ??= img.decodeBmp(imageBytes);
+        image ??= img.decodeWebP(imageBytes);
+      }
+      
+      if (image == null) {
+        throw FormatException('Unsupported image format or corrupted file. Size: ${imageBytes.length} bytes');
+      }
+    } catch (e) {
+      throw FormatException('Failed to decode image: $e. Image size: ${imageBytes.length} bytes');
     }
 
     // Resize to max 512x512 (maintain aspect ratio)

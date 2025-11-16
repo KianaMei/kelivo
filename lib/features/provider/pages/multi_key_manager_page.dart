@@ -168,43 +168,60 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       final all = LoadBalanceStrategy.values;
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                AppLocalizations.of(context)!.multiKeyPageStrategyTitle,
-                style: const TextStyle(fontSize: 15),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Wrap(
-              spacing: 6,
+            Row(
               children: [
-                for (final s in all)
-                  ChoiceChip(
-                    label: Text(
-                      _strategyLabel(context, s),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: strategy == s ? cs.onPrimary : cs.onSurface,
-                      ),
-                    ),
-                    selected: strategy == s,
-                    selectedColor: cs.primary,
-                    backgroundColor: cs.surfaceVariant,
-                    shape: StadiumBorder(
-                      side: BorderSide(color: cs.outline.withOpacity(0.4)),
-                    ),
-                    onSelected: (selected) async {
-                      if (!selected || s == strategy) return;
-                      final settings = context.read<SettingsProvider>();
-                      final old = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
-                      final km = (old.keyManagement ?? const KeyManagementConfig()).copyWith(strategy: s);
-                      await settings.setProviderConfig(widget.providerKey, old.copyWith(keyManagement: km));
-                    },
+                Expanded(
+                  child: Text(
+                    AppLocalizations.of(context)!.multiKeyPageStrategyTitle,
+                    style: const TextStyle(fontSize: 15),
                   ),
+                ),
+                const SizedBox(width: 8),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final s in all)
+                      ChoiceChip(
+                        label: Text(
+                          _strategyLabel(context, s),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: strategy == s ? cs.onPrimary : cs.onSurface,
+                          ),
+                        ),
+                        selected: strategy == s,
+                        selectedColor: cs.primary,
+                        backgroundColor: cs.surfaceVariant,
+                        shape: StadiumBorder(
+                          side: BorderSide(color: cs.outline.withOpacity(0.4)),
+                        ),
+                        onSelected: (selected) async {
+                          if (!selected || s == strategy) return;
+                          final settings = context.read<SettingsProvider>();
+                          final old = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+                          final km = (old.keyManagement ?? const KeyManagementConfig()).copyWith(strategy: s);
+                          await settings.setProviderConfig(widget.providerKey, old.copyWith(keyManagement: km));
+                        },
+                      ),
+                  ],
+                ),
               ],
             ),
+            if (strategy == LoadBalanceStrategy.priority)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, top: 6),
+                child: Text(
+                  '💡 优先级规则：数字越小优先级越高（1最高，10最低）',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onSurface.withOpacity(0.6),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
           ],
         ),
       );
@@ -737,7 +754,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                for (final s in LoadBalanceStrategy.values)
+                for (final s in LoadBalanceStrategy.values) ...[
                   _TactileRow(
                     pressedScale: 1.00,
                     onTap: () => Navigator.of(ctx).pop(s),
@@ -764,6 +781,19 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                       );
                     },
                   ),
+                  if (s == LoadBalanceStrategy.priority && current == LoadBalanceStrategy.priority)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: Text(
+                        '💡 优先级规则：数字越小优先级越高（1最高，10最低）',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurface.withOpacity(0.6),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -970,6 +1000,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                       name: aliasCtrl.text.trim().isEmpty ? null : aliasCtrl.text.trim(),
                       key: keyCtrl.text.trim(),
                       priority: clamped,
+                      updatedAt: DateTime.now().millisecondsSinceEpoch,
                     ),
                   );
                 },
@@ -1078,6 +1109,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                           name: aliasCtrl.text.trim().isEmpty ? null : aliasCtrl.text.trim(),
                           key: keyCtrl.text.trim(),
                           priority: clamped,
+                          updatedAt: DateTime.now().millisecondsSinceEpoch,
                         ),
                       );
                     },
