@@ -1,11 +1,12 @@
+import 'dart:async';
+import 'dart:io' show HttpException;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
-import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/models/api_keys.dart';
 import '../../../l10n/app_localizations.dart';
@@ -56,6 +57,15 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
         ),
         title: Text(l10n.multiKeyPageTitle),
         actions: [
+          Tooltip(
+            message: l10n.translatePageCopyResult,
+            child: _TactileIconButton(
+              icon: Lucide.Copy,
+              color: cs.onSurface,
+              semanticLabel: l10n.translatePageCopyResult,
+              onTap: _copyAllKeys,
+            ),
+          ),
           Tooltip(
             message: l10n.multiKeyPageDeleteErrorsTooltip,
             child: _TactileIconButton(
@@ -312,15 +322,33 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
           Expanded(
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: statusColor(k.status).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    statusText(k.status),
-                    style: TextStyle(color: statusColor(k.status), fontSize: 11),
+                GestureDetector(
+                  onTap: (k.status == ApiKeyStatus.error || k.status == ApiKeyStatus.rateLimited) && k.lastError != null
+                      ? () => _showErrorDetails(k)
+                      : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor(k.status).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          statusText(k.status),
+                          style: TextStyle(color: statusColor(k.status), fontSize: 11),
+                        ),
+                        if ((k.status == ApiKeyStatus.error || k.status == ApiKeyStatus.rateLimited) && k.lastError != null) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Lucide.info,
+                            size: 11,
+                            color: statusColor(k.status),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -381,13 +409,21 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
           IosSwitch(
             value: k.isEnabled,
             onChanged: (v) async {
-              // Haptics.soft();
               await _updateKey(k.copyWith(isEnabled: v));
             },
             width: 46,
             height: 28,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
+          _TactileIconButton(
+            icon: Lucide.HeartPulse,
+            color: cs.primary,
+            semanticLabel: AppLocalizations.of(context)!.multiKeyPageDetect,
+            onTap: () async {
+              await _testSingleKeyInteractive(k);
+            },
+          ),
+          const SizedBox(width: 4),
           _TactileIconButton(
             icon: Lucide.Pencil,
             color: cs.primary,
@@ -473,6 +509,28 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     return Container(height: 0.6, color: cs.outlineVariant.withOpacity(0.25));
   }
 
+  Future<void> _copyAllKeys() async {
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+    final keys = (cfg.apiKeys ?? const <ApiKeyConfig>[])
+        .where((k) => k.isEnabled && (k.status == ApiKeyStatus.active || k.status == ApiKeyStatus.rateLimited))
+        .map((k) => k.key.trim())
+        .where((k) => k.isNotEmpty)
+        .toList();
+    if (keys.isEmpty) return;
+
+    final joined = keys.join(',');
+    await Clipboard.setData(ClipboardData(text: joined));
+
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    showAppSnackBar(
+      context,
+      message: l10n.translatePageCopyResult,
+      type: NotificationType.success,
+    );
+  }
+
   Future<void> _updateKey(ApiKeyConfig updated) async {
     final settings = context.read<SettingsProvider>();
     final old = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
@@ -539,25 +597,26 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
     final existing = (cfg.apiKeys ?? const <ApiKeyConfig>[]);
     final existingSet = existing.map((e) => e.key.trim()).toSet();
-    final unique = <String>[];
-    for (final k in added) {
+    // 新增列表内部也要去重，保证 key 在本次添加和历史中都是唯一
+    final newSet = <String>{};
+    for (final raw in added) {
+      final k = raw.trim();
       if (k.isEmpty) continue;
-      if (!existingSet.contains(k)) unique.add(k);
+      if (existingSet.contains(k)) continue;
+      if (newSet.contains(k)) continue;
+      newSet.add(k);
     }
-    if (unique.isEmpty) {
+    if (newSet.isEmpty) {
       showAppSnackBar(context, message: l10n.multiKeyPageImportedSnackbar(0));
       return;
     }
     final newKeys = [
       ...existing,
-      for (final s in unique) ApiKeyConfig.create(s),
+      for (final s in newSet) ApiKeyConfig.create(s),
     ];
     await settings.setProviderConfig(widget.providerKey, cfg.copyWith(apiKeys: newKeys, multiKeyEnabled: true));
     if (!mounted) return;
-    showAppSnackBar(context, message: l10n.multiKeyPageImportedSnackbar(unique.length), type: NotificationType.success);
-
-    // Auto-detect imported keys
-    await _detectOnly(keys: unique);
+    showAppSnackBar(context, message: l10n.multiKeyPageImportedSnackbar(newSet.length), type: NotificationType.success);
   }
 
   List<String> _splitKeys(String raw) {
@@ -570,20 +629,16 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
     final models = cfg.models;
-    if (_detectModelId == null) {
-      if (models.isEmpty) {
-        if (!mounted) return;
-        showAppSnackBar(context, message: AppLocalizations.of(context)!.multiKeyPagePleaseAddModel, type: NotificationType.warning);
-        return;
-      }
-      _detectModelId = models.first;
+    
+    // Check if provider has models
+    if (models.isEmpty) {
+      if (!mounted) return;
+      showAppSnackBar(context, message: AppLocalizations.of(context)!.multiKeyPagePleaseAddModel, type: NotificationType.warning);
+      return;
     }
-    setState(() => _detecting = true);
-    try {
-      await _detectAllForModel(_detectModelId!);
-    } finally {
-      if (mounted) setState(() => _detecting = false);
-    }
+    
+    // Show combined model selector and detection UI
+    await _showDetectionUI();
   }
 
   Future<void> _onPickDetectModel() async {
@@ -1047,52 +1102,361 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       }
       _detectModelId = models.first;
     }
-    final list = List<ApiKeyConfig>.from(cfg.apiKeys ?? const <ApiKeyConfig>[]);
-    final toTest = list.where((e) => keys.contains(e.key)).toList();
-    await _testKeysAndSave(list, toTest, _detectModelId!);
+    
+    // 传入的是 key 字符串，按 key 本身匹配，而不是 id
+    final normalized = keys.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+    final fullList = List<ApiKeyConfig>.from(cfg.apiKeys ?? const <ApiKeyConfig>[]);
+    final toTest = fullList.where((k) => normalized.contains(k.key.trim())).toList();
+    
+    await _testKeysAndSave(fullList, toTest, _detectModelId!, null);
   }
 
   Future<void> _detectAllForModel(String modelId) async {
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
     final list = List<ApiKeyConfig>.from(cfg.apiKeys ?? const <ApiKeyConfig>[]);
-    await _testKeysAndSave(list, list, modelId);
+    await _testKeysAndSave(list, list, modelId, null);
   }
 
-  Future<void> _testKeysAndSave(List<ApiKeyConfig> fullList, List<ApiKeyConfig> toTest, String modelId) async {
+  /// 交互式单 Key 测试：先选模型，再只测试这一条 Key
+  Future<void> _testSingleKeyInteractive(ApiKeyConfig key) async {
+    if (_detecting) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+
+    // 没有模型就直接提示
+    if (cfg.models.isEmpty) {
+      showAppSnackBar(
+        context,
+        message: l10n.multiKeyPagePleaseAddModel,
+        type: NotificationType.warning,
+      );
+      return;
+    }
+
+    // 选择模型（复用统一模型选择器）
+    final sel = await showModelSelector(context, limitProviderKey: widget.providerKey);
+    if (sel == null) return; // 用户取消
+
+    final modelId = sel.modelId;
+
+    // 取最新的 key 列表，避免使用过期引用
+    final latestCfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+    final fullList = List<ApiKeyConfig>.from(latestCfg.apiKeys ?? const <ApiKeyConfig>[]);
+    final toTest = fullList.where((e) => e.id == key.id).toList();
+    if (toTest.isEmpty) {
+      return; // key 已被删除
+    }
+
+    setState(() => _detecting = true);
+    try {
+      await _testKeysAndSave(fullList, toTest, modelId, null);
+      if (!mounted) return;
+      // 结果通过状态标签和错误详情展示
+    } finally {
+      if (mounted) {
+        setState(() => _detecting = false);
+      }
+    }
+  }
+
+  Future<void> _testKeysAndSave(List<ApiKeyConfig> fullList, List<ApiKeyConfig> toTest, String modelId, Function(int tested, int total)? onProgress) async {
     final settings = context.read<SettingsProvider>();
     final base = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
     final out = List<ApiKeyConfig>.from(fullList);
+    
+    int tested = 0;
+    final total = toTest.length;
+    
     for (int i = 0; i < toTest.length; i++) {
       final k = toTest[i];
-      final ok = await _testSingleKey(base, modelId, k);
+      print('[TEST KEY] Testing key ${i + 1}/$total: ${k.name ?? k.key.substring(0, 8)}...');
+      
+      final (ok, error) = await _testSingleKey(base, modelId, k);
+      
+      print('[TEST KEY] Result: ${ok ? 'SUCCESS' : 'FAILED'} ${error != null ? '- $error' : ''}');
+      
       final idx = out.indexWhere((e) => e.id == k.id);
-      if (idx >= 0) out[idx] = k.copyWith(
-        status: ok ? ApiKeyStatus.active : ApiKeyStatus.error,
-        usage: k.usage.copyWith(
-          totalRequests: k.usage.totalRequests + 1,
-          successfulRequests: k.usage.successfulRequests + (ok ? 1 : 0),
-          failedRequests: k.usage.failedRequests + (ok ? 0 : 1),
-          consecutiveFailures: ok ? 0 : (k.usage.consecutiveFailures + 1),
-          lastUsed: DateTime.now().millisecondsSinceEpoch,
-        ),
-        lastError: ok ? null : 'Test failed',
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-      );
-      // Small delay between tests for UX
-      await Future.delayed(const Duration(milliseconds: 120));
+      if (idx >= 0) {
+        // Distinguish between invalid keys and rate-limited keys
+        final ApiKeyStatus newStatus;
+        if (ok) {
+          newStatus = ApiKeyStatus.active;
+        } else if (error != null && error.startsWith('Rate limited')) {
+          newStatus = ApiKeyStatus.rateLimited;
+        } else {
+          newStatus = ApiKeyStatus.error;
+        }
+        out[idx] = k.copyWith(
+          status: newStatus,
+          usage: k.usage.copyWith(
+            totalRequests: k.usage.totalRequests + 1,
+            successfulRequests: k.usage.successfulRequests + (ok ? 1 : 0),
+            failedRequests: k.usage.failedRequests + (ok ? 0 : 1),
+            consecutiveFailures: ok ? 0 : (k.usage.consecutiveFailures + 1),
+            lastUsed: DateTime.now().millisecondsSinceEpoch,
+          ),
+          lastError: error,
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        );
+      }
+      
+      tested++;
+      if (onProgress != null) {
+        onProgress(tested, total);
+      }
+      
+      // Small delay between tests to avoid rate limiting
+      if (i < toTest.length - 1) {
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
     }
+    
     await settings.setProviderConfig(widget.providerKey, base.copyWith(apiKeys: out));
   }
 
-  Future<bool> _testSingleKey(ProviderConfig baseCfg, String modelId, ApiKeyConfig key) async {
+  Future<(bool success, String? error)> _testSingleKey(ProviderConfig baseCfg, String modelId, ApiKeyConfig key) async {
     try {
       final cfg2 = baseCfg.copyWith(apiKey: key.key);
-      await ProviderManager.testConnection(cfg2, modelId);
-      return true;
-    } catch (_) {
-      return false;
+      await ProviderManager.testConnection(cfg2, modelId)
+          .timeout(const Duration(seconds: 60));
+      return (true, null);
+    } on TimeoutException {
+      return (false, 'Timeout: API response exceeded 60 seconds');
+    } on HttpException catch (e) {
+      // Parse HTTP error for meaningful messages
+      final msg = e.message;
+      if (msg.contains('401')) {
+        return (false, 'Unauthorized: Invalid API key');
+      } else if (msg.contains('403')) {
+        return (false, 'Forbidden: Access denied or quota exceeded');
+      } else if (msg.contains('429')) {
+        return (false, 'Rate limited: Too many requests');
+      } else if (msg.contains('404')) {
+        return (false, 'Not found: Model or endpoint not available');
+      } else if (msg.contains('500') || msg.contains('502') || msg.contains('503')) {
+        return (false, 'Server error: Provider service unavailable');
+      }
+      // Extract meaningful part of error
+      if (msg.length > 200) {
+        return (false, msg.substring(0, 200) + '...');
+      }
+      return (false, msg);
+    } catch (e) {
+      // Clean up error message
+      final errStr = e.toString();
+      if (errStr.startsWith('Exception: ')) {
+        return (false, errStr.substring(11));
+      }
+      if (errStr.length > 200) {
+        return (false, errStr.substring(0, 200) + '...');
+      }
+      return (false, errStr);
     }
+  }
+  
+  Future<void> _showErrorDetails(ApiKeyConfig key) async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final error = key.lastError ?? 'Unknown error';
+    final alias = key.name?.isNotEmpty == true ? key.name! : 'API Key';
+    
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Lucide.info, color: cs.error, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$alias - Error Details',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cs.errorContainer.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: cs.error.withOpacity(0.2),
+                ),
+              ),
+              child: SelectableText(
+                error,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: cs.onSurface,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Last tested: ${_formatTimestamp(key.updatedAt)}',
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.onSurface.withOpacity(0.6),
+              ),
+            ),
+            if (key.usage.totalRequests > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Success rate: ${(key.usage.successfulRequests * 100 / key.usage.totalRequests).toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            icon: Icon(Lucide.Copy, size: 16),
+            label: Text('Copy Error'),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: error));
+              Navigator.of(ctx).pop();
+              showAppSnackBar(
+                context,
+                message: 'Error message copied to clipboard',
+                type: NotificationType.success,
+                duration: const Duration(seconds: 2),
+              );
+            },
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(l10n.multiKeyPageCancel ?? 'Close'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  String _formatTimestamp(int timestamp) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+  
+  Future<void> _showDetectionUI() async {
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+    final l10n = AppLocalizations.of(context)!;
+
+    // 如果没有配置模型，直接提示
+    if (cfg.models.isEmpty) {
+      showAppSnackBar(context, message: l10n.multiKeyPagePleaseAddModel, type: NotificationType.warning);
+      return;
+    }
+
+    // 第一步：用统一的模型选择器选择测试模型（和单Key测试连接完全一致的UI）
+    final sel = await showModelSelector(context, limitProviderKey: widget.providerKey);
+    if (sel == null) return; // 用户取消
+
+    final selectedModelId = sel.modelId;
+    _detectModelId = selectedModelId;
+
+    // 第二步：弹出仅显示进度和取消按钮的对话框
+    final keys = List<ApiKeyConfig>.from(cfg.apiKeys ?? const <ApiKeyConfig>[]);
+    if (keys.isEmpty) {
+      showAppSnackBar(context, message: l10n.multiKeyPageNoKeys, type: NotificationType.warning);
+      return;
+    }
+
+    int tested = 0;
+    final total = keys.length;
+    bool cancelled = false;
+    bool started = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // 首次构建时启动检测流程
+          if (!started) {
+            started = true;
+            _testKeysAndSave(
+              keys,
+              keys,
+              selectedModelId,
+              (testedCount, totalCount) {
+                if (!cancelled && ctx.mounted) {
+                  setDialogState(() {
+                    tested = testedCount;
+                  });
+                }
+              },
+            ).then((_) {
+              if (!cancelled && ctx.mounted) {
+                Navigator.of(ctx).pop();
+                if (mounted) {
+                  showAppSnackBar(
+                    context,
+                    message: '${l10n.multiKeyPageDetect} $tested ${l10n.multiKeyPageKey}',
+                    type: NotificationType.success,
+                  );
+                }
+              }
+            });
+          }
+
+          final cs = Theme.of(context).colorScheme;
+
+          return AlertDialog(
+            title: Text(l10n.multiKeyPageDetect),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${l10n.providerDetailPageSelectModelButton}:',
+                  style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.7)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  selectedModelId,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                Text('${tested.clamp(0, total)} / $total'),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(value: total > 0 ? tested.clamp(0, total) / total : null),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  cancelled = true;
+                  Navigator.of(ctx).pop();
+                },
+                child: Text(l10n.multiKeyPageCancel),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 
