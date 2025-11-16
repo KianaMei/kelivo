@@ -3105,11 +3105,14 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
 
   @override
   void dispose() {
-    _removeOverlay();
+    // 直接移除overlay，不调用setState（widget即将销毁）
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     super.dispose();
   }
 
   void _removeOverlay() {
+    if (!mounted) return;  // 检查widget是否还在树中
     _overlayEntry?.remove();
     _overlayEntry = null;
     setState(() {

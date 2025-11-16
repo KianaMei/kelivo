@@ -860,18 +860,17 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     children: [
                       SizedBox(
                         width: assistantPaneWidth,
-                        child: ListView(
-                          controller: _assistantListController,
-                          padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
-                          children: [
-                            _buildAssistantsList(context, inlineMode: true),
-                          ],
-                        ),
-                      ),
-                      SizedBox(
-                        width: 1,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(color: dividerColor),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border(right: BorderSide(color: dividerColor, width: 1)),
+                          ),
+                          child: ListView(
+                            controller: _assistantListController,
+                            padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                            children: [
+                              _buildAssistantsList(context, inlineMode: true),
+                            ],
+                          ),
                         ),
                       ),
                       Expanded(
