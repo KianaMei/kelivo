@@ -261,9 +261,24 @@ class ChatApiService {
     final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
     final client = _clientFor(config);
 
+    // Track selected key for multi-key management
+    String? selectedKeyId;
     try {
+      if (config.multiKeyEnabled == true && (config.apiKeys?.isNotEmpty == true)) {
+        final sel = ApiKeyManager().selectForProvider(config);
+        selectedKeyId = sel.key?.id;
+      }
+    } catch (_) {
+      // Ignore key selection errors
+    }
+
+    bool streamCompleted = false;
+    String? streamError;
+
+    try {
+      Stream<ChatStreamChunk> stream;
       if (kind == ProviderKind.openai) {
-        yield* _sendOpenAIStream(
+        stream = _sendOpenAIStream(
           client,
           config,
           modelId,
@@ -280,7 +295,7 @@ class ChatApiService {
           extraBody: extraBody,
         );
       } else if (kind == ProviderKind.claude) {
-        yield* _sendClaudeStream(
+        stream = _sendClaudeStream(
           client,
           config,
           modelId,
@@ -297,7 +312,7 @@ class ChatApiService {
           extraBody: extraBody,
         );
       } else if (kind == ProviderKind.google) {
-        yield* _sendGoogleStream(
+        stream = _sendGoogleStream(
           client,
           config,
           modelId,
@@ -313,9 +328,35 @@ class ChatApiService {
           extraHeaders: extraHeaders,
           extraBody: extraBody,
         );
+      } else {
+        return; // Unknown provider kind
       }
+
+      // Wrap stream to track completion and errors
+      await for (final chunk in stream) {
+        yield chunk;
+      }
+      streamCompleted = true;
+    } catch (e) {
+      streamError = e.toString();
+      rethrow;
     } finally {
       client.close();
+
+      // Update key status after stream completes or fails
+      if (selectedKeyId != null) {
+        try {
+          final maxFailures = config.keyManagement?.maxFailuresBeforeDisable;
+          await ApiKeyManager().updateKeyStatus(
+            selectedKeyId,
+            streamCompleted && streamError == null, // success if completed without error
+            error: streamError,
+            maxFailuresBeforeDisable: maxFailures,
+          );
+        } catch (_) {
+          // Ignore status update errors to avoid breaking main flow
+        }
+      }
     }
   }
 
@@ -329,6 +370,20 @@ class ChatApiService {
   }) async {
     final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
     final client = _clientFor(config);
+
+    // Track selected key for multi-key management
+    String? selectedKeyId;
+    try {
+      if (config.multiKeyEnabled == true && (config.apiKeys?.isNotEmpty == true)) {
+        final sel = ApiKeyManager().selectForProvider(config);
+        selectedKeyId = sel.key?.id;
+      }
+    } catch (_) {
+      // Ignore key selection errors
+    }
+
+    String? requestError;
+
     try {
       if (kind == ProviderKind.openai) {
         final base = config.baseUrl.endsWith('/')
@@ -544,8 +599,26 @@ class ChatApiService {
         }
         return '';
       }
+    } catch (e) {
+      requestError = e.toString();
+      rethrow;
     } finally {
       client.close();
+
+      // Update key status after request completes or fails
+      if (selectedKeyId != null) {
+        try {
+          final maxFailures = config.keyManagement?.maxFailuresBeforeDisable;
+          await ApiKeyManager().updateKeyStatus(
+            selectedKeyId,
+            requestError == null, // success if no error captured
+            error: requestError,
+            maxFailuresBeforeDisable: maxFailures,
+          );
+        } catch (_) {
+          // Ignore status update errors to avoid breaking main flow
+        }
+      }
     }
   }
 

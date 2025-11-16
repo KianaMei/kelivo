@@ -1,10 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:hive/hive.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
+import '../../models/api_key_runtime_state.dart';
+import '../api_key_manager.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/app_dirs.dart';
 
@@ -39,7 +43,7 @@ class ChatService extends ChangeNotifier {
     // Initialize Hive with app-scoped data root to avoid Windows data clashes
     final hiveDir = await AppDirs.hivePath();
     Hive.init(hiveDir);
-    
+
     // Register adapters if not already registered
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(ChatMessageAdapter());
@@ -51,6 +55,12 @@ class ChatService extends ChangeNotifier {
     _conversationsBox = await Hive.openBox<Conversation>(_conversationsBoxName);
     _messagesBox = await Hive.openBox<ChatMessage>(_messagesBoxName);
     _toolEventsBox = await Hive.openBox(_toolEventsBoxName);
+
+    // Initialize ApiKeyManager (registers adapter and opens box)
+    await ApiKeyManager().init();
+
+    // Migrate API key runtime states from old ProviderConfig JSON
+    await _migrateApiKeyStates();
 
     // Migrate any persisted message content that references old iOS sandbox paths
     await _migrateSandboxPaths();
@@ -207,6 +217,90 @@ class ChatService extends ChangeNotifier {
       }
     }
     return out;
+  }
+
+  /// Migrate API key runtime states from old ProviderConfig JSON to Hive
+  /// This is a one-time migration for users upgrading from the old schema
+  Future<void> _migrateApiKeyStates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      const key = 'provider_configs'; // SettingsProvider._providerConfigsKey
+
+      // Check if migration already done
+      final migrated = prefs.getBool('api_key_states_migrated') ?? false;
+      if (migrated) return;
+
+      // Read old provider configs
+      final json = prefs.getString(key);
+      if (json == null || json.isEmpty) {
+        // No old data to migrate
+        await prefs.setBool('api_key_states_migrated', true);
+        return;
+      }
+
+      final data = jsonDecode(json) as Map<String, dynamic>;
+      int migratedCount = 0;
+
+      for (final providerEntry in data.entries) {
+        final providerConfig = providerEntry.value as Map<String, dynamic>?;
+        if (providerConfig == null) continue;
+
+        final apiKeys = providerConfig['apiKeys'] as List?;
+        if (apiKeys == null || apiKeys.isEmpty) continue;
+
+        for (final keyJson in apiKeys) {
+          if (keyJson is! Map<String, dynamic>) continue;
+
+          final keyId = keyJson['id'] as String?;
+          if (keyId == null) continue;
+
+          // Extract old runtime fields
+          final usage = keyJson['usage'] as Map<String, dynamic>?;
+          final statusStr = (keyJson['status'] as String?) ?? 'active';
+          final lastError = keyJson['lastError'] as String?;
+          final updatedAt = (keyJson['updatedAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch;
+
+          // Create runtime state from old data
+          final state = ApiKeyRuntimeState(
+            keyId: keyId,
+            totalRequests: (usage?['totalRequests'] as int?) ?? 0,
+            successfulRequests: (usage?['successfulRequests'] as int?) ?? 0,
+            failedRequests: (usage?['failedRequests'] as int?) ?? 0,
+            consecutiveFailures: (usage?['consecutiveFailures'] as int?) ?? 0,
+            lastUsed: usage?['lastUsed'] as int?,
+            status: statusStr,
+            lastError: lastError,
+            updatedAt: updatedAt,
+          );
+
+          // Save to Hive (only if not already exists)
+          final existing = ApiKeyManager().getKeyState(keyId);
+          if (existing == null) {
+            await ApiKeyManager().updateKeyStatus(
+              keyId,
+              true, // Mark as active to avoid immediate error state
+              maxFailuresBeforeDisable: 3,
+            );
+            // Then overwrite with migrated data
+            final box = Hive.box<ApiKeyRuntimeState>('api_key_states');
+            await box.put(keyId, state);
+            migratedCount++;
+          }
+        }
+      }
+
+      // Mark migration as complete
+      await prefs.setBool('api_key_states_migrated', true);
+
+      if (kDebugMode && migratedCount > 0) {
+        print('[ChatService] Migrated $migratedCount API key runtime states to Hive');
+      }
+    } catch (e) {
+      // Log error but don't block initialization
+      if (kDebugMode) {
+        print('[ChatService] API key state migration failed: $e');
+      }
+    }
   }
 
   Future<void> _migrateSandboxPaths() async {

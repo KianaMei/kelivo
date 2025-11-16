@@ -1,0 +1,6 @@
+Building Windows application...                                 
+LINK : fatal error LNK1104: 无法打开文件“WebView2Loader.dll.lib” [C:\mycode\start-kelivo\kelivo\build\windows\x64\plugins\webview_windows\webview_windows_plugin.vcxproj]
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\Microsoft.Common.CurrentVersion.targets(2189,5): warning MSB9008: 引用的项目 C:\mycode\start-kelivo\kelivo\build\windows\x64\flutter\flutter_assemble.vcxproj 不存在。 [C:\mycode\start-kelivo\kelivo\build\windows\x64\plugins\window_manager\window_manager_plugin.vcxproj]
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Microsoft\VC\v170\Microsoft.CppCommon.targets(254,5): error MSB8066: “C:\mycode\start-kelivo\kelivo\windows\flutter\ephemeral\.plugin_symlinks\window_manager\windows\CMakeLists.txt”的自定义生成已退出，代码为 1。 [C:\mycode\start-kelivo\kelivo\build\windows\x64\plugins\window_manager\window_manager_plugin.vcxproj]
+Building Windows application...                                   118.2s
+Build process failed.

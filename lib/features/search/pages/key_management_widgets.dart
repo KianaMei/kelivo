@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/models/api_keys.dart';
+import '../../../core/services/api_key_manager.dart';
 import '../../../icons/lucide_adapter.dart';
 
 // Windows/Desktop Dialog for multi-key management
@@ -146,7 +147,7 @@ class _KeyManagementDialogState extends State<KeyManagementDialog> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '已使用: ${keyConfig.usage.totalRequests}次 | '
+                    '已使用: ${ApiKeyManager().getKeyState(keyConfig.id)?.totalRequests ?? 0}次 | '
                     '${keyConfig.maxRequestsPerMinute != null ? "限流: ${keyConfig.maxRequestsPerMinute}/分钟" : "无限制"}',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
@@ -174,7 +175,6 @@ class _KeyManagementDialogState extends State<KeyManagementDialog> {
       final oldConfig = widget.service.apiKeys[index];
       widget.service.apiKeys[index] = oldConfig.copyWith(
         isEnabled: enabled,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
       );
     });
     _saveService();
@@ -259,10 +259,9 @@ class _KeyManagementDialogState extends State<KeyManagementDialog> {
                   : widget.service.apiKeys[editIndex].copyWith(
                       key: key,
                       name: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
-                      maxRequestsPerMinute: limitController.text.trim().isEmpty 
-                          ? null 
+                      maxRequestsPerMinute: limitController.text.trim().isEmpty
+                          ? null
                           : int.tryParse(limitController.text.trim()),
-                      updatedAt: DateTime.now().millisecondsSinceEpoch,
                     );
               
               setState(() {
@@ -414,7 +413,7 @@ class _KeyManagementSheetState extends State<KeyManagementSheet> {
       ),
       title: Text(keyConfig.name ?? 'API Key ${index + 1}'),
       subtitle: Text(
-        '已使用: ${keyConfig.usage.totalRequests}次 | '
+        '已使用: ${ApiKeyManager().getKeyState(keyConfig.id)?.totalRequests ?? 0}次 | '
         '${keyConfig.maxRequestsPerMinute != null ? "限流: ${keyConfig.maxRequestsPerMinute}/分钟" : "无限制"}',
         style: const TextStyle(fontSize: 12),
       ),
@@ -449,7 +448,6 @@ class _KeyManagementSheetState extends State<KeyManagementSheet> {
       final oldConfig = widget.service.apiKeys[index];
       widget.service.apiKeys[index] = oldConfig.copyWith(
         isEnabled: enabled,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
       );
     });
     _saveService();
@@ -536,10 +534,9 @@ class _KeyManagementSheetState extends State<KeyManagementSheet> {
                   : widget.service.apiKeys[editIndex].copyWith(
                       key: key,
                       name: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
-                      maxRequestsPerMinute: limitController.text.trim().isEmpty 
-                          ? null 
+                      maxRequestsPerMinute: limitController.text.trim().isEmpty
+                          ? null
                           : int.tryParse(limitController.text.trim()),
-                      updatedAt: DateTime.now().millisecondsSinceEpoch,
                     );
               
               setState(() {

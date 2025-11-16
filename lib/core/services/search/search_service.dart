@@ -15,6 +15,7 @@ import 'providers/bocha_search_service.dart';
 import 'providers/perplexity_search_service.dart';
 // Import existing ApiKeyConfig and LoadBalanceStrategy
 import '../../models/api_keys.dart';
+import '../api_key_manager.dart';
 
 // Base interface for all search services
 abstract class SearchService<T extends SearchServiceOptions> {
@@ -239,29 +240,22 @@ class TavilyOptions extends SearchServiceOptions {
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
 
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
 
     switch (strategy) {
@@ -275,76 +269,31 @@ class TavilyOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   // Mark key as used
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
 
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
 
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
-  
+
   // Update a key configuration
   void updateKey(int index, ApiKeyConfig newConfig) {
     if (index >= 0 && index < apiKeys.length) {
@@ -400,7 +349,7 @@ class ExaOptions extends SearchServiceOptions {
   int _currentIndex = 0;  // For round-robin strategy
   static const int _cooldownMinutes = 5;
   static const int _maxFailuresBeforeError = 3;
-  
+
   ExaOptions({
     required String id,
     required this.apiKeys,
@@ -410,7 +359,7 @@ class ExaOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   // Backward compatibility: single key constructor
   factory ExaOptions.single({
     required String id,
@@ -421,7 +370,7 @@ class ExaOptions extends SearchServiceOptions {
       apiKeys: [ApiKeyConfig.create(apiKey)],
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
@@ -429,29 +378,22 @@ class ExaOptions extends SearchServiceOptions {
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
 
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
 
     switch (strategy) {
@@ -463,74 +405,29 @@ class ExaOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   // Mark key as used
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
 
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
 
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   
   // Update a key configuration
@@ -588,7 +485,7 @@ class ZhipuOptions extends SearchServiceOptions {
   int _currentIndex = 0;  // For round-robin strategy
   static const int _cooldownMinutes = 5;
   static const int _maxFailuresBeforeError = 3;
-  
+
   ZhipuOptions({
     required String id,
     required this.apiKeys,
@@ -598,7 +495,7 @@ class ZhipuOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   // Backward compatibility: single key constructor
   factory ZhipuOptions.single({
     required String id,
@@ -609,7 +506,7 @@ class ZhipuOptions extends SearchServiceOptions {
       apiKeys: [ApiKeyConfig.create(apiKey)],
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
@@ -617,29 +514,22 @@ class ZhipuOptions extends SearchServiceOptions {
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
 
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
 
     switch (strategy) {
@@ -651,74 +541,29 @@ class ZhipuOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   // Mark key as used
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
 
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
 
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   
   // Update a key configuration
@@ -813,7 +658,7 @@ class LinkUpOptions extends SearchServiceOptions {
   int _currentIndex = 0;
   static const int _cooldownMinutes = 5;
   static const int _maxFailuresBeforeError = 3;
-  
+
   LinkUpOptions({
     required String id,
     required this.apiKeys,
@@ -823,7 +668,7 @@ class LinkUpOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   factory LinkUpOptions.single({
     required String id,
     required String apiKey,
@@ -833,35 +678,32 @@ class LinkUpOptions extends SearchServiceOptions {
       apiKeys: [ApiKeyConfig.create(apiKey)],
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
+
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
+
     switch (strategy) {
       case LoadBalanceStrategy.roundRobin:
         final active = candidates;
@@ -871,71 +713,28 @@ class LinkUpOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   void updateKey(int index, ApiKeyConfig newConfig) {
     if (index >= 0 && index < apiKeys.length) {
@@ -985,7 +784,7 @@ class BraveOptions extends SearchServiceOptions {
   int _currentIndex = 0;
   static const int _cooldownMinutes = 5;
   static const int _maxFailuresBeforeError = 3;
-  
+
   BraveOptions({
     required String id,
     required this.apiKeys,
@@ -995,7 +794,7 @@ class BraveOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   factory BraveOptions.single({
     required String id,
     required String apiKey,
@@ -1005,35 +804,32 @@ class BraveOptions extends SearchServiceOptions {
       apiKeys: [ApiKeyConfig.create(apiKey)],
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
+
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
+
     switch (strategy) {
       case LoadBalanceStrategy.roundRobin:
         final active = candidates;
@@ -1043,71 +839,28 @@ class BraveOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   void updateKey(int index, ApiKeyConfig newConfig) {
     if (index >= 0 && index < apiKeys.length) {
@@ -1157,7 +910,7 @@ class MetasoOptions extends SearchServiceOptions {
   int _currentIndex = 0;
   static const int _cooldownMinutes = 5;
   static const int _maxFailuresBeforeError = 3;
-  
+
   MetasoOptions({
     required String id,
     required this.apiKeys,
@@ -1167,7 +920,7 @@ class MetasoOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   factory MetasoOptions.single({
     required String id,
     required String apiKey,
@@ -1177,35 +930,32 @@ class MetasoOptions extends SearchServiceOptions {
       apiKeys: [ApiKeyConfig.create(apiKey)],
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
+
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
+
     switch (strategy) {
       case LoadBalanceStrategy.roundRobin:
         final active = candidates;
@@ -1215,71 +965,28 @@ class MetasoOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   void updateKey(int index, ApiKeyConfig newConfig) {
     if (index >= 0 && index < apiKeys.length) {
@@ -1339,7 +1046,7 @@ class OllamaOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   factory OllamaOptions.single({
     required String id,
     required String apiKey,
@@ -1349,35 +1056,32 @@ class OllamaOptions extends SearchServiceOptions {
       apiKeys: [ApiKeyConfig.create(apiKey)],
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
+
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
+
     switch (strategy) {
       case LoadBalanceStrategy.roundRobin:
         final active = candidates;
@@ -1387,71 +1091,28 @@ class OllamaOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   void updateKey(int index, ApiKeyConfig newConfig) {
     if (index >= 0 && index < apiKeys.length) {
@@ -1511,7 +1172,7 @@ class JinaOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   factory JinaOptions.single({
     required String id,
     required String apiKey,
@@ -1521,35 +1182,32 @@ class JinaOptions extends SearchServiceOptions {
       apiKeys: [ApiKeyConfig.create(apiKey)],
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
+
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
+
     switch (strategy) {
       case LoadBalanceStrategy.roundRobin:
         final active = candidates;
@@ -1559,71 +1217,28 @@ class JinaOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   void updateKey(int index, ApiKeyConfig newConfig) {
     if (index >= 0 && index < apiKeys.length) {
@@ -1689,7 +1304,7 @@ class PerplexityOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   factory PerplexityOptions.single({
     required String id,
     required String apiKey,
@@ -1705,35 +1320,32 @@ class PerplexityOptions extends SearchServiceOptions {
       maxTokensPerPage: maxTokensPerPage,
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
+
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
+
     switch (strategy) {
       case LoadBalanceStrategy.roundRobin:
         final active = candidates;
@@ -1743,71 +1355,28 @@ class PerplexityOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   void updateKey(int index, ApiKeyConfig newConfig) {
     if (index >= 0 && index < apiKeys.length) {
@@ -1885,7 +1454,7 @@ class BochaOptions extends SearchServiceOptions {
       throw ArgumentError('At least one API key is required');
     }
   }
-  
+
   factory BochaOptions.single({
     required String id,
     required String apiKey,
@@ -1903,35 +1472,32 @@ class BochaOptions extends SearchServiceOptions {
       exclude: exclude,
     );
   }
-  
+
   ApiKeyConfig? getNextAvailableKey({Set<String> excludeIds = const {}}) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = _cooldownMinutes * 60 * 1000;
+
     bool isTemporarilyBlocked(ApiKeyConfig k) {
       if (!k.isEnabled) return true;
       if (excludeIds.contains(k.id)) return true;
-      if (k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) {
-        final since = now - k.updatedAt;
-        if (since < cooldownMs) return true;
-      }
-      if (k.maxRequestsPerMinute != null && k.usage.lastUsed != null && k.maxRequestsPerMinute! > 0) {
-        final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
-        if ((now - (k.usage.lastUsed!)) < minInterval) return true;
+
+      final state = ApiKeyManager().getKeyState(k.id);
+      if (state != null) {
+        if (state.status == 'error' || state.status == 'rateLimited') {
+          final since = now - state.updatedAt;
+          if (since < cooldownMs) return true;
+        }
+        if (k.maxRequestsPerMinute != null && state.lastUsed != null && k.maxRequestsPerMinute! > 0) {
+          final minInterval = (60000 / k.maxRequestsPerMinute!).floor();
+          if ((now - state.lastUsed!) < minInterval) return true;
+        }
       }
       return false;
     }
-    List<ApiKeyConfig> candidates = List<ApiKeyConfig>.from(apiKeys);
-    for (int i = 0; i < candidates.length; i++) {
-      final k = candidates[i];
-      if ((k.status == ApiKeyStatus.rateLimited || k.status == ApiKeyStatus.error) && (now - k.updatedAt) >= cooldownMs) {
-        final idx = apiKeys.indexWhere((e) => e.id == k.id);
-        if (idx >= 0) {
-          apiKeys[idx] = k.copyWith(status: ApiKeyStatus.active, updatedAt: now);
-        }
-      }
-    }
-    candidates = candidates.where((k) => !isTemporarilyBlocked(k)).toList();
+
+    final candidates = apiKeys.where((k) => !isTemporarilyBlocked(k)).toList();
     if (candidates.isEmpty) return null;
+
     switch (strategy) {
       case LoadBalanceStrategy.roundRobin:
         final active = candidates;
@@ -1941,71 +1507,28 @@ class BochaOptions extends SearchServiceOptions {
         final random = Random();
         return candidates[random.nextInt(candidates.length)];
       case LoadBalanceStrategy.leastUsed:
-        candidates.sort((a, b) => a.usage.totalRequests.compareTo(b.usage.totalRequests));
+        candidates.sort((a, b) {
+          final stateA = ApiKeyManager().getKeyState(a.id);
+          final stateB = ApiKeyManager().getKeyState(b.id);
+          return (stateA?.totalRequests ?? 0).compareTo(stateB?.totalRequests ?? 0);
+        });
         return candidates.first;
       case LoadBalanceStrategy.priority:
         candidates.sort((a, b) => a.priority.compareTo(b.priority));
         return candidates.first;
     }
   }
-  
+
   void markKeyAsUsed(String keyId) {
-    final index = apiKeys.indexWhere((k) => k.id == keyId);
-    if (index != -1) {
-      final oldConfig = apiKeys[index];
-      final newUsage = oldConfig.usage.copyWith(
-        totalRequests: oldConfig.usage.totalRequests + 1,
-        successfulRequests: oldConfig.usage.successfulRequests + 1,
-        lastUsed: DateTime.now().millisecondsSinceEpoch,
-        consecutiveFailures: 0,
-      );
-      apiKeys[index] = oldConfig.copyWith(
-        usage: newUsage,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-        status: ApiKeyStatus.active,
-        lastError: null,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, true, maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyRateLimited(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: k.usage.consecutiveFailures + 1,
-        lastUsed: now,
-      );
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: ApiKeyStatus.rateLimited,
-        lastError: error ?? 'rate_limited',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'rate_limited', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
+
   void markKeyFailure(String keyId, {String? error}) {
-    final i = apiKeys.indexWhere((k) => k.id == keyId);
-    if (i >= 0) {
-      final k = apiKeys[i];
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final nextFails = k.usage.consecutiveFailures + 1;
-      final u = k.usage.copyWith(
-        totalRequests: k.usage.totalRequests + 1,
-        failedRequests: k.usage.failedRequests + 1,
-        consecutiveFailures: nextFails,
-        lastUsed: now,
-      );
-      final st = nextFails >= _maxFailuresBeforeError ? ApiKeyStatus.error : k.status;
-      apiKeys[i] = k.copyWith(
-        usage: u,
-        status: st,
-        lastError: error ?? 'request_failed',
-        updatedAt: now,
-      );
-    }
+    ApiKeyManager().updateKeyStatus(keyId, false, error: error ?? 'request_failed', maxFailuresBeforeDisable: _maxFailuresBeforeError);
   }
   void updateKey(int index, ApiKeyConfig newConfig) {
     if (index >= 0 && index < apiKeys.length) {

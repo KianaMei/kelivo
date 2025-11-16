@@ -1,5 +1,7 @@
 import 'dart:math';
+import 'package:hive/hive.dart';
 import '../models/api_keys.dart';
+import '../models/api_key_runtime_state.dart';
 import '../providers/settings_provider.dart';
 
 class KeySelectionResult {
@@ -8,33 +10,61 @@ class KeySelectionResult {
   const KeySelectionResult(this.key, this.reason);
 }
 
+/// Manages API key selection and runtime state tracking
+/// Runtime state (usage, status, errors) is stored in Hive for persistence
 class ApiKeyManager {
   static final ApiKeyManager _instance = ApiKeyManager._internal();
   factory ApiKeyManager() => _instance;
   ApiKeyManager._internal();
 
-  final Map<String, int> _roundRobinIndexMap = {}; // providerId -> index
-  final Map<String, int> _keyUsageMap = {}; // keyId -> total uses (ephemeral)
+  Box<ApiKeyRuntimeState>? _stateBox;
+  bool _initialized = false;
 
-  int _sortOrder(ApiKeyConfig key) => key.sortIndex;
+  /// Initialize Hive box for runtime state storage
+  /// Must be called before using selectForProvider or updateKeyStatus
+  Future<void> init() async {
+    if (_initialized) return;
 
+    if (!Hive.isAdapterRegistered(2)) {
+      Hive.registerAdapter(ApiKeyRuntimeStateAdapter());
+    }
+
+    _stateBox = await Hive.openBox<ApiKeyRuntimeState>('api_key_states');
+    _initialized = true;
+  }
+
+  /// Get runtime state for a key, or create initial state if not found
+  ApiKeyRuntimeState _getOrCreateState(String keyId) {
+    return _stateBox?.get(keyId) ?? ApiKeyRuntimeState.initial(keyId);
+  }
+
+  /// Check if a key is available based on its runtime state
+  bool _isKeyAvailable(ApiKeyConfig key, int now, int cooldownMs) {
+    final state = _getOrCreateState(key.id);
+
+    // Check status
+    if (state.status == 'disabled') return false;
+    if (state.status == 'error') {
+      final since = now - state.updatedAt;
+      if (since < cooldownMs) return false; // Still in cooldown
+    }
+
+    return true; // Active or recovered from error
+  }
+
+  /// Select the best available API key for a provider using configured strategy
   KeySelectionResult selectForProvider(ProviderConfig provider) {
-    final keys = List<ApiKeyConfig>.from((provider.apiKeys ?? const <ApiKeyConfig>[])
-        .where((k) => k.isEnabled));
+    final keys = (provider.apiKeys ?? const <ApiKeyConfig>[])
+        .where((k) => k.isEnabled)
+        .toList();
+
     if (keys.isEmpty) return const KeySelectionResult(null, 'no_keys');
 
-    // Filter by status and cooldown
+    // Filter available keys (simplified logic - no special cases)
     final now = DateTime.now().millisecondsSinceEpoch;
     final cooldownMs = (provider.keyManagement?.failureRecoveryTimeMinutes ?? 5) * 60 * 1000;
-    final available = keys.where((k) {
-      if (k.status == ApiKeyStatus.disabled) return false;
-      if (k.status == ApiKeyStatus.error) {
-        final since = now - (k.updatedAt);
-        if (since < cooldownMs) return false;
-      }
-      // Only select keys marked active; error keys are filtered by cooldown above and disabled are skipped.
-      return k.status == ApiKeyStatus.active;
-    }).toList();
+
+    final available = keys.where((k) => _isKeyAvailable(k, now, cooldownMs)).toList();
 
     if (available.isEmpty) {
       return const KeySelectionResult(null, 'no_available_keys');
@@ -42,57 +72,95 @@ class ApiKeyManager {
 
     final strategy = provider.keyManagement?.strategy ?? LoadBalanceStrategy.roundRobin;
     ApiKeyConfig chosen;
+
     switch (strategy) {
       case LoadBalanceStrategy.priority:
         available.sort((a, b) => a.priority.compareTo(b.priority));
         chosen = available.first;
         break;
+
       case LoadBalanceStrategy.leastUsed:
-        available.sort((a, b) =>
-            (a.usage.totalRequests).compareTo(b.usage.totalRequests));
+        // Sort by total requests from runtime state
+        available.sort((a, b) {
+          final stateA = _getOrCreateState(a.id);
+          final stateB = _getOrCreateState(b.id);
+          return stateA.totalRequests.compareTo(stateB.totalRequests);
+        });
         chosen = available.first;
         break;
+
       case LoadBalanceStrategy.random:
         chosen = available[Random().nextInt(available.length)];
         break;
+
       case LoadBalanceStrategy.roundRobin:
       default:
-        // Stable by manual ordering
-        available.sort((a, b) => _sortOrder(a).compareTo(_sortOrder(b)));
-        final cur = _roundRobinIndexMap[provider.id] ?? (provider.keyManagement?.roundRobinIndex ?? 0);
+        // Stable ordering by sortIndex
+        available.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
+
+        // Use persisted roundRobinIndex from provider config
+        final cur = provider.keyManagement?.roundRobinIndex ?? 0;
         final idx = cur % available.length;
         chosen = available[idx];
-        final next = (idx + 1) % available.length;
-        _roundRobinIndexMap[provider.id] = next;
+
+        // Note: Incrementing roundRobinIndex should be done by caller
+        // after persisting the updated provider config
         break;
     }
 
     return KeySelectionResult(chosen, 'strategy_${strategy.name}');
   }
 
-  ApiKeyConfig updateKeyStatus(ProviderConfig provider, ApiKeyConfig key, bool success, {String? error}) {
+  /// Update runtime state for a key after API request
+  /// This is the only method that modifies key state - ensures single source of truth
+  Future<void> updateKeyStatus(
+    String keyId,
+    bool success, {
+    String? error,
+    int? maxFailuresBeforeDisable,
+  }) async {
+    if (!_initialized) {
+      throw StateError('ApiKeyManager not initialized. Call init() first.');
+    }
+
     final now = DateTime.now().millisecondsSinceEpoch;
-    var updated = key.copyWith(
-      usage: key.usage.copyWith(
-        totalRequests: key.usage.totalRequests + 1,
-        successfulRequests: key.usage.successfulRequests + (success ? 1 : 0),
-        failedRequests: key.usage.failedRequests + (success ? 0 : 1),
-        consecutiveFailures: success ? 0 : (key.usage.consecutiveFailures + 1),
-        lastUsed: now,
-      ),
-      status: success
-          ? ApiKeyStatus.active
-          : (key.usage.consecutiveFailures + 1) >= (provider.keyManagement?.maxFailuresBeforeDisable ?? 3)
-              ? ApiKeyStatus.error
-              : key.status,
-      lastError: success ? null : (error ?? key.lastError),
+    final old = _getOrCreateState(keyId);
+    final maxFailures = maxFailuresBeforeDisable ?? 3;
+
+    final newConsecutiveFailures = success ? 0 : (old.consecutiveFailures + 1);
+    final newStatus = success
+        ? 'active'
+        : (newConsecutiveFailures >= maxFailures)
+            ? 'error'
+            : old.status;
+
+    final newState = ApiKeyRuntimeState(
+      keyId: keyId,
+      totalRequests: old.totalRequests + 1,
+      successfulRequests: old.successfulRequests + (success ? 1 : 0),
+      failedRequests: old.failedRequests + (success ? 0 : 1),
+      consecutiveFailures: newConsecutiveFailures,
+      lastUsed: now,
+      status: newStatus,
+      lastError: success ? null : (error ?? old.lastError),
       updatedAt: now,
     );
-    _keyUsageMap[updated.id] = ( _keyUsageMap[updated.id] ?? 0) + 1;
-    return updated;
+
+    await _stateBox?.put(keyId, newState);
   }
 
-  void recordKeyUsage(String keyId, bool success) {
-    _keyUsageMap[keyId] = (_keyUsageMap[keyId] ?? 0) + 1;
+  /// Get runtime state for a key (for UI display)
+  ApiKeyRuntimeState? getKeyState(String keyId) {
+    return _stateBox?.get(keyId);
+  }
+
+  /// Clear runtime state for a key (e.g., when key is deleted)
+  Future<void> clearKeyState(String keyId) async {
+    await _stateBox?.delete(keyId);
+  }
+
+  /// Reset all runtime states (for testing/debugging)
+  Future<void> resetAllStates() async {
+    await _stateBox?.clear();
   }
 }

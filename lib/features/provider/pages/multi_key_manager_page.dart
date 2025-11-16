@@ -9,6 +9,7 @@ import 'package:flutter/cupertino.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/models/api_keys.dart';
+import '../../../core/services/api_key_manager.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../model/widgets/model_select_sheet.dart';
@@ -32,16 +33,80 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
 
   String _revealToken(ApiKeyConfig k, int index) => '${index}_${k.id}_${k.key.hashCode}';
 
+  // Helper: Convert ApiKeyManager state to ApiKeyStatus enum for UI
+  ApiKeyStatus _getKeyStatus(String keyId) {
+    final state = ApiKeyManager().getKeyState(keyId);
+    final status = state?.status ?? 'active';
+    switch (status) {
+      case 'active': return ApiKeyStatus.active;
+      case 'disabled': return ApiKeyStatus.disabled;
+      case 'error': return ApiKeyStatus.error;
+      case 'rateLimited': return ApiKeyStatus.rateLimited;
+      default: return ApiKeyStatus.active;
+    }
+  }
+
+  String? _getKeyError(String keyId) {
+    return ApiKeyManager().getKeyState(keyId)?.lastError;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
-    final apiKeys = List<ApiKeyConfig>.from(cfg.apiKeys ?? const <ApiKeyConfig>[]);
+
+    // CRITICAL FIX: Fix duplicate Key IDs by regenerating IDs for duplicates
+    // while preserving all other data (key value, priority, name, etc.)
+    final rawKeys = cfg.apiKeys ?? const <ApiKeyConfig>[];
+    final seenIds = <String>{};
+    final apiKeys = <ApiKeyConfig>[];
+    bool needsFixing = false;
+    int fixCounter = 0; // Counter to ensure unique IDs in same loop
+
+    for (final key in rawKeys) {
+      if (seenIds.add(key.id)) {
+        // First occurrence - keep as is
+        apiKeys.add(key);
+      } else {
+        // Duplicate ID found - regenerate UNIQUE ID but preserve all other data
+        print('[MultiKey] WARNING: Duplicate ID "${key.id}" found for key "${key.key.substring(0, 8)}..."');
+        print('[MultiKey]   Regenerating new ID while preserving data (priority: ${key.priority})');
+
+        // Generate unique ID with counter to avoid collision in same loop
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final rnd = (DateTime.now().microsecondsSinceEpoch % 1000000000).toRadixString(36);
+        final newId = 'key_${ts}_${rnd}_fix$fixCounter';
+        fixCounter++;
+
+        // Use copyWith to preserve ALL fields while only changing ID
+        final fixed = key.copyWith(id: newId);
+
+        apiKeys.add(fixed);
+        seenIds.add(newId); // CRITICAL: Add new ID to seen set to avoid re-duplication
+        needsFixing = true;
+        print('[MultiKey]   New ID generated: $newId');
+      }
+    }
+
+    // If duplicates were fixed, save the corrected data
+    if (needsFixing) {
+      print('[MultiKey] Auto-fixing $fixCounter duplicate IDs...');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        settings.setProviderConfig(widget.providerKey, cfg.copyWith(apiKeys: apiKeys));
+      });
+    }
+
     final total = apiKeys.length;
-    final normal = apiKeys.where((k) => k.status == ApiKeyStatus.active).length;
-    final errors = apiKeys.where((k) => k.status == ApiKeyStatus.error).length;
+    final normal = apiKeys.where((k) {
+      final state = ApiKeyManager().getKeyState(k.id);
+      return state?.status == 'active' || state?.status == null;
+    }).length;
+    final errors = apiKeys.where((k) {
+      final state = ApiKeyManager().getKeyState(k.id);
+      return state?.status == 'error';
+    }).length;
     // accuracy metric removed from UI; no longer needed
 
     return Scaffold(
@@ -218,7 +283,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                   style: TextStyle(
                     fontSize: 12,
                     color: cs.onSurface.withOpacity(0.6),
-                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ),
@@ -307,10 +371,50 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
 
     return _iosSectionCard(
       children: [
-        for (int i = 0; i < keys.length; i++)
-          _keyRow(context, keys[i], i, statusColor, statusText),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false, // Hide default drag handles
+            itemCount: keys.length,
+            onReorder: (oldIndex, newIndex) => _onReorderKeys(oldIndex, newIndex, keys),
+            itemBuilder: (context, index) {
+              final key = keys[index];
+              return ReorderableDragStartListener(
+                key: ValueKey(key.id),
+                index: index,
+                child: _keyRow(context, key, index, statusColor, statusText),
+              );
+            },
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _onReorderKeys(int oldIndex, int newIndex, List<ApiKeyConfig> keys) async {
+    if (oldIndex == newIndex) return;
+
+    // Adjust newIndex if moving down
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+    final list = List<ApiKeyConfig>.from(cfg.apiKeys ?? const <ApiKeyConfig>[]);
+
+    // Move the item
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+
+    // Update sortIndex to reflect new order
+    for (int i = 0; i < list.length; i++) {
+      list[i] = list[i].copyWith(sortIndex: i);
+    }
+
+    await settings.setProviderConfig(widget.providerKey, cfg.copyWith(apiKeys: list));
   }
 
   Widget _keyRow(
@@ -321,6 +425,8 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     String Function(ApiKeyStatus) statusText,
   ) {
     final cs = Theme.of(context).colorScheme;
+    final keyStatus = _getKeyStatus(k.id);
+    final keyError = _getKeyError(k.id);
 
     String mask(String key) {
       if (key.length <= 8) return key;
@@ -340,28 +446,28 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: (k.status == ApiKeyStatus.error || k.status == ApiKeyStatus.rateLimited) && k.lastError != null
+                  onTap: (keyStatus == ApiKeyStatus.error || keyStatus == ApiKeyStatus.rateLimited) && keyError != null
                       ? () => _showErrorDetails(k)
                       : null,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: statusColor(k.status).withOpacity(0.12),
+                      color: statusColor(keyStatus).withOpacity(0.12),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          statusText(k.status),
-                          style: TextStyle(color: statusColor(k.status), fontSize: 11),
+                          statusText(keyStatus),
+                          style: TextStyle(color: statusColor(keyStatus), fontSize: 11),
                         ),
-                        if ((k.status == ApiKeyStatus.error || k.status == ApiKeyStatus.rateLimited) && k.lastError != null) ...[
+                        if ((keyStatus == ApiKeyStatus.error || keyStatus == ApiKeyStatus.rateLimited) && keyError != null) ...[
                           const SizedBox(width: 4),
                           Icon(
                             Lucide.info,
                             size: 11,
-                            color: statusColor(k.status),
+                            color: statusColor(keyStatus),
                           ),
                         ],
                       ],
@@ -382,27 +488,28 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        display,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (alias.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            keyLabel,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.onSurface.withOpacity(0.7),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          display,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                    ],
+                        if (alias.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              keyLabel,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cs.onSurface.withOpacity(0.7),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -530,7 +637,10 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
     final keys = (cfg.apiKeys ?? const <ApiKeyConfig>[])
-        .where((k) => k.isEnabled && (k.status == ApiKeyStatus.active || k.status == ApiKeyStatus.rateLimited))
+        .where((k) {
+          final st = _getKeyStatus(k.id);
+          return k.isEnabled && (st == ApiKeyStatus.active || st == ApiKeyStatus.rateLimited);
+        })
         .map((k) => k.key.trim())
         .where((k) => k.isNotEmpty)
         .toList();
@@ -549,13 +659,24 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
   }
 
   Future<void> _updateKey(ApiKeyConfig updated) async {
+    print('[MultiKey] _updateKey called - Key ID: ${updated.id}, Priority: ${updated.priority}');
     final settings = context.read<SettingsProvider>();
     final old = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
     final list = List<ApiKeyConfig>.from(old.apiKeys ?? const <ApiKeyConfig>[]);
     final idx = list.indexWhere((e) => e.id == updated.id);
+    print('[MultiKey] Found key at index: $idx');
     if (idx >= 0) {
+      final before = list[idx];
+      print('[MultiKey] Before update - Priority: ${before.priority}');
       list[idx] = updated;
+      print('[MultiKey] After update - Priority: ${list[idx].priority}');
       await settings.setProviderConfig(widget.providerKey, old.copyWith(apiKeys: list));
+      print('[MultiKey] Saved to settings');
+
+      // Verify it was saved
+      final verified = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+      final verifiedKey = verified.apiKeys?.firstWhere((e) => e.id == updated.id);
+      print('[MultiKey] Verification - Priority in settings: ${verifiedKey?.priority}');
     }
   }
 
@@ -669,7 +790,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
     final keys = List<ApiKeyConfig>.from(cfg.apiKeys ?? const <ApiKeyConfig>[]);
-    final errorKeys = keys.where((e) => e.status == ApiKeyStatus.error).toList();
+    final errorKeys = keys.where((e) => _getKeyStatus(e.id) == ApiKeyStatus.error).toList();
     if (errorKeys.isEmpty) {
       return;
     }
@@ -696,7 +817,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       },
     );
     if (ok != true) return;
-    final remain = keys.where((e) => e.status != ApiKeyStatus.error).toList();
+    final remain = keys.where((e) => _getKeyStatus(e.id) != ApiKeyStatus.error).toList();
     await settings.setProviderConfig(widget.providerKey, cfg.copyWith(apiKeys: remain));
     if (!mounted) return;
     showAppSnackBar(
@@ -789,7 +910,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                         style: TextStyle(
                           fontSize: 12,
                           color: cs.onSurface.withOpacity(0.6),
-                          fontStyle: FontStyle.italic,
                         ),
                       ),
                     ),
@@ -1000,7 +1120,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                       name: aliasCtrl.text.trim().isEmpty ? null : aliasCtrl.text.trim(),
                       key: keyCtrl.text.trim(),
                       priority: clamped,
-                      updatedAt: DateTime.now().millisecondsSinceEpoch,
                     ),
                   );
                 },
@@ -1109,7 +1228,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                           name: aliasCtrl.text.trim().isEmpty ? null : aliasCtrl.text.trim(),
                           key: keyCtrl.text.trim(),
                           priority: clamped,
-                          updatedAt: DateTime.now().millisecondsSinceEpoch,
                         ),
                       );
                     },
@@ -1197,56 +1315,38 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
   Future<void> _testKeysAndSave(List<ApiKeyConfig> fullList, List<ApiKeyConfig> toTest, String modelId, Function(int tested, int total)? onProgress) async {
     final settings = context.read<SettingsProvider>();
     final base = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
-    final out = List<ApiKeyConfig>.from(fullList);
-    
+
     int tested = 0;
     final total = toTest.length;
-    
+
     for (int i = 0; i < toTest.length; i++) {
       final k = toTest[i];
       print('[TEST KEY] Testing key ${i + 1}/$total: ${k.name ?? k.key.substring(0, 8)}...');
-      
+
       final (ok, error) = await _testSingleKey(base, modelId, k);
-      
+
       print('[TEST KEY] Result: ${ok ? 'SUCCESS' : 'FAILED'} ${error != null ? '- $error' : ''}');
-      
-      final idx = out.indexWhere((e) => e.id == k.id);
-      if (idx >= 0) {
-        // Distinguish between invalid keys and rate-limited keys
-        final ApiKeyStatus newStatus;
-        if (ok) {
-          newStatus = ApiKeyStatus.active;
-        } else if (error != null && error.startsWith('Rate limited')) {
-          newStatus = ApiKeyStatus.rateLimited;
-        } else {
-          newStatus = ApiKeyStatus.error;
-        }
-        out[idx] = k.copyWith(
-          status: newStatus,
-          usage: k.usage.copyWith(
-            totalRequests: k.usage.totalRequests + 1,
-            successfulRequests: k.usage.successfulRequests + (ok ? 1 : 0),
-            failedRequests: k.usage.failedRequests + (ok ? 0 : 1),
-            consecutiveFailures: ok ? 0 : (k.usage.consecutiveFailures + 1),
-            lastUsed: DateTime.now().millisecondsSinceEpoch,
-          ),
-          lastError: error,
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-        );
-      }
-      
+
+      // Update key status via ApiKeyManager
+      await ApiKeyManager().updateKeyStatus(
+        k.id,
+        ok,
+        error: error,
+        maxFailuresBeforeDisable: base.keyManagement?.maxFailuresBeforeDisable ?? 3,
+      );
+
       tested++;
       if (onProgress != null) {
         onProgress(tested, total);
       }
-      
+
       // Small delay between tests to avoid rate limiting
       if (i < toTest.length - 1) {
         await Future.delayed(const Duration(milliseconds: 200));
       }
     }
-    
-    await settings.setProviderConfig(widget.providerKey, base.copyWith(apiKeys: out));
+
+    // No need to save apiKeys config - runtime state is in ApiKeyManager
   }
 
   Future<(bool success, String? error)> _testSingleKey(ProviderConfig baseCfg, String modelId, ApiKeyConfig key) async {
@@ -1292,9 +1392,10 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
   Future<void> _showErrorDetails(ApiKeyConfig key) async {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final error = key.lastError ?? 'Unknown error';
+    final state = ApiKeyManager().getKeyState(key.id);
+    final error = state?.lastError ?? 'Unknown error';
     final alias = key.name?.isNotEmpty == true ? key.name! : 'API Key';
-    
+
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1335,16 +1436,16 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Last tested: ${_formatTimestamp(key.updatedAt)}',
+              'Last tested: ${_formatTimestamp(state?.updatedAt ?? DateTime.now().millisecondsSinceEpoch)}',
               style: TextStyle(
                 fontSize: 12,
                 color: cs.onSurface.withOpacity(0.6),
               ),
             ),
-            if (key.usage.totalRequests > 0) ...[
+            if (state != null && state.totalRequests > 0) ...[
               const SizedBox(height: 4),
               Text(
-                'Success rate: ${(key.usage.successfulRequests * 100 / key.usage.totalRequests).toStringAsFixed(1)}%',
+                'Success rate: ${(state.successfulRequests * 100 / state.totalRequests).toStringAsFixed(1)}%',
                 style: TextStyle(
                   fontSize: 12,
                   color: cs.onSurface.withOpacity(0.6),

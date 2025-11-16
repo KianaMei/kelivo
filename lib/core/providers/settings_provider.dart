@@ -186,9 +186,21 @@ class SettingsProvider extends ChangeNotifier {
     final cfgStr = prefs.getString(_providerConfigsKey);
     if (cfgStr != null && cfgStr.isNotEmpty) {
       try {
+        print('[SettingsProvider] Loading provider configs from SharedPreferences...');
         final raw = jsonDecode(cfgStr) as Map<String, dynamic>;
         _providerConfigs = raw.map((k, v) => MapEntry(k, ProviderConfig.fromJson(v as Map<String, dynamic>)));
-      } catch (_) {}
+        print('[SettingsProvider] Loaded ${_providerConfigs.length} provider configs');
+        for (var entry in _providerConfigs.entries) {
+          print('[SettingsProvider]   Provider: ${entry.key}');
+          if (entry.value.apiKeys != null) {
+            for (var apiKey in entry.value.apiKeys!) {
+              print('[SettingsProvider]     - Key ID: ${apiKey.id}, Priority: ${apiKey.priority}');
+            }
+          }
+        }
+      } catch (e) {
+        print('[SettingsProvider] Error loading provider configs: $e');
+      }
     }
     // load pinned models
     final pinned = prefs.getStringList(_pinnedModelsKey) ?? const <String>[];
@@ -728,11 +740,21 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> followSystem() => setThemeMode(ThemeMode.system);
 
   Future<void> setProviderConfig(String key, ProviderConfig config) async {
+    print('[SettingsProvider] setProviderConfig called for key: $key');
+    print('[SettingsProvider] API Keys count: ${config.apiKeys?.length}');
+    if (config.apiKeys != null) {
+      for (var apiKey in config.apiKeys!) {
+        print('[SettingsProvider]   - Key ID: ${apiKey.id}, Priority: ${apiKey.priority}');
+      }
+    }
     _providerConfigs[key] = config;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     final map = _providerConfigs.map((k, v) => MapEntry(k, v.toJson()));
-    await prefs.setString(_providerConfigsKey, jsonEncode(map));
+    final json = jsonEncode(map);
+    print('[SettingsProvider] Saving to SharedPreferences...');
+    await prefs.setString(_providerConfigsKey, json);
+    print('[SettingsProvider] Saved successfully');
   }
 
   Future<void> removeProviderConfig(String key) async {

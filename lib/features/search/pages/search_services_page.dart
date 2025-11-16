@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/models/api_keys.dart';
+import '../../../core/services/api_key_manager.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -1782,7 +1783,6 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
         name: _editNameController.text.trim().isEmpty ? null : _editNameController.text.trim(),
         maxRequestsPerMinute: (rpm == null || rpm <= 0) ? null : rpm,
         priority: clampedPri,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
       );
       setState(() {
         _keys.add(cfg);
@@ -1796,7 +1796,6 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
         name: _editNameController.text.trim().isEmpty ? null : _editNameController.text.trim(),
         maxRequestsPerMinute: (rpm == null || rpm <= 0) ? null : rpm,
         priority: clampedPri,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
       );
       setState(() {
         _keys[_editingIndex!] = cfg;
@@ -1895,7 +1894,7 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
             children: [
               Switch(value: k.isEnabled, onChanged: (v) {
                 setState(() {
-                  _keys[index] = k.copyWith(isEnabled: v, updatedAt: DateTime.now().millisecondsSinceEpoch);
+                  _keys[index] = k.copyWith(isEnabled: v);
                   _emit();
                 });
               }),
@@ -1910,7 +1909,7 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
                       children: [
                         Icon(Lucide.Activity, size: 14, color: cs.primary),
                         const SizedBox(width: 6),
-                        Text('已使用 ${k.usage.totalRequests}', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
+                        Text('已使用 ${ApiKeyManager().getKeyState(k.id)?.totalRequests ?? 0}', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
                         const SizedBox(width: 12),
                         Icon(k.maxRequestsPerMinute == null ? Lucide.Repeat : Lucide.Thermometer, size: 14, color: cs.primary),
                         const SizedBox(width: 6),
@@ -2139,7 +2138,6 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
                       name: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
                       maxRequestsPerMinute: limitController.text.trim().isEmpty ? null : int.tryParse(limitController.text.trim()),
                       priority: clampedPri ?? (editIndex == null ? 5 : _keys[editIndex!].priority),
-                      updatedAt: DateTime.now().millisecondsSinceEpoch,
                     );
                 setState(() {
                   if (editIndex == null) {
@@ -2246,23 +2244,15 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
       if (results.items.isEmpty) {
         throw Exception('API 返回了空结果');
       }
-      
-      // 测试成功 - 更新Key状态
-      setState(() {
-        _keys[index] = k.copyWith(
-          status: ApiKeyStatus.active,
-          usage: k.usage.copyWith(
-            totalRequests: k.usage.totalRequests + 1,
-            successfulRequests: k.usage.successfulRequests + 1,
-            lastUsed: DateTime.now().millisecondsSinceEpoch,
-            consecutiveFailures: 0,
-          ),
-          lastError: null,
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-        );
-        _emit();
-      });
-      
+
+      // 测试成功 - 更新Key状态到ApiKeyManager
+      await ApiKeyManager().updateKeyStatus(
+        k.id,
+        true, // success
+        maxFailuresBeforeDisable: 3,
+      );
+      setState(() {}); // Trigger UI update
+
       // 显示成功弹窗
       if (mounted) {
         await _showTestResultDialog(
@@ -2274,22 +2264,15 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
         );
       }
     } catch (e) {
-      // 测试失败 - 更新Key状态
-      setState(() {
-        _keys[index] = k.copyWith(
-          status: ApiKeyStatus.error,
-          usage: k.usage.copyWith(
-            totalRequests: k.usage.totalRequests + 1,
-            failedRequests: k.usage.failedRequests + 1,
-            consecutiveFailures: k.usage.consecutiveFailures + 1,
-            lastUsed: DateTime.now().millisecondsSinceEpoch,
-          ),
-          lastError: e.toString(),
-          updatedAt: DateTime.now().millisecondsSinceEpoch,
-        );
-        _emit();
-      });
-      
+      // 测试失败 - 更新Key状态到ApiKeyManager
+      await ApiKeyManager().updateKeyStatus(
+        k.id,
+        false, // failure
+        error: e.toString(),
+        maxFailuresBeforeDisable: 3,
+      );
+      setState(() {}); // Trigger UI update
+
       // 显示失败弹窗
       if (mounted) {
         await _showTestResultDialog(

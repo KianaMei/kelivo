@@ -49,6 +49,8 @@ class ApiKeyUsage {
   }
 }
 
+/// API Key configuration - contains only static configuration data
+/// Runtime state (usage, status, errors) is stored separately in ApiKeyRuntimeState
 class ApiKeyConfig {
   final String id;
   final String key;
@@ -57,11 +59,7 @@ class ApiKeyConfig {
   final int priority; // 1-10, smaller means higher priority
   final int sortIndex; // Determines manual ordering for round-robin
   final int? maxRequestsPerMinute;
-  final ApiKeyUsage usage;
-  final ApiKeyStatus status;
-  final String? lastError;
   final int createdAt;
-  final int updatedAt;
 
   const ApiKeyConfig({
     required this.id,
@@ -71,11 +69,7 @@ class ApiKeyConfig {
     this.priority = 5,
     this.sortIndex = 0,
     this.maxRequestsPerMinute,
-    this.usage = const ApiKeyUsage(),
-    this.status = ApiKeyStatus.active,
-    this.lastError,
     required this.createdAt,
-    required this.updatedAt,
   });
 
   ApiKeyConfig copyWith({
@@ -86,11 +80,7 @@ class ApiKeyConfig {
     int? priority,
     int? sortIndex,
     int? maxRequestsPerMinute,
-    ApiKeyUsage? usage,
-    ApiKeyStatus? status,
-    String? lastError,
     int? createdAt,
-    int? updatedAt,
   }) => ApiKeyConfig(
         id: id ?? this.id,
         key: key ?? this.key,
@@ -99,11 +89,7 @@ class ApiKeyConfig {
         priority: priority ?? this.priority,
         sortIndex: sortIndex ?? this.sortIndex,
         maxRequestsPerMinute: maxRequestsPerMinute ?? this.maxRequestsPerMinute,
-        usage: usage ?? this.usage,
-        status: status ?? this.status,
-        lastError: lastError ?? this.lastError,
         createdAt: createdAt ?? this.createdAt,
-        updatedAt: updatedAt ?? this.updatedAt,
       );
 
   Map<String, dynamic> toJson() => {
@@ -114,19 +100,12 @@ class ApiKeyConfig {
         'priority': priority,
         'sortIndex': sortIndex,
         'maxRequestsPerMinute': maxRequestsPerMinute,
-        'usage': usage.toJson(),
-        'status': status.name,
-        'lastError': lastError,
         'createdAt': createdAt,
-        'updatedAt': updatedAt,
       };
 
   factory ApiKeyConfig.fromJson(Map<String, dynamic> json) {
-    final statusStr = (json['status'] as String?) ?? 'active';
-    final st = ApiKeyStatus.values.firstWhere(
-      (e) => e.name == statusStr,
-      orElse: () => ApiKeyStatus.active,
-    );
+    // Backward compatibility: ignore runtime fields (usage, status, lastError, updatedAt)
+    // These are now stored separately in ApiKeyRuntimeState
     return ApiKeyConfig(
       id: (json['id'] as String?) ?? _generateKeyId(),
       key: (json['key'] as String?) ?? '',
@@ -135,11 +114,7 @@ class ApiKeyConfig {
       priority: (json['priority'] as int?) ?? 5,
       sortIndex: (json['sortIndex'] as int?) ?? (json['createdAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
       maxRequestsPerMinute: json['maxRequestsPerMinute'] as int?,
-      usage: ApiKeyUsage.fromJson(json['usage'] as Map<String, dynamic>?),
-      status: st,
-      lastError: json['lastError'] as String?,
       createdAt: (json['createdAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
-      updatedAt: (json['updatedAt'] as int?) ?? DateTime.now().millisecondsSinceEpoch,
     );
   }
 
@@ -158,10 +133,7 @@ class ApiKeyConfig {
       isEnabled: true,
       priority: priority,
       sortIndex: now,
-      usage: const ApiKeyUsage(),
-      status: ApiKeyStatus.active,
       createdAt: now,
-      updatedAt: now,
     );
   }
 }
