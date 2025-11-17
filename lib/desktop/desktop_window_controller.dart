@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'window_size_manager.dart';
+import 'system_tray_manager.dart';
 import '../utils/platform_utils.dart';
 
 /// Handles desktop window initialization and persistence (size/position/maximized).
@@ -12,6 +14,14 @@ class DesktopWindowController with WindowListener {
 
   final WindowSizeManager _sizeMgr = const WindowSizeManager();
   bool _attached = false;
+
+  // Cache the close-to-tray setting to avoid async read on every close
+  bool _closeToTray = false;
+
+  /// Update the close-to-tray setting cache
+  void updateCloseToTraySetting(bool value) {
+    _closeToTray = value;
+  }
 
   Future<void> initializeAndShow({String? title}) async {
     if (kIsWeb || !PlatformUtils.isDesktop) return;
@@ -24,6 +34,16 @@ class DesktopWindowController with WindowListener {
     }
 
     // Windows custom title bar is handled in main (TitleBarStyle.hidden)
+    // Prevent default close behavior to handle it ourselves
+    await windowManager.setPreventClose(true);
+
+    // Initialize system tray if needed and cache the setting for instant close response
+    final prefs = await SharedPreferences.getInstance();
+    final closeToTray = prefs.getBool('desktop_close_to_tray_v1') ?? false;
+    _closeToTray = closeToTray; // Cache the value to avoid async read on close
+    if (closeToTray) {
+      await SystemTrayManager.instance.init();
+    }
 
     final initialSize = await _sizeMgr.getInitialSize();
     const minSize = Size(WindowSizeManager.minWindowWidth, WindowSizeManager.minWindowHeight);
@@ -87,6 +107,36 @@ class DesktopWindowController with WindowListener {
   @override
   void onWindowUnmaximize() async {
     try { await _sizeMgr.setWindowMaximized(false); } catch (_) {}
+  }
+
+  @override
+  void onWindowClose() async {
+    debugPrint('[WindowController] onWindowClose triggered, closeToTray=$_closeToTray');
+    final startTime = DateTime.now();
+
+    // Use cached setting for instant response (no async read)
+    if (_closeToTray) {
+      try {
+        debugPrint('[WindowController] Hiding to tray...');
+        // Initialize system tray if not already initialized
+        if (!SystemTrayManager.instance.initialized) {
+          debugPrint('[WindowController] Tray not initialized, initializing now...');
+          await SystemTrayManager.instance.init();
+        }
+        // Hide the window to tray immediately
+        await SystemTrayManager.instance.hideWindow();
+        final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+        debugPrint('[WindowController] Successfully hid to tray in ${elapsed}ms');
+      } catch (e) {
+        debugPrint('[WindowController] Error hiding to tray: $e');
+        await windowManager.destroy();
+      }
+    } else {
+      debugPrint('[WindowController] Destroying window (not using tray)');
+      await windowManager.destroy();
+      final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+      debugPrint('[WindowController] Window destroyed in ${elapsed}ms');
+    }
   }
 }
 

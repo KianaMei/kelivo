@@ -31,6 +31,7 @@ import 'dart:io' show File, Platform;
 import '../core/models/assistant.dart';
 import '../utils/avatar_cache.dart';
 import '../utils/sandbox_path_resolver.dart';
+import '../utils/platform_utils.dart';
 import '../shared/widgets/snackbar.dart';
 import '../features/assistant/pages/assistant_settings_edit_page.dart' show showAssistantDesktopDialog;
 
@@ -414,6 +415,8 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _ToggleRowShowChatListDate(),
                   _RowDivider(),
                   _ToggleRowNewChatOnLaunch(),
+                  _RowDivider(),
+                  _ToggleRowCloseToTray(),
                 ],
               ),
               const SizedBox(height: 16),
@@ -1940,6 +1943,24 @@ class _ToggleRowNewChatOnLaunch extends StatelessWidget {
       label: l10n.displaySettingsPageNewChatOnLaunchTitle,
       value: sp.newChatOnLaunch,
       onChanged: (v) => context.read<SettingsProvider>().setNewChatOnLaunch(v),
+    );
+  }
+}
+
+class _ToggleRowCloseToTray extends StatelessWidget {
+  const _ToggleRowCloseToTray();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final sp = context.watch<SettingsProvider>();
+    // Only show on desktop platforms
+    if (!PlatformUtils.isDesktop) {
+      return const SizedBox.shrink();
+    }
+    return _ToggleRow(
+      label: l10n.desktopCloseToTrayTitle,
+      value: sp.desktopCloseToTray,
+      onChanged: (v) => context.read<SettingsProvider>().setDesktopCloseToTray(v),
     );
   }
 }

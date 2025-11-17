@@ -9,6 +9,8 @@ import '../models/api_keys.dart';
 import '../models/backup.dart';
 import '../services/haptics.dart';
 import '../../utils/dynamic_font_loader.dart';
+import '../../desktop/system_tray_manager.dart' if (dart.library.html) '../../utils/platform_stub.dart';
+import '../../desktop/desktop_window_controller.dart' if (dart.library.html) '../../utils/platform_stub.dart';
 
 // Desktop: topic list position
 enum DesktopTopicPosition { left, right }
@@ -85,6 +87,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _desktopRightSidebarWidthKey = 'desktop_right_sidebar_width_v1';
   // Android background chat generation mode
   static const String _androidBackgroundChatModeKey = 'android_background_chat_mode_v1';
+  // Desktop: close window behavior (minimize to tray or exit)
+  static const String _desktopCloseToTrayKey = 'desktop_close_to_tray_v1';
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
@@ -123,6 +127,10 @@ class SettingsProvider extends ChangeNotifier {
   bool get desktopTopicsOnRight => _desktopTopicPosition == DesktopTopicPosition.right;
   bool _desktopRightSidebarOpen = true;
   bool get desktopRightSidebarOpen => _desktopRightSidebarOpen;
+
+  // Desktop: close window behavior (true: minimize to tray, false: exit app)
+  bool _desktopCloseToTray = false;
+  bool get desktopCloseToTray => _desktopCloseToTray;
 
   Map<String, ProviderConfig> _providerConfigs = {};
   Map<String, ProviderConfig> get providerConfigs => Map.unmodifiable(_providerConfigs);
@@ -334,6 +342,13 @@ class SettingsProvider extends ChangeNotifier {
     }
     _desktopRightSidebarOpen = prefs.getBool(_desktopRightSidebarOpenKey) ?? true;
     _desktopAutoSwitchTopics = prefs.getBool(_displayDesktopAutoSwitchTopicsKey) ?? false;
+    _desktopCloseToTray = prefs.getBool(_desktopCloseToTrayKey) ?? false;
+    // Initialize window controller cache with loaded value
+    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux)) {
+      DesktopWindowController.instance.updateCloseToTraySetting(_desktopCloseToTray);
+    }
     // Load app locale; default to follow system on first launch
     _appLocaleTag = prefs.getString(_appLocaleKey);
     if (_appLocaleTag == null || _appLocaleTag!.isEmpty) {
@@ -538,6 +553,35 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_desktopRightSidebarOpenKey, _desktopRightSidebarOpen);
+  }
+
+  // Desktop: close window behavior (minimize to tray or exit)
+  Future<void> setDesktopCloseToTray(bool value) async {
+    if (_desktopCloseToTray == value) return;
+    _desktopCloseToTray = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_desktopCloseToTrayKey, value);
+
+    // Update cached setting in window controller for instant close response
+    if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux)) {
+      DesktopWindowController.instance.updateCloseToTraySetting(value);
+    }
+
+    // Initialize system tray when enabled on desktop platforms
+    if (!kIsWeb && value) {
+      if (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.linux) {
+        try {
+          await SystemTrayManager.instance.init();
+        } catch (e) {
+          print('Error initializing system tray: $e');
+        }
+      }
+    }
   }
 
   Future<void> setDesktopAutoSwitchTopics(bool v) async {

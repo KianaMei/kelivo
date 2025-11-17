@@ -4565,6 +4565,12 @@ abstract class AppLocalizations {
   /// **'Automatically create a new chat on launch'**
   String get displaySettingsPageNewChatOnLaunchSubtitle;
 
+  /// No description provided for @desktopCloseToTrayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimize to tray on close'**
+  String get desktopCloseToTrayTitle;
+
   /// No description provided for @displaySettingsPageChatFontSizeTitle.
   ///
   /// In en, this message translates to:

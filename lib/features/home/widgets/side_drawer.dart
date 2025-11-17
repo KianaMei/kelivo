@@ -614,18 +614,44 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         );
       }
       if (type == 'file' && value != null && value.isNotEmpty && !kIsWeb) {
-        final fixed = SandboxPathResolver.fix(value);
-        final f = File(fixed);
-        if (f.existsSync()) {
-          return ClipOval(
-            child: Image(
-              image: FileImage(f),
+        return FutureBuilder<String?>(
+          future: AssistantProvider.resolveToAbsolutePath(value),
+          builder: (ctx, snap) {
+            final path = snap.data;
+            if (path != null && path.isNotEmpty) {
+              final f = File(path);
+              if (f.existsSync()) {
+                return ClipOval(
+                  child: Image(
+                    image: FileImage(f),
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                  ),
+                );
+              }
+            }
+            // Fallback to default initial avatar if file is missing
+            final letter = name.isNotEmpty ? name.characters.first : '?';
+            return Container(
               width: size,
               height: size,
-              fit: BoxFit.cover,
-            ),
-          );
-        }
+              decoration: BoxDecoration(
+                color: cs.primary.withOpacity(0.15),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                letter,
+                style: TextStyle(
+                  color: cs.primary,
+                  fontSize: size * 0.42,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            );
+          },
+        );
       }
       // default: initial
       final letter = name.isNotEmpty ? name.characters.first : '?';

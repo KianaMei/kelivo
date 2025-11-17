@@ -2398,6 +2398,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Automatically create a new chat on launch';
 
   @override
+  String get desktopCloseToTrayTitle => 'Minimize to tray on close';
+
+  @override
   String get displaySettingsPageChatFontSizeTitle => 'Chat Font Size';
 
   @override
