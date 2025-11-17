@@ -140,22 +140,11 @@ class SystemTrayManager with TrayListener {
     debugPrint('[SystemTray] ========================================');
 
     try {
-      debugPrint('[SystemTray] Calling windowManager.destroy() with 2s timeout...');
-      // Give destroy() max 2 seconds, then force exit
-      await windowManager.destroy().timeout(
-        const Duration(seconds: 2),
-        onTimeout: () {
-          debugPrint('[SystemTray] Destroy() timeout after 2s - FORCE EXITING NOW');
-          exit(0);
-        },
-      );
-      // If we reach here, destroy completed within timeout
-      debugPrint('[SystemTray] Destroy completed successfully');
-      exit(0);
+      debugPrint('[SystemTray] Exiting process from tray menu...');
     } catch (e) {
-      debugPrint('[SystemTray] Error during destroy: $e - FORCE EXITING');
-      exit(0);
+      debugPrint('[SystemTray] Unexpected error before exit: $e');
     }
+    exit(0);
   }
 
   // TrayListener methods

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, Tar
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io' show exit;
 
 import 'window_size_manager.dart';
 import 'system_tray_manager.dart';
@@ -128,14 +129,14 @@ class DesktopWindowController with WindowListener {
         final elapsed = DateTime.now().difference(startTime).inMilliseconds;
         debugPrint('[WindowController] Successfully hid to tray in ${elapsed}ms');
       } catch (e) {
-        debugPrint('[WindowController] Error hiding to tray: $e');
-        await windowManager.destroy();
+        debugPrint('[WindowController] Error hiding to tray: $e - exiting process');
+        exit(0);
       }
     } else {
-      debugPrint('[WindowController] Destroying window (not using tray)');
-      await windowManager.destroy();
+      debugPrint('[WindowController] Exiting process (not using tray)');
       final elapsed = DateTime.now().difference(startTime).inMilliseconds;
-      debugPrint('[WindowController] Window destroyed in ${elapsed}ms');
+      debugPrint('[WindowController] Preparing to exit, elapsed=${elapsed}ms');
+      exit(0);
     }
   }
 }

@@ -1593,23 +1593,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }
 
   static void _log(String message) {
-    try {
-      final now = DateTime.now().toUtc().add(const Duration(hours: 8));
-      final year = now.year.toString().padLeft(4, '0');
-      final month = now.month.toString().padLeft(2, '0');
-      final day = now.day.toString().padLeft(2, '0');
-      final hour = now.hour.toString().padLeft(2, '0');
-      final minute = now.minute.toString().padLeft(2, '0');
-      final second = now.second.toString().padLeft(2, '0');
-      final timestamp = '$year-$month-$day $hour:$minute:$second';
-      final logFile = File('c:/mycode/kelivo/debug_tools.log');
-      logFile.writeAsStringSync(
-        '[$timestamp] $message\n',
-        mode: FileMode.append,
-      );
-    } catch (e) {
-      debugPrint('[Log Error] Failed to write log: $e');
-    }
+    // Logging to file is disabled for now.
   }
 
   // RikkaHub style: search ALL messages' tool results for citation id (not just latest)
