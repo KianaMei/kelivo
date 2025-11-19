@@ -7,6 +7,7 @@ import '../../icons/lucide_adapter.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/providers/settings_provider.dart';
 import '../../features/model/widgets/model_select_sheet.dart';
+import '../../features/model/widgets/ocr_prompt_sheet.dart';
 import '../../utils/brand_assets.dart';
 
 class DesktopDefaultModelPane extends StatelessWidget {
@@ -20,13 +21,14 @@ class DesktopDefaultModelPane extends StatelessWidget {
 
     return Container(
       alignment: Alignment.topCenter,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 960),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 960),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
                 child: Text(
@@ -101,9 +103,32 @@ class DesktopDefaultModelPane extends StatelessWidget {
                 },
                 configAction: () => _showTranslatePromptDialog(context),
               ),
+
+              const SizedBox(height: 16),
+
+              // OCR Model Card
+              _ModelCard(
+                icon: Lucide.FileText,
+                title: 'OCR Model',
+                subtitle: 'Model for extracting text from images',
+                modelProvider: settings.ocrModelProvider,
+                modelId: settings.ocrModelId,
+                fallbackProvider: settings.currentModelProvider,
+                fallbackModelId: settings.currentModelId,
+                onPick: () async {
+                  final sel = await showModelSelector(context);
+                  if (sel != null) {
+                    await context
+                        .read<SettingsProvider>()
+                        .setOcrModel(sel.providerKey, sel.modelId);
+                  }
+                },
+                configAction: () => _showOcrPromptDialog(context),
+              ),
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -280,6 +305,10 @@ class DesktopDefaultModelPane extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _showOcrPromptDialog(BuildContext context) async {
+    await showOcrPromptEditor(context);
   }
 }
 

@@ -2710,6 +2710,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarQuickPhraseTooltip => 'Quick Phrase';
 
   @override
+  String get chatInputBarOcrTooltip => 'OCR';
+
+  @override
   String get assistantEditQuickPhraseDescription =>
       'Manage quick phrases for this assistant. Click the button below to add phrases.';
 

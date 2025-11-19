@@ -2622,6 +2622,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarQuickPhraseTooltip => '快捷短语';
 
   @override
+  String get chatInputBarOcrTooltip => 'OCR 文字识别';
+
+  @override
   String get assistantEditQuickPhraseDescription => '管理该助手的快捷短语。点击下方按钮添加短语。';
 
   @override

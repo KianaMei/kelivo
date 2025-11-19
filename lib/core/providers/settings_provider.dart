@@ -23,6 +23,9 @@ class SettingsProvider extends ChangeNotifier {
   static const String _selectedModelKey = 'selected_model_v1';
   static const String _titleModelKey = 'title_model_v1';
   static const String _titlePromptKey = 'title_prompt_v1';
+  static const String _ocrModelKey = 'ocr_model_v1';
+  static const String _ocrPromptKey = 'ocr_prompt_v1';
+  static const String _ocrEnabledKey = 'ocr_enabled_v1';
   static const String _themePaletteKey = 'theme_palette_v1';
   static const String _useDynamicColorKey = 'use_dynamic_color_v1';
   static const String _thinkingBudgetKey = 'thinking_budget_v1';
@@ -250,6 +253,23 @@ class SettingsProvider extends ChangeNotifier {
     // load translate prompt
     final transp = prefs.getString(_translatePromptKey);
     _translatePrompt = (transp == null || transp.trim().isEmpty) ? defaultTranslatePrompt : transp;
+    // load OCR model
+    final ocrSel = prefs.getString(_ocrModelKey);
+    if (ocrSel != null && ocrSel.contains('::')) {
+      final parts = ocrSel.split('::');
+      if (parts.length >= 2) {
+        _ocrModelProvider = parts[0];
+        _ocrModelId = parts.sublist(1).join('::');
+      }
+    }
+    // load OCR prompt
+    final ocrp = prefs.getString(_ocrPromptKey);
+    _ocrPrompt = (ocrp == null || ocrp.trim().isEmpty) ? defaultOcrPrompt : ocrp;
+    // load OCR enabled (only effective when model is configured)
+    _ocrEnabled = prefs.getBool(_ocrEnabledKey) ?? false;
+    if (_ocrModelProvider == null || _ocrModelId == null) {
+      _ocrEnabled = false;
+    }
     // learning mode
     _learningModeEnabled = prefs.getBool(_learningModeEnabledKey) ?? false;
     final lmp = prefs.getString(_learningModePromptKey);
@@ -824,6 +844,13 @@ class SettingsProvider extends ChangeNotifier {
       _translateModelId = null;
       await prefs.remove(_translateModelKey);
     }
+    if (_ocrModelProvider == key) {
+      _ocrModelProvider = null;
+      _ocrModelId = null;
+      _ocrEnabled = false;
+      await prefs.remove(_ocrModelKey);
+      await prefs.setBool(_ocrEnabledKey, false);
+    }
 
     // Remove pinned models for this provider
     final beforePinned = _pinnedModels.length;
@@ -962,6 +989,72 @@ Please translate the <source_text> section:
   }
 
   Future<void> resetTranslatePrompt() async => setTranslatePrompt(defaultTranslatePrompt);
+
+  // OCR model, prompt and toggle
+  String? _ocrModelProvider;
+  String? _ocrModelId;
+  String? get ocrModelProvider => _ocrModelProvider;
+  String? get ocrModelId => _ocrModelId;
+  String? get ocrModelKey => (_ocrModelProvider != null && _ocrModelId != null)
+      ? '${_ocrModelProvider!}::${_ocrModelId!}'
+      : null;
+
+  static const String defaultOcrPrompt = '''You are an OCR assistant.
+
+Extract all visible text from the image and also describe any non-text elements (icons, shapes, arrows, objects, symbols, or emojis).
+
+Please ensure:
+- Preserve original formatting as much as possible
+- Keep hierarchical structure (headings, lists, tables)
+- Describe visual elements that convey meaning
+- Keep the original reading order and layout structure as much as possible.
+
+Do not interpret or translate—only transcribe and describe what is visually present.''';
+
+  String _ocrPrompt = defaultOcrPrompt;
+  String get ocrPrompt => _ocrPrompt;
+
+  bool _ocrEnabled = false;
+  bool get ocrEnabled => _ocrEnabled;
+
+  Future<void> setOcrModel(String providerKey, String modelId) async {
+    _ocrModelProvider = providerKey;
+    _ocrModelId = modelId;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_ocrModelKey, '$providerKey::$modelId');
+  }
+
+  Future<void> resetOcrModel() async {
+    _ocrModelProvider = null;
+    _ocrModelId = null;
+    _ocrEnabled = false;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_ocrModelKey);
+    await prefs.setBool(_ocrEnabledKey, false);
+  }
+
+  Future<void> setOcrPrompt(String prompt) async {
+    _ocrPrompt = prompt.trim().isEmpty ? defaultOcrPrompt : prompt;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_ocrPromptKey, _ocrPrompt);
+  }
+
+  Future<void> resetOcrPrompt() async => setOcrPrompt(defaultOcrPrompt);
+
+  Future<void> setOcrEnabled(bool value) async {
+    // If there is no OCR model configured, force disable.
+    if (_ocrModelProvider == null || _ocrModelId == null) {
+      value = false;
+    }
+    if (_ocrEnabled == value) return;
+    _ocrEnabled = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_ocrEnabledKey, value);
+  }
 
   // Learning Mode
   bool _learningModeEnabled = false;

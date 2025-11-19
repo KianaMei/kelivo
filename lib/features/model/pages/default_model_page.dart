@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/providers/settings_provider.dart';
-import 'package:provider/provider.dart';
-import '../../../icons/lucide_adapter.dart';
-import '../../../core/providers/settings_provider.dart';
-import '../widgets/model_select_sheet.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:characters/characters.dart';
+
+import '../../../core/providers/settings_provider.dart';
+import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../core/services/haptics.dart';
+import '../widgets/model_select_sheet.dart';
+import '../widgets/ocr_prompt_sheet.dart';
 
 class DefaultModelPage extends StatelessWidget {
   const DefaultModelPage({super.key});
@@ -83,6 +83,23 @@ class DefaultModelPage extends StatelessWidget {
             }
           },
           configAction: () => _showTranslatePromptSheet(context),
+        ),
+        const SizedBox(height: 16),
+        _ModelCard(
+          icon: Lucide.FileText,
+          title: 'OCR Model',
+          subtitle: 'Model for extracting text from images',
+          modelProvider: settings.ocrModelProvider,
+          modelId: settings.ocrModelId,
+          fallbackProvider: settings.currentModelProvider,
+          fallbackModelId: settings.currentModelId,
+          onPick: () async {
+            final sel = await showModelSelector(context);
+            if (sel != null) {
+              await context.read<SettingsProvider>().setOcrModel(sel.providerKey, sel.modelId);
+            }
+          },
+          configAction: () => _showOcrPromptEditor(context),
         ),
       ],
     );
@@ -257,6 +274,10 @@ class DefaultModelPage extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _showOcrPromptEditor(BuildContext context) async {
+    await showOcrPromptEditor(context);
   }
 }
 

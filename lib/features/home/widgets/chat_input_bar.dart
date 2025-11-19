@@ -77,6 +77,9 @@ class ChatInputBar extends StatefulWidget {
     this.showQuickPhraseButton = false,
     this.onQuickPhrase,
     this.onLongPressQuickPhrase,
+    this.showOcrButton = false,
+    this.ocrEnabled = false,
+    this.onToggleOcr,
     this.searchAnchorKey,
     this.reasoningAnchorKey,
     this.mcpAnchorKey,
@@ -120,6 +123,9 @@ class ChatInputBar extends StatefulWidget {
   final bool showQuickPhraseButton;
   final VoidCallback? onQuickPhrase;
   final VoidCallback? onLongPressQuickPhrase;
+  final bool showOcrButton;
+  final bool ocrEnabled;
+  final VoidCallback? onToggleOcr;
   final GlobalKey? searchAnchorKey;
   final GlobalKey? reasoningAnchorKey;
   final GlobalKey? mcpAnchorKey;
@@ -784,6 +790,16 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 icon: Lucide.Zap,
                                 onTap: widget.onQuickPhrase,
                                 onLongPress: widget.onLongPressQuickPhrase,
+                              ),
+                            ],
+                            // OCR toggle button (desktop only)
+                            if (widget.showOcrButton && widget.onToggleOcr != null && !isMobile) ...[
+                              const SizedBox(width: 8),
+                              _CompactIconButton(
+                                tooltip: AppLocalizations.of(context)!.chatInputBarOcrTooltip,
+                                icon: Lucide.FileText,
+                                active: widget.ocrEnabled,
+                                onTap: widget.onToggleOcr,
                               ),
                             ],
                             //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?

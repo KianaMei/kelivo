@@ -417,6 +417,66 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return inferred.abilities.contains(ModelAbility.reasoning);
   }
 
+  bool _isImageInputModel(String providerKey, String modelId) {
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(providerKey);
+    final ov = cfg.modelOverrides[modelId] as Map?;
+    if (ov != null) {
+      final input = (ov['input'] as List?)?.map((e) => e.toString()).toList() ?? const [];
+      if (input.map((e) => e.toLowerCase()).contains('image')) return true;
+    }
+    final inferred = ModelRegistry.infer(ModelInfo(id: modelId, displayName: modelId));
+    return inferred.input.contains(Modality.image);
+  }
+
+  Future<String?> _runOcrForImages(List<String> imagePaths) async {
+    if (imagePaths.isEmpty) return null;
+    final settings = context.read<SettingsProvider>();
+    final prov = settings.ocrModelProvider;
+    final model = settings.ocrModelId;
+    if (prov == null || model == null) return null;
+    final cfg = settings.getProviderConfig(prov);
+
+    final messages = <Map<String, dynamic>>[
+      {
+        'role': 'system',
+        'content': settings.ocrPrompt,
+      },
+      {
+        'role': 'user',
+        'content': 'Please perform OCR on the attached image(s) and return only the extracted text and visual descriptions.',
+      },
+    ];
+
+    final stream = ChatApiService.sendMessageStream(
+      config: cfg,
+      modelId: model,
+      messages: messages,
+      userImagePaths: imagePaths,
+      thinkingBudget: null,
+      temperature: 0.0,
+      topP: null,
+      maxTokens: null,
+      tools: null,
+      onToolCall: null,
+      extraHeaders: null,
+      extraBody: null,
+    );
+
+    String out = '';
+    try {
+      await for (final chunk in stream) {
+        if (chunk.content.isNotEmpty) {
+          out += chunk.content;
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    out = out.trim();
+    return out.isEmpty ? null : out;
+  }
+
   // Whether current conversation is generating
   bool get _isCurrentConversationLoading {
     final cid = _currentConversation?.id;
@@ -1132,6 +1192,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return;
     }
 
+    // OCR integration: extract text from images if model doesn't support image input
+    String ocrText = '';
+    if (settings.ocrEnabled && input.imagePaths.isNotEmpty && !_isImageInputModel(providerKey, modelId)) {
+      final extracted = await _runOcrForImages(input.imagePaths);
+      if (extracted != null && extracted.isNotEmpty) {
+        ocrText = '\n\n[OCR extracted text from images]:\n$extracted';
+      }
+    }
+
     // Add user message
     // Persist user message; append image and document markers for display
     final imageMarkers = input.imagePaths.map((p) => '\n[image:$p]').join();
@@ -1139,7 +1208,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final userMessage = await _chatService.addMessage(
       conversationId: _currentConversation!.id,
       role: 'user',
-      content: content + imageMarkers + docMarkers,
+      content: content + ocrText + imageMarkers + docMarkers,
     );
 
     setState(() {
@@ -4546,6 +4615,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                             MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
                           );
                         },
+                        showOcrButton: settings.ocrModelProvider != null && settings.ocrModelId != null,
+                        ocrEnabled: settings.ocrEnabled,
+                        onToggleOcr: () {
+                          context.read<SettingsProvider>().setOcrEnabled(!settings.ocrEnabled);
+                        },
                       );
                     },
                   ),
@@ -5667,6 +5741,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       final enabledTools = mcpProvider.getEnabledToolsForServers(selected.toSet());
                                       return enabledTools.length;
                                     })(),
+                                    showOcrButton: settings.ocrModelProvider != null && settings.ocrModelId != null,
+                                    ocrEnabled: settings.ocrEnabled,
+                                    onToggleOcr: () {
+                                      context.read<SettingsProvider>().setOcrEnabled(!settings.ocrEnabled);
+                                    },
                                   );
 
                                   input = Center(

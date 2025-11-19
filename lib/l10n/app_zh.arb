@@ -891,6 +891,7 @@
   "quickPhraseDeleteButton": "删除",
   "quickPhraseMenuTitle": "快捷短语",
   "chatInputBarQuickPhraseTooltip": "快捷短语",
+  "chatInputBarOcrTooltip": "OCR 文字识别",
   "assistantEditQuickPhraseDescription": "管理该助手的快捷短语。点击下方按钮添加短语。",
   "assistantEditManageQuickPhraseButton": "管理快捷短语",
   "assistantEditPageMemoryTab": "记忆",

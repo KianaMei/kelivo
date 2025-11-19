@@ -5135,6 +5135,12 @@ abstract class AppLocalizations {
   /// **'Quick Phrase'**
   String get chatInputBarQuickPhraseTooltip;
 
+  /// No description provided for @chatInputBarOcrTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'OCR'**
+  String get chatInputBarOcrTooltip;
+
   /// No description provided for @assistantEditQuickPhraseDescription.
   ///
   /// In en, this message translates to:
