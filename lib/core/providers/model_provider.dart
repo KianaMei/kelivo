@@ -53,7 +53,7 @@ class ModelRegistry {
           .replaceAll(' ', ''),
       caseSensitive: false);
   static final RegExp reasoning = RegExp(
-      r'(gpt-oss|o\d|gemini-2\.5-(flash|pro)|claude|qwen|doubao-1\.6|grok-4|step-3|intern-s1|glm-4\.5|deepseek-r1|gpt-5)'
+      r'(gpt-oss|o\d|gemini-(2\.5|3).*|gemini-(flash|pro)-latest|claude|qwen|doubao-1\.6|grok-4|step-3|intern-s1|glm-4\.5|deepseek-r1|gpt-5)'
           .replaceAll(' ', ''),
       caseSensitive: false);
 

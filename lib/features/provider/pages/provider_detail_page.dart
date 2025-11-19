@@ -153,7 +153,14 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     final map = <String, List<String>>{};
     for (final m in models) {
       var g = m;
-      if (m.contains('/')) {
+      // Special handling for Gemini models
+      if (m.toLowerCase().contains('gemini-3')) {
+        g = 'Gemini 3';
+      } else if (m.toLowerCase().contains('gemini-2.5') || m.toLowerCase().contains('gemini-2-5')) {
+        g = 'Gemini 2.5';
+      } else if (m.toLowerCase().contains('gemini')) {
+        g = 'Gemini';
+      } else if (m.contains('/')) {
         g = m.split('/').first;
       } else if (m.contains(':')) {
         g = m.split(':').first;

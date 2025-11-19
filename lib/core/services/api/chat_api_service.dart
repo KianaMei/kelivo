@@ -3734,6 +3734,18 @@ class ChatApiService {
                       try { args = (jsonDecode(rawArgs) as Map).cast<String, dynamic>(); } catch (_) {}
                     }
                     
+                    // Capture thought signature (Gemini 3 Pro requirement)
+                    // Preserve exact key/value as received from functionCall object
+                    String? thoughtSigKey;
+                    dynamic thoughtSigVal;
+                    if (fc.containsKey('thoughtSignature')) {
+                      thoughtSigKey = 'thoughtSignature';
+                      thoughtSigVal = fc['thoughtSignature'];
+                    } else if (fc.containsKey('thought_signature')) {
+                      thoughtSigKey = 'thought_signature';
+                      thoughtSigVal = fc['thought_signature'];
+                    }
+                    
                     final id = 'call_${DateTime.now().microsecondsSinceEpoch}';
                     // Emit placeholder immediately
                     yield ChatStreamChunk(content: '', isDone: false, totalTokens: totalTokens, usage: usage, toolCalls: [ToolCallInfo(id: id, name: name, arguments: args)]);
@@ -3742,7 +3754,14 @@ class ChatApiService {
                       resText = await onToolCall(name, args) ?? '';
                       yield ChatStreamChunk(content: '', isDone: false, totalTokens: totalTokens, usage: usage, toolResults: [ToolResultInfo(id: id, name: name, arguments: args, content: resText)]);
                     }
-                    calls.add({'id': id, 'name': name, 'args': args, 'result': resText});
+                    calls.add({
+                      'id': id,
+                      'name': name,
+                      'args': args,
+                      'result': resText,
+                      'thoughtSigKey': thoughtSigKey,
+                      'thoughtSigVal': thoughtSigVal,
+                    });
                   }
                 }
                 // Capture explicit finish reason if present
@@ -3822,8 +3841,19 @@ class ChatApiService {
          final name = (c['name'] ?? '').toString();
          final args = (c['args'] as Map<String, dynamic>? ?? const <String, dynamic>{});
          final resText = (c['result'] ?? '').toString();
+         final thoughtSigKey = c['thoughtSigKey'] as String?;
+         final thoughtSigVal = c['thoughtSigVal'];
          
-         convo.add({'role': 'model', 'parts': [{'functionCall': {'name': name, 'args': args}}]});
+         // Build the model's functionCall turn with optional thought signature
+         final functionCallObj = <String, dynamic>{
+           'name': name,
+           'args': args,
+         };
+         if (thoughtSigKey != null && thoughtSigVal != null) {
+           functionCallObj[thoughtSigKey] = thoughtSigVal;
+         }
+         
+         convo.add({'role': 'model', 'parts': [{'functionCall': functionCallObj}]});
          
          Map<String, dynamic> responseObj;
          try {

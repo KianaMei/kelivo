@@ -241,6 +241,69 @@ class _BackupPageState extends State<BackupPage> {
     }
   }
 
+  Future<T> _runWithBackupProgress<T>(BuildContext context, Future<T> Function() task) async {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 280),
+            decoration: BoxDecoration(
+              color: cs.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CupertinoActivityIndicator(radius: 16),
+                  const SizedBox(height: 16),
+                  Text(
+                    '正在备份到 WebDAV...',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: cs.onSurface),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        minHeight: 6,
+                        backgroundColor: cs.surfaceContainerHighest,
+                        valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '压缩数据并上传中...',
+                    style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    
+    try {
+      final res = await task();
+      return res;
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+  }
+
   Future<T> _runWithImportingOverlay<T>(BuildContext context, Future<T> Function() task) async {
     final cs = Theme.of(context).colorScheme;
     showDialog<void>(
@@ -440,7 +503,7 @@ class _BackupPageState extends State<BackupPage> {
                   icon: Lucide.Upload,
                   label: l10n.backupPageBackupNow,
                   onTap: vm.busy ? null : () async {
-                    await _runWithExportingOverlay(context, () => vm.backup());
+                    await _runWithBackupProgress(context, () => vm.backup());
                     if (!mounted) return;
                     final rawMessage = vm.message;
                     final message = rawMessage ?? l10n.backupPageBackupUploaded;

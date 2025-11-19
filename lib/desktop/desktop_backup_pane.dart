@@ -140,8 +140,6 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                         ),
                       ),
                       const Spacer(),
-                      if (busy) const SizedBox(width: 8),
-                      if (busy) SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.0, color: cs.primary)),
                     ],
                   ),
                 ),
@@ -294,8 +292,20 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                         dense: true,
                         onTap: busy ? (){} : () async {
                           await _saveConfig();
+                          
+                          // 显示备份进度对话框
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (ctx) => _BackupProgressDialog(),
+                          );
+                          
                           await context.read<BackupProvider>().backup();
+                          
+                          // 关闭进度对话框
                           if (!mounted) return;
+                          Navigator.of(context, rootNavigator: true).pop();
+                          
                           final rawMessage = context.read<BackupProvider>().message;
                           final message = rawMessage ?? l10n.backupPageBackupUploaded;
                           showAppSnackBar(
@@ -554,7 +564,28 @@ class _RemoteBackupsDialogState extends State<_RemoteBackupsDialog> {
                                     await context.read<BackupProvider>().restoreFromItem(it, mode: mode);
                                   }),
                                   onDelete: () async {
+                                    // 1. 显示确认对话框
+                                    final confirmed = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => _DeleteConfirmDialog(fileName: it.displayName),
+                                    );
+                                    if (confirmed != true) return;
+                                    
+                                    // 2. 显示删除进度对话框
+                                    showDialog(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder: (ctx) => _DeleteProgressDialog(),
+                                    );
+                                    
+                                    // 3. 执行删除
                                     final next = await context.read<BackupProvider>().deleteAndReload(it);
+                                    
+                                    // 4. 关闭进度对话框
+                                    if (!mounted) return;
+                                    Navigator.of(context, rootNavigator: true).pop();
+                                    
+                                    // 5. 刷新列表
                                     next.sort((a, b) {
                                       final aTime = a.lastModified;
                                       final bTime = b.lastModified;
@@ -799,4 +830,206 @@ InputDecoration _deskInputDecoration(BuildContext context) {
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
   );
+}
+
+class _BackupProgressDialog extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Dialog(
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 320, maxWidth: 400),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '正在备份到 WebDAV',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    backgroundColor: isDark 
+                        ? Colors.white.withOpacity(0.1) 
+                        : Colors.black.withOpacity(0.06),
+                    valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '压缩数据并上传中...',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeleteConfirmDialog extends StatelessWidget {
+  const _DeleteConfirmDialog({required this.fileName});
+  final String fileName;
+  
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    
+    return Dialog(
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 320, maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(lucide.Lucide.MessageCircleWarning, size: 22, color: cs.error),
+                  const SizedBox(width: 10),
+                  Text(
+                    '确认删除',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                '确定要删除备份文件吗？',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: cs.onSurface.withOpacity(0.9),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  fileName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: cs.onSurface.withOpacity(0.8),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '此操作无法撤销',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: cs.error.withOpacity(0.8),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text('取消'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: cs.error,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text('删除'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeleteProgressDialog extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Dialog(
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 320, maxWidth: 400),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '正在删除备份',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    minHeight: 8,
+                    backgroundColor: isDark 
+                        ? Colors.white.withOpacity(0.1) 
+                        : Colors.black.withOpacity(0.06),
+                    valueColor: AlwaysStoppedAnimation<Color>(cs.error),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '正在从服务器删除文件...',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

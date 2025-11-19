@@ -694,7 +694,14 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
     final map = <String, List<String>>{};
     for (final m in models) {
       var g = m;
-      if (m.contains('/')) {
+      // Special handling for Gemini models
+      if (m.toLowerCase().contains('gemini-3')) {
+        g = 'Gemini 3';
+      } else if (m.toLowerCase().contains('gemini-2.5') || m.toLowerCase().contains('gemini-2-5')) {
+        g = 'Gemini 2.5';
+      } else if (m.toLowerCase().contains('gemini')) {
+        g = 'Gemini';
+      } else if (m.contains('/')) {
         g = m.split('/').first;
       } else if (m.contains(':')) {
         g = m.split(':').first;
@@ -1275,8 +1282,9 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
     // GPT models
     if (id.contains('gpt') || RegExp(r'(^|[^a-z])o[134]').hasMatch(id)) return 'GPT';
     // Gemini
+    if (id.contains('gemini-3')) return 'Gemini 3';
+    if (id.contains('gemini-2.5') || id.contains('gemini-2-5')) return 'Gemini 2.5';
     if (id.contains('gemini-2.0')) return 'Gemini 2.0';
-    if (id.contains('gemini-2.5')) return 'Gemini 2.5';
     if (id.contains('gemini-1.5')) return 'Gemini 1.5';
     if (id.contains('gemini')) return 'Gemini';
     // Claude
