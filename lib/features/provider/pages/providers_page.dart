@@ -8,6 +8,7 @@ import '../../../utils/brand_assets.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'provider_detail_page.dart';
 import '../../../desktop/desktop_provider_detail_page.dart' show showDesktopProviderDetailDialog;
+import '../../../desktop/add_provider_dialog.dart' show showDesktopAddProviderDialog;
 import '../widgets/import_provider_sheet.dart';
 import '../widgets/add_provider_sheet.dart';
 import 'package:provider/provider.dart';
@@ -60,7 +61,17 @@ class _ProvidersPageState extends State<ProvidersPage> {
   }
 
   Future<void> _addProvider(AppLocalizations l10n) async {
-    final createdKey = await showAddProviderSheet(context);
+    final String? createdKey;
+    // Platform-specific UI: Dialog for desktop, Bottom Sheet for mobile
+    if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux) {
+      // Desktop: use dialog
+      createdKey = await showDesktopAddProviderDialog(context);
+    } else {
+      // Mobile: use bottom sheet
+      createdKey = await showAddProviderSheet(context);
+    }
     if (!mounted) return;
     if (createdKey != null && createdKey.isNotEmpty) {
       setState(() {});

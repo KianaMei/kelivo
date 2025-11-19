@@ -145,7 +145,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     _proxyPortCtrl.dispose();
     _proxyUserCtrl.dispose();
     _proxyPassCtrl.dispose();
-    _modelSearchCtrl.dispose();
     super.dispose();
   }
 

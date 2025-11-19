@@ -536,29 +536,6 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
 
           const SizedBox(height: 14),
 
-          // Add/Fetch model buttons (moved here from below models)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _DeskButton(
-                  label: l10n.providerDetailPageFetchModelsButton,
-                  filled: true,
-                  onTap: () => _fetchModels(context),
-                ),
-                const SizedBox(width: 8),
-                _DeskButton(
-                  label: l10n.addProviderSheetAddButton ?? 'Add Model',
-                  filled: false,
-                  onTap: () => _addModel(context),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
           // Models section header
           Row(
             children: [
@@ -612,9 +589,28 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
                       ),
               ),
               const SizedBox(width: 8),
-              _IconBtn(
-                icon: Lucide.HeartPulse,
-                onTap: () => _showTestConnectionDialog(context),
+              Tooltip(
+                message: l10n.providerDetailPageTestButton,
+                child: _IconBtn(
+                  icon: Lucide.HeartPulse,
+                  onTap: () => _showTestConnectionDialog(context),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Tooltip(
+                message: l10n.providerDetailPageAddNewModelButton,
+                child: _IconBtn(
+                  icon: Lucide.Plus,
+                  onTap: () => _addModel(context),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Tooltip(
+                message: l10n.providerDetailPageFetchModelsButton,
+                child: _IconBtn(
+                  icon: Lucide.RefreshCw,
+                  onTap: () => _fetchModels(context),
+                ),
               ),
             ],
           ),
