@@ -202,7 +202,7 @@ class SettingsProvider extends ChangeNotifier {
           print('[SettingsProvider]   Provider: ${entry.key}');
           if (entry.value.apiKeys != null) {
             for (var apiKey in entry.value.apiKeys!) {
-              print('[SettingsProvider]     - Key ID: ${apiKey.id}, Priority: ${apiKey.priority}');
+              // print('[SettingsProvider]     - Key ID: ${apiKey.id}, Priority: ${apiKey.priority}');
             }
           }
         }
@@ -784,11 +784,11 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> followSystem() => setThemeMode(ThemeMode.system);
 
   Future<void> setProviderConfig(String key, ProviderConfig config) async {
-    print('[SettingsProvider] setProviderConfig called for key: $key');
-    print('[SettingsProvider] API Keys count: ${config.apiKeys?.length}');
+    print('⚙️ [Settings] Updating config for: $key');
+    print('   ├─ 🔑 API Keys: ${config.apiKeys?.length ?? 0}');
     if (config.apiKeys != null) {
       for (var apiKey in config.apiKeys!) {
-        print('[SettingsProvider]   - Key ID: ${apiKey.id}, Priority: ${apiKey.priority}');
+        // print('   │  ├─ 🆔 Key ID: ${apiKey.id}, Priority: ${apiKey.priority}');
       }
     }
     _providerConfigs[key] = config;
@@ -796,9 +796,9 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final map = _providerConfigs.map((k, v) => MapEntry(k, v.toJson()));
     final json = jsonEncode(map);
-    print('[SettingsProvider] Saving to SharedPreferences...');
+    print('   ├─ 💾 Saving to storage...');
     await prefs.setString(_providerConfigsKey, json);
-    print('[SettingsProvider] Saved successfully');
+    print('   └─ ✅ Saved successfully');
   }
 
   Future<void> removeProviderConfig(String key) async {

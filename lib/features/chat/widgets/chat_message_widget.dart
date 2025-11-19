@@ -1072,6 +1072,27 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             tokenParts.add('${tokenUsage.cachedTokens}♻');
                           }
 
+                          // Extract and show timing metrics in main display
+                          try {
+                            if (widget.message.tokenUsageJson != null) {
+                              final json = jsonDecode(widget.message.tokenUsageJson!) as Map<String, dynamic>;
+                              final timeFirstTokenMs = json['time_first_token_millsec'] as int?;
+                              final tokenSpeed = json['token_speed'] as num?;
+                              
+                              // Add token speed to main display
+                              if (tokenSpeed != null && tokenSpeed > 0) {
+                                tokenParts.add('${tokenSpeed.toStringAsFixed(1)}tok/s');
+                              }
+                              
+                              // Add first token time to main display
+                              if (timeFirstTokenMs != null && timeFirstTokenMs > 0) {
+                                tokenParts.add('${timeFirstTokenMs}ms⚡');
+                              }
+                            }
+                          } catch (_) {
+                            // Ignore JSON parsing errors
+                          }
+
                           final String tokenText = tokenParts.join(' ');
 
                           // Build detailed tooltip lines
@@ -1105,6 +1126,27 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                   '  缓存: ${round['cachedTokens']}',
                                 );
                               }
+                            }
+                            
+                            // Display top-level timing metrics after rounds (Cherry Studio style)
+                            try {
+                              if (widget.message.tokenUsageJson != null) {
+                                final json = jsonDecode(widget.message.tokenUsageJson!) as Map<String, dynamic>;
+                                final timeFirstTokenMs = json['time_first_token_millsec'] as int?;
+                                final tokenSpeed = json['token_speed'] as num?;
+                                
+                                if (timeFirstTokenMs != null || tokenSpeed != null) {
+                                  tooltipLines.add('---');
+                                  if (timeFirstTokenMs != null && timeFirstTokenMs > 0) {
+                                    tooltipLines.add('首字: ${timeFirstTokenMs}ms');
+                                  }
+                                  if (tokenSpeed != null && tokenSpeed > 0) {
+                                    tooltipLines.add('速度: ${tokenSpeed.toStringAsFixed(1)} tok/s');
+                                  }
+                                }
+                              }
+                            } catch (_) {
+                              // Ignore JSON parsing errors
                             }
                           } else {
                             // If no rounds data, show totals in tooltip
@@ -3283,6 +3325,27 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                                           ),
                                         ),
                                       ],
+                                    ),
+                                  );
+                                }),
+                                // Add timing info after rounds (Cherry Studio style)
+                                const Divider(height: 16),
+                                ...widget.tooltipLines
+                                    .where((line) =>
+                                        line.contains('首字:') ||
+                                        line.contains('速度:'))
+                                    .map((line) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2,
+                                    ),
+                                    child: Text(
+                                      line,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: widget.colorScheme.onSurface,
+                                        fontFamily: 'monospace',
+                                      ),
                                     ),
                                   );
                                 }),

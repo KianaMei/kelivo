@@ -471,8 +471,11 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
     final selected = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName).models.toSet();
     final added = selected.contains(m.id);
 
-    // Debug: Print model capabilities
-    print('[ModelFetch] ${m.id}: input=${m.input}, output=${m.output}, abilities=${m.abilities}');
+    // Debug: Print model capabilities with better formatting
+    final inStr = m.input.map((e) => e.name).join(',');
+    final outStr = m.output.map((e) => e.name).join(',');
+    final abStr = m.abilities.map((e) => e.name).join(',');
+    print('📦 ${m.id.padRight(30)} | 📥 $inStr | 📤 $outStr | ✨ $abStr');
 
     // Build ability capsules with icons
     final caps = <Widget>[];

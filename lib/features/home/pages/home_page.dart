@@ -1582,6 +1582,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         if (aBody.isEmpty) aBody = null;
       }
 
+    // Timing tracking (Cherry Studio style)
+    final startTime = DateTime.now();
+    DateTime? firstTokenTime;
+
     final stream = ChatApiService.sendMessageStream(
       config: config,
       modelId: modelId,
@@ -1613,15 +1617,90 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
         // Replace extremely long inline base64 images with local files to avoid jank
         final processedContent = await MarkdownMediaSanitizer.replaceInlineBase64Images(fullContent);
-        // Serialize token usage for new messages
-        final tokenUsageJson = usage != null ? jsonEncode({
-          'promptTokens': usage!.promptTokens,
-          'completionTokens': usage!.completionTokens,
-          'cachedTokens': usage!.cachedTokens,
-          'thoughtTokens': usage!.thoughtTokens,
-          'totalTokens': usage!.totalTokens,
-          if (usage!.rounds != null) 'rounds': usage!.rounds,
-        }) : null;
+        
+        // Estimate token usage if not provided by API or if promptTokens is missing
+        TokenUsage? effectiveUsage = usage;
+        debugPrint('[TokenUsage] finish() - usage: ${usage != null ? "prompt=${usage!.promptTokens}, completion=${usage!.completionTokens}" : "null"}');
+        if (effectiveUsage == null && (processedContent.isNotEmpty || apiMessages.isNotEmpty)) {
+          // Estimate input tokens from sent messages
+          final promptChars = apiMessages.fold<int>(0, (acc, m) => acc + ((m['content'] ?? '').toString().length));
+          final approxPromptTokens = (promptChars / 4).round();
+          // Estimate output tokens from received content
+          final approxCompletionTokens = (processedContent.length / 4).round();
+          effectiveUsage = TokenUsage(
+            promptTokens: approxPromptTokens,
+            completionTokens: approxCompletionTokens,
+            totalTokens: approxPromptTokens + approxCompletionTokens,
+          );
+        } else if (effectiveUsage != null && (effectiveUsage.promptTokens == 0 || effectiveUsage.completionTokens == 0)) {
+          // Fix missing tokens: API returned usage but some token counts are 0
+          var fixedPromptTokens = effectiveUsage.promptTokens;
+          var fixedCompletionTokens = effectiveUsage.completionTokens;
+          
+          // Fix promptTokens if 0
+          if (fixedPromptTokens == 0 && apiMessages.isNotEmpty) {
+            final promptChars = apiMessages.fold<int>(0, (acc, m) => acc + ((m['content'] ?? '').toString().length));
+            fixedPromptTokens = (promptChars / 4).round();
+          }
+          
+          // Fix completionTokens if 0
+          if (fixedCompletionTokens == 0 && processedContent.isNotEmpty) {
+            fixedCompletionTokens = (processedContent.length / 4).round();
+          }
+          
+          effectiveUsage = TokenUsage(
+            promptTokens: fixedPromptTokens,
+            completionTokens: fixedCompletionTokens,
+            cachedTokens: effectiveUsage.cachedTokens,
+            thoughtTokens: effectiveUsage.thoughtTokens,
+            totalTokens: fixedPromptTokens + fixedCompletionTokens + effectiveUsage.cachedTokens + effectiveUsage.thoughtTokens,
+            rounds: effectiveUsage.rounds,
+          );
+        }
+        
+        // Calculate metrics (Cherry Studio style)
+        String? tokenUsageJson;
+        if (effectiveUsage != null) {
+          final Map<String, dynamic> tokenUsageMap = {
+            'promptTokens': effectiveUsage.promptTokens,
+            'completionTokens': effectiveUsage.completionTokens,
+            'cachedTokens': effectiveUsage.cachedTokens,
+            'thoughtTokens': effectiveUsage.thoughtTokens,
+            'totalTokens': effectiveUsage.totalTokens,
+            if (effectiveUsage.rounds != null) 'rounds': effectiveUsage.rounds,
+          };
+          
+          // Add timing metrics - always calculate even if we don't have exact firstTokenTime
+          final now = DateTime.now();
+          final firstToken = firstTokenTime;
+          
+          if (firstToken != null) {
+            // We have accurate first token timestamp
+            final timeFirstTokenMs = firstToken.difference(startTime).inMilliseconds;
+            final timeCompletionMs = now.difference(firstToken).inMilliseconds;
+            final safeCompletionMs = timeCompletionMs > 0 ? timeCompletionMs : 1;
+            final tokenSpeed = effectiveUsage.completionTokens / (safeCompletionMs / 1000.0);
+            
+            tokenUsageMap['time_first_token_millsec'] = timeFirstTokenMs;
+            tokenUsageMap['time_completion_millsec'] = timeCompletionMs;
+            tokenUsageMap['token_speed'] = double.parse(tokenSpeed.toStringAsFixed(1));
+          } else {
+            // Fallback: estimate using total time (assume first token at 10% of total time)
+            final totalMs = now.difference(startTime).inMilliseconds;
+            if (totalMs > 0 && effectiveUsage.completionTokens > 0) {
+              final estimatedFirstTokenMs = (totalMs * 0.1).round();
+              final estimatedCompletionMs = (totalMs * 0.9).round();
+              final safeCompletionMs = estimatedCompletionMs > 0 ? estimatedCompletionMs : 1;
+              final tokenSpeed = effectiveUsage.completionTokens / (safeCompletionMs / 1000.0);
+              
+              tokenUsageMap['time_first_token_millsec'] = estimatedFirstTokenMs;
+              tokenUsageMap['time_completion_millsec'] = estimatedCompletionMs;
+              tokenUsageMap['token_speed'] = double.parse(tokenSpeed.toStringAsFixed(1));
+            }
+          }
+          
+          tokenUsageJson = jsonEncode(tokenUsageMap);
+        }
         await _chatService.updateMessage(
           assistantMessage.id,
           content: processedContent,
@@ -1888,13 +1967,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               );
             }
           } else {
+            // Record first token timestamp when content arrives
+            if (chunk.content.isNotEmpty && firstTokenTime == null) {
+              firstTokenTime = DateTime.now();
+            }
+            
             fullContent += chunk.content;
             // if (chunk.totalTokens > 0) { // DEPRECATED
             //   totalTokens = chunk.totalTokens;
             // }
+            // Merge in chunk usage to accumulate totals
             if (chunk.usage != null) {
               usage = (usage ?? const TokenUsage()).merge(chunk.usage!);
-              // totalTokens = usage!.totalTokens; // DEPRECATED
+              // Debug: log when we receive usage data
+              debugPrint('[TokenUsage] Received usage in streaming: prompt=${usage!.promptTokens}, completion=${usage!.completionTokens}, total=${usage!.totalTokens}');
             }
 
             if (streamOutput) {
@@ -1936,24 +2022,50 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             }
 
             if (streamOutput) {
-              // Update UI with streaming content
+              // Build intermediate token usage JSON if we have usage data
+              String? intermediateTokenUsageJson;
+              if (usage != null) {
+                final now = DateTime.now();
+                final firstToken = firstTokenTime;
+                final Map<String, dynamic> tokenUsageMap = {
+                  'promptTokens': usage!.promptTokens,
+                  'completionTokens': usage!.completionTokens,
+                  'cachedTokens': usage!.cachedTokens,
+                  'thoughtTokens': usage!.thoughtTokens,
+                  'totalTokens': usage!.totalTokens,
+                  if (usage!.rounds != null) 'rounds': usage!.rounds,
+                };
+                // Add timing if we have first token timestamp
+                if (firstToken != null) {
+                  final timeFirstTokenMs = firstToken.difference(startTime).inMilliseconds;
+                  final timeCompletionMs = now.difference(firstToken).inMilliseconds;
+                  final safeCompletionMs = timeCompletionMs > 0 ? timeCompletionMs : 1;
+                  final tokenSpeed = usage!.completionTokens / (safeCompletionMs / 1000.0);
+                  tokenUsageMap['time_first_token_millsec'] = timeFirstTokenMs;
+                  tokenUsageMap['time_completion_millsec'] = timeCompletionMs;
+                  tokenUsageMap['token_speed'] = double.parse(tokenSpeed.toStringAsFixed(1));
+                }
+                intermediateTokenUsageJson = jsonEncode(tokenUsageMap);
+              }
+
+              // Update UI with streaming content AND intermediate token usage
               if (mounted && _currentConversation?.id == _cidForStream) {
                 setState(() {
                   final index = _messages.indexWhere((m) => m.id == assistantMessage.id);
                   if (index != -1) {
                     _messages[index] = _messages[index].copyWith(
                       content: fullContent,
-                      // totalTokens: totalTokens, // DEPRECATED
+                      tokenUsageJson: intermediateTokenUsageJson,
                     );
                   }
                 });
               }
 
-              // Persist partial content so it's saved even if interrupted
+              // Persist partial content AND intermediate token usage so it's saved even if interrupted
               await _chatService.updateMessage(
                 assistantMessage.id,
                 content: fullContent,
-                // totalTokens: totalTokens, // DEPRECATED
+                tokenUsageJson: intermediateTokenUsageJson,
               );
 
               // 婊氬姩鍒板簳閮ㄦ樉绀烘柊鍐呭锛堜粎鍦ㄦ湭澶勪簬鐢ㄦ埛婊氬姩寤惰繜闃舵鏃讹級
@@ -2571,6 +2683,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     int totalTokens = 0;
     TokenUsage? usage;
 
+    // Timing tracking (Cherry Studio style)
+    final startTime = DateTime.now();
+    DateTime? firstTokenTime;
+
     // Respect assistant streaming toggle: if off, buffer updates until done
     final bool streamOutput = assistant?.streamOutput ?? true;
     String _bufferedReasoning2 = '';
@@ -2578,14 +2694,89 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     Future<void> finish({bool generateTitle = false}) async {
       final processedContent = await MarkdownMediaSanitizer.replaceInlineBase64Images(fullContent);
-      final tokenUsageJson = usage != null ? jsonEncode({
-        'promptTokens': usage!.promptTokens,
-        'completionTokens': usage!.completionTokens,
-        'cachedTokens': usage!.cachedTokens,
-        'thoughtTokens': usage!.thoughtTokens,
-        'totalTokens': usage!.totalTokens,
-        if (usage!.rounds != null) 'rounds': usage!.rounds,
-      }) : null;
+      
+      // Estimate token usage if not provided by API or if promptTokens is missing
+      TokenUsage? effectiveUsage = usage;
+      if (effectiveUsage == null && processedContent.isNotEmpty) {
+        // Estimate input tokens from sent messages
+        final promptChars = apiMessages.fold<int>(0, (acc, m) => acc + ((m['content'] ?? '').toString().length));
+        final approxPromptTokens = (promptChars / 4).round();
+        // Estimate output tokens from received content
+        final approxCompletionTokens = (processedContent.length / 4).round();
+        effectiveUsage = TokenUsage(
+          promptTokens: approxPromptTokens,
+          completionTokens: approxCompletionTokens,
+          totalTokens: approxPromptTokens + approxCompletionTokens,
+        );
+      } else if (effectiveUsage != null && (effectiveUsage.promptTokens == 0 || effectiveUsage.completionTokens == 0)) {
+        // Fix missing tokens: API returned usage but some token counts are 0
+        var fixedPromptTokens = effectiveUsage.promptTokens;
+        var fixedCompletionTokens = effectiveUsage.completionTokens;
+        
+        // Fix promptTokens if 0
+        if (fixedPromptTokens == 0 && apiMessages.isNotEmpty) {
+          final promptChars = apiMessages.fold<int>(0, (acc, m) => acc + ((m['content'] ?? '').toString().length));
+          fixedPromptTokens = (promptChars / 4).round();
+        }
+        
+        // Fix completionTokens if 0
+        if (fixedCompletionTokens == 0 && processedContent.isNotEmpty) {
+          fixedCompletionTokens = (processedContent.length / 4).round();
+        }
+        
+        effectiveUsage = TokenUsage(
+          promptTokens: fixedPromptTokens,
+          completionTokens: fixedCompletionTokens,
+          cachedTokens: effectiveUsage.cachedTokens,
+          thoughtTokens: effectiveUsage.thoughtTokens,
+          totalTokens: fixedPromptTokens + fixedCompletionTokens + effectiveUsage.cachedTokens + effectiveUsage.thoughtTokens,
+          rounds: effectiveUsage.rounds,
+        );
+      }
+      
+      // Calculate metrics (Cherry Studio style)
+      String? tokenUsageJson;
+      if (effectiveUsage != null) {
+        final Map<String, dynamic> tokenUsageMap = {
+          'promptTokens': effectiveUsage.promptTokens,
+          'completionTokens': effectiveUsage.completionTokens,
+          'cachedTokens': effectiveUsage.cachedTokens,
+          'thoughtTokens': effectiveUsage.thoughtTokens,
+          'totalTokens': effectiveUsage.totalTokens,
+          if (effectiveUsage.rounds != null) 'rounds': effectiveUsage.rounds,
+        };
+        
+        // Add timing metrics - always calculate even if we don't have exact firstTokenTime
+        final now = DateTime.now();
+        final firstToken = firstTokenTime;
+        
+        if (firstToken != null) {
+          // We have accurate first token timestamp
+          final timeFirstTokenMs = firstToken.difference(startTime).inMilliseconds;
+          final timeCompletionMs = now.difference(firstToken).inMilliseconds;
+          final safeCompletionMs = timeCompletionMs > 0 ? timeCompletionMs : 1;
+          final tokenSpeed = effectiveUsage.completionTokens / (safeCompletionMs / 1000.0);
+          
+          tokenUsageMap['time_first_token_millsec'] = timeFirstTokenMs;
+          tokenUsageMap['time_completion_millsec'] = timeCompletionMs;
+          tokenUsageMap['token_speed'] = double.parse(tokenSpeed.toStringAsFixed(1));
+        } else {
+          // Fallback: estimate using total time (assume first token at 10% of total time)
+          final totalMs = now.difference(startTime).inMilliseconds;
+          if (totalMs > 0 && effectiveUsage.completionTokens > 0) {
+            final estimatedFirstTokenMs = (totalMs * 0.1).round();
+            final estimatedCompletionMs = (totalMs * 0.9).round();
+            final safeCompletionMs = estimatedCompletionMs > 0 ? estimatedCompletionMs : 1;
+            final tokenSpeed = effectiveUsage.completionTokens / (safeCompletionMs / 1000.0);
+            
+            tokenUsageMap['time_first_token_millsec'] = estimatedFirstTokenMs;
+            tokenUsageMap['time_completion_millsec'] = estimatedCompletionMs;
+            tokenUsageMap['token_speed'] = double.parse(tokenSpeed.toStringAsFixed(1));
+          }
+        }
+        
+        tokenUsageJson = jsonEncode(tokenUsageMap);
+      }
       await _chatService.updateMessage(assistantMessage.id, 
         content: processedContent, 
         totalTokens: null, // Don't save totalTokens for new messages
@@ -2722,6 +2913,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
 
       if (chunk.content.isNotEmpty) {
+        // Record first token timestamp when content arrives
+        if (firstTokenTime == null) {
+          firstTokenTime = DateTime.now();
+        }
+        
         fullContent += chunk.content;
 
         // Respect auto-collapse setting when main content starts: always stop timer, collapse only if enabled
@@ -3799,7 +3995,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           );
                           final gid = (message.groupId ?? message.id);
                           final vers = (byGroup[gid] ?? const <ChatMessage>[]).toList()..sort((a,b)=>a.version.compareTo(b.version));
-                          final selectedIdx = _versionSelections[gid] ?? (vers.isNotEmpty ? vers.length - 1 : 0);
+                          int selectedIdx = _versionSelections[gid] ?? (vers.isNotEmpty ? vers.length - 1 : 0);
+                          if (selectedIdx < 0) selectedIdx = 0;
+                          if (vers.length > 0 && selectedIdx > vers.length - 1) selectedIdx = vers.length - 1;
                           final total = vers.length;
                           final showMsgNav = context.watch<SettingsProvider>().showMessageNavButtons;
                           final effectiveTotal = showMsgNav ? total : 1;
@@ -3990,14 +4188,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     setState(() {
                                       if (newMsg != null) {
                                         _messages.add(newMsg);
-                                        final gid = (newMsg.groupId ?? newMsg.id);
-                                        _versionSelections[gid] = newMsg.version;
+                                        final gid2 = (newMsg.groupId ?? newMsg.id);
+                                        _versionSelections[gid2] = newMsg.version;
                                       }
                                     });
                                     try {
                                       if (newMsg != null && _currentConversation != null) {
-                                        final gid = (newMsg.groupId ?? newMsg.id);
-                                        await _chatService.setSelectedVersion(_currentConversation!.id, gid, newMsg.version);
+                                        final gid2 = (newMsg.groupId ?? newMsg.id);
+                                        await _chatService.setSelectedVersion(_currentConversation!.id, gid2, newMsg.version);
                                       }
                                     } catch (_) {}
                                   }
@@ -4887,7 +5085,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       );
                                       final gid = (message.groupId ?? message.id);
                                       final vers = (byGroup[gid] ?? const <ChatMessage>[]).toList()..sort((a,b)=>a.version.compareTo(b.version));
-                                      final selectedIdx = _versionSelections[gid] ?? (vers.isNotEmpty ? vers.length - 1 : 0);
+                                      int selectedIdx = _versionSelections[gid] ?? (vers.isNotEmpty ? vers.length - 1 : 0);
+                                      if (selectedIdx < 0) selectedIdx = 0;
+                                      if (vers.length > 0 && selectedIdx > vers.length - 1) selectedIdx = vers.length - 1;
                                       final total = vers.length;
                                       final showMsgNav = context.watch<SettingsProvider>().showMessageNavButtons;
                                       final effectiveTotal = showMsgNav ? total : 1;
@@ -6099,3 +6299,4 @@ class _GlassCircleButtonSmallState extends State<_GlassCircleButtonSmall> {
     );
   }
 }
+ 

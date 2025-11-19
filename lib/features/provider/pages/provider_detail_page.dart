@@ -105,6 +105,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   // Model grouping state
   final Set<String> _collapsedGroups = {};
 
+
   @override
   void initState() {
     super.initState();
@@ -144,6 +145,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     _proxyPortCtrl.dispose();
     _proxyUserCtrl.dispose();
     _proxyPassCtrl.dispose();
+    _modelSearchCtrl.dispose();
     super.dispose();
   }
 

@@ -1338,9 +1338,13 @@ class ChatApiService {
                       final rc = delta?['reasoning_content'] ?? delta?['reasoning'];
                       final u = o['usage'];
                       if (u != null) {
-                        final prompt = (u['prompt_tokens'] ?? 0) as int;
+                        var prompt = (u['prompt_tokens'] ?? 0) as int;
                         final completion = (u['completion_tokens'] ?? 0) as int;
                         final cached = (u['prompt_tokens_details']?['cached_tokens'] ?? 0) as int? ?? 0;
+                        // Fix: If API returns usage but prompt_tokens is 0, use approximation
+                        if (prompt == 0 && approxPromptTokens > 0) {
+                          prompt = approxPromptTokens;
+                        }
                         usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: prompt, completionTokens: completion, cachedTokens: cached));
                         totalTokens = usage!.totalTokens;
                       }
@@ -2158,6 +2162,7 @@ class ChatApiService {
                     final func = t['function'] as Map<String, dynamic>?;
                     final name = func?['name'] as String?;
                     final argsDelta = func?['arguments'] as String?;
+                    
                     final entry = toolAcc.putIfAbsent(idx, () => {'id': '', 'name': '', 'args': ''});
                     if (id != null) entry['id'] = id;
                     if (name != null && name.isNotEmpty) entry['name'] = name;
@@ -2198,9 +2203,13 @@ class ChatApiService {
             }
             final u = json['usage'];
             if (u != null) {
-              final prompt = (u['prompt_tokens'] ?? 0) as int;
+              var prompt = (u['prompt_tokens'] ?? 0) as int;
               final completion = (u['completion_tokens'] ?? 0) as int;
               final cached = (u['prompt_tokens_details']?['cached_tokens'] ?? 0) as int? ?? 0;
+              // Fix: If API returns usage but prompt_tokens is 0, use approximation
+              if (prompt == 0 && approxPromptTokens > 0) {
+                prompt = approxPromptTokens;
+              }
               usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: prompt, completionTokens: completion, cachedTokens: cached));
               totalTokens = usage!.totalTokens;
             }
@@ -2370,6 +2379,7 @@ class ChatApiService {
                   body2[k] = (v is String) ? _parseOverrideValue(v) : v;
                 });
               }
+
               final req2 = http.Request('POST', url);
               final headers2 = <String, String>{
                 'Authorization': 'Bearer ${_effectiveApiKey(config)}',
@@ -2380,6 +2390,7 @@ class ChatApiService {
               if (extraHeaders != null && extraHeaders.isNotEmpty) headers2.addAll(extraHeaders);
               req2.headers.addAll(headers2);
               req2.body = jsonEncode(body2);
+
               final resp2 = await client.send(req2);
               if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
                 final errorBody = await resp2.stream.bytesToString();
@@ -2411,9 +2422,13 @@ class ChatApiService {
                       final rc = delta?['reasoning_content'] ?? delta?['reasoning'];
                       final u = o['usage'];
                       if (u != null) {
-                        final prompt = (u['prompt_tokens'] ?? 0) as int;
+                        var prompt = (u['prompt_tokens'] ?? 0) as int;
                         final completion = (u['completion_tokens'] ?? 0) as int;
                         final cached = (u['prompt_tokens_details']?['cached_tokens'] ?? 0) as int? ?? 0;
+                        // Fix: If API returns usage but prompt_tokens is 0, use approximation
+                        if (prompt == 0 && approxPromptTokens > 0) {
+                          prompt = approxPromptTokens;
+                        }
                         usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: prompt, completionTokens: completion, cachedTokens: cached));
                         totalTokens = usage!.totalTokens;
                       }
@@ -2746,9 +2761,13 @@ class ChatApiService {
                           final rc = delta?['reasoning_content'] ?? delta?['reasoning'];
                           final u = o['usage'];
                           if (u != null) {
-                            final prompt = (u['prompt_tokens'] ?? 0) as int;
+                            var prompt = (u['prompt_tokens'] ?? 0) as int;
                             final completion = (u['completion_tokens'] ?? 0) as int;
                             final cached = (u['prompt_tokens_details']?['cached_tokens'] ?? 0) as int? ?? 0;
+                            // Fix: If API returns usage but prompt_tokens is 0, use approximation
+                            if (prompt == 0 && approxPromptTokens > 0) {
+                              prompt = approxPromptTokens;
+                            }
                             usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: prompt, completionTokens: completion, cachedTokens: cached));
                             totalTokens = usage!.totalTokens;
                           }
@@ -3599,6 +3618,11 @@ class ChatApiService {
           (body as Map<String, dynamic>)[k] = (v is String) ? _parseOverrideValue(v) : v;
         });
       }
+      
+      // DEBUG LOG: Print full request body for ALL Google requests to debug 400 error
+      print('DEBUG [Google] Request URL: $uri');
+      print('DEBUG [Google] Request Body: ${jsonEncode(body)}');
+
       request.body = jsonEncode(body);
 
       final resp = await client.send(request);
@@ -3611,7 +3635,7 @@ class ChatApiService {
       String buffer = '';
       // Collect any function calls in this round
       final List<Map<String, dynamic>> calls = <Map<String, dynamic>>[]; // {id,name,args,res}
-
+      
       // Track a streaming inline image (append base64 progressively)
       bool _imageOpen = false; // true after we emit the data URL prefix
       String _imageMime = 'image/png';
@@ -3680,6 +3704,7 @@ class ChatApiService {
                       _receivedImage = true;
                     }
                   }
+                  
                   // Parse fileData: { fileUri: 'https://...', mimeType: 'image/png' }
                   final fileData = (p['fileData'] ?? p['file_data']);
                   if (fileData is Map) {
@@ -3708,6 +3733,7 @@ class ChatApiService {
                     } else if (rawArgs is String && rawArgs.isNotEmpty) {
                       try { args = (jsonDecode(rawArgs) as Map).cast<String, dynamic>(); } catch (_) {}
                     }
+                    
                     final id = 'call_${DateTime.now().microsecondsSinceEpoch}';
                     // Emit placeholder immediately
                     yield ChatStreamChunk(content: '', isDone: false, totalTokens: totalTokens, usage: usage, toolCalls: [ToolCallInfo(id: id, name: name, arguments: args)]);
@@ -3793,26 +3819,21 @@ class ChatApiService {
 
       // Append model functionCall(s) and user functionResponse(s) to conversation, then loop
       for (final c in calls) {
-        final name = (c['name'] ?? '').toString();
-        final args = (c['args'] as Map<String, dynamic>? ?? const <String, dynamic>{});
-        final resText = (c['result'] ?? '').toString();
-        // Add the model's functionCall turn
-        convo.add({'role': 'model', 'parts': [
-          {'functionCall': {'name': name, 'args': args}},
-        ]});
-        // Prepare JSON response object
-        Map<String, dynamic> responseObj;
-        try {
-          responseObj = (jsonDecode(resText) as Map).cast<String, dynamic>();
-        } catch (_) {
-          // Wrap plain text result
-          responseObj = {'result': resText};
-        }
-        // Add user's functionResponse turn
-        convo.add({'role': 'user', 'parts': [
-          {'functionResponse': {'name': name, 'response': responseObj}},
-        ]});
+         final name = (c['name'] ?? '').toString();
+         final args = (c['args'] as Map<String, dynamic>? ?? const <String, dynamic>{});
+         final resText = (c['result'] ?? '').toString();
+         
+         convo.add({'role': 'model', 'parts': [{'functionCall': {'name': name, 'args': args}}]});
+         
+         Map<String, dynamic> responseObj;
+         try {
+           responseObj = (jsonDecode(resText) as Map).cast<String, dynamic>();
+         } catch (_) {
+           responseObj = {'result': resText};
+         }
+         convo.add({'role': 'user', 'parts': [{'functionResponse': {'name': name, 'response': responseObj}}]});
       }
+
       // Continue while(true) for next round
     }
   }
