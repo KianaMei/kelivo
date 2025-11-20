@@ -13,6 +13,7 @@ import '../core/services/chat/chat_service.dart';
 import '../core/services/backup/cherry_importer.dart';
 import '../shared/widgets/ios_switch.dart';
 import '../shared/widgets/snackbar.dart';
+import '../utils/restart_widget.dart';
 
 class DesktopBackupPane extends StatefulWidget {
   const DesktopBackupPane({super.key});
@@ -105,7 +106,13 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
         title: Text(l10n.backupPageRestartRequired),
         content: Text(l10n.backupPageRestartContent),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(l10n.backupPageOK)),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await RestartWidget.restartApp(context);
+            },
+            child: Text(l10n.backupPageOK),
+          ),
         ],
       ),
     );
@@ -371,7 +378,15 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           title: Text(l10n.backupPageRestartRequired),
                           content: Text(l10n.backupPageRestartContent),
-                          actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.backupPageOK))],
+                          actions: [
+                            TextButton(
+                              onPressed: () async {
+                                Navigator.of(context).pop();
+                                await RestartWidget.restartApp(context);
+                              },
+                              child: Text(l10n.backupPageOK),
+                            ),
+                          ],
                         ));
                       } catch (e) {
                         await showDialog(context: context, builder: (_) => AlertDialog(
@@ -516,7 +531,15 @@ class _RemoteBackupsDialogState extends State<_RemoteBackupsDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(l10n.backupPageRestartRequired),
       content: Text(l10n.backupPageRestartContent),
-      actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(l10n.backupPageOK))],
+      actions: [
+        TextButton(
+          onPressed: () async {
+            Navigator.of(context).pop();
+            await RestartWidget.restartApp(context);
+          },
+          child: Text(l10n.backupPageOK),
+        ),
+      ],
     ));
   }
 
