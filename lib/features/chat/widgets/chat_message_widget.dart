@@ -1367,6 +1367,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                               child: MarkdownWithCodeHighlight(
                                 text: contentWithoutThink,
                                 onCitationTap: (id) => _handleCitationTap(id),
+                                isStreaming: widget.message.role == 'assistant' && widget.message.isStreaming,
                               ),
                             ),
                           ),
@@ -1492,6 +1493,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                               onCitationTap:
                                                   (id) =>
                                                       _handleCitationTap(id),
+                                              isStreaming: false, // Translation is not streamed
                                             ),
                                           ),
                                         ),
@@ -2826,6 +2828,7 @@ class _ReasoningSectionState extends State<_ReasoningSection>
         child: MarkdownWithCodeHighlight(
           text: display.isNotEmpty ? display : '…',
           baseStyle: baseStyle,
+          isStreaming: false, // User messages are not streamed
         ),
       ),
     );
@@ -2874,6 +2877,7 @@ class _ReasoningSectionState extends State<_ReasoningSection>
                           child: MarkdownWithCodeHighlight(
                             text: display.isNotEmpty ? display : '…',
                             baseStyle: baseStyle,
+                            isStreaming: false,
                           ),
                         ),
                       ),
@@ -2886,6 +2890,7 @@ class _ReasoningSectionState extends State<_ReasoningSection>
                       child: MarkdownWithCodeHighlight(
                         text: display.isNotEmpty ? display : '…',
                         baseStyle: baseStyle,
+                        isStreaming: false,
                       ),
                     ),
                   ),

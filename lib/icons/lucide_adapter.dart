@@ -136,4 +136,6 @@ class Lucide {
   static const IconData Repeat = lucide.LucideIcons.repeat;
   static const IconData EthernetPort = lucide.LucideIcons.ethernetPort;
   static const IconData Cut = lucide.LucideIcons.scissors;
+  static const IconData Columns2 = lucide.LucideIcons.columns2;
+  static const IconData ExternalLink = lucide.LucideIcons.externalLink;
 }

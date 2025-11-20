@@ -21,6 +21,8 @@ import 'package:kelivo/theme/theme_factory.dart' show kDefaultFontFamilyFallback
 import 'package:provider/provider.dart';
 import '../../core/providers/settings_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'html_artifacts_card.dart';
+import 'html_preview_dialog.dart';
 
 /// gpt_markdown with custom code block highlight and inline code styling.
 class MarkdownWithCodeHighlight extends StatelessWidget {
@@ -29,11 +31,13 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     required this.text,
     this.onCitationTap,
     this.baseStyle,
+    this.isStreaming = false, // Streaming state for special code blocks
   });
 
   final String text;
   final void Function(String id)? onCitationTap;
   final TextStyle? baseStyle; // optional override for base markdown text style
+  final bool isStreaming; // Whether the message is currently streaming
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +63,11 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
     if (cbIdx != -1) components[cbIdx] = ModernCheckBoxMd();
     final rbIdx = components.indexWhere((c) => c is RadioButtonMd);
     if (rbIdx != -1) components[rbIdx] = ModernRadioMd();
+    // Remove default FencedCodeBlock if exists (we'll replace with our custom one)
+    components.removeWhere((c) {
+      final typeName = c.runtimeType.toString();
+      return typeName.contains('FencedCode') || typeName.contains('CodeBlock');
+    });
     // Prepend custom renderers in priority order (fence first)
     components.insert(0, LabelValueLineMd());
     // Conditionally add LaTeX/math renderers
@@ -75,7 +84,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       }
     }
     components.insert(0, AtxHeadingMd());
-    components.insert(0, FencedCodeBlockMd());
+    // Wrap FencedCodeBlockMd to provide streaming context
+    components.insert(0, FencedCodeBlockMd(fullText: text, isStreaming: isStreaming));
     final markdownConfig = GptMarkdownConfig(
       textDirection: Directionality.of(context),
       style: baseTextStyle,
@@ -1097,9 +1107,28 @@ class SoftHrLine extends BlockMd {
 
 // Robust fenced code block that takes precedence over other blocks
 class FencedCodeBlockMd extends BlockMd {
+  final String fullText;
+  final bool isStreaming;
+
+  FencedCodeBlockMd({this.fullText = '', this.isStreaming = false});
+
   @override
   // Match ```lang\n...\n``` at line starts. Non-greedy to stop at first closing fence.
-  String get expString => (r"^\s*```([^\n`]*)\s*\n([\s\S]*?)\n```$");
+  // More tolerant: optional whitespace before/after closing fence
+  String get expString => (r"^\s*```([^\n`]*)\s*\n([\s\S]*?)\n```\s*$");
+
+  /// 检测当前代码块是否处于流式生成中（未闭合）
+  bool _detectStreamingState(String lang) {
+    if (!isStreaming || fullText.isEmpty) return false;
+    
+    // 检测 ```html 是否有配对的 ```
+    final openPattern = '```$lang';
+    final openCount = openPattern.allMatches(fullText).length;
+    final closeCount = '```'.allMatches(fullText).length;
+    
+    // 如果 ```html 出现次数多于总的 ``` 闭合次数，说明有未闭合的
+    return closeCount < openCount * 2;
+  }
 
   @override
   Widget build(BuildContext context, String text, GptMarkdownConfig config) {
@@ -1107,6 +1136,16 @@ class FencedCodeBlockMd extends BlockMd {
     if (m == null) return const SizedBox.shrink();
     final lang = (m.group(1) ?? '').trim();
     final code = (m.group(2) ?? '');
+    
+    // Special handling for HTML: render as artifacts card
+    if (lang.toLowerCase() == 'html') {
+      return HtmlArtifactsCard(
+        html: code,
+        isStreaming: _detectStreamingState(lang.toLowerCase()),
+        onPreview: () => showHtmlPreviewDialog(context, code),
+      );
+    }
+    
     if (lang.toLowerCase() == 'mermaid') {
       return _MermaidBlock(code: code);
     }
