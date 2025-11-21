@@ -1301,6 +1301,30 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get multiKeyPageDelete;
 
+  /// No description provided for @multiKeyPageEnableAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable All'**
+  String get multiKeyPageEnableAll;
+
+  /// No description provided for @multiKeyPageDisableAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable All'**
+  String get multiKeyPageDisableAll;
+
+  /// No description provided for @multiKeyPageDeleteAllErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Errors'**
+  String get multiKeyPageDeleteAllErrors;
+
+  /// No description provided for @multiKeyPageCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get multiKeyPageCopy;
+
   /// No description provided for @assistantEditSystemPromptTitle.
   ///
   /// In en, this message translates to:

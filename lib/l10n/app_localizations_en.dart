@@ -640,6 +640,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get multiKeyPageDelete => 'Delete';
 
   @override
+  String get multiKeyPageEnableAll => 'Enable All';
+
+  @override
+  String get multiKeyPageDisableAll => 'Disable All';
+
+  @override
+  String get multiKeyPageDeleteAllErrors => 'Delete Errors';
+
+  @override
+  String get multiKeyPageCopy => 'Copy';
+
+  @override
   String get assistantEditSystemPromptTitle => 'System Prompt';
 
   @override

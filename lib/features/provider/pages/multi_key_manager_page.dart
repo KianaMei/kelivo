@@ -29,11 +29,48 @@ class MultiKeyManagerPage extends StatefulWidget {
 class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
   String? _detectModelId;
   bool _detecting = false;
-  final Set<String> _revealedKeyIds = <String>{};
+  final Set<String> _hiddenKeyIds = <String>{};
+  ApiKeyStatus? _filterStatus;
 
-  String _revealToken(ApiKeyConfig k, int index) => '${index}_${k.id}_${k.key.hashCode}';
+  String _revealToken(ApiKeyConfig k, int index) => '${k.id}_$index';
 
-  // Helper: Convert ApiKeyManager state to ApiKeyStatus enum for UI
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fixDuplicateIds();
+    });
+  }
+
+  void _fixDuplicateIds() {
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+    final rawKeys = cfg.apiKeys ?? const <ApiKeyConfig>[];
+    final seenIds = <String>{};
+    final apiKeys = <ApiKeyConfig>[];
+    bool needsFixing = false;
+    int fixCounter = 0;
+
+    for (final key in rawKeys) {
+      if (seenIds.add(key.id)) {
+        apiKeys.add(key);
+      } else {
+        print('[MultiKey] WARNING: Duplicate ID "${key.id}" found');
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final rnd = (DateTime.now().microsecondsSinceEpoch % 1000000000).toRadixString(36);
+        final newId = 'key_${ts}_${rnd}_fix$fixCounter';
+        fixCounter++;
+        apiKeys.add(key.copyWith(id: newId));
+        seenIds.add(newId);
+        needsFixing = true;
+      }
+    }
+
+    if (needsFixing) {
+      settings.setProviderConfig(widget.providerKey, cfg.copyWith(apiKeys: apiKeys));
+    }
+  }
+
   ApiKeyStatus _getKeyStatus(String keyId) {
     final state = ApiKeyManager().getKeyState(keyId);
     final status = state?.status ?? 'active';
@@ -56,48 +93,8 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
-
-    // CRITICAL FIX: Fix duplicate Key IDs by regenerating IDs for duplicates
-    // while preserving all other data (key value, priority, name, etc.)
-    final rawKeys = cfg.apiKeys ?? const <ApiKeyConfig>[];
-    final seenIds = <String>{};
-    final apiKeys = <ApiKeyConfig>[];
-    bool needsFixing = false;
-    int fixCounter = 0; // Counter to ensure unique IDs in same loop
-
-    for (final key in rawKeys) {
-      if (seenIds.add(key.id)) {
-        // First occurrence - keep as is
-        apiKeys.add(key);
-      } else {
-        // Duplicate ID found - regenerate UNIQUE ID but preserve all other data
-        print('[MultiKey] WARNING: Duplicate ID "${key.id}" found for key "${key.key.substring(0, 8)}..."');
-        print('[MultiKey]   Regenerating new ID while preserving data (priority: ${key.priority})');
-
-        // Generate unique ID with counter to avoid collision in same loop
-        final ts = DateTime.now().millisecondsSinceEpoch;
-        final rnd = (DateTime.now().microsecondsSinceEpoch % 1000000000).toRadixString(36);
-        final newId = 'key_${ts}_${rnd}_fix$fixCounter';
-        fixCounter++;
-
-        // Use copyWith to preserve ALL fields while only changing ID
-        final fixed = key.copyWith(id: newId);
-
-        apiKeys.add(fixed);
-        seenIds.add(newId); // CRITICAL: Add new ID to seen set to avoid re-duplication
-        needsFixing = true;
-        print('[MultiKey]   New ID generated: $newId');
-      }
-    }
-
-    // If duplicates were fixed, save the corrected data
-    if (needsFixing) {
-      print('[MultiKey] Auto-fixing $fixCounter duplicate IDs...');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        settings.setProviderConfig(widget.providerKey, cfg.copyWith(apiKeys: apiKeys));
-      });
-    }
-
+    
+    final apiKeys = cfg.apiKeys ?? const <ApiKeyConfig>[];
     final total = apiKeys.length;
     final normal = apiKeys.where((k) {
       final state = ApiKeyManager().getKeyState(k.id);
@@ -107,7 +104,10 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       final state = ApiKeyManager().getKeyState(k.id);
       return state?.status == 'error';
     }).length;
-    // accuracy metric removed from UI; no longer needed
+
+    final filteredKeys = _filterStatus == null
+        ? apiKeys
+        : apiKeys.where((k) => _getKeyStatus(k.id) == _filterStatus).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -131,14 +131,40 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
               onTap: _copyAllKeys,
             ),
           ),
-          Tooltip(
-            message: l10n.multiKeyPageDeleteErrorsTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Trash2,
-              color: cs.onSurface,
-              semanticLabel: l10n.multiKeyPageDeleteErrorsTooltip,
-              onTap: _onDeleteAllErrorKeys,
-            ),
+          PopupMenuButton<String>(
+            icon: Icon(Lucide.MoreVertical, color: cs.onSurface),
+            tooltip: l10n.providerDetailPageManageSectionTitle,
+            onSelected: (v) {
+              if (v == 'enable_all') _onEnableAll();
+              if (v == 'disable_all') _onDisableAll();
+              if (v == 'delete_errors') _onDeleteAllErrorKeys();
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'enable_all',
+                child: Row(children: [
+                  Icon(Lucide.circleDot, size: 18, color: cs.primary),
+                  const SizedBox(width: 12),
+                  const Text('启用所有'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'disable_all',
+                child: Row(children: [
+                  Icon(Lucide.CircleX, size: 18, color: cs.onSurface.withOpacity(0.7)),
+                  const SizedBox(width: 12),
+                  const Text('禁用所有'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'delete_errors',
+                child: Row(children: [
+                  Icon(Lucide.Trash2, size: 18, color: cs.error),
+                  const SizedBox(width: 12),
+                  Text(l10n.multiKeyPageDeleteErrorsTooltip, style: TextStyle(color: cs.error)),
+                ]),
+              ),
+            ],
           ),
           if (_detecting)
             Padding(
@@ -172,39 +198,64 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
           const SizedBox(width: 12),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      body: Column(
         children: [
-          _iosSectionCard(children: [
-            _iosRow(
-              context,
-              label: l10n.multiKeyPageTotal,
-              trailing: Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Text('$total', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-              ),
+          _buildFilterBar(context, total, normal, errors),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: [
+                _iosSectionCard(children: [
+                  _strategyRow(context, cfg),
+                ]),
+                const SizedBox(height: 12),
+                _keysList(context, filteredKeys),
+              ],
             ),
-            _iosRow(
-              context,
-              label: l10n.multiKeyPageNormal,
-              trailing: Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Text('$normal', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-              ),
-            ),
-            _iosRow(
-              context,
-              label: l10n.multiKeyPageError,
-              trailing: Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Text('$errors', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-              ),
-            ),
-            _strategyRow(context, cfg),
-          ]),
-          const SizedBox(height: 12),
-          _keysList(context, apiKeys),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterBar(BuildContext context, int total, int normal, int errors) {
+    final cs = Theme.of(context).colorScheme;
+    
+    Widget chip(String label, int count, ApiKeyStatus? status, Color color) {
+      final isSelected = _filterStatus == status;
+      return FilterChip(
+        label: Text('$label ($count)'),
+        selected: isSelected,
+        onSelected: (_) => setState(() => _filterStatus = isSelected ? null : status),
+        backgroundColor: cs.surfaceContainerHighest.withOpacity(0.5),
+        selectedColor: color.withOpacity(0.15),
+        checkmarkColor: color,
+        labelStyle: TextStyle(
+          color: isSelected ? color : cs.onSurface,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 13,
+        ),
+        side: BorderSide.none,
+        shape: const StadiumBorder(),
+        showCheckmark: false,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+        visualDensity: VisualDensity.compact,
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            chip('全部', total, null, cs.primary),
+            const SizedBox(width: 8),
+            chip('正常', normal, ApiKeyStatus.active, Colors.green),
+            const SizedBox(width: 8),
+            chip('错误', errors, ApiKeyStatus.error, cs.error),
+          ],
+        ),
       ),
     );
   }
@@ -334,11 +385,20 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
   Widget _keysList(BuildContext context, List<ApiKeyConfig> keys) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    
     if (keys.isEmpty) {
       return _iosSectionCard(children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          child: Center(child: Text(l10n.multiKeyPageNoKeys)),
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(Lucide.Search, size: 32, color: cs.onSurface.withOpacity(0.3)),
+                const SizedBox(height: 8),
+                Text(l10n.multiKeyPageNoKeys, style: TextStyle(color: cs.onSurface.withOpacity(0.5))),
+              ],
+            ),
+          ),
         )
       ]);
     }
@@ -348,11 +408,11 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
         case ApiKeyStatus.active:
           return Colors.green;
         case ApiKeyStatus.disabled:
-          return cs.onSurface.withOpacity(0.6);
+          return cs.onSurface.withOpacity(0.5);
         case ApiKeyStatus.error:
           return cs.error;
         case ApiKeyStatus.rateLimited:
-          return cs.tertiary;
+          return Colors.orange;
       }
     }
 
@@ -369,25 +429,30 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       }
     }
 
+    final canReorder = _filterStatus == null;
+
     return _iosSectionCard(
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false, // Hide default drag handles
-            itemCount: keys.length,
-            onReorder: (oldIndex, newIndex) => _onReorderKeys(oldIndex, newIndex, keys),
-            itemBuilder: (context, index) {
-              final key = keys[index];
-              return ReorderableDragStartListener(
-                key: ValueKey(key.id),
-                index: index,
-                child: _keyRow(context, key, index, statusColor, statusText),
-              );
-            },
-          ),
+          child: canReorder
+            ? ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                itemCount: keys.length,
+                onReorder: (oldIndex, newIndex) => _onReorderKeys(oldIndex, newIndex, keys),
+                itemBuilder: (context, index) {
+                  final key = keys[index];
+                  return _keyRow(context, key, index, statusColor, statusText, canReorder: true);
+                },
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: keys.length,
+                itemBuilder: (context, index) => _keyRow(context, keys[index], index, statusColor, statusText, canReorder: false),
+              ),
         ),
       ],
     );
@@ -423,10 +488,15 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     int index,
     Color Function(ApiKeyStatus) statusColor,
     String Function(ApiKeyStatus) statusText,
+    {required bool canReorder}
   ) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final keyStatus = _getKeyStatus(k.id);
     final keyError = _getKeyError(k.id);
+    final isDesktop = defaultTargetPlatform == TargetPlatform.windows || 
+                      defaultTargetPlatform == TargetPlatform.linux || 
+                      defaultTargetPlatform == TargetPlatform.macOS;
 
     String mask(String key) {
       if (key.length <= 8) return key;
@@ -434,140 +504,211 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     }
 
     final token = _revealToken(k, index);
-    final bool isRevealed = _revealedKeyIds.contains(token);
+    final bool isHidden = _hiddenKeyIds.contains(token);
     final alias = (k.name ?? '').trim();
-    final keyLabel = isRevealed ? k.key : mask(k.key);
-    final display = alias.isNotEmpty ? alias : keyLabel;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    final keyLabel = isHidden ? mask(k.key) : k.key;
+    final hasAlias = alias.isNotEmpty;
+    final display = hasAlias ? alias : keyLabel;
+
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
+          Container(
+            width: 3,
+            height: 32,
+            decoration: BoxDecoration(
+              color: statusColor(keyStatus),
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+          const SizedBox(width: 14),
           Expanded(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GestureDetector(
-                  onTap: (keyStatus == ApiKeyStatus.error || keyStatus == ApiKeyStatus.rateLimited) && keyError != null
-                      ? () => _showErrorDetails(k)
-                      : null,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: statusColor(keyStatus).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(999),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        display,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          statusText(keyStatus),
-                          style: TextStyle(color: statusColor(keyStatus), fontSize: 11),
+                    if (k.priority <= 10) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: cs.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                        if ((keyStatus == ApiKeyStatus.error || keyStatus == ApiKeyStatus.rateLimited) && keyError != null) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            Lucide.info,
-                            size: 11,
-                            color: statusColor(keyStatus),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                        child: Text('P${k.priority}', style: TextStyle(color: cs.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: cs.primary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999),
+                if (hasAlias) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    keyLabel,
+                    style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6), fontFamily: 'monospace'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  child: Text(
-                    'P${k.priority}',
-                    style: TextStyle(color: cs.primary, fontSize: 11),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          display,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        if (alias.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              keyLabel,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: cs.onSurface.withOpacity(0.7),
-                              ),
-                            ),
-                          ),
-                      ],
+                ],
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      statusText(keyStatus),
+                      style: TextStyle(color: statusColor(keyStatus), fontSize: 12),
                     ),
-                  ),
+                    if (keyError != null) ...[
+                      const SizedBox(width: 4),
+                      Icon(Lucide.info, size: 12, color: statusColor(keyStatus)),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
+          Tooltip(
+            message: l10n.multiKeyPageCopy,
+            child: _TactileIconButton(
+              icon: Lucide.Copy,
+              color: cs.onSurface.withOpacity(0.4),
+              size: 16,
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: k.key));
+                if (!context.mounted) return;
+                showAppSnackBar(context, message: l10n.multiKeyPageCopy, type: NotificationType.success);
+              },
+            ),
+          ),
+          const SizedBox(width: 4),
           _TactileIconButton(
-            icon: isRevealed ? Lucide.EyeOff : Lucide.Eye,
-            color: cs.onSurface.withOpacity(0.8),
+            icon: isHidden ? Lucide.Eye : Lucide.EyeOff,
+            color: cs.onSurface.withOpacity(0.4),
+            size: 16,
             onTap: () {
               setState(() {
-                if (isRevealed) {
-                  _revealedKeyIds.remove(token);
+                if (isHidden) {
+                  _hiddenKeyIds.remove(token);
                 } else {
-                  _revealedKeyIds.add(token);
+                  _hiddenKeyIds.add(token);
                 }
               });
             },
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
           IosSwitch(
             value: k.isEnabled,
             onChanged: (v) async {
               await _updateKey(k.copyWith(isEnabled: v));
             },
-            width: 46,
-            height: 28,
+            width: 40,
+            height: 24,
           ),
-          const SizedBox(width: 4),
-          _TactileIconButton(
-            icon: Lucide.HeartPulse,
-            color: cs.primary,
-            semanticLabel: AppLocalizations.of(context)!.multiKeyPageDetect,
-            onTap: () async {
-              await _testSingleKeyInteractive(k);
-            },
-          ),
-          const SizedBox(width: 4),
-          _TactileIconButton(
-            icon: Lucide.Pencil,
-            color: cs.primary,
-            semanticLabel: AppLocalizations.of(context)!.multiKeyPageEdit,
-            onTap: () async {
-              await _editKey(k);
-            },
-          ),
-          const SizedBox(width: 4),
-          _TactileIconButton(
-            icon: Lucide.Trash2,
-            color: cs.error,
-            semanticLabel: AppLocalizations.of(context)!.multiKeyPageDelete,
-            onTap: () async {
-              await _deleteKey(k);
-            },
-          ),
+          if (isDesktop) ...[
+            const SizedBox(width: 4),
+            _TactileIconButton(
+              icon: Lucide.Pencil,
+              color: cs.primary,
+              size: 16,
+              semanticLabel: l10n.multiKeyPageEdit,
+              onTap: () async {
+                await _editKey(k);
+              },
+            ),
+            const SizedBox(width: 4),
+            _TactileIconButton(
+              icon: Lucide.Trash2,
+              color: cs.error,
+              size: 16,
+              semanticLabel: l10n.multiKeyPageDelete,
+              onTap: () async {
+                await _deleteKey(k);
+              },
+            ),
+          ],
+          if (canReorder) ...[
+            const SizedBox(width: 8),
+            ReorderableDragStartListener(
+              index: index,
+              child: Icon(Lucide.GripVertical, color: cs.onSurface.withOpacity(0.2), size: 20),
+            ),
+          ],
         ],
       ),
     );
+
+    if (isDesktop) {
+      return InkWell(
+        key: ValueKey(k.id),
+        onTap: () => _editKey(k),
+        onLongPress: () => _testSingleKeyInteractive(k),
+        child: content,
+      );
+    }
+
+    return Dismissible(
+      key: ValueKey(k.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: cs.error,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        child: const Icon(Lucide.Trash2, color: Colors.white),
+      ),
+      confirmDismiss: (direction) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.multiKeyPageDelete),
+            content: Text(l10n.multiKeyPageDeleteErrorsConfirmTitle),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(l10n.multiKeyPageCancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: TextButton.styleFrom(foregroundColor: cs.error),
+                child: Text(l10n.multiKeyPageDelete),
+              ),
+            ],
+          ),
+        );
+      },
+      onDismissed: (_) => _deleteKey(k),
+      child: InkWell(
+        onTap: () => _editKey(k),
+        onLongPress: () => _testSingleKeyInteractive(k),
+        child: content,
+      ),
+    );
+  }
+
+  Future<void> _onEnableAll() async {
+    await _updateAllKeys((k) => k.copyWith(isEnabled: true));
+  }
+
+  Future<void> _onDisableAll() async {
+    await _updateAllKeys((k) => k.copyWith(isEnabled: false));
+  }
+
+  Future<void> _updateAllKeys(ApiKeyConfig Function(ApiKeyConfig) updateFn) async {
+    final settings = context.read<SettingsProvider>();
+    final cfg = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
+    final keys = List<ApiKeyConfig>.from(cfg.apiKeys ?? []);
+    for (int i = 0; i < keys.length; i++) {
+      keys[i] = updateFn(keys[i]);
+    }
+    await settings.setProviderConfig(widget.providerKey, cfg.copyWith(apiKeys: keys));
   }
 
   // iOS-style section container

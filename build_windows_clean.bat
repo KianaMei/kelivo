@@ -60,6 +60,7 @@ echo [OK] 'flutter pub get' completed successfully.
 
 rem Step 4: call build_windows_simple.bat
 echo [BUILD] Running 'build_windows_simple.bat'...
+set "NO_PAUSE=1"
 call "%~dp0build_windows_simple.bat"
 set "FINAL_EXITCODE=%errorlevel%"
 
@@ -81,5 +82,6 @@ if not defined FINAL_EXITCODE (
 rem Restore original directory if pushd succeeded
 popd >nul 2>&1
 
+echo [INFO] Build finished at: %date% %time%
 echo [EXIT] build_windows_clean.bat exiting with code %FINAL_EXITCODE%.
 endlocal & exit /b %FINAL_EXITCODE%

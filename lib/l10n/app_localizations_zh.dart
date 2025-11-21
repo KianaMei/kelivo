@@ -627,6 +627,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get multiKeyPageDelete => '删除';
 
   @override
+  String get multiKeyPageEnableAll => '启用所有';
+
+  @override
+  String get multiKeyPageDisableAll => '禁用所有';
+
+  @override
+  String get multiKeyPageDeleteAllErrors => '删除错误';
+
+  @override
+  String get multiKeyPageCopy => '复制';
+
+  @override
   String get assistantEditSystemPromptTitle => '系统提示词';
 
   @override

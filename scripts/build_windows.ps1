@@ -41,6 +41,13 @@ Param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Try to kill existing instances to unlock files
+Write-Host "Checking for running kelivo instances..." -ForegroundColor Gray
+Stop-Process -Name "kelivo" -ErrorAction SilentlyContinue -Force
+if (Get-Process -Name "kelivo" -ErrorAction SilentlyContinue) {
+    Write-Warning "Could not stop kelivo.exe. Please close it manually."
+}
+
 function Write-Section($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
 function Write-Info($msg) { Write-Host $msg -ForegroundColor Gray }
 function Write-Ok($msg) { Write-Host $msg -ForegroundColor Green }
@@ -210,6 +217,9 @@ try {
 
   Write-Info "Copying runtime files to $outDir"
   Copy-Item -Path (Join-Path $buildDir '*') -Destination $outDir -Recurse -Force
+
+  # Wait a bit to ensure file handles are released (helps with AV scanning)
+  Start-Sleep -Seconds 2
 
   $zipPath = Join-Path $distRoot 'kelivo-windows-x64.zip'
   if (Test-Path $zipPath) { Remove-Item -Force $zipPath }

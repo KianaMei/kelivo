@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'package:flutter/foundation.dart';
+import 'dart:ui';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import '../../../core/services/haptics.dart';
@@ -1098,10 +1098,11 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           // Build detailed tooltip lines
                           final List<String> tooltipLines = [];
 
-                          // If we have rounds data, show each round (without totals)
+                          // Unified display format
+                          // Show rounds only if there are multiple rounds
                           if (tokenUsage.rounds != null &&
-                              tokenUsage.rounds!.isNotEmpty) {
-                            // Only show individual rounds, no totals
+                              tokenUsage.rounds!.length > 1) {
+                            // Multiple rounds: show each round
                             for (
                               int i = 0;
                               i < tokenUsage.rounds!.length;
@@ -1127,44 +1128,46 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 );
                               }
                             }
-                            
-                            // Display top-level timing metrics after rounds (Cherry Studio style)
-                            try {
-                              if (widget.message.tokenUsageJson != null) {
-                                final json = jsonDecode(widget.message.tokenUsageJson!) as Map<String, dynamic>;
-                                final timeFirstTokenMs = json['time_first_token_millsec'] as int?;
-                                final tokenSpeed = json['token_speed'] as num?;
-                                
-                                if (timeFirstTokenMs != null || tokenSpeed != null) {
-                                  tooltipLines.add('---');
-                                  if (timeFirstTokenMs != null && timeFirstTokenMs > 0) {
-                                    tooltipLines.add('首字: ${timeFirstTokenMs}ms');
-                                  }
-                                  if (tokenSpeed != null && tokenSpeed > 0) {
-                                    tooltipLines.add('速度: ${tokenSpeed.toStringAsFixed(1)} tok/s');
-                                  }
+                            tooltipLines.add('---');
+                            tooltipLines.add('总计:');
+                          }
+                          
+                          // Always show totals (for single round or no rounds)
+                          tooltipLines.add('输入: ${tokenUsage.promptTokens}');
+                          tooltipLines.add(
+                            '输出: ${tokenUsage.completionTokens}',
+                          );
+                          if (tokenUsage.thoughtTokens > 0) {
+                            tooltipLines.add(
+                              '思考: ${tokenUsage.thoughtTokens}',
+                            );
+                          }
+                          if (tokenUsage.cachedTokens > 0) {
+                            tooltipLines.add(
+                              '缓存: ${tokenUsage.cachedTokens}',
+                            );
+                          }
+                          tooltipLines.add('总计: ${tokenUsage.totalTokens}');
+                          
+                          // Display timing metrics if available
+                          try {
+                            if (widget.message.tokenUsageJson != null) {
+                              final json = jsonDecode(widget.message.tokenUsageJson!) as Map<String, dynamic>;
+                              final timeFirstTokenMs = json['time_first_token_millsec'] as int?;
+                              final tokenSpeed = json['token_speed'] as num?;
+                              
+                              if (timeFirstTokenMs != null || tokenSpeed != null) {
+                                tooltipLines.add('---');
+                                if (timeFirstTokenMs != null && timeFirstTokenMs > 0) {
+                                  tooltipLines.add('首字: ${timeFirstTokenMs}ms');
+                                }
+                                if (tokenSpeed != null && tokenSpeed > 0) {
+                                  tooltipLines.add('速度: ${tokenSpeed.toStringAsFixed(1)} tok/s');
                                 }
                               }
-                            } catch (_) {
-                              // Ignore JSON parsing errors
                             }
-                          } else {
-                            // If no rounds data, show totals in tooltip
-                            tooltipLines.add('输入: ${tokenUsage.promptTokens}');
-                            tooltipLines.add(
-                              '输出: ${tokenUsage.completionTokens}',
-                            );
-                            if (tokenUsage.thoughtTokens > 0) {
-                              tooltipLines.add(
-                                '思考: ${tokenUsage.thoughtTokens}',
-                              );
-                            }
-                            if (tokenUsage.cachedTokens > 0) {
-                              tooltipLines.add(
-                                '缓存: ${tokenUsage.cachedTokens}',
-                              );
-                            }
-                            tooltipLines.add('总计: ${tokenUsage.totalTokens}');
+                          } catch (_) {
+                            // Ignore JSON parsing errors
                           }
 
                           rowChildren.add(
@@ -3153,7 +3156,12 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
   }
 
   void _showOverlay(BuildContext context) {
-    _removeOverlay();
+    // Save current expanded state before removing old overlay
+    final shouldShowBackground = _isExpanded;
+    
+    // Remove old overlay entry without resetting state
+    _overlayEntry?.remove();
+    _overlayEntry = null;
 
     final overlay = Overlay.of(context);
     final renderBox = context.findRenderObject() as RenderBox?;
@@ -3168,7 +3176,7 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
             children: [
               // Transparent background to capture taps outside the card (for mobile only)
               // Don't use this for desktop as it interferes with MouseRegion hover detection
-              if (_isExpanded) // Only show background when explicitly tapped (mobile)
+              if (shouldShowBackground) // Only show background when explicitly tapped (mobile)
                 GestureDetector(
                   onTap: _handleOutsideTap,
                   behavior: HitTestBehavior.opaque,
@@ -3196,166 +3204,71 @@ class _TokenUsageDisplayState extends State<_TokenUsageDisplay> {
                       // Prevent taps on the card itself from closing it
                     },
                     child: Material(
-                      elevation: 4,
-                      borderRadius: BorderRadius.circular(8),
-                      color: widget.colorScheme.surface,
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 300),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: widget.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: widget.colorScheme.outline.withOpacity(0.2),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                      color: Colors.transparent,
+                      elevation: 0,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 300), // Keep max width just in case
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
                             ),
-                          ],
-                        ),
-                        child: SelectionArea(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Only show basic tooltip info if no rounds data
-                              if (widget.rounds == null ||
-                                  widget.rounds!.isEmpty)
-                                ...widget.tooltipLines.map((line) {
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 2,
-                                    ),
-                                    child: Text(
-                                      line,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: widget.colorScheme.onSurface,
-                                        fontFamily: 'monospace',
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              // Show rounds breakdown if available
-                              if (widget.rounds != null &&
-                                  widget.rounds!.isNotEmpty) ...[
-                                ...widget.rounds!.asMap().entries.map((entry) {
-                                  final idx = entry.key;
-                                  final round = entry.value;
-                                  final prompt = round['promptTokens'] ?? 0;
-                                  final completion =
-                                      round['completionTokens'] ?? 0;
-                                  final thought = round['thoughtTokens'] ?? 0;
-                                  final cached = round['cachedTokens'] ?? 0;
-
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '第 ${idx + 1} 轮:',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: widget.colorScheme.primary
-                                                .withOpacity(0.8),
-                                            fontFamily: 'monospace',
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 8,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                '  输入↓: $prompt',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: widget
-                                                      .colorScheme
-                                                      .onSurface
-                                                      .withOpacity(0.8),
-                                                  fontFamily: 'monospace',
-                                                ),
-                                              ),
-                                              Text(
-                                                '  输出↑: $completion',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: widget
-                                                      .colorScheme
-                                                      .onSurface
-                                                      .withOpacity(0.8),
-                                                  fontFamily: 'monospace',
-                                                ),
-                                              ),
-                                              if (thought > 0)
-                                                Text(
-                                                  '  思考💭: $thought',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: widget
-                                                        .colorScheme
-                                                        .onSurface
-                                                        .withOpacity(0.8),
-                                                    fontFamily: 'monospace',
-                                                  ),
-                                                ),
-                                              if (cached > 0)
-                                                Text(
-                                                  '  缓存♻: $cached',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: widget
-                                                        .colorScheme
-                                                        .primary
-                                                        .withOpacity(0.8),
-                                                    fontFamily: 'monospace',
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                                // Add timing info after rounds (Cherry Studio style)
-                                const Divider(height: 16),
-                                ...widget.tooltipLines
-                                    .where((line) =>
-                                        line.contains('首字:') ||
-                                        line.contains('速度:'))
-                                    .map((line) {
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 2,
-                                    ),
-                                    child: Text(
-                                      line,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: widget.colorScheme.onSurface,
-                                        fontFamily: 'monospace',
-                                      ),
-                                    ),
-                                  );
-                                }),
+                            decoration: BoxDecoration(
+                              color: widget.colorScheme.surface.withOpacity(0.85),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: widget.colorScheme.outlineVariant.withOpacity(0.4),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
                               ],
-                            ],
+                            ),
+                            child: SelectionArea(
+                              child: IntrinsicWidth(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: widget.tooltipLines.map((line) {
+                                    final isDivider = line == '---';
+                                    final isHeader = line.endsWith(':') && !line.startsWith(' ');
+                                    final isSubItem = line.startsWith('  ');
+                                    
+                                    if (isDivider) {
+                                      return Container(
+                                        height: 1,
+                                        margin: const EdgeInsets.symmetric(vertical: 6),
+                                        color: widget.colorScheme.outlineVariant.withOpacity(0.5),
+                                      );
+                                    }
+                                    
+                                    return Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: isHeader ? 3 : 1.5,
+                                      ),
+                                      child: Text(
+                                        line,
+                                        style: TextStyle(
+                                          fontSize: isHeader ? 12 : 11,
+                                          fontWeight: isHeader ? FontWeight.w600 : FontWeight.normal,
+                                          color: isHeader 
+                                            ? widget.colorScheme.primary.withOpacity(0.9)
+                                            : widget.colorScheme.onSurface.withOpacity(isSubItem ? 0.7 : 0.9),
+                                          fontFamily: 'monospace',
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),

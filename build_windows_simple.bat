@@ -78,8 +78,10 @@ set "FINAL=3"
 goto :PAUSE_AND_EXIT
 
 :PAUSE_AND_EXIT
+if "%NO_PAUSE%"=="1" goto :SKIP_PAUSE
 echo Press any key to close this window...
 pause >nul
+:SKIP_PAUSE
 if defined PUSHDONE (
   popd
 )
