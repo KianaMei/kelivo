@@ -34,6 +34,7 @@ import '../utils/sandbox_path_resolver.dart';
 import '../utils/platform_utils.dart';
 import '../shared/widgets/snackbar.dart';
 import '../features/assistant/pages/assistant_settings_edit_page.dart' show showAssistantDesktopDialog;
+import '_sidebar_resize_handle.dart';
 
 /// Desktop settings layout: left menu + vertical divider + right content.
 /// All settings pages are now implemented.
@@ -59,6 +60,22 @@ enum _SettingsMenuItem {
 
 class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
   _SettingsMenuItem _selected = _SettingsMenuItem.display;
+  double _menuWidth = 256;
+  static const double _menuMinWidth = 200;
+  static const double _menuMaxWidth = 480;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final sp = context.read<SettingsProvider>();
+        setState(() {
+          _menuWidth = sp.desktopSettingsSidebarWidth.clamp(_menuMinWidth, _menuMaxWidth);
+        });
+      } catch (_) {}
+    });
+  }
 
   Widget _buildBody(_SettingsMenuItem item) {
     switch (item) {
@@ -114,8 +131,6 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
           return l10n.settingsPageAbout;
       }
     }
-
-    const double menuWidth = 256;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final topBar = SizedBox(
       height: 36,
@@ -146,14 +161,21 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _SettingsMenu(
-                  width: 256,
+                  width: _menuWidth,
                   selected: _selected,
                   onSelect: (it) => setState(() => _selected = it),
                 ),
-                VerticalDivider(
-                  width: 1,
-                  thickness: 0.5,
-                  color: cs.outlineVariant.withOpacity(0.12),
+                SidebarResizeHandle(
+                  onDrag: (dx) {
+                    setState(() {
+                      _menuWidth = (_menuWidth + dx).clamp(_menuMinWidth, _menuMaxWidth);
+                    });
+                  },
+                  onDragEnd: () {
+                    try {
+                      context.read<SettingsProvider>().setDesktopSettingsSidebarWidth(_menuWidth);
+                    } catch (_) {}
+                  },
                 ),
                 Expanded(
                   child: AnimatedSwitcher(

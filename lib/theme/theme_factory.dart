@@ -1,6 +1,7 @@
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../utils/platform_utils.dart';
 
 // CJK/Latin fallback to stabilize fontWeight (w100–w600) on iOS for Chinese
@@ -12,15 +13,31 @@ const List<String> kDefaultFontFamilyFallback = <String>[
 ];
 
 // Windows font fallback with emoji support (from kelivo-remote)
+// Microsoft YaHei prioritized for better Chinese rendering
 const List<String> kWindowsFontFamilyFallback = <String>[
-  'Twemoji Country Flags',
-  'Segoe UI',
+  'Microsoft YaHei UI',
   'Microsoft YaHei',
+  'Segoe UI',
+  'PingFang SC',
   'SimHei',
 ];
 
 TextTheme _withFontFallback(TextTheme base, List<String> fallback) {
-  TextStyle? f(TextStyle? s) => s?.copyWith(fontFamilyFallback: fallback);
+  // Windows: Use Noto Sans SC and increase font size by 1.5pt for better readability
+  final isWindows = PlatformUtils.isWindows;
+  final sizeOffset = isWindows ? 1.5 : 0.0;
+  final windowsFont = isWindows ? GoogleFonts.notoSansSc().fontFamily : null;
+  
+  TextStyle? f(TextStyle? s) {
+    if (s == null) return null;
+    final fontSize = s.fontSize;
+    return s.copyWith(
+      fontFamily: windowsFont,
+      fontFamilyFallback: fallback,
+      fontSize: fontSize != null ? fontSize + sizeOffset : null,
+    );
+  }
+  
   return base.copyWith(
     displayLarge: f(base.displayLarge),
     displayMedium: f(base.displayMedium),
@@ -166,11 +183,13 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
       scrolledUnderElevation: 0,
       centerTitle: false,
       foregroundColor: Colors.black,
-      titleTextStyle: const TextStyle(
+      titleTextStyle: TextStyle(
         color: Colors.black,
-        fontSize: 18,
+        fontSize: PlatformUtils.isWindows ? 19.0 : 18.0,
         fontWeight: FontWeight.w600,
-      ).copyWith(fontFamilyFallback: fallback),
+        fontFamily: PlatformUtils.isWindows ? GoogleFonts.notoSansSc().fontFamily : null,
+        fontFamilyFallback: fallback,
+      ),
       iconTheme: const IconThemeData(color: Colors.black),
       actionsIconTheme: const IconThemeData(color: Colors.black),
       systemOverlayStyle: const SystemUiOverlayStyle(
@@ -227,11 +246,13 @@ ThemeData buildLightThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynam
       scrolledUnderElevation: 0,
       centerTitle: false,
       foregroundColor: Colors.black,
-      titleTextStyle: const TextStyle(
+      titleTextStyle: TextStyle(
         color: Colors.black,
-        fontSize: 18,
+        fontSize: PlatformUtils.isWindows ? 19.0 : 18.0,
         fontWeight: FontWeight.w600,
-      ).copyWith(fontFamilyFallback: fallback),
+        fontFamily: PlatformUtils.isWindows ? GoogleFonts.notoSansSc().fontFamily : null,
+        fontFamilyFallback: fallback,
+      ),
       iconTheme: const IconThemeData(color: Colors.black),
       actionsIconTheme: const IconThemeData(color: Colors.black),
       systemOverlayStyle: SystemUiOverlayStyle(
@@ -309,11 +330,13 @@ ThemeData buildDarkTheme(ColorScheme? dynamicScheme) {
       scrolledUnderElevation: 0,
       centerTitle: false,
       foregroundColor: Colors.white,
-      titleTextStyle: const TextStyle(
+      titleTextStyle: TextStyle(
         color: Colors.white,
-        fontSize: 18,
+        fontSize: PlatformUtils.isWindows ? 19.0 : 18.0,
         fontWeight: FontWeight.w600,
-      ).copyWith(fontFamilyFallback: fallback),
+        fontFamily: PlatformUtils.isWindows ? GoogleFonts.notoSansSc().fontFamily : null,
+        fontFamilyFallback: fallback,
+      ),
       iconTheme: const IconThemeData(color: Colors.white),
       actionsIconTheme: const IconThemeData(color: Colors.white),
       systemOverlayStyle: const SystemUiOverlayStyle(
@@ -369,11 +392,13 @@ ThemeData buildDarkThemeForScheme(ColorScheme staticScheme, {ColorScheme? dynami
       scrolledUnderElevation: 0,
       centerTitle: false,
       foregroundColor: Colors.white,
-      titleTextStyle: const TextStyle(
+      titleTextStyle: TextStyle(
         color: Colors.white,
-        fontSize: 18,
+        fontSize: PlatformUtils.isWindows ? 19.0 : 18.0,
         fontWeight: FontWeight.w600,
-      ).copyWith(fontFamilyFallback: fallback),
+        fontFamily: PlatformUtils.isWindows ? GoogleFonts.notoSansSc().fontFamily : null,
+        fontFamilyFallback: fallback,
+      ),
       iconTheme: const IconThemeData(color: Colors.white),
       actionsIconTheme: const IconThemeData(color: Colors.white),
       systemOverlayStyle: SystemUiOverlayStyle(

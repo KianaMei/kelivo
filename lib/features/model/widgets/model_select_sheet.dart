@@ -194,14 +194,10 @@ Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitPr
   }
 
   // Mobile: keep original bottom sheet
-  final cs = Theme.of(context).colorScheme;
   return showModalBottomSheet<ModelSelection>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
+    backgroundColor: Colors.transparent,
     builder: (ctx) => _ModelSelectSheetMobile(limitProviderKey: limitProviderKey),
   );
 }
@@ -445,9 +441,9 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
           padding: MediaQuery.of(context).viewInsets,
           duration: const Duration(milliseconds: 150),
           child: DraggableScrollableSheet(
-            initialChildSize: 0.85,
-            minChildSize: 0.5,
-            maxChildSize: 0.95,
+            initialChildSize: 0.7,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
             builder: (context, scrollController) {
               return Material(
                 color: cs.surface,

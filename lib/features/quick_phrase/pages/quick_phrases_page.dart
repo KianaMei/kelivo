@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -33,21 +34,40 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Desktop: use Dialog, Mobile: use BottomSheet
+    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
 
-    final result = await showModalBottomSheet<Map<String, String>?>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return _QuickPhraseEditSheet(
-          phrase: phrase,
-          assistantId: widget.assistantId,
-        );
-      },
-    );
+    final Map<String, String>? result;
+    
+    if (isDesktop) {
+      result = await showDialog<Map<String, String>?>(
+        context: context,
+        builder: (ctx) {
+          return _QuickPhraseEditDialog(
+            phrase: phrase,
+            assistantId: widget.assistantId,
+          );
+        },
+      );
+    } else {
+      result = await showModalBottomSheet<Map<String, String>?>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: cs.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (ctx) {
+          return _QuickPhraseEditSheet(
+            phrase: phrase,
+            assistantId: widget.assistantId,
+          );
+        },
+      );
+    }
 
     if (result != null) {
       final title = result['title']?.trim() ?? '';
@@ -600,6 +620,171 @@ class _IosFilledButtonState extends State<_IosFilledButton> {
           alignment: Alignment.center,
           decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(12)),
           child: Text(widget.label, style: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.w600)),
+        ),
+      ),
+    );
+  }
+}
+
+// Desktop Dialog version
+class _QuickPhraseEditDialog extends StatefulWidget {
+  const _QuickPhraseEditDialog({
+    required this.phrase,
+    required this.assistantId,
+  });
+
+  final QuickPhrase? phrase;
+  final String? assistantId;
+
+  @override
+  State<_QuickPhraseEditDialog> createState() => _QuickPhraseEditDialogState();
+}
+
+class _QuickPhraseEditDialogState extends State<_QuickPhraseEditDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _contentController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.phrase?.title ?? '');
+    _contentController = TextEditingController(
+      text: widget.phrase?.content ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Dialog(
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.phrase == null
+                    ? l10n.quickPhraseAddTitle
+                    : l10n.quickPhraseEditTitle,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _titleController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: l10n.quickPhraseTitleLabel,
+                  filled: true,
+                  fillColor: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF2F3F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: cs.outlineVariant.withOpacity(0.4),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: cs.outlineVariant.withOpacity(0.4),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: cs.primary, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _contentController,
+                maxLines: 6,
+                decoration: InputDecoration(
+                  labelText: l10n.quickPhraseContentLabel,
+                  alignLabelWithHint: true,
+                  filled: true,
+                  fillColor: isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFF2F3F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: cs.outlineVariant.withOpacity(0.4),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: cs.outlineVariant.withOpacity(0.4),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: cs.primary, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(color: cs.outline.withOpacity(0.5)),
+                      ),
+                      child: Text(
+                        l10n.quickPhraseCancelButton,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.of(context).pop({
+                          'title': _titleController.text,
+                          'content': _contentController.text,
+                        });
+                      },
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: cs.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        l10n.quickPhraseSaveButton,
+                        style: TextStyle(
+                          color: cs.onPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

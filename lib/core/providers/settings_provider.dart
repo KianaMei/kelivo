@@ -88,6 +88,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _desktopTopicPositionKey = 'desktop_topic_position_v1';
   static const String _desktopRightSidebarOpenKey = 'desktop_right_sidebar_open_v1';
   static const String _desktopRightSidebarWidthKey = 'desktop_right_sidebar_width_v1';
+  static const String _desktopSettingsSidebarWidthKey = 'desktop_settings_sidebar_width_v1';
   // Android background chat generation mode
   static const String _androidBackgroundChatModeKey = 'android_background_chat_mode_v1';
   // Desktop: close window behavior (minimize to tray or exit)
@@ -121,6 +122,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get desktopSidebarOpen => _desktopSidebarOpen;
   double _desktopRightSidebarWidth = 300;
   double get desktopRightSidebarWidth => _desktopRightSidebarWidth;
+  double _desktopSettingsSidebarWidth = 256;
+  double get desktopSettingsSidebarWidth => _desktopSettingsSidebarWidth;
   bool _desktopAutoSwitchTopics = false;
   bool get desktopAutoSwitchTopics => _desktopAutoSwitchTopics;
 
@@ -350,6 +353,7 @@ class SettingsProvider extends ChangeNotifier {
     _desktopSidebarWidth = prefs.getDouble(_desktopSidebarWidthKey) ?? 300;
     _desktopSidebarOpen = prefs.getBool(_desktopSidebarOpenKey) ?? true;
     _desktopRightSidebarWidth = prefs.getDouble(_desktopRightSidebarWidthKey) ?? 300;
+    _desktopSettingsSidebarWidth = prefs.getDouble(_desktopSettingsSidebarWidthKey) ?? 256;
     // desktop: topic panel placement + right sidebar open state
     final topicPos = prefs.getString(_desktopTopicPositionKey);
     switch (topicPos) {
@@ -554,6 +558,15 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_desktopRightSidebarWidthKey, _desktopRightSidebarWidth);
+  }
+
+  Future<void> setDesktopSettingsSidebarWidth(double width) async {
+    final w = width.clamp(200.0, 480.0).toDouble();
+    if ((w - _desktopSettingsSidebarWidth).abs() < 0.5) return;
+    _desktopSettingsSidebarWidth = w;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_desktopSettingsSidebarWidthKey, _desktopSettingsSidebarWidth);
   }
 
   // Desktop: topic panel placement (left/right)
