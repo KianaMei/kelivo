@@ -165,6 +165,13 @@ jobs:
       - name: Build Windows app
         run: flutter build windows --release --no-tree-shake-icons
 
+      - name: Get version number
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern "version:" | ForEach-Object { $_.Line.Split(":")[1].Trim().Split("+")[0] })
+          echo "VERSION=$version" >> $env:GITHUB_ENV
+          Write-Host "Version: $version"
+
       - name: Create portable package
         shell: pwsh
         run: |
@@ -214,6 +221,71 @@ jobs:
           $zipSize = (Get-Item "kelivo-windows-x64.zip").Length / 1MB
           Write-Host "✓ Created kelivo-windows-x64.zip (${zipSize:N2} MB)"
 
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Create Inno Setup installer
+        shell: pwsh
+        run: |
+          Write-Host "Creating Inno Setup installer..."
+
+          # Create Inno Setup script
+          $issContent = @"
+          #define MyAppName "Kelivo"
+          #define MyAppVersion "$env:VERSION"
+          #define MyAppPublisher "Kelivo Team"
+          #define MyAppExeName "kelivo.exe"
+
+          [Setup]
+          AppId={{K3L1V0-A1B2-C3D4-E5F6-123456789ABC}}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppPublisher}
+          DefaultDirName={autopf}\{#MyAppName}
+          DefaultGroupName={#MyAppName}
+          OutputDir=.
+          OutputBaseFilename=kelivo-windows-{#MyAppVersion}-setup
+          Compression=lzma2
+          SolidCompression=yes
+          WizardStyle=modern
+          ArchitecturesInstallIn64BitMode=x64
+          ArchitecturesAllowed=x64
+          UninstallDisplayIcon={app}\{#MyAppExeName}
+
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+          Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
+
+          [Files]
+          Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+          Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
+          Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+          "@
+
+          # Save with UTF-8 BOM for proper Chinese character handling
+          $issContent | Out-File -FilePath "installer.iss" -Encoding utf8BOM
+
+          # Compile installer
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"
+
+          # Verify installer was created
+          $installerFile = Get-ChildItem -Filter "kelivo-windows-*-setup.exe" | Select-Object -First 1
+          if ($installerFile) {
+            $installerSize = $installerFile.Length / 1MB
+            Write-Host "✓ Created $($installerFile.Name) (${installerSize:N2} MB)"
+          } else {
+            throw "ERROR: Installer file not created!"
+          }
+
       - name: Upload to latest release
         uses: softprops/action-gh-release@v2
         with:
@@ -227,8 +299,11 @@ jobs:
 
             ### 下载
             - Android APK (arm64, armeabi-v7a, x86_64)
-            - Windows x64 便携版
-          files: kelivo-windows-x64.zip
+            - Windows x64 便携版 (ZIP)
+            - Windows x64 安装程序 (EXE)
+          files: |
+            kelivo-windows-x64.zip
+            kelivo-windows-*-setup.exe
           prerelease: true
           make_latest: false
 
