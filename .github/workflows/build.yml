@@ -229,6 +229,45 @@ jobs:
         run: |
           Write-Host "Creating Inno Setup installer..."
 
+          # Check for Chinese language file and download if missing
+          $zhLangCompiler = "C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl"
+          $zhLangLocalDir = Join-Path (Get-Location) "Languages"
+          $zhLangLocal = Join-Path $zhLangLocalDir "ChineseSimplified.isl"
+          $languagesBlock = $null
+
+          if (Test-Path $zhLangCompiler) {
+            Write-Host "✅ Found Chinese language file: $zhLangCompiler"
+            $languagesBlock = @"
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+          Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+          "@
+          } else {
+            Write-Host "⚠️ Chinese language file not found in Inno Setup directory, attempting download..."
+            try {
+              New-Item -ItemType Directory -Force -Path $zhLangLocalDir | Out-Null
+              $uri = 'https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/ChineseSimplified.isl'
+              Invoke-WebRequest -Uri $uri -OutFile $zhLangLocal -UseBasicParsing -TimeoutSec 60
+              if (Test-Path $zhLangLocal) {
+                Write-Host "✅ Downloaded Chinese language file: $zhLangLocal"
+                $languagesBlock = @"
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+          Name: "chinesesimplified"; MessagesFile: "$zhLangLocal"
+          "@
+              }
+            } catch {
+              Write-Host "⚠️ Failed to download Chinese language file: $($_.Exception.Message)"
+            }
+            if (-not $languagesBlock) {
+              Write-Host "ℹ️ Falling back to English-only installer"
+              $languagesBlock = @"
+          [Languages]
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+          "@
+            }
+          }
+
           # Create Inno Setup script
           $issContent = @"
           #define MyAppName "Kelivo"
@@ -252,9 +291,7 @@ jobs:
           ArchitecturesAllowed=x64
           UninstallDisplayIcon={app}\{#MyAppExeName}
 
-          [Languages]
-          Name: "english"; MessagesFile: "compiler:Default.isl"
-          Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+          $languagesBlock
 
           [Tasks]
           Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
