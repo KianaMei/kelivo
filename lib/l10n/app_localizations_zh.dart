@@ -2337,6 +2337,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get desktopCloseToTrayTitle => '关闭窗口时最小化到托盘';
 
   @override
+  String get desktopSettingsGlobalFontScaleTitle => '界面字体缩放';
+
+  @override
   String get displaySettingsPageChatFontSizeTitle => '聊天字体大小';
 
   @override

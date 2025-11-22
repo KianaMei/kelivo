@@ -2413,6 +2413,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopCloseToTrayTitle => 'Minimize to tray on close';
 
   @override
+  String get desktopSettingsGlobalFontScaleTitle => 'Interface Font Scale';
+
+  @override
   String get displaySettingsPageChatFontSizeTitle => 'Chat Font Size';
 
   @override

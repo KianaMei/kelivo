@@ -89,6 +89,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _desktopRightSidebarOpenKey = 'desktop_right_sidebar_open_v1';
   static const String _desktopRightSidebarWidthKey = 'desktop_right_sidebar_width_v1';
   static const String _desktopSettingsSidebarWidthKey = 'desktop_settings_sidebar_width_v1';
+  static const String _desktopGlobalFontScaleKey = 'desktop_global_font_scale_v1';
   // Android background chat generation mode
   static const String _androidBackgroundChatModeKey = 'android_background_chat_mode_v1';
   // Desktop: close window behavior (minimize to tray or exit)
@@ -124,6 +125,8 @@ class SettingsProvider extends ChangeNotifier {
   double get desktopRightSidebarWidth => _desktopRightSidebarWidth;
   double _desktopSettingsSidebarWidth = 256;
   double get desktopSettingsSidebarWidth => _desktopSettingsSidebarWidth;
+  double _desktopGlobalFontScale = 1.0;
+  double get desktopGlobalFontScale => _desktopGlobalFontScale;
   bool _desktopAutoSwitchTopics = false;
   bool get desktopAutoSwitchTopics => _desktopAutoSwitchTopics;
 
@@ -354,6 +357,7 @@ class SettingsProvider extends ChangeNotifier {
     _desktopSidebarOpen = prefs.getBool(_desktopSidebarOpenKey) ?? true;
     _desktopRightSidebarWidth = prefs.getDouble(_desktopRightSidebarWidthKey) ?? 300;
     _desktopSettingsSidebarWidth = prefs.getDouble(_desktopSettingsSidebarWidthKey) ?? 256;
+    _desktopGlobalFontScale = prefs.getDouble(_desktopGlobalFontScaleKey) ?? 1.0;
     // desktop: topic panel placement + right sidebar open state
     final topicPos = prefs.getString(_desktopTopicPositionKey);
     switch (topicPos) {
@@ -567,6 +571,15 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_desktopSettingsSidebarWidthKey, _desktopSettingsSidebarWidth);
+  }
+
+  Future<void> setDesktopGlobalFontScale(double scale) async {
+    final s = scale.clamp(0.85, 1.3);
+    if ((_desktopGlobalFontScale - s).abs() < 0.01) return;
+    _desktopGlobalFontScale = s;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_desktopGlobalFontScaleKey, _desktopGlobalFontScale);
   }
 
   // Desktop: topic panel placement (left/right)

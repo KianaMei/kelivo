@@ -996,6 +996,7 @@
   "displaySettingsPageNewChatOnLaunchTitle": "New Chat on Launch",
   "displaySettingsPageNewChatOnLaunchSubtitle": "Automatically create a new chat on launch",
   "desktopCloseToTrayTitle": "Minimize to tray on close",
+  "desktopSettingsGlobalFontScaleTitle": "Interface Font Scale",
   "displaySettingsPageChatFontSizeTitle": "Chat Font Size",
   "displaySettingsPageAutoScrollIdleTitle": "Auto-Scroll Back Delay",
   "displaySettingsPageAutoScrollIdleSubtitle": "Wait time after user scroll before jumping to bottom",

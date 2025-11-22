@@ -280,6 +280,19 @@ class MyApp extends StatelessWidget {
                           child: wrappedChild,
                         );
 
+                  // Apply desktop global font scale (Windows/macOS/Linux only)
+                  final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                      defaultTargetPlatform == TargetPlatform.macOS ||
+                      defaultTargetPlatform == TargetPlatform.linux;
+                  final withGlobalFontScale = isDesktop
+                      ? MediaQuery(
+                          data: MediaQuery.of(ctx).copyWith(
+                            textScaler: TextScaler.linear(settings.desktopGlobalFontScale),
+                          ),
+                          child: withFont,
+                        )
+                      : withFont;
+
                   return Shortcuts(
                       shortcuts: <LogicalKeySet, Intent>{
                         // ESC: close dialog/sheet or pop route
@@ -303,7 +316,7 @@ class MyApp extends StatelessWidget {
                           autofocus: true,
                           child: AnnotatedRegion<SystemUiOverlayStyle>(
                             value: overlay,
-                            child: withFont,
+                            child: withGlobalFontScale,
                           ),
                         ),
                       ),

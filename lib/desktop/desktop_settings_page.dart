@@ -391,6 +391,8 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _RowDivider(),
                   _AppLanguageRow(),
                   _RowDivider(),
+                  _GlobalFontScaleRow(),
+                  _RowDivider(),
                   _ChatFontSizeRow(),
                 ],
               ),
@@ -1487,6 +1489,66 @@ class _LanguageDropdownItemState extends State<_LanguageDropdownItem> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// --- Global Font Scale Row (Desktop only) ---
+class _GlobalFontScaleRow extends StatefulWidget {
+  const _GlobalFontScaleRow();
+  @override
+  State<_GlobalFontScaleRow> createState() => _GlobalFontScaleRowState();
+}
+
+class _GlobalFontScaleRowState extends State<_GlobalFontScaleRow> {
+  late final TextEditingController _controller;
+  @override
+  void initState() {
+    super.initState();
+    final sp = context.read<SettingsProvider>();
+    _controller = TextEditingController(text: '${(sp.desktopGlobalFontScale * 100).round()}');
+  }
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _commit(String text) {
+    final val = double.tryParse(text.trim());
+    if (val == null) {
+      final sp = context.read<SettingsProvider>();
+      _controller.text = '${(sp.desktopGlobalFontScale * 100).round()}';
+      return;
+    }
+    final clamped = (val / 100.0).clamp(0.85, 1.3);
+    context.read<SettingsProvider>().setDesktopGlobalFontScale(clamped);
+    _controller.text = '${(clamped * 100).round()}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    return _LabeledRow(
+      label: l10n.desktopSettingsGlobalFontScaleTitle,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IntrinsicWidth(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 36, maxWidth: 72),
+              child: _BorderInput(
+                controller: _controller,
+                onSubmitted: _commit,
+                onFocusLost: _commit,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('%', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 14, decoration: TextDecoration.none)),
+        ],
       ),
     );
   }

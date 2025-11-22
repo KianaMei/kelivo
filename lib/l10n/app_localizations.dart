@@ -4595,6 +4595,12 @@ abstract class AppLocalizations {
   /// **'Minimize to tray on close'**
   String get desktopCloseToTrayTitle;
 
+  /// No description provided for @desktopSettingsGlobalFontScaleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface Font Scale'**
+  String get desktopSettingsGlobalFontScaleTitle;
+
   /// No description provided for @displaySettingsPageChatFontSizeTitle.
   ///
   /// In en, this message translates to:

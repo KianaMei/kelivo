@@ -794,8 +794,8 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
           child: SingleChildScrollView(
             controller: _providerTabsScrollController,
             scrollDirection: Axis.horizontal,
-            // 减小回弹幅度
-            physics: const ClampingScrollPhysics(),
+            // Desktop: use BouncingScrollPhysics for smooth drag experience
+            physics: const BouncingScrollPhysics(),
             child: Row(children: providerTabs),
           ),
         ),

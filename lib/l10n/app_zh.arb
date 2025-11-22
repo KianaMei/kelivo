@@ -789,6 +789,7 @@
   "displaySettingsPageNewChatOnLaunchTitle": "启动时新建对话",
   "displaySettingsPageNewChatOnLaunchSubtitle": "应用启动时自动创建新对话",
   "desktopCloseToTrayTitle": "关闭窗口时最小化到托盘",
+  "desktopSettingsGlobalFontScaleTitle": "界面字体缩放",
   "displaySettingsPageChatFontSizeTitle": "聊天字体大小",
   "displaySettingsPageAutoScrollIdleTitle": "自动回到底部延迟",
   "displaySettingsPageAutoScrollIdleSubtitle": "用户停止滚动后等待多久再自动回到底部",
