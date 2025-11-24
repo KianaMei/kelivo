@@ -2349,6 +2349,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageAutoScrollIdleSubtitle => '用户停止滚动后等待多久再自动回到底部';
 
   @override
+  String get displaySettingsPageDisableAutoScrollTitle => '禁用自动滚动';
+
+  @override
+  String get displaySettingsPageDisableAutoScrollSubtitle => 'AI 回复时永不自动滚动到底部';
+
+  @override
   String get displaySettingsPageChatFontSampleText => '这是一个示例的聊天文本';
 
   @override

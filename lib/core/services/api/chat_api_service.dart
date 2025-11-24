@@ -12,6 +12,21 @@ import '../../services/api_key_manager.dart';
 import 'package:kelivo/secrets/fallback.dart';
 
 class ChatApiService {
+  /// Resolve the upstream/vendor model id for a given logical model key.
+  /// When per-instance overrides specify `apiModelId`, that value is used for
+  /// outbound HTTP requests and vendor-specific heuristics. Otherwise the
+  /// logical `modelId` key is treated as the upstream id (backwards compatible).
+  static String _apiModelId(ProviderConfig cfg, String modelId) {
+    try {
+      final ov = cfg.modelOverrides[modelId];
+      if (ov is Map<String, dynamic>) {
+        final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+        if (raw != null && raw.isNotEmpty) return raw;
+      }
+    } catch (_) {}
+    return modelId;
+  }
+
   // 生成东八区时间戳: 年-月-日 时:分:秒
   static String _timestamp() {
     final now = DateTime.now().toUtc().add(const Duration(hours: 8));
@@ -30,7 +45,7 @@ class ChatApiService {
     if ((cfg.id) == 'SiliconFlow') {
       final host = Uri.tryParse(cfg.baseUrl)?.host.toLowerCase() ?? '';
       if (!host.contains('siliconflow')) return orig;
-      final m = modelId.toLowerCase();
+      final m = _apiModelId(cfg, modelId).toLowerCase();
       final allowed = m == 'thudm/glm-4-9b-0414' || m == 'qwen/qwen3-8b';
       final fallback = siliconflowFallbackKey.trim();
       if (allowed && fallback.isNotEmpty) {
@@ -117,7 +132,8 @@ class ChatApiService {
 
   // Resolve effective model info by respecting per-model overrides; fallback to inference
   static ModelInfo _effectiveModelInfo(ProviderConfig cfg, String modelId) {
-    final base = ModelRegistry.infer(ModelInfo(id: modelId, displayName: modelId));
+    final upstreamId = _apiModelId(cfg, modelId);
+    final base = ModelRegistry.infer(ModelInfo(id: upstreamId, displayName: upstreamId));
     final ov = _modelOverride(cfg, modelId);
     ModelType? type;
     final t = (ov['type'] as String?) ?? '';
@@ -368,6 +384,7 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
   }) async {
+    final upstreamModelId = _apiModelId(config, modelId);
     final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
     final client = _clientFor(config);
 
@@ -423,7 +440,7 @@ class ChatApiService {
             }
           }
           body = {
-            'model': modelId,
+            'model': upstreamModelId,
             'input': [
               {'role': 'user', 'content': prompt}
             ],
@@ -432,7 +449,7 @@ class ChatApiService {
           };
         } else {
           body = {
-            'model': modelId,
+            'model': upstreamModelId,
             'messages': [
               {'role': 'user', 'content': prompt}
             ],
@@ -494,7 +511,7 @@ class ChatApiService {
             : config.baseUrl;
         final url = Uri.parse('$base/messages');
         final body = {
-          'model': modelId,
+          'model': upstreamModelId,
           'max_tokens': 512,
           'temperature': 0.3,
           'messages': [
@@ -692,6 +709,16 @@ class ChatApiService {
       List<Map<String, dynamic>> messages,
       {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, int maxToolLoopIterations = 10, List<Map<String, dynamic>>? tools, Future<String> Function(String, Map<String, dynamic>)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
       ) async* {
+    final upstreamModelId = _apiModelId(config, modelId);
+
+    // 🔍 DEBUG: Print model ID resolution
+    print('═══════════════════════════════════════════════════════════');
+    print('🔍 [KELIVO DEBUG] OpenAI Stream Request');
+    print('📋 Provider: ${config.id}');
+    print('🏷️  Logical Model ID (from UI): $modelId');
+    print('🎯 Upstream Model ID (for API): $upstreamModelId');
+    print('═══════════════════════════════════════════════════════════');
+
     final base = config.baseUrl.endsWith('/')
         ? config.baseUrl.substring(0, config.baseUrl.length - 1)
         : config.baseUrl;
@@ -832,7 +859,7 @@ class ChatApiService {
         }
       }
       body = {
-        'model': modelId,
+        'model': upstreamModelId,
         'input': input,
         'stream': true,
         if (instructions.isNotEmpty) 'instructions': instructions,
@@ -900,7 +927,7 @@ class ChatApiService {
         }
       }
       body = {
-        'model': modelId,
+        'model': upstreamModelId,
         'messages': mm,
         'stream': true,
         if (temperature != null) 'temperature': temperature,
@@ -1024,6 +1051,15 @@ class ChatApiService {
     }
     request.body = jsonEncode(body);
 
+    // 🔍 DEBUG: Print complete request details
+    print('───────────────────────────────────────────────────────────');
+    print('📤 [KELIVO] Sending OpenAI Request');
+    print('🌐 URL: $url');
+    print('🔑 API Key: ${_apiKeyForRequest(config, modelId).substring(0, 20)}...');
+    print('📦 Request Body:');
+    print(jsonEncode(body));
+    print('───────────────────────────────────────────────────────────');
+
     // 记录完整的请求信息
     try {
       final timestamp = _timestamp();
@@ -1078,6 +1114,11 @@ class ChatApiService {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final errorBody = await response.stream.bytesToString();
+
+      // 🔍 DEBUG: Print error response
+      print('❌ [KELIVO ERROR] HTTP ${response.statusCode}');
+      print('📄 Error Body: $errorBody');
+      print('═══════════════════════════════════════════════════════════');
 
       // 记录错误响应
       try {
@@ -1195,7 +1236,7 @@ class ChatApiService {
             var currentMessages = mm2;
             while (true) {
               final body2 = {
-                'model': modelId,
+                'model': upstreamModelId,
                 'messages': currentMessages,
                 'stream': true,
                 if (temperature != null) 'temperature': temperature,
@@ -1826,7 +1867,7 @@ class ChatApiService {
                   }
 
                   final followUpBody = {
-                    'model': modelId,
+                    'model': upstreamModelId,
                     'input': conversation,
                     'stream': true,
                     if (systemInstructions.isNotEmpty) 'instructions': systemInstructions,
@@ -2287,7 +2328,7 @@ class ChatApiService {
             var currentMessages = mm2;
             while (true) {
               final body2 = {
-                'model': modelId,
+                'model': upstreamModelId,
                 'messages': currentMessages,
                 'stream': true,
                 if (temperature != null) 'temperature': temperature,
@@ -2628,7 +2669,7 @@ class ChatApiService {
                 var currentMessages = mm2;
                 while (true) {
                   final body2 = {
-                    'model': modelId,
+                    'model': upstreamModelId,
                     'messages': currentMessages,
                     'stream': true,
                     if (temperature != null) 'temperature': temperature,
@@ -2982,7 +3023,7 @@ class ChatApiService {
             }
 
             final body2 = {
-              'model': modelId,
+              'model': upstreamModelId,
               'messages': mm2,
               'stream': true,
               if (tools != null && tools.isNotEmpty) 'tools': _cleanToolsForCompatibility(tools),
@@ -3073,6 +3114,7 @@ class ChatApiService {
       List<Map<String, dynamic>> messages,
       {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, int maxToolLoopIterations = 10, List<Map<String, dynamic>>? tools, Future<String> Function(String, Map<String, dynamic>)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
       ) async* {
+    final upstreamModelId = _apiModelId(config, modelId);
     final base = config.baseUrl.endsWith('/')
         ? config.baseUrl.substring(0, config.baseUrl.length - 1)
         : config.baseUrl;
@@ -3183,7 +3225,7 @@ class ChatApiService {
     }
 
     final body = <String, dynamic>{
-      'model': modelId,
+      'model': upstreamModelId,
       'max_tokens': maxTokens ?? 4096,
       'messages': transformed,
       'stream': true,
@@ -3411,18 +3453,19 @@ class ChatApiService {
       List<Map<String, dynamic>> messages,
       {List<String>? userImagePaths, int? thinkingBudget, double? temperature, double? topP, int? maxTokens, int maxToolLoopIterations = 10, List<Map<String, dynamic>>? tools, Future<String> Function(String name, Map<String, dynamic> args)? onToolCall, Map<String, String>? extraHeaders, Map<String, dynamic>? extraBody}
       ) async* {
+    final upstreamModelId = _apiModelId(config, modelId);
     // Implement SSE streaming via :streamGenerateContent with alt=sse
     // Build endpoint per Vertex vs Gemini
     String baseUrl;
     if (config.vertexAI == true && (config.location?.isNotEmpty == true) && (config.projectId?.isNotEmpty == true)) {
       final loc = config.location!.trim();
       final proj = config.projectId!.trim();
-      baseUrl = 'https://aiplatform.googleapis.com/v1/projects/$proj/locations/$loc/publishers/google/models/$modelId:streamGenerateContent';
+      baseUrl = 'https://aiplatform.googleapis.com/v1/projects/$proj/locations/$loc/publishers/google/models/$upstreamModelId:streamGenerateContent';
     } else {
       final base = config.baseUrl.endsWith('/')
           ? config.baseUrl.substring(0, config.baseUrl.length - 1)
           : config.baseUrl;
-      baseUrl = '$base/models/$modelId:streamGenerateContent';
+      baseUrl = '$base/models/$upstreamModelId:streamGenerateContent';
     }
 
     // Build query with key (for non-Vertex) and alt=sse

@@ -449,6 +449,8 @@ class _DisplaySettingsBody extends StatelessWidget {
                 children: [
                   _AutoScrollDelayRow(),
                   _RowDivider(),
+                  _DisableAutoScrollRow(),
+                  _RowDivider(),
                   _BackgroundMaskRow(),
                 ],
               ),
@@ -2202,6 +2204,23 @@ class _AutoScrollDelayRowState extends State<_AutoScrollDelayRow> {
           const SizedBox(width: 8),
           Text('s', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7), fontSize: 14, decoration: TextDecoration.none)),
         ],
+      ),
+    );
+  }
+}
+
+class _DisableAutoScrollRow extends StatelessWidget {
+  const _DisableAutoScrollRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final disableAutoScroll = context.watch<SettingsProvider>().disableAutoScroll;
+    return _LabeledRow(
+      label: l10n.displaySettingsPageDisableAutoScrollTitle,
+      trailing: Switch(
+        value: disableAutoScroll,
+        onChanged: (v) => context.read<SettingsProvider>().setDisableAutoScroll(v),
       ),
     );
   }

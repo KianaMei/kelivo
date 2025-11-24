@@ -2426,6 +2426,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Wait time after user scroll before jumping to bottom';
 
   @override
+  String get displaySettingsPageDisableAutoScrollTitle => 'Disable Auto-Scroll';
+
+  @override
+  String get displaySettingsPageDisableAutoScrollSubtitle =>
+      'Never auto-scroll to bottom during AI response';
+
+  @override
   String get displaySettingsPageChatFontSampleText =>
       'This is a sample chat text';
 

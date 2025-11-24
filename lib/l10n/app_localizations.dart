@@ -4619,6 +4619,18 @@ abstract class AppLocalizations {
   /// **'Wait time after user scroll before jumping to bottom'**
   String get displaySettingsPageAutoScrollIdleSubtitle;
 
+  /// No description provided for @displaySettingsPageDisableAutoScrollTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable Auto-Scroll'**
+  String get displaySettingsPageDisableAutoScrollTitle;
+
+  /// No description provided for @displaySettingsPageDisableAutoScrollSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Never auto-scroll to bottom during AI response'**
+  String get displaySettingsPageDisableAutoScrollSubtitle;
+
   /// No description provided for @displaySettingsPageChatFontSampleText.
   ///
   /// In en, this message translates to:

@@ -793,6 +793,8 @@
   "displaySettingsPageChatFontSizeTitle": "聊天字体大小",
   "displaySettingsPageAutoScrollIdleTitle": "自动回到底部延迟",
   "displaySettingsPageAutoScrollIdleSubtitle": "用户停止滚动后等待多久再自动回到底部",
+  "displaySettingsPageDisableAutoScrollTitle": "禁用自动滚动",
+  "displaySettingsPageDisableAutoScrollSubtitle": "AI 回复时永不自动滚动到底部",
   "displaySettingsPageChatFontSampleText": "这是一个示例的聊天文本",
   "displaySettingsPageChatBackgroundMaskTitle": "背景图片遮罩透明度",
   "displaySettingsPageThemeSettingsTitle": "主题设置",

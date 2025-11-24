@@ -47,6 +47,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _displayNewChatOnLaunchKey = 'display_new_chat_on_launch_v1';
   static const String _displayChatFontScaleKey = 'display_chat_font_scale_v1';
   static const String _displayAutoScrollIdleSecondsKey = 'display_auto_scroll_idle_seconds_v1';
+  static const String _displayDisableAutoScrollKey = 'display_disable_auto_scroll_v1';
   static const String _displayChatBackgroundMaskStrengthKey = 'display_chat_background_mask_strength_v1';
   static const String _displayEnableDollarLatexKey = 'display_enable_dollar_latex_v1';
   static const String _displayEnableMathRenderingKey = 'display_enable_math_rendering_v1';
@@ -304,6 +305,7 @@ class SettingsProvider extends ChangeNotifier {
     _newChatOnLaunch = prefs.getBool(_displayNewChatOnLaunchKey) ?? true;
     _chatFontScale = prefs.getDouble(_displayChatFontScaleKey) ?? 1.0;
     _autoScrollIdleSeconds = prefs.getInt(_displayAutoScrollIdleSecondsKey) ?? 8;
+    _disableAutoScroll = prefs.getBool(_displayDisableAutoScrollKey) ?? false;
     _chatBackgroundMaskStrength = prefs.getDouble(_displayChatBackgroundMaskStrengthKey) ?? 1.0;
     // display: pure background (desktop default true, mobile default false)
     final pureBgPref = prefs.getBool(_displayUsePureBackgroundKey);
@@ -1273,6 +1275,17 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_displayAutoScrollIdleSecondsKey, _autoScrollIdleSeconds);
+  }
+
+  // Display: disable auto-scroll completely (never auto-scroll during AI response)
+  bool _disableAutoScroll = false;
+  bool get disableAutoScroll => _disableAutoScroll;
+  Future<void> setDisableAutoScroll(bool disable) async {
+    if (_disableAutoScroll == disable) return;
+    _disableAutoScroll = disable;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayDisableAutoScrollKey, _disableAutoScroll);
   }
 
   // Display: chat background mask strength (0.0 - 2.0, default 1.0)

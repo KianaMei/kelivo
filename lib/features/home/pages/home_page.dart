@@ -993,7 +993,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         });
         // Ensure list lays out, then jump to bottom while hidden
         try { await WidgetsBinding.instance.endOfFrame; } catch (_) {}
-        if (!_isUserScrolling) _scrollToBottom();
+        final disableAutoScroll = context.read<SettingsProvider>().disableAutoScroll;
+        if (!_isUserScrolling && !disableAutoScroll) _scrollToBottom();
       }
     }
     if (mounted) {
@@ -1218,7 +1219,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     // 寤惰繜婊氬姩纭繚UI鏇存柊瀹屾垚
     Future.delayed(const Duration(milliseconds: 100), () {
-      if (!_isUserScrolling) _scrollToBottom();
+      final disableAutoScroll = context.read<SettingsProvider>().disableAutoScroll;
+      if (!_isUserScrolling && !disableAutoScroll) _scrollToBottom();
     });
 
     // Create assistant message placeholder
@@ -1259,7 +1261,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     // 娣诲姞鍔╂墜娑堟伅鍚庝篃婊氬姩鍒板簳閮?
     Future.delayed(const Duration(milliseconds: 100), () {
-      if (!_isUserScrolling) _scrollToBottom();
+      final disableAutoScroll = context.read<SettingsProvider>().disableAutoScroll;
+      if (!_isUserScrolling && !disableAutoScroll) _scrollToBottom();
     });
 
     // Prepare messages for API
@@ -2139,7 +2142,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
               // 婊氬姩鍒板簳閮ㄦ樉绀烘柊鍐呭锛堜粎鍦ㄦ湭澶勪簬鐢ㄦ埛婊氬姩寤惰繜闃舵鏃讹級
               Future.delayed(const Duration(milliseconds: 50), () {
-                if (!_isUserScrolling) {
+                final disableAutoScroll = context.read<SettingsProvider>().disableAutoScroll;
+                if (!_isUserScrolling && !disableAutoScroll) {
                   _scrollToBottom();
                 }
               });

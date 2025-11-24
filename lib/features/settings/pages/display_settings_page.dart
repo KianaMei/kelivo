@@ -199,6 +199,14 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               onTap: () => _showAutoScrollIdleSheet(context),
             ),
             _iosDivider(context),
+            _iosSwitchRow(
+              context,
+              icon: Lucide.CircleX,
+              label: l10n.displaySettingsPageDisableAutoScrollTitle,
+              value: context.watch<SettingsProvider>().disableAutoScroll,
+              onChanged: (v) => context.read<SettingsProvider>().setDisableAutoScroll(v),
+            ),
+            _iosDivider(context),
             _iosNavRow(
               context,
               icon: Lucide.Image,
