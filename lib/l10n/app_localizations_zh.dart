@@ -199,6 +199,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantProviderSampleAssistantName => '示例助手';
 
   @override
+  String get assistantProviderOcrAssistantName => 'OCR 助手';
+
+  @override
   String get assistantProviderNewAssistantName => '新助手';
 
   @override
@@ -1950,6 +1953,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get providersPageSearchHint => '搜索供应商名称';
+
+  @override
+  String get defaultModelPageOcrModelTitle => 'OCR 模型';
+
+  @override
+  String get defaultModelPageOcrModelSubtitle => '用于从图片中提取文字的模型';
 
   @override
   String get providersPageImportTooltip => '导入';

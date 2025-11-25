@@ -200,6 +200,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantProviderSampleAssistantName => 'Sample Assistant';
 
   @override
+  String get assistantProviderOcrAssistantName => 'OCR Assistant';
+
+  @override
   String get assistantProviderNewAssistantName => 'New Assistant';
 
   @override
@@ -2004,6 +2007,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providersPageSearchHint => 'Search provider name';
+
+  @override
+  String get defaultModelPageOcrModelTitle => 'OCR Model';
+
+  @override
+  String get defaultModelPageOcrModelSubtitle =>
+      'Model for extracting text from images';
 
   @override
   String get providersPageImportTooltip => 'Import';

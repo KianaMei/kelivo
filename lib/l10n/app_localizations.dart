@@ -472,6 +472,12 @@ abstract class AppLocalizations {
   /// **'Sample Assistant'**
   String get assistantProviderSampleAssistantName;
 
+  /// No description provided for @assistantProviderOcrAssistantName.
+  ///
+  /// In en, this message translates to:
+  /// **'OCR Assistant'**
+  String get assistantProviderOcrAssistantName;
+
   /// No description provided for @assistantProviderNewAssistantName.
   ///
   /// In en, this message translates to:
@@ -3844,6 +3850,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search provider name'**
   String get providersPageSearchHint;
+
+  /// No description provided for @defaultModelPageOcrModelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'OCR Model'**
+  String get defaultModelPageOcrModelTitle;
+
+  /// No description provided for @defaultModelPageOcrModelSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Model for extracting text from images'**
+  String get defaultModelPageOcrModelSubtitle;
 
   /// No description provided for @providersPageImportTooltip.
   ///

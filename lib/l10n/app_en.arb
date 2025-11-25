@@ -81,6 +81,7 @@
   "mermaidPreviewOpenFailed": "Cannot open preview",
   "assistantProviderDefaultAssistantName": "Default Assistant",
   "assistantProviderSampleAssistantName": "Sample Assistant",
+  "assistantProviderOcrAssistantName": "OCR Assistant",
   "assistantProviderNewAssistantName": "New Assistant",
   "assistantProviderSampleAssistantSystemPrompt": "You are {model_name}, an AI assistant who gladly provides accurate and helpful assistance. The current time is {cur_datetime}, the device language is {locale}, timezone is {timezone}, the user is using {device_info}, version {system_version}. If the user does not explicitly specify otherwise, please use the user's device language when replying.",
   "@assistantProviderSampleAssistantSystemPrompt": {
@@ -857,6 +858,8 @@
   "providersPageTitle": "Providers",
   "providersPageSearchTooltip": "Search",
   "providersPageSearchHint": "Search provider name",
+  "defaultModelPageOcrModelTitle": "OCR Model",
+  "defaultModelPageOcrModelSubtitle": "Model for extracting text from images",
   "providersPageImportTooltip": "Import",
   "providersPageAddTooltip": "Add",
   "providersPageProviderAddedSnackbar": "Provider added",

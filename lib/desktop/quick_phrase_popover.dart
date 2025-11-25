@@ -11,8 +11,6 @@ Future<QuickPhrase?> showDesktopQuickPhrasePopover(
   required GlobalKey anchorKey,
   required List<QuickPhrase> phrases,
 }) async {
-  if (phrases.isEmpty) return null;
-
   final completer = Completer<QuickPhrase?>();
 
   // Get close callback
@@ -51,6 +49,33 @@ class _QuickPhraseContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (phrases.isEmpty) {
+      // Show empty state
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Lucide.Zap,
+              size: 48,
+              color: cs.onSurface.withOpacity(0.3),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '暂无快捷短语',
+              style: TextStyle(
+                color: cs.onSurface.withOpacity(0.6),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: ConstrainedBox(

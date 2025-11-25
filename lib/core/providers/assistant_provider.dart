@@ -14,6 +14,19 @@ class AssistantProvider extends ChangeNotifier {
   static const String _assistantsKey = 'assistants_v1';
   static const String _currentAssistantKey = 'current_assistant_id_v1';
 
+  // Default OCR prompt (same as in SettingsProvider)
+  static const String _defaultOcrPrompt = '''You are an OCR assistant.
+
+Extract all visible text from the image and also describe any non-text elements (icons, shapes, arrows, objects, symbols, or emojis).
+
+Please ensure:
+- Preserve original formatting as much as possible
+- Keep hierarchical structure (headings, lists, tables)
+- Describe visual elements that convey meaning
+- Keep the original reading order and layout structure as much as possible.
+
+Do not interpret or translate—only transcribe and describe what is visually present.''';
+
   final List<Assistant> _assistants = <Assistant>[];
   String? _currentAssistantId;
 
@@ -80,6 +93,15 @@ class AssistantProvider extends ChangeNotifier {
         '{device_info}',
         '{system_version}',
       ),
+      deletable: false,
+      temperature: 0.6,
+      topP: 1.0,
+    ));
+    // 3) OCR 助手
+    _assistants.add(Assistant(
+      id: const Uuid().v4(),
+      name: l10n.assistantProviderOcrAssistantName,
+      systemPrompt: _defaultOcrPrompt,
       deletable: false,
       temperature: 0.6,
       topP: 1.0,

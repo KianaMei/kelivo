@@ -828,6 +828,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               Navigator.of(ctx).maybePop();
               await showMaxTokensSheet(context);
             },
+            onQuickPhrase: () {
+              Navigator.of(ctx).maybePop();
+              _showQuickPhraseMenu();
+            },
+            onLongPressQuickPhrase: () {
+              Navigator.of(ctx).maybePop();
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
+              );
+            },
             clearLabel: _clearContextLabel(),
           ),
         );
@@ -1372,10 +1382,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
     }
 
-    // Check if OCR is active
+    // Check if current chat model supports images
+    final currentModelSupportsImages = _isImageInputModel(providerKey, modelId);
+
+    // Check if OCR is active and should be used
+    // OCR should only be used when:
+    // 1. OCR is enabled in settings
+    // 2. OCR model is configured
+    // 3. Current chat model does NOT support images
     final ocrActive = settings.ocrEnabled &&
         settings.ocrModelProvider != null &&
-        settings.ocrModelId != null;
+        settings.ocrModelId != null &&
+        !currentModelSupportsImages;
 
     // Process each user message to inline its document attachments and OCR
     for (int i = 0; i < apiMessages.length; i++) {
@@ -3473,7 +3491,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         : <QuickPhrase>[];
 
     final allAvailable = [...globalPhrases, ...assistantPhrases];
-    if (allAvailable.isEmpty) return;
 
     // Dismiss keyboard before showing menu to prevent flickering
     _dismissKeyboard();
@@ -4737,25 +4754,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           if (selected.isEmpty || connected.isEmpty) return false;
                           return connected.any((s) => selected.contains(s.id));
                         })(),
-                        showQuickPhraseButton: (() {
-                          final assistant = context.watch<AssistantProvider>().currentAssistant;
-                          final quickPhraseProvider = context.watch<QuickPhraseProvider>();
-                          final globalCount = quickPhraseProvider.globalPhrases.length;
-                          final assistantCount = assistant != null
-                              ? quickPhraseProvider.getForAssistant(assistant.id).length
-                              : 0;
-                          return (globalCount + assistantCount) > 0;
-                        })(),
+                        // Quick Phrase button moved to bottom tools sheet (mobile) and overflow menu (desktop)
+                        showQuickPhraseButton: false,
                         onQuickPhrase: _showQuickPhraseMenu,
                         onLongPressQuickPhrase: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
                           );
-                        },
-                        showOcrButton: settings.ocrModelProvider != null && settings.ocrModelId != null,
-                        ocrEnabled: settings.ocrEnabled,
-                        onToggleOcr: () {
-                          context.read<SettingsProvider>().setOcrEnabled(!settings.ocrEnabled);
                         },
                       );
                     },
@@ -5699,16 +5704,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                         MaterialPageRoute(builder: (_) => const McpPage()),
                                       );
                                     },
-                                    // Quick Phrase button (tablet): show to the right of MCP
-                                    showQuickPhraseButton: (() {
-                                      final assistant = context.watch<AssistantProvider>().currentAssistant;
-                                      final quickPhraseProvider = context.watch<QuickPhraseProvider>();
-                                      final globalCount = quickPhraseProvider.globalPhrases.length;
-                                      final assistantCount = assistant != null
-                                          ? quickPhraseProvider.getForAssistant(assistant.id).length
-                                          : 0;
-                                      return (globalCount + assistantCount) > 0;
-                                    })(),
+                                    // Quick Phrase button moved to bottom tools sheet (mobile) and overflow menu (desktop)
+                                    showQuickPhraseButton: false,
                                     onQuickPhrase: _showQuickPhraseMenu,
                                     onLongPressQuickPhrase: () {
                                       Navigator.of(context).push(
@@ -5878,11 +5875,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       final enabledTools = mcpProvider.getEnabledToolsForServers(selected.toSet());
                                       return enabledTools.length;
                                     })(),
-                                    showOcrButton: settings.ocrModelProvider != null && settings.ocrModelId != null,
-                                    ocrEnabled: settings.ocrEnabled,
-                                    onToggleOcr: () {
-                                      context.read<SettingsProvider>().setOcrEnabled(!settings.ocrEnabled);
-                                    },
                                   );
 
                                   input = Center(

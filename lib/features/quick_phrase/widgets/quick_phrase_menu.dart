@@ -68,36 +68,58 @@ class QuickPhraseMenu extends StatelessWidget {
                       width: 1,
                     ),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Padding(
-                      //   padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                      //   child: Row(
-                      //     children: [
-                      //       Icon(Lucide.Zap, size: 18, color: cs.primary),
-                      //       const SizedBox(width: 8),
-                      //       Text(
-                      //         l10n.quickPhraseMenuTitle,
-                      //         style: const TextStyle(
-                      //           fontSize: 15,
-                      //           fontWeight: FontWeight.w600,
-                      //         ),
-                      //       ),
-                      //     ],
-                      //   ),
-                      // ),
-                      // Divider(
-                      //   height: 1,
-                      //   thickness: 1,
-                      //   color: cs.outlineVariant.withOpacity(0.2),
-                      // ),
-                      Flexible(
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          itemCount: phrases.length,
+                  child: phrases.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Lucide.Zap,
+                                size: 48,
+                                color: cs.onSurface.withOpacity(0.3),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                '暂无快捷短语',
+                                style: TextStyle(
+                                  color: cs.onSurface.withOpacity(0.6),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Padding(
+                            //   padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                            //   child: Row(
+                            //     children: [
+                            //       Icon(Lucide.Zap, size: 18, color: cs.primary),
+                            //       const SizedBox(width: 8),
+                            //       Text(
+                            //         l10n.quickPhraseMenuTitle,
+                            //         style: const TextStyle(
+                            //           fontSize: 15,
+                            //           fontWeight: FontWeight.w600,
+                            //         ),
+                            //       ),
+                            //     ],
+                            //   ),
+                            // ),
+                            // Divider(
+                            //   height: 1,
+                            //   thickness: 1,
+                            //   color: cs.outlineVariant.withOpacity(0.2),
+                            // ),
+                            Flexible(
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                padding: EdgeInsets.zero,
+                                itemCount: phrases.length,
                           itemBuilder: (context, index) {
                             final phrase = phrases[index];
                             return IosCardPress(
@@ -170,8 +192,6 @@ Future<QuickPhrase?> showQuickPhraseMenu({
   required List<QuickPhrase> phrases,
   required Offset position,
 }) async {
-  if (phrases.isEmpty) return null;
-
   return await showDialog<QuickPhrase>(
     context: context,
     barrierColor: Colors.transparent,

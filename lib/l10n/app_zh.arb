@@ -219,6 +219,7 @@
   "assistantSettingsDeleteDialogConfirm": "删除",
   "assistantProviderDefaultAssistantName": "默认助手",
   "assistantProviderSampleAssistantName": "示例助手",
+  "assistantProviderOcrAssistantName": "OCR 助手",
   "assistantProviderNewAssistantName": "新助手",
   "assistantProviderSampleAssistantSystemPrompt": "你是{model_name}, 一个人工智能助手，乐意为用户提供准确，有益的帮助。现在时间是{cur_datetime}，用户设备语言为{locale}，时区为{timezone}，用户正在使用{device_info}，版本{system_version}。如果用户没有明确说明，请使用用户设备语言进行回复。",
   "@assistantProviderSampleAssistantSystemPrompt": {
@@ -664,6 +665,8 @@
   "providersPageTitle": "供应商",
   "providersPageSearchTooltip": "搜索",
   "providersPageSearchHint": "搜索供应商名称",
+  "defaultModelPageOcrModelTitle": "OCR 模型",
+  "defaultModelPageOcrModelSubtitle": "用于从图片中提取文字的模型",
   "providersPageImportTooltip": "导入",
   "providersPageAddTooltip": "新增",
   "providersPageProviderAddedSnackbar": "已添加供应商",

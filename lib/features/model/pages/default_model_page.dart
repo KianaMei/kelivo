@@ -86,9 +86,9 @@ class DefaultModelPage extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         _ModelCard(
-          icon: Lucide.FileText,
-          title: 'OCR Model',
-          subtitle: 'Model for extracting text from images',
+          icon: Lucide.TextSelect,
+          title: l10n.defaultModelPageOcrModelTitle,
+          subtitle: l10n.defaultModelPageOcrModelSubtitle,
           modelProvider: settings.ocrModelProvider,
           modelId: settings.ocrModelId,
           fallbackProvider: settings.currentModelProvider,
@@ -100,6 +100,12 @@ class DefaultModelPage extends StatelessWidget {
             }
           },
           configAction: () => _showOcrPromptEditor(context),
+          trailing: Switch.adaptive(
+            value: settings.ocrEnabled,
+            onChanged: (settings.ocrModelProvider != null && settings.ocrModelId != null)
+                ? (v) => context.read<SettingsProvider>().setOcrEnabled(v)
+                : null,
+          ),
         ),
       ],
     );
@@ -292,6 +298,7 @@ class _ModelCard extends StatelessWidget {
     this.fallbackProvider,
     this.fallbackModelId,
     this.configAction,
+    this.trailing,
   });
 
   final IconData icon;
@@ -303,6 +310,7 @@ class _ModelCard extends StatelessWidget {
   final String? fallbackModelId;
   final VoidCallback onPick;
   final VoidCallback? configAction;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -362,6 +370,10 @@ class _ModelCard extends StatelessWidget {
                     size: 20,
                     onTap: configAction!,
                   ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  trailing!,
+                ],
               ],
             ),
             const SizedBox(height: 6),

@@ -108,9 +108,9 @@ class DesktopDefaultModelPane extends StatelessWidget {
 
               // OCR Model Card
               _ModelCard(
-                icon: Lucide.FileText,
-                title: 'OCR Model',
-                subtitle: 'Model for extracting text from images',
+                icon: Lucide.TextSelect,
+                title: l10n.defaultModelPageOcrModelTitle,
+                subtitle: l10n.defaultModelPageOcrModelSubtitle,
                 modelProvider: settings.ocrModelProvider,
                 modelId: settings.ocrModelId,
                 fallbackProvider: settings.currentModelProvider,
@@ -124,6 +124,12 @@ class DesktopDefaultModelPane extends StatelessWidget {
                   }
                 },
                 configAction: () => _showOcrPromptDialog(context),
+                trailing: Switch.adaptive(
+                  value: settings.ocrEnabled,
+                  onChanged: (settings.ocrModelProvider != null && settings.ocrModelId != null)
+                      ? (v) => context.read<SettingsProvider>().setOcrEnabled(v)
+                      : null,
+                ),
               ),
             ],
           ),
@@ -323,6 +329,7 @@ class _ModelCard extends StatefulWidget {
     this.fallbackProvider,
     this.fallbackModelId,
     this.configAction,
+    this.trailing,
   });
 
   final IconData icon;
@@ -334,6 +341,7 @@ class _ModelCard extends StatefulWidget {
   final String? fallbackModelId;
   final VoidCallback onPick;
   final VoidCallback? configAction;
+  final Widget? trailing;
 
   @override
   State<_ModelCard> createState() => _ModelCardState();
@@ -400,6 +408,10 @@ class _ModelCardState extends State<_ModelCard> {
                     icon: Lucide.Settings,
                     onTap: widget.configAction!,
                   ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 8),
+                  widget.trailing!,
+                ],
               ],
             ),
             const SizedBox(height: 6),

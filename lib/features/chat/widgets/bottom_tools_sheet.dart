@@ -7,7 +7,17 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 
 class BottomToolsSheet extends StatelessWidget {
-  const BottomToolsSheet({super.key, this.onCamera, this.onPhotos, this.onUpload, this.onClear, this.clearLabel, this.onMaxTokens});
+  const BottomToolsSheet({
+    super.key,
+    this.onCamera,
+    this.onPhotos,
+    this.onUpload,
+    this.onClear,
+    this.clearLabel,
+    this.onMaxTokens,
+    this.onQuickPhrase,
+    this.onLongPressQuickPhrase,
+  });
 
   final VoidCallback? onCamera;
   final VoidCallback? onPhotos;
@@ -15,13 +25,15 @@ class BottomToolsSheet extends StatelessWidget {
   final VoidCallback? onClear;
   final String? clearLabel;
   final VoidCallback? onMaxTokens;
+  final VoidCallback? onQuickPhrase;
+  final VoidCallback? onLongPressQuickPhrase;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final bg = Theme.of(context).colorScheme.surface;
 
-    Widget roundedAction({required IconData icon, required String label, VoidCallback? onTap}) {
+    Widget roundedAction({required IconData icon, required String label, VoidCallback? onTap, VoidCallback? onLongPress}) {
       final isDark = Theme.of(context).brightness == Brightness.dark;
       final cardColor = isDark ? Colors.white10 : const Color(0xFFF2F3F5);
       return Expanded(
@@ -36,6 +48,12 @@ class BottomToolsSheet extends StatelessWidget {
               Haptics.light();
               onTap?.call();
             },
+            onLongPress: onLongPress != null
+                ? () {
+                    Haptics.light();
+                    onLongPress();
+                  }
+                : null,
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -97,6 +115,15 @@ class BottomToolsSheet extends StatelessWidget {
                 label: l10n.bottomToolsSheetUpload,
                 onTap: onUpload,
               ),
+              if (onQuickPhrase != null) ...[
+                const SizedBox(width: 12),
+                roundedAction(
+                  icon: Lucide.Zap,
+                  label: l10n.chatInputBarQuickPhraseTooltip,
+                  onTap: onQuickPhrase,
+                  onLongPress: onLongPressQuickPhrase,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
