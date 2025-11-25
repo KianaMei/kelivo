@@ -1832,6 +1832,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     final bool _restrictToFree = _isDefaultSilicon && !_hasUserKey;
     final controller = TextEditingController();
     List<dynamic> items = const [];
+    List<ModelInfo> unavailableItems = const []; // Models in cfg.models but not in API response
     bool loading = true;
     String error = '';
     final Map<String, bool> collapsed = <String, bool>{};
@@ -1848,25 +1849,34 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           final l10n = AppLocalizations.of(ctx)!;
           Future<void> _load() async {
             try {
+              List<ModelInfo> availableModels;
               if (_restrictToFree) {
-                final list = <ModelInfo>[
+                availableModels = <ModelInfo>[
                   ModelRegistry.infer(ModelInfo(id: 'THUDM/GLM-4-9B-0414', displayName: 'THUDM/GLM-4-9B-0414')),
                   ModelRegistry.infer(ModelInfo(id: 'Qwen/Qwen3-8B', displayName: 'Qwen/Qwen3-8B')),
                 ];
-                setLocal(() {
-                  items = list;
-                  loading = false;
-                });
               } else {
-                final list = await ProviderManager.listModels(cfg);
-                setLocal(() {
-                  items = list;
-                  loading = false;
-                });
+                availableModels = await ProviderManager.listModels(cfg);
               }
+
+              // Find unavailable models (in cfg.models but not in API response)
+              final availableIds = availableModels.map((m) => m.id).toSet();
+              final unavailableIds = cfg.models.where((id) => !availableIds.contains(id)).toList();
+
+              // Create ModelInfo for unavailable models
+              final unavailableModelsList = unavailableIds.map((id) {
+                return ModelInfo(id: id, displayName: id);
+              }).toList();
+
+              setLocal(() {
+                items = availableModels;
+                unavailableItems = unavailableModelsList;
+                loading = false;
+              });
             } catch (e) {
               setLocal(() {
                 items = const [];
+                unavailableItems = const [];
                 loading = false;
                 error = '$e';
               });
@@ -1879,9 +1889,17 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
           final selected = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName).models.toSet();
           final query = controller.text.trim().toLowerCase();
+
+          // Filter available models
           final filtered = <ModelInfo>[
             for (final m in items)
               if (m is ModelInfo && (query.isEmpty || m.id.toLowerCase().contains(query) || m.displayName.toLowerCase().contains(query))) m
+          ];
+
+          // Filter unavailable models
+          final filteredUnavailable = <ModelInfo>[
+            for (final m in unavailableItems)
+              if (query.isEmpty || m.id.toLowerCase().contains(query) || m.displayName.toLowerCase().contains(query)) m
           ];
 
           String _groupFor(ModelInfo m) {
@@ -1907,7 +1925,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           }
 
           // Build model row with capability icons
-          Widget _buildModelRow(ModelInfo m) {
+          Widget _buildModelRow(ModelInfo m, {bool isUnavailable = false}) {
             final eff = _effectiveFor(context, widget.keyName, widget.displayName, m);
             final added = selected.contains(m.id);
             // Build capability capsules
@@ -1966,27 +1984,46 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 builder: (_) => Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: added ? cs.primary.withOpacity(0.06) : Colors.transparent,
+                    color: isUnavailable
+                      ? (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.red.withOpacity(0.08)
+                          : Colors.red.withOpacity(0.05))
+                      : (added ? cs.primary.withOpacity(0.06) : Colors.transparent),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     children: [
+                      if (isUnavailable) ...[
+                        Icon(Lucide.TriangleAlert, size: 18, color: Colors.orange.withOpacity(0.8)),
+                        const SizedBox(width: 8),
+                      ],
                       Expanded(
                         child: Text(
                           eff.displayName,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: added ? FontWeight.w600 : FontWeight.w500,
-                            color: added ? cs.primary : cs.onSurface,
+                            color: isUnavailable
+                              ? cs.onSurface.withOpacity(0.5)
+                              : (added ? cs.primary : cs.onSurface),
+                            decoration: isUnavailable ? TextDecoration.lineThrough : null,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 8),
-                      ...caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)),
-                      const SizedBox(width: 8),
-                      Icon(added ? Lucide.Check : Lucide.Plus, size: 20, color: added ? cs.primary : cs.onSurface.withOpacity(0.5)),
+                      if (!isUnavailable) ...[
+                        ...caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)),
+                        const SizedBox(width: 8),
+                      ],
+                      Icon(
+                        added ? (isUnavailable ? Lucide.Minus : Lucide.Check) : Lucide.Plus,
+                        size: 20,
+                        color: isUnavailable
+                          ? Colors.red.withOpacity(0.7)
+                          : (added ? cs.primary : cs.onSurface.withOpacity(0.5)),
+                      ),
                     ],
                   ),
                 ),
@@ -2001,6 +2038,13 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             (grouped[g] ??= []).add(eff);
           }
           final groupKeys = grouped.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+          // Add unavailable models as a separate group if any exist
+          if (filteredUnavailable.isNotEmpty) {
+            final unavailableGroupKey = '⚠️ ${l10n.providerDetailPageUnavailableModelsGroupTitle}';
+            grouped[unavailableGroupKey] = filteredUnavailable;
+            groupKeys.add(unavailableGroupKey);
+          }
 
           return SafeArea(
             top: false,
@@ -2051,7 +2095,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                           child: Text(g, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                                         ),
                                         // Models
-                                        for (final m in grouped[g]!) _buildModelRow(m),
+                                        for (final m in grouped[g]!)
+                                          _buildModelRow(
+                                            m,
+                                            isUnavailable: unavailableItems.any((um) => um.id == m.id),
+                                          ),
                                       ],
                                     ],
                                   ),
@@ -2753,7 +2801,39 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
             },
           ),
         const SizedBox(height: 14),
-        Text(message, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w600)),
+        // Show icon with result
+        Icon(
+          success ? Lucide.CheckCircle : Lucide.XCircle,
+          size: 32,
+          color: color,
+        ),
+        const SizedBox(height: 12),
+        // Error message with selectable text for easy copying
+        if (!success && message.isNotEmpty)
+          Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cs.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: cs.error.withOpacity(0.3), width: 1),
+            ),
+            child: SelectableText(
+              message,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontFamily: 'monospace',
+              ),
+              textAlign: TextAlign.center,
+            ),
+          )
+        else
+          Text(
+            message,
+            style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
       ],
     );
   }

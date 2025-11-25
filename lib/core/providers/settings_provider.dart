@@ -91,6 +91,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _desktopRightSidebarWidthKey = 'desktop_right_sidebar_width_v1';
   static const String _desktopSettingsSidebarWidthKey = 'desktop_settings_sidebar_width_v1';
   static const String _desktopGlobalFontScaleKey = 'desktop_global_font_scale_v1';
+  static const String _desktopSelectedSettingsMenuKey = 'desktop_selected_settings_menu_v1';
   // Android background chat generation mode
   static const String _androidBackgroundChatModeKey = 'android_background_chat_mode_v1';
   // Desktop: close window behavior (minimize to tray or exit)
@@ -130,6 +131,8 @@ class SettingsProvider extends ChangeNotifier {
   double get desktopGlobalFontScale => _desktopGlobalFontScale;
   bool _desktopAutoSwitchTopics = false;
   bool get desktopAutoSwitchTopics => _desktopAutoSwitchTopics;
+  String _desktopSelectedSettingsMenu = 'display';
+  String get desktopSelectedSettingsMenu => _desktopSelectedSettingsMenu;
 
   // Desktop: topic list position (left or right) and right sidebar open state
   DesktopTopicPosition _desktopTopicPosition = DesktopTopicPosition.left;
@@ -360,6 +363,7 @@ class SettingsProvider extends ChangeNotifier {
     _desktopRightSidebarWidth = prefs.getDouble(_desktopRightSidebarWidthKey) ?? 300;
     _desktopSettingsSidebarWidth = prefs.getDouble(_desktopSettingsSidebarWidthKey) ?? 256;
     _desktopGlobalFontScale = prefs.getDouble(_desktopGlobalFontScaleKey) ?? 1.0;
+    _desktopSelectedSettingsMenu = prefs.getString(_desktopSelectedSettingsMenuKey) ?? 'display';
     // desktop: topic panel placement + right sidebar open state
     final topicPos = prefs.getString(_desktopTopicPositionKey);
     switch (topicPos) {
@@ -582,6 +586,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_desktopGlobalFontScaleKey, _desktopGlobalFontScale);
+  }
+
+  Future<void> setDesktopSelectedSettingsMenu(String menuKey) async {
+    if (_desktopSelectedSettingsMenu == menuKey) return;
+    _desktopSelectedSettingsMenu = menuKey;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_desktopSelectedSettingsMenuKey, menuKey);
   }
 
   // Desktop: topic panel placement (left/right)

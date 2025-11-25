@@ -77,6 +77,82 @@ class ChatApiService {
     } catch (_) {}
     return const <String>{};
   }
+
+  // Detect if a model is a Grok model (xAI) with robust checking
+  // Checks both the logical modelId and the upstream apiModelId
+  static bool _isGrokModel(ProviderConfig cfg, String modelId) {
+    final apiModel = _apiModelId(cfg, modelId).toLowerCase();
+    final logicalModel = modelId.toLowerCase();
+
+    // Check common Grok model name patterns
+    final grokPatterns = ['grok', 'xai-'];
+    for (final pattern in grokPatterns) {
+      if (apiModel.contains(pattern) || logicalModel.contains(pattern)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Extract and format Grok search citations from API response
+  // Returns a list of ToolResultInfo for UI rendering
+  static List<ToolResultInfo> _extractGrokCitations(Map<String, dynamic> response) {
+    try {
+      final citations = response['citations'];
+      if (citations is! List || citations.isEmpty) return [];
+
+      final items = <Map<String, dynamic>>[];
+      for (int i = 0; i < citations.length; i++) {
+        final citation = citations[i];
+
+        // Handle both string URLs and structured citation objects
+        if (citation is String) {
+          items.add({
+            'index': i + 1,
+            'url': citation,
+            'title': _extractDomainFromUrl(citation),
+          });
+        } else if (citation is Map) {
+          final url = (citation['url'] ?? citation['link'] ?? '').toString();
+          if (url.isEmpty) continue;
+
+          items.add({
+            'index': i + 1,
+            'url': url,
+            'title': citation['title']?.toString() ?? _extractDomainFromUrl(url),
+            if (citation['snippet'] != null) 'snippet': citation['snippet'].toString(),
+          });
+        }
+      }
+
+      if (items.isEmpty) return [];
+
+      return [
+        ToolResultInfo(
+          id: 'builtin_search',
+          name: 'search_web',
+          arguments: const {},
+          content: jsonEncode({'items': items}),
+        )
+      ];
+    } catch (e) {
+      // Silently fail if citation parsing fails
+      return [];
+    }
+  }
+
+  // Extract domain name from URL for better citation titles
+  static String _extractDomainFromUrl(String url) {
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri != null && uri.host.isNotEmpty) {
+        // Remove 'www.' prefix if present
+        return uri.host.startsWith('www.') ? uri.host.substring(4) : uri.host;
+      }
+    } catch (_) {}
+    return url;
+  }
   // Helpers to read per-model overrides (headers/body) from ProviderConfig
   static Map<String, dynamic> _modelOverride(ProviderConfig cfg, String modelId) {
     final ov = cfg.modelOverrides[modelId];
@@ -1019,6 +1095,13 @@ class ChatApiService {
       } else if (host.contains('opencode')) {
         // opencode.ai doesn't support reasoning_effort parameter
         (body as Map<String, dynamic>).remove('reasoning_effort');
+      } else if (_isGrokModel(config, modelId)) {
+        // Grok 4 series doesn't support reasoning_effort parameter
+        // Only Grok 3 Mini series supports it
+        final isGrok3Mini = modelId.toLowerCase().contains('grok-3-mini');
+        if (!isGrok3Mini) {
+          (body as Map<String, dynamic>).remove('reasoning_effort');
+        }
       }
     }
 
@@ -1037,6 +1120,16 @@ class ChatApiService {
       final h = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
       if (!h.contains('mistral.ai')) {
         (body as Map<String, dynamic>)['stream_options'] = {'include_usage': true};
+      }
+    }
+    // Inject Grok built-in search if configured
+    if (_isGrokModel(config, modelId)) {
+      final builtIns = _builtInTools(config, modelId);
+      if (builtIns.contains('search')) {
+        (body as Map<String, dynamic>)['search_parameters'] = {
+          'mode': 'auto',
+          'return_citations': true,
+        };
       }
     }
     // Merge custom body keys (override takes precedence)
@@ -1321,6 +1414,12 @@ class ChatApiService {
               } else if (host.contains('opencode')) {
                 // opencode.ai doesn't support reasoning_effort parameter
                 body2.remove('reasoning_effort');
+              } else if (_isGrokModel(config, modelId)) {
+                // Grok 4 series doesn't support reasoning_effort parameter
+                final isGrok3Mini = modelId.toLowerCase().contains('grok-3-mini');
+                if (!isGrok3Mini) {
+                  body2.remove('reasoning_effort');
+                }
               }
 
               // Ask for usage in streaming (when supported)
@@ -1388,6 +1487,19 @@ class ChatApiService {
                         }
                         usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: prompt, completionTokens: completion, cachedTokens: cached));
                         totalTokens = usage!.totalTokens;
+                      }
+                      // Capture Grok citations if present
+                      if (_isGrokModel(config, modelId)) {
+                        final citations = _extractGrokCitations(Map<String, dynamic>.from(o));
+                        if (citations.isNotEmpty) {
+                          yield ChatStreamChunk(
+                            content: '',
+                            isDone: false,
+                            totalTokens: usage?.totalTokens ?? 0,
+                            usage: usage,
+                            toolResults: citations,
+                          );
+                        }
                       }
                       if (rc is String && rc.isNotEmpty) {
                         yield ChatStreamChunk(content: '', reasoning: rc, isDone: false, totalTokens: 0, usage: usage);
@@ -2411,6 +2523,12 @@ class ChatApiService {
               } else if (host.contains('opencode')) {
                 // opencode.ai doesn't support reasoning_effort parameter
                 body2.remove('reasoning_effort');
+              } else if (_isGrokModel(config, modelId)) {
+                // Grok 4 series doesn't support reasoning_effort parameter
+                final isGrok3Mini = modelId.toLowerCase().contains('grok-3-mini');
+                if (!isGrok3Mini) {
+                  body2.remove('reasoning_effort');
+                }
               }
               if (!host.contains('mistral.ai')) {
                 body2['stream_options'] = {'include_usage': true};
@@ -2472,6 +2590,19 @@ class ChatApiService {
                         }
                         usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: prompt, completionTokens: completion, cachedTokens: cached));
                         totalTokens = usage!.totalTokens;
+                      }
+                      // Capture Grok citations if present
+                      if (_isGrokModel(config, modelId)) {
+                        final citations = _extractGrokCitations(Map<String, dynamic>.from(o));
+                        if (citations.isNotEmpty) {
+                          yield ChatStreamChunk(
+                            content: '',
+                            isDone: false,
+                            totalTokens: usage?.totalTokens ?? 0,
+                            usage: usage,
+                            toolResults: citations,
+                          );
+                        }
                       }
                       if (rc is String && rc.isNotEmpty) {
                         yield ChatStreamChunk(content: '', reasoning: rc, isDone: false, totalTokens: 0, usage: usage);
@@ -2752,6 +2883,12 @@ class ChatApiService {
                   } else if (host.contains('opencode')) {
                     // opencode.ai doesn't support reasoning_effort parameter
                     body2.remove('reasoning_effort');
+                  } else if (_isGrokModel(config, modelId)) {
+                    // Grok 4 series doesn't support reasoning_effort parameter
+                    final isGrok3Mini = modelId.toLowerCase().contains('grok-3-mini');
+                    if (!isGrok3Mini) {
+                      body2.remove('reasoning_effort');
+                    }
                   }
                   if (!host.contains('mistral.ai')) {
                     body2['stream_options'] = {'include_usage': true};
@@ -2811,6 +2948,19 @@ class ChatApiService {
                             }
                             usage = (usage ?? const TokenUsage()).merge(TokenUsage(promptTokens: prompt, completionTokens: completion, cachedTokens: cached));
                             totalTokens = usage!.totalTokens;
+                          }
+                          // Capture Grok citations if present
+                          if (_isGrokModel(config, modelId)) {
+                            final citations = _extractGrokCitations(Map<String, dynamic>.from(o));
+                            if (citations.isNotEmpty) {
+                              yield ChatStreamChunk(
+                                content: '',
+                                isDone: false,
+                                totalTokens: usage?.totalTokens ?? 0,
+                                usage: usage,
+                                toolResults: citations,
+                              );
+                            }
                           }
                           if (rc is String && rc.isNotEmpty) {
                             yield ChatStreamChunk(content: '', reasoning: rc, isDone: false, totalTokens: 0, usage: usage);

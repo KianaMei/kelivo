@@ -83,6 +83,8 @@ class Lucide {
   static const IconData MessageSquare = lucide.LucideIcons.messageSquare;
   static const IconData CircleStop = lucide.LucideIcons.circleStop;
   static const IconData CircleX = lucide.LucideIcons.circleX;
+  static const IconData CheckCircle = lucide.LucideIcons.circleCheck;
+  static const IconData XCircle = lucide.LucideIcons.circleX;
   static const IconData Link2 = lucide.LucideIcons.link2;
   static const IconData Shield = lucide.LucideIcons.shield;
   static const IconData Compass = lucide.LucideIcons.compass;
@@ -138,4 +140,5 @@ class Lucide {
   static const IconData Cut = lucide.LucideIcons.scissors;
   static const IconData Columns2 = lucide.LucideIcons.columns2;
   static const IconData ExternalLink = lucide.LucideIcons.externalLink;
+  static const IconData TriangleAlert = lucide.LucideIcons.triangleAlert;
 }

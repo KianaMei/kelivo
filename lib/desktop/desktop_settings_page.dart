@@ -72,9 +72,65 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         final sp = context.read<SettingsProvider>();
         setState(() {
           _menuWidth = sp.desktopSettingsSidebarWidth.clamp(_menuMinWidth, _menuMaxWidth);
+          // 从持久化存储中恢复上次选中的菜单项
+          _selected = _menuItemFromString(sp.desktopSelectedSettingsMenu);
         });
       } catch (_) {}
     });
+  }
+
+  // 将字符串转换为枚举
+  _SettingsMenuItem _menuItemFromString(String key) {
+    switch (key) {
+      case 'display':
+        return _SettingsMenuItem.display;
+      case 'assistant':
+        return _SettingsMenuItem.assistant;
+      case 'providers':
+        return _SettingsMenuItem.providers;
+      case 'defaultModel':
+        return _SettingsMenuItem.defaultModel;
+      case 'search':
+        return _SettingsMenuItem.search;
+      case 'mcp':
+        return _SettingsMenuItem.mcp;
+      case 'quickPhrases':
+        return _SettingsMenuItem.quickPhrases;
+      case 'tts':
+        return _SettingsMenuItem.tts;
+      case 'backup':
+        return _SettingsMenuItem.backup;
+      case 'about':
+        return _SettingsMenuItem.about;
+      default:
+        return _SettingsMenuItem.display;
+    }
+  }
+
+  // 将枚举转换为字符串
+  String _menuItemToString(_SettingsMenuItem item) {
+    switch (item) {
+      case _SettingsMenuItem.display:
+        return 'display';
+      case _SettingsMenuItem.assistant:
+        return 'assistant';
+      case _SettingsMenuItem.providers:
+        return 'providers';
+      case _SettingsMenuItem.defaultModel:
+        return 'defaultModel';
+      case _SettingsMenuItem.search:
+        return 'search';
+      case _SettingsMenuItem.mcp:
+        return 'mcp';
+      case _SettingsMenuItem.quickPhrases:
+        return 'quickPhrases';
+      case _SettingsMenuItem.tts:
+        return 'tts';
+      case _SettingsMenuItem.backup:
+        return 'backup';
+      case _SettingsMenuItem.about:
+        return 'about';
+    }
   }
 
   Widget _buildBody(_SettingsMenuItem item) {
@@ -163,7 +219,13 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                 _SettingsMenu(
                   width: _menuWidth,
                   selected: _selected,
-                  onSelect: (it) => setState(() => _selected = it),
+                  onSelect: (it) {
+                    setState(() => _selected = it);
+                    // 保存选中的菜单项到持久化存储
+                    try {
+                      context.read<SettingsProvider>().setDesktopSelectedSettingsMenu(_menuItemToString(it));
+                    } catch (_) {}
+                  },
                 ),
                 SidebarResizeHandle(
                   onDrag: (dx) {

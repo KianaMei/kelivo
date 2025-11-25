@@ -109,9 +109,10 @@ class _SearchSettingsSheet extends StatelessWidget {
     final isOfficialGemini = cfg != null && cfg.providerType == ProviderKind.google && (cfg.vertexAI != true);
     final isClaude = cfg != null && cfg.providerType == ProviderKind.claude;
     final isOpenAIResponses = cfg != null && cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
+    final isGrok = cfg != null && modelId != null && _isGrokModel(cfg, modelId);
     // Read current built-in search toggle from modelOverrides
     bool hasBuiltInSearch = false;
-    if ((isOfficialGemini || isClaude || isOpenAIResponses) && providerKey != null && (modelId ?? '').isNotEmpty) {
+    if ((isOfficialGemini || isClaude || isOpenAIResponses || isGrok) && providerKey != null && (modelId ?? '').isNotEmpty) {
       final mid = modelId!;
       final ov = cfg!.modelOverrides[mid] as Map?;
       final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
@@ -166,8 +167,8 @@ class _SearchSettingsSheet extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Built-in search toggle (Gemini official, Claude supported, or OpenAI Responses supported)
-                if ((isOfficialGemini || isClaudeSupportedModel || isOpenAIResponsesSupportedModel) && (providerKey != null) && (modelId ?? '').isNotEmpty) ...[
+                // Built-in search toggle (Gemini official, Claude supported, OpenAI Responses supported, or Grok)
+                if ((isOfficialGemini || isClaudeSupportedModel || isOpenAIResponsesSupportedModel || isGrok) && (providerKey != null) && (modelId ?? '').isNotEmpty) ...[
                   IosCardPress(
                     borderRadius: BorderRadius.circular(14),
                     baseColor: cs.surface,
@@ -520,4 +521,32 @@ class _BrandBadge extends StatelessWidget {
       child: Text(name.isNotEmpty ? name.characters.first.toUpperCase() : '?', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.42)),
     );
   }
+}
+
+// Helper function to detect Grok models with robust checking
+bool _isGrokModel(ProviderConfig cfg, String modelId) {
+  // Check logical model ID
+  final logicalModel = modelId.toLowerCase();
+
+  // Check API model ID (if different from logical ID)
+  String apiModel = logicalModel;
+  try {
+    final ov = cfg.modelOverrides[modelId];
+    if (ov is Map<String, dynamic>) {
+      final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+      if (raw != null && raw.isNotEmpty) {
+        apiModel = raw.toLowerCase();
+      }
+    }
+  } catch (_) {}
+
+  // Check common Grok model name patterns
+  final grokPatterns = ['grok', 'xai-'];
+  for (final pattern in grokPatterns) {
+    if (apiModel.contains(pattern) || logicalModel.contains(pattern)) {
+      return true;
+    }
+  }
+
+  return false;
 }

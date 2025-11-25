@@ -657,7 +657,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 final isGeminiOfficial = cfg.providerType == ProviderKind.google && (cfg.vertexAI != true);
                                 final isClaude = cfg.providerType == ProviderKind.claude;
                                 final isOpenAIResponses = cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
-                                if (isGeminiOfficial || isClaude || isOpenAIResponses) {
+                                // Check if it's a Grok model (more robust detection)
+                                final isGrok = _isGrokModel(cfg, currentModelId);
+                                if (isGeminiOfficial || isClaude || isOpenAIResponses || isGrok) {
                                   final ov = cfg.modelOverrides[currentModelId] as Map?;
                                   final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
                                   builtinSearchActive = list
@@ -1135,4 +1137,32 @@ class _SendButton extends StatelessWidget {
       ),
     );
   }
+}
+
+// Helper function to detect Grok models with robust checking
+bool _isGrokModel(ProviderConfig cfg, String modelId) {
+  // Check logical model ID
+  final logicalModel = modelId.toLowerCase();
+
+  // Check API model ID (if different from logical ID)
+  String apiModel = logicalModel;
+  try {
+    final ov = cfg.modelOverrides[modelId];
+    if (ov is Map<String, dynamic>) {
+      final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+      if (raw != null && raw.isNotEmpty) {
+        apiModel = raw.toLowerCase();
+      }
+    }
+  } catch (_) {}
+
+  // Check common Grok model name patterns
+  final grokPatterns = ['grok', 'xai-'];
+  for (final pattern in grokPatterns) {
+    if (apiModel.contains(pattern) || logicalModel.contains(pattern)) {
+      return true;
+    }
+  }
+
+  return false;
 }

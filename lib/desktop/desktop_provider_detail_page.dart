@@ -539,18 +539,34 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
           // Models section header
           Row(
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Text(
-                      l10n.providerDetailPageModelsTab,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(width: 8),
-                    _GreyCapsule(label: '${models.length}'),
-                  ],
+              Text(
+                l10n.providerDetailPageModelsTab,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(width: 8),
+              _GreyCapsule(label: '${models.length}'),
+              const SizedBox(width: 16),
+              // 获取按钮 - 带图标和文字
+              Tooltip(
+                message: l10n.providerDetailPageFetchModelsButton,
+                child: _TextIconBtn(
+                  icon: Lucide.RefreshCw,
+                  label: l10n.providerDetailPageFetchModelsButton,
+                  onTap: () => _fetchModels(context),
                 ),
               ),
+              const SizedBox(width: 8),
+              // 添加按钮 - 带图标和文字
+              Tooltip(
+                message: l10n.providerDetailPageAddNewModelButton,
+                child: _TextIconBtn(
+                  icon: Lucide.Plus,
+                  label: l10n.providerDetailPageAddNewModelButton,
+                  onTap: () => _addModel(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // 查询按钮
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 180),
                 switchInCurve: Curves.easeOutCubic,
@@ -588,28 +604,13 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
                         }),
                       ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
+              // 测试按钮
               Tooltip(
                 message: l10n.providerDetailPageTestButton,
                 child: _IconBtn(
                   icon: Lucide.HeartPulse,
                   onTap: () => _showTestConnectionDialog(context),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Tooltip(
-                message: l10n.providerDetailPageAddNewModelButton,
-                child: _IconBtn(
-                  icon: Lucide.Plus,
-                  onTap: () => _addModel(context),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Tooltip(
-                message: l10n.providerDetailPageFetchModelsButton,
-                child: _IconBtn(
-                  icon: Lucide.RefreshCw,
-                  onTap: () => _fetchModels(context),
                 ),
               ),
             ],
@@ -1479,6 +1480,58 @@ class _IconBtnState extends State<_IconBtn> {
           decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
           alignment: Alignment.center,
           child: Icon(widget.icon, size: 18, color: widget.color ?? cs.onSurface),
+        ),
+      ),
+    );
+  }
+}
+
+// 带文字和图标的按钮组件
+class _TextIconBtn extends StatefulWidget {
+  const _TextIconBtn({super.key, required this.icon, required this.label, required this.onTap, this.color});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  State<_TextIconBtn> createState() => _TextIconBtnState();
+}
+
+class _TextIconBtnState extends State<_TextIconBtn> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = _hover
+        ? (isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05))
+        : Colors.transparent;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 16, color: widget.color ?? cs.onSurface),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.color ?? cs.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3761,6 +3761,12 @@ abstract class AppLocalizations {
   /// **'Other'**
   String get providerDetailPageOtherModelsGroupTitle;
 
+  /// No description provided for @providerDetailPageUnavailableModelsGroupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable Models'**
+  String get providerDetailPageUnavailableModelsGroupTitle;
+
   /// No description provided for @providerDetailPageRemoveGroupTooltip.
   ///
   /// In en, this message translates to:
@@ -3826,6 +3832,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Providers'**
   String get providersPageTitle;
+
+  /// No description provided for @providersPageSearchTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get providersPageSearchTooltip;
+
+  /// No description provided for @providersPageSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search provider name'**
+  String get providersPageSearchHint;
 
   /// No description provided for @providersPageImportTooltip.
   ///

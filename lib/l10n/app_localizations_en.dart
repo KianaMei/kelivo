@@ -1963,6 +1963,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerDetailPageOtherModelsGroupTitle => 'Other';
 
   @override
+  String get providerDetailPageUnavailableModelsGroupTitle =>
+      'Unavailable Models';
+
+  @override
   String get providerDetailPageRemoveGroupTooltip => 'Remove group';
 
   @override
@@ -1994,6 +1998,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providersPageTitle => 'Providers';
+
+  @override
+  String get providersPageSearchTooltip => 'Search';
+
+  @override
+  String get providersPageSearchHint => 'Search provider name';
 
   @override
   String get providersPageImportTooltip => 'Import';

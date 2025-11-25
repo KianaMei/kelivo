@@ -1910,6 +1910,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providerDetailPageOtherModelsGroupTitle => '其他模型';
 
   @override
+  String get providerDetailPageUnavailableModelsGroupTitle => '已下架模型';
+
+  @override
   String get providerDetailPageRemoveGroupTooltip => '移除本组';
 
   @override
@@ -1941,6 +1944,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get providersPageTitle => '供应商';
+
+  @override
+  String get providersPageSearchTooltip => '搜索';
+
+  @override
+  String get providersPageSearchHint => '搜索供应商名称';
 
   @override
   String get providersPageImportTooltip => '导入';

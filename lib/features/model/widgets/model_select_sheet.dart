@@ -263,9 +263,12 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
   // Current selected tab (provider key or "__fav__" for favorites)
   String? _currentTab;
 
+  // GlobalKeys for measuring actual tab widths
+  final Map<String, GlobalKey> _tabKeys = {};
+
   // Debounce for wheel events
   DateTime? _lastWheelEvent;
-  static const _wheelDebounceMs = 150;
+  static const _wheelDebounceMs = 80; // Reduced from 150ms for better responsiveness
 
   @override
   void initState() {
@@ -774,12 +777,15 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
             _lastWheelEvent = now;
 
             final delta = event.scrollDelta.dy;
-            if (delta > 0) {
-              // 向下滚动 - 切换到下一个tab
-              _switchToNextTab(1);
-            } else if (delta < 0) {
-              // 向上滚动 - 切换到上一个tab
-              _switchToNextTab(-1);
+            // Use absolute value to ensure consistent response regardless of scroll speed
+            if (delta.abs() > 5) { // Minimum threshold to avoid accidental triggers
+              if (delta > 0) {
+                // 向下滚动 - 切换到下一个tab
+                _switchToNextTab(1);
+              } else {
+                // 向上滚动 - 切换到上一个tab
+                _switchToNextTab(-1);
+              }
             }
           }
         },
@@ -794,8 +800,11 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
           child: SingleChildScrollView(
             controller: _providerTabsScrollController,
             scrollDirection: Axis.horizontal,
-            // Desktop: use BouncingScrollPhysics for smooth drag experience
-            physics: const BouncingScrollPhysics(),
+            // Windows: use ClampingScrollPhysics for responsive drag without excessive bounce
+            // Mobile: use BouncingScrollPhysics for native feel
+            physics: Platform.isWindows
+                ? const ClampingScrollPhysics()
+                : const BouncingScrollPhysics(),
             child: Row(children: providerTabs),
           ),
         ),
@@ -901,7 +910,11 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
     final platform = defaultTargetPlatform;
     final isDesktop = platform == TargetPlatform.windows || platform == TargetPlatform.macOS || platform == TargetPlatform.linux;
 
+    // Create or reuse GlobalKey for this tab
+    _tabKeys.putIfAbsent(key, () => GlobalKey());
+
     return Padding(
+      key: _tabKeys[key],
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: _ProviderChip(
         avatar: _BrandAvatar(
@@ -1036,17 +1049,31 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
     final currentIndex = allTabs.indexOf(_currentTab!);
     if (currentIndex == -1) return;
 
-    // Estimate tab width (avatar + label + padding)
-    // Typical: 18px avatar + 6px gap + ~60-80px label + 20px padding = ~100-120px per tab
-    const estimatedTabWidth = 110.0;
-    final targetOffset = currentIndex * estimatedTabWidth;
+    // Get the GlobalKey for the current tab
+    final tabKey = _tabKeys[_currentTab!];
+    if (tabKey == null || tabKey.currentContext == null) {
+      // Fallback: retry after a short delay if the tab hasn't been rendered yet
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) _scrollCurrentTabToVisible();
+      });
+      return;
+    }
+
+    // Measure actual tab width using RenderBox
+    final RenderBox tabBox = tabKey.currentContext!.findRenderObject() as RenderBox;
+    final tabWidth = tabBox.size.width;
+
+    // Calculate the tab's position in the scroll view
+    final tabPosition = tabBox.localToGlobal(Offset.zero, ancestor: _providerTabsScrollController.position.context.notificationContext?.findRenderObject());
+    final scrollOffset = _providerTabsScrollController.offset;
+    final tabLeftEdge = tabPosition.dx + scrollOffset;
 
     // Get viewport width
     final viewportWidth = _providerTabsScrollController.position.viewportDimension;
     final maxScroll = _providerTabsScrollController.position.maxScrollExtent;
 
     // Calculate scroll position to center the tab
-    double scrollTo = targetOffset - (viewportWidth / 2) + (estimatedTabWidth / 2);
+    double scrollTo = tabLeftEdge - (viewportWidth / 2) + (tabWidth / 2);
 
     // Clamp to valid range
     scrollTo = scrollTo.clamp(0.0, maxScroll);

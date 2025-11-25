@@ -87,6 +87,7 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
   bool _loading = true;
   String _error = '';
   List<ModelInfo> _items = const [];
+  List<ModelInfo> _unavailableItems = const []; // Models in cfg.models but not in API response
   final Map<String, bool> _collapsed = <String, bool>{};
 
   @override
@@ -110,37 +111,47 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
       baseUrl: _sanitizeUrl(rawCfg.baseUrl),
       chatPath: rawCfg.chatPath != null ? _sanitizeUrl(rawCfg.chatPath!) : null,
     );
-    
+
     final bool isDefaultSilicon = widget.providerKey.toLowerCase() == 'siliconflow';
     final bool hasUserKey = (cfg.multiKeyEnabled == true && (cfg.apiKeys?.isNotEmpty == true)) || cfg.apiKey.trim().isNotEmpty;
     final bool restrictToFree = isDefaultSilicon && !hasUserKey;
-    
+
     print('📡 [ModelFetch] Calling ProviderManager.listModels...');
     try {
+      List<ModelInfo> availableModels;
       if (restrictToFree) {
-        final list = <ModelInfo>[
+        availableModels = <ModelInfo>[
           ModelRegistry.infer(ModelInfo(id: 'THUDM/GLM-4-9B-0414', displayName: 'THUDM/GLM-4-9B-0414')),
           ModelRegistry.infer(ModelInfo(id: 'Qwen/Qwen3-8B', displayName: 'Qwen/Qwen3-8B')),
         ];
-        setState(() {
-          _items = list;
-          _loading = false;
-          _error = '';
-        });
       } else {
-        final list = await ProviderManager.listModels(cfg);
-        print('✅ [ModelFetch] Got ${list.length} models from API');
-        if (!mounted) return;
-        setState(() {
-          _items = list;
-          _loading = false;
-          _error = '';
-        });
+        availableModels = await ProviderManager.listModels(cfg);
+        print('✅ [ModelFetch] Got ${availableModels.length} models from API');
       }
+
+      // Find unavailable models (in cfg.models but not in API response)
+      final availableIds = availableModels.map((m) => m.id).toSet();
+      final unavailableIds = cfg.models.where((id) => !availableIds.contains(id)).toList();
+
+      // Create ModelInfo for unavailable models
+      final unavailableModels = unavailableIds.map((id) {
+        return ModelInfo(id: id, displayName: id);
+      }).toList();
+
+      print('⚠️ [ModelFetch] Found ${unavailableModels.length} unavailable models: $unavailableIds');
+
+      if (!mounted) return;
+      setState(() {
+        _items = availableModels;
+        _unavailableItems = unavailableModels;
+        _loading = false;
+        _error = '';
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _items = const [];
+        _unavailableItems = const [];
         _loading = false;
         _error = '$e';
       });
@@ -359,15 +370,25 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
 
   Widget _buildList(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
     final selected = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName).models.toSet();
 
     final q = _searchCtrl.text.trim().toLowerCase();
+
+    // Filter available models
     final filtered = <ModelInfo>[
       for (final m in _items)
         if (q.isEmpty || m.id.toLowerCase().contains(q) || m.displayName.toLowerCase().contains(q)) m,
     ];
 
+    // Filter unavailable models
+    final filteredUnavailable = <ModelInfo>[
+      for (final m in _unavailableItems)
+        if (q.isEmpty || m.id.toLowerCase().contains(q) || m.displayName.toLowerCase().contains(q)) m,
+    ];
+
+    // Group available models
     final Map<String, List<ModelInfo>> grouped = {};
     for (final m in filtered) {
       final eff = _effectiveFor(context, widget.providerKey, widget.providerDisplayName, m);
@@ -375,6 +396,13 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
       (grouped[g] ??= []).add(eff);
     }
     final groupKeys = grouped.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    // Add unavailable models as a separate group if any exist
+    if (filteredUnavailable.isNotEmpty) {
+      final unavailableGroupKey = '⚠️ ${l10n.providerDetailPageUnavailableModelsGroupTitle}';
+      grouped[unavailableGroupKey] = filteredUnavailable;
+      groupKeys.add(unavailableGroupKey);
+    }
 
     if (groupKeys.isEmpty) {
       return const Center(child: Text(''));
@@ -456,7 +484,12 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
                 ? const SizedBox.shrink()
                 : Column(
                     children: [
-                      for (final m in grouped[g]!) _modelRow(context, m),
+                      for (final m in grouped[g]!)
+                        _buildModelRow(
+                          context,
+                          m,
+                          isUnavailable: _unavailableItems.any((um) => um.id == m.id),
+                        ),
                     ],
                   ),
           ),
@@ -465,7 +498,7 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
     );
   }
 
-  Widget _modelRow(BuildContext context, ModelInfo m) {
+  Widget _buildModelRow(BuildContext context, ModelInfo m, {bool isUnavailable = false}) {
     final cs = Theme.of(context).colorScheme;
     final settings = context.read<SettingsProvider>();
     final selected = settings.getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName).models.toSet();
@@ -475,7 +508,7 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
     final inStr = m.input.map((e) => e.name).join(',');
     final outStr = m.output.map((e) => e.name).join(',');
     final abStr = m.abilities.map((e) => e.name).join(',');
-    print('📦 ${m.id.padRight(30)} | 📥 $inStr | 📤 $outStr | ✨ $abStr');
+    print('📦 ${m.id.padRight(30)} | 📥 $inStr | 📤 $outStr | ✨ $abStr | ${isUnavailable ? "⚠️ UNAVAILABLE" : "✅ AVAILABLE"}');
 
     // Build ability capsules with icons
     final caps = <Widget>[];
@@ -520,24 +553,46 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       child: _TactileRow(
         builder: (_) => Container(
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            // Add red tint for unavailable models
+            color: isUnavailable
+              ? (Theme.of(context).brightness == Brightness.dark
+                  ? Colors.red.withOpacity(0.08)
+                  : Colors.red.withOpacity(0.05))
+              : null,
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
-                SizedBox(width: 28, child: Center(child: _BrandAvatar(name: m.id, size: 24))),
+                SizedBox(
+                  width: 28,
+                  child: Center(
+                    child: isUnavailable
+                      ? Icon(Lucide.TriangleAlert, size: 20, color: Colors.orange.withOpacity(0.8))
+                      : _BrandAvatar(name: m.id, size: 24),
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     m.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13.5),
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      // Add strikethrough and gray color for unavailable models
+                      decoration: isUnavailable ? TextDecoration.lineThrough : null,
+                      color: isUnavailable ? cs.onSurface.withOpacity(0.5) : null,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Row(children: caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)).toList()),
-                const SizedBox(width: 8),
+                if (!isUnavailable) ...[
+                  Row(children: caps.map((w) => Padding(padding: const EdgeInsets.only(left: 4), child: w)).toList()),
+                  const SizedBox(width: 8),
+                ],
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 40, minHeight: 36),
@@ -552,7 +607,13 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
                     await context.read<SettingsProvider>().setProviderConfig(widget.providerKey, old.copyWith(models: list));
                     if (mounted) setState(() {});
                   },
-                  icon: Icon(added ? Lucide.Minus : Lucide.Plus, size: 18, color: cs.onSurface.withOpacity(0.75)),
+                  icon: Icon(
+                    added ? Lucide.Minus : Lucide.Plus,
+                    size: 18,
+                    color: isUnavailable
+                      ? Colors.red.withOpacity(0.7)
+                      : cs.onSurface.withOpacity(0.75),
+                  ),
                 ),
               ],
             ),

@@ -136,6 +136,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _showJumpToBottom = false;
   bool _isUserScrolling = false;
   Timer? _userScrollTimer;
+  // OCR cache: imagePath -> extracted text
+  final Map<String, String> _ocrCache = <String, String>{};
 
   // Sanitize/translate JSON Schema to each provider's accepted subset
   static Map<String, dynamic> _sanitizeToolParametersForProvider(Map<String, dynamic> schema, ProviderKind kind) {
@@ -408,6 +410,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _isReasoningModel(String providerKey, String modelId) {
     final settings = context.read<SettingsProvider>();
     final cfg = settings.getProviderConfig(providerKey);
+
+    // Check if it's a Grok model that doesn't support reasoning_effort parameter
+    // Grok 4 series are reasoning models but don't support the reasoning_effort parameter
+    // Only Grok 3 Mini series supports reasoning_effort
+    final modelLower = modelId.toLowerCase();
+    if (modelLower.contains('grok')) {
+      // Grok 3 Mini series supports reasoning controls
+      if (modelLower.contains('grok-3-mini')) {
+        return true;
+      }
+      // Grok 4 and other Grok models don't support reasoning_effort parameter
+      // Return false to hide reasoning controls
+      return false;
+    }
+
     final ov = cfg.modelOverrides[modelId] as Map?;
     if (ov != null) {
       final abilities = (ov['abilities'] as List?)?.map((e) => e.toString()).toList() ?? const [];
@@ -429,6 +446,67 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return inferred.input.contains(Modality.image);
   }
 
+  // Get cached OCR text for an image path
+  String? _cachedOcrText(String imagePath) {
+    return _ocrCache[imagePath.trim()];
+  }
+
+  // Cache OCR text for an image path
+  void _cacheOcrText(String imagePath, String text) {
+    _ocrCache[imagePath.trim()] = text;
+  }
+
+  // Wrap OCR text in a structured block
+  String _wrapOcrBlock(String ocrText) {
+    final buf = StringBuffer();
+    buf.writeln("The image_file_ocr tag contains a description of an image that the user uploaded to you, not the user's prompt.");
+    buf.writeln('<image_file_ocr>');
+    buf.writeln(ocrText.trim());
+    buf.writeln('</image_file_ocr>');
+    buf.writeln();
+    return buf.toString();
+  }
+
+  // Get OCR text for multiple images, using cache when available
+  Future<String?> _getOcrTextForImages(List<String> imagePaths) async {
+    if (imagePaths.isEmpty) return null;
+    final settings = context.read<SettingsProvider>();
+    if (!(settings.ocrEnabled &&
+        settings.ocrModelProvider != null &&
+        settings.ocrModelId != null)) {
+      return null;
+    }
+
+    final combined = StringBuffer();
+    final List<String> uncached = <String>[];
+
+    // Check cache first
+    for (final raw in imagePaths) {
+      final path = raw.trim();
+      if (path.isEmpty) continue;
+      final cached = _cachedOcrText(path);
+      if (cached != null && cached.trim().isNotEmpty) {
+        combined.writeln(cached.trim());
+      } else {
+        uncached.add(path);
+      }
+    }
+
+    // Fetch OCR for uncached images one-by-one to populate cache
+    for (final path in uncached) {
+      final text = await _runOcrForImages([path]);
+      if (text != null && text.trim().isNotEmpty) {
+        final t = text.trim();
+        _cacheOcrText(path, t);
+        combined.writeln(t);
+      }
+    }
+
+    final out = combined.toString().trim();
+    return out.isEmpty ? null : out;
+  }
+
+  // Run OCR on images using the configured OCR model
   Future<String?> _runOcrForImages(List<String> imagePaths) async {
     if (imagePaths.isEmpty) return null;
     final settings = context.read<SettingsProvider>();
@@ -1193,23 +1271,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return;
     }
 
-    // OCR integration: extract text from images if model doesn't support image input
-    String ocrText = '';
-    if (settings.ocrEnabled && input.imagePaths.isNotEmpty && !_isImageInputModel(providerKey, modelId)) {
-      final extracted = await _runOcrForImages(input.imagePaths);
-      if (extracted != null && extracted.isNotEmpty) {
-        ocrText = '\n\n[OCR extracted text from images]:\n$extracted';
-      }
-    }
-
     // Add user message
     // Persist user message; append image and document markers for display
+    // Note: OCR is now processed inline when preparing API messages, not stored in DB
     final imageMarkers = input.imagePaths.map((p) => '\n[image:$p]').join();
     final docMarkers = input.documents.map((d) => '\n[file:${d.path}|${d.fileName}|${d.mime}]').join();
     final userMessage = await _chatService.addMessage(
       conversationId: _currentConversation!.id,
       role: 'user',
-      content: content + ocrText + imageMarkers + docMarkers,
+      content: content + imageMarkers + docMarkers,
     );
 
     setState(() {
@@ -1280,36 +1350,97 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             })
         .toList();
 
-    // Build document prompts and clean markers in last user message
-    if (apiMessages.isNotEmpty) {
-      // Find last user message index in apiMessages
-      int lastUserIdx = -1;
-      for (int i = apiMessages.length - 1; i >= 0; i--) {
-        if (apiMessages[i]['role'] == 'user') { lastUserIdx = i; break; }
+    // Build document prompts inline for each user message
+    // Use a cache to avoid re-reading the same document multiple times
+    final Map<String, String?> docTextCache = <String, String?>{};
+
+    Future<String?> readDocumentCached(DocumentAttachment d) async {
+      // Skip video files - they are handled as image-style attachments
+      if (d.mime.toLowerCase().startsWith('video/')) return null;
+
+      if (docTextCache.containsKey(d.path)) {
+        return docTextCache[d.path];
       }
-      if (lastUserIdx != -1) {
-        final raw = (apiMessages[lastUserIdx]['content'] ?? '').toString();
-        final cleaned = raw
-            .replaceAll(RegExp(r"\[image:.*?\]"), '')
-            .replaceAll(RegExp(r"\[file:.*?\]"), '')
-            .trim();
-        // Build document prompts
-        final filePrompts = StringBuffer();
-        for (final d in input.documents) {
-          try {
-            final text = await DocumentTextExtractor.extract(path: d.path, mime: d.mime);
-            filePrompts.writeln('## user sent a file: ${d.fileName}');
-            filePrompts.writeln('<content>');
-            filePrompts.writeln('```');
-            filePrompts.writeln(text);
-            filePrompts.writeln('```');
-            filePrompts.writeln('</content>');
-            filePrompts.writeln();
-          } catch (_) {}
+
+      try {
+        final text = await DocumentTextExtractor.extract(path: d.path, mime: d.mime);
+        docTextCache[d.path] = text;
+        return text;
+      } catch (_) {
+        docTextCache[d.path] = null;
+        return null;
+      }
+    }
+
+    // Check if OCR is active
+    final ocrActive = settings.ocrEnabled &&
+        settings.ocrModelProvider != null &&
+        settings.ocrModelId != null;
+
+    // Process each user message to inline its document attachments and OCR
+    for (int i = 0; i < apiMessages.length; i++) {
+      if (apiMessages[i]['role'] != 'user') continue;
+
+      final rawContent = (apiMessages[i]['content'] ?? '').toString();
+      final parsedInput = _parseInputFromRaw(rawContent);
+
+      // Collect video paths to exclude from OCR
+      final videoPaths = <String>{
+        for (final d in parsedInput.documents)
+          if (d.mime.toLowerCase().startsWith('video/')) d.path.trim(),
+      }..removeWhere((p) => p.isEmpty);
+
+      // Clean markers from the text
+      // If OCR is active, also remove image markers since they'll be processed via OCR
+      String cleanedText = rawContent.replaceAll(RegExp(r"\[file:.*?\]"), '').trim();
+      if (ocrActive) {
+        cleanedText = cleanedText.replaceAll(RegExp(r"\[image:.*?\]"), '');
+      }
+
+      // Build document prompts for this message
+      final filePrompts = StringBuffer();
+      for (final doc in parsedInput.documents) {
+        final text = await readDocumentCached(doc);
+        if (text == null || text.trim().isEmpty) continue;
+
+        filePrompts.writeln('## user sent a file: ${doc.fileName}');
+        filePrompts.writeln('<content>');
+        filePrompts.writeln('```');
+        filePrompts.writeln(text);
+        filePrompts.writeln('```');
+        filePrompts.writeln('</content>');
+        filePrompts.writeln();
+      }
+
+      // Merge document content with cleaned text
+      String merged = (filePrompts.toString() + cleanedText).trim();
+
+      // Process OCR for images if enabled
+      if (ocrActive) {
+        final ocrTargets = parsedInput.imagePaths
+            .map((p) => p.trim())
+            .where((p) => p.isNotEmpty && !videoPaths.contains(p))
+            .toSet()
+            .toList();
+        if (ocrTargets.isNotEmpty) {
+          final ocrText = await _getOcrTextForImages(ocrTargets);
+          if (ocrText != null && ocrText.trim().isNotEmpty) {
+            merged = (_wrapOcrBlock(ocrText) + merged).trim();
+          }
         }
-        final merged = (filePrompts.toString() + cleaned).trim();
-        final userText = merged.isEmpty ? cleaned : merged;
-        // Apply message template if set
+      }
+
+      final userText = merged.isEmpty ? cleanedText : merged;
+
+      // Apply message template only to the last user message
+      final isLastUserMessage = () {
+        for (int j = i + 1; j < apiMessages.length; j++) {
+          if (apiMessages[j]['role'] == 'user') return false;
+        }
+        return true;
+      }();
+
+      if (isLastUserMessage) {
         final templ = (assistant?.messageTemplate ?? '{{ message }}').trim().isEmpty
             ? '{{ message }}'
             : (assistant!.messageTemplate);
@@ -1319,7 +1450,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           message: userText,
           now: DateTime.now(),
         );
-        apiMessages[lastUserIdx]['content'] = templated;
+        apiMessages[i]['content'] = templated;
+      } else {
+        apiMessages[i]['content'] = userText;
       }
     }
 

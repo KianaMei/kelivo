@@ -44,6 +44,14 @@ class _ProvidersPageState extends State<ProvidersPage> {
   final Set<String> _settleKeys = {};
   bool _selectMode = false;
   final Set<String> _selected = {};
+  bool _searchMode = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _toggleSelectMode(AppLocalizations l10n) {
     setState(() {
@@ -89,14 +97,30 @@ class _ProvidersPageState extends State<ProvidersPage> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
         children: [
-          Text(
-            l10n.providersPageTitle,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
+          if (!_searchMode) ...[
+            Text(
+              l10n.providersPageTitle,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+              ),
             ),
-          ),
+          ] else ...[
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: l10n.providersPageSearchHint,
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+          ],
           const Spacer(),
           Tooltip(
             message: _selectMode ? l10n.searchServicesPageDone : l10n.providersPageMultiSelectTooltip,
@@ -105,6 +129,23 @@ class _ProvidersPageState extends State<ProvidersPage> {
               color: cs.onSurface,
               size: 22,
               onTap: () => _toggleSelectMode(l10n),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: _searchMode ? l10n.searchServicesPageDone : l10n.providersPageSearchTooltip,
+            child: _TactileIconButton(
+              icon: _searchMode ? Lucide.X : Lucide.Search,
+              color: cs.onSurface,
+              size: 22,
+              onTap: () {
+                setState(() {
+                  _searchMode = !_searchMode;
+                  if (!_searchMode) {
+                    _searchController.clear();
+                  }
+                });
+              },
             ),
           ),
           const SizedBox(width: 8),
@@ -197,10 +238,19 @@ class _ProvidersPageState extends State<ProvidersPage> {
     }
     final items = _items!;
 
+    // Apply search filter
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredItems = query.isEmpty
+        ? items
+        : items.where((p) =>
+            p.name.toLowerCase().contains(query) ||
+            p.keyName.toLowerCase().contains(query)
+          ).toList();
+
     final bodyContent = Stack(
       children: [
         _ProvidersList(
-          items: items,
+          items: filteredItems,
           selectMode: _selectMode,
           selectedKeys: _selected,
           onToggleSelect: (key) {

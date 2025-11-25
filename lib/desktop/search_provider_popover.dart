@@ -44,7 +44,8 @@ class _SearchProviderContent extends StatelessWidget {
     final isClaude = cfg.providerType == ProviderKind.claude;
     final isOpenAIResponses =
         cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
-    return isOfficialGemini || isClaude || isOpenAIResponses;
+    final isGrok = _isGrokModel(cfg, modelId!);
+    return isOfficialGemini || isClaude || isOpenAIResponses || isGrok;
   }
 
   bool _hasBuiltInSearchEnabled(SettingsProvider settings, AssistantProvider ap) {
@@ -265,4 +266,32 @@ class _BrandIcon extends StatelessWidget {
       fit: BoxFit.contain,
     );
   }
+}
+
+// Helper function to detect Grok models with robust checking
+bool _isGrokModel(ProviderConfig cfg, String modelId) {
+  // Check logical model ID
+  final logicalModel = modelId.toLowerCase();
+
+  // Check API model ID (if different from logical ID)
+  String apiModel = logicalModel;
+  try {
+    final ov = cfg.modelOverrides[modelId];
+    if (ov is Map<String, dynamic>) {
+      final raw = (ov['apiModelId'] ?? ov['api_model_id'])?.toString().trim();
+      if (raw != null && raw.isNotEmpty) {
+        apiModel = raw.toLowerCase();
+      }
+    }
+  } catch (_) {}
+
+  // Check common Grok model name patterns
+  final grokPatterns = ['grok', 'xai-'];
+  for (final pattern in grokPatterns) {
+    if (apiModel.contains(pattern) || logicalModel.contains(pattern)) {
+      return true;
+    }
+  }
+
+  return false;
 }
