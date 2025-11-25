@@ -5111,6 +5111,18 @@ abstract class AppLocalizations {
   /// **'Bocha web search API. Accurate web results with optional summaries.'**
   String get searchProviderBochaDescription;
 
+  /// No description provided for @searchServiceNameDuckDuckGo.
+  ///
+  /// In en, this message translates to:
+  /// **'DuckDuckGo'**
+  String get searchServiceNameDuckDuckGo;
+
+  /// No description provided for @searchProviderDuckDuckGoDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy-focused search engine. No API key required; uses web scraping.'**
+  String get searchProviderDuckDuckGoDescription;
+
   /// No description provided for @generationInterrupted.
   ///
   /// In en, this message translates to:

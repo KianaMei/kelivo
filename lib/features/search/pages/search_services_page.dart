@@ -686,6 +686,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     if (service is JinaOptions) return Lucide.Sparkles;
     if (service is PerplexityOptions) return Lucide.Search;
     if (service is BochaOptions) return Lucide.Search;
+    if (service is DuckDuckGoOptions) return Lucide.Search;
     return Lucide.Search;
   }
 
@@ -743,6 +744,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
       return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
     }
+    if (service is DuckDuckGoOptions) return null;
     return null;
   }
 
@@ -774,6 +776,7 @@ class _BrandBadge extends StatelessWidget {
     if (s is JinaOptions) return 'jina';
     if (s is PerplexityOptions) return 'perplexity';
     if (s is BochaOptions) return 'bocha';
+    if (s is DuckDuckGoOptions) return 'duckduckgo';
     return 'search';
   }
 
@@ -925,6 +928,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       {'type': 'ollama', 'name': l10n.searchServiceNameOllama},
       {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
       {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
+      {'type': 'duckduckgo', 'name': l10n.searchServiceNameDuckDuckGo},
     ];
     return ListView.builder(
       key: const ValueKey('service_list'),
@@ -965,6 +969,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
       case 'ollama': return l10n.searchServiceNameOllama;
       case 'perplexity': return l10n.searchServiceNamePerplexity;
       case 'bocha': return l10n.searchServiceNameBocha;
+      case 'duckduckgo': return l10n.searchServiceNameDuckDuckGo;
       default: return '';
     }
   }
@@ -1070,6 +1075,37 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
                 ),
               ],
             ),
+          ),
+        ];
+      case 'duckduckgo':
+        return [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Lucide.Search, size: 20, color: cs.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.searchServiceNameDuckDuckGo,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: cs.onSurface.withOpacity(0.8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'region',
+            label: 'Region (optional)',
+            hint: 'wt-wt',
           ),
         ];
       case 'tavily':
@@ -1201,6 +1237,11 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
           id: id,
           apiKey: _controllers['apiKey']!.text,
         );
+      case 'duckduckgo':
+        return DuckDuckGoOptions(
+          id: id,
+          region: _controllers['region']?.text ?? 'wt-wt',
+        );
       default:
         return BingLocalOptions(id: id);
     }
@@ -1259,6 +1300,8 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is BochaOptions) {
       _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
+    } else if (service is DuckDuckGoOptions) {
+      _controllers['region'] = TextEditingController(text: service.region);
     }
   }
 
@@ -1434,6 +1477,14 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           obscureText: true,
         ),
       ];
+    } else if (service is DuckDuckGoOptions) {
+      return [
+        _buildTextField(
+          key: 'region',
+          label: 'Region (optional)',
+          hint: 'wt-wt',
+        ),
+      ];
     }
 
     return [];
@@ -1508,8 +1559,13 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         include: service.include,
         exclude: service.exclude,
       );
+    } else if (service is DuckDuckGoOptions) {
+      return DuckDuckGoOptions(
+        id: service.id,
+        region: _controllers['region']?.text ?? 'wt-wt',
+      );
     }
-    
+
     return service;
   }
 }
@@ -3016,8 +3072,9 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
       {'type': 'ollama', 'name': l10n.searchServiceNameOllama},
       {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
       {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
+      {'type': 'duckduckgo', 'name': l10n.searchServiceNameDuckDuckGo},
     ];
-    
+
     return ListView.builder(
       key: const ValueKey('service_list'),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -3193,6 +3250,37 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
             ),
           ),
         ];
+      case 'duckduckgo':
+        return [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Lucide.Search, size: 20, color: cs.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.searchServiceNameDuckDuckGo,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: cs.onSurface.withOpacity(0.8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildTextField(
+            key: 'region',
+            label: 'Region (optional)',
+            hint: 'wt-wt',
+          ),
+        ];
       case 'tavily':
       case 'exa':
       case 'zhipu':
@@ -3321,6 +3409,11 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         return BochaOptions.single(
           id: id,
           apiKey: _controllers['apiKey']!.text,
+        );
+      case 'duckduckgo':
+        return DuckDuckGoOptions(
+          id: id,
+          region: _controllers['region']?.text ?? 'wt-wt',
         );
       default:
         return BingLocalOptions(id: id);

@@ -2610,6 +2610,13 @@ class AppLocalizationsZh extends AppLocalizations {
       '博查 AI 全网网页搜索，支持时间范围与摘要，更适合 AI 使用。';
 
   @override
+  String get searchServiceNameDuckDuckGo => 'DuckDuckGo';
+
+  @override
+  String get searchProviderDuckDuckGoDescription =>
+      '注重隐私的搜索引擎。无需 API 密钥，使用网页抓取。';
+
+  @override
   String get generationInterrupted => '生成已中断';
 
   @override
@@ -5244,6 +5251,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '博查 AI 全网网页搜索，支持时间范围与摘要，更适合 AI 使用。';
 
   @override
+  String get searchServiceNameDuckDuckGo => 'DuckDuckGo';
+
+  @override
+  String get searchProviderDuckDuckGoDescription =>
+      '注重隐私的搜索引擎。无需 API 密钥，使用网页抓取。';
+
+  @override
   String get generationInterrupted => '生成已中断';
 
   @override
@@ -7804,6 +7818,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get searchProviderBochaDescription =>
       '博查 AI 全網網頁搜尋，支援時間範圍與摘要，更適合 AI 使用。';
+
+  @override
+  String get searchServiceNameDuckDuckGo => 'DuckDuckGo';
+
+  @override
+  String get searchProviderDuckDuckGoDescription =>
+      '注重隱私的搜尋引擎。無需 API 金鑰，使用網頁抓取。';
 
   @override
   String get generationInterrupted => '生成已中斷';

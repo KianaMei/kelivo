@@ -881,6 +881,8 @@
   "searchProviderPerplexityDescription": "Perplexity 搜索 API。提供排序的网页结果，支持区域与域名过滤。",
   "searchServiceNameBocha": "博查",
   "searchProviderBochaDescription": "博查 AI 全网网页搜索，支持时间范围与摘要，更适合 AI 使用。",
+  "searchServiceNameDuckDuckGo": "DuckDuckGo",
+  "searchProviderDuckDuckGoDescription": "注重隐私的搜索引擎。无需 API 密钥，使用网页抓取。",
   "generationInterrupted": "生成已中断",
   "titleForLocale": "新对话",
   "displaySettingsPageEnableDollarLatexTitle": "启用 $...$ 渲染",

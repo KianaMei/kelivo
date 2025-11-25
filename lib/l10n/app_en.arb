@@ -1109,6 +1109,8 @@
   "searchProviderPerplexityDescription": "Perplexity Search API. Ranked web results with region and domain filters.",
   "searchServiceNameBocha": "Bocha",
   "searchProviderBochaDescription": "Bocha web search API. Accurate web results with optional summaries.",
+  "searchServiceNameDuckDuckGo": "DuckDuckGo",
+  "searchProviderDuckDuckGoDescription": "Privacy-focused search engine. No API key required; uses web scraping.",
   "generationInterrupted": "Generation interrupted",
   "titleForLocale": "New Chat",
   "quickPhraseBackTooltip": "Back",

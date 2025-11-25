@@ -2701,6 +2701,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Bocha web search API. Accurate web results with optional summaries.';
 
   @override
+  String get searchServiceNameDuckDuckGo => 'DuckDuckGo';
+
+  @override
+  String get searchProviderDuckDuckGoDescription =>
+      'Privacy-focused search engine. No API key required; uses web scraping.';
+
+  @override
   String get generationInterrupted => 'Generation interrupted';
 
   @override

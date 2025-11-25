@@ -960,6 +960,214 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     try { SystemChannels.textInput.invokeMethod('TextInput.hide'); } catch (_) {}
   }
 
+  Widget _buildChatInputBar(BuildContext context, {required bool builtinSearchActive}) {
+    final settings = context.watch<SettingsProvider>();
+    final a = context.watch<AssistantProvider>().currentAssistant;
+    final pk = a?.chatModelProvider ?? settings.currentModelProvider;
+    final mid = a?.chatModelId ?? settings.currentModelId;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isMobile = screenWidth < 600;
+    final isWindowsDesktop = !kIsWeb && Platform.isWindows;
+
+    return ChatInputBar(
+      key: _inputBarKey,
+      onMore: _toggleTools,
+      searchEnabled: settings.searchEnabled || builtinSearchActive,
+      onToggleSearch: (enabled) {
+        context.read<SettingsProvider>().setSearchEnabled(enabled);
+      },
+      onSelectModel: () => showModelSelectSheet(context),
+      onLongPressSelectModel: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ProvidersPage()),
+        );
+      },
+      onOpenMcp: () {
+        final a = context.read<AssistantProvider>().currentAssistant;
+        if (a != null) {
+          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.linux;
+          if (isDesktop) {
+            showDesktopMcpServersPopover(
+              context,
+              anchorKey: _inputBarKey,
+              assistantId: a.id,
+            );
+          } else {
+            showAssistantMcpSheet(context, assistantId: a.id);
+          }
+        }
+      },
+      onLongPressMcp: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const McpPage()),
+        );
+      },
+      onStop: _cancelStreaming,
+      modelIcon: (settings.showModelIcon && ((a?.chatModelProvider ?? settings.currentModelProvider) != null) && ((a?.chatModelId ?? settings.currentModelId) != null))
+          ? _CurrentModelIcon(
+              providerKey: a?.chatModelProvider ?? settings.currentModelProvider,
+              modelId: a?.chatModelId ?? settings.currentModelId,
+              size: 40,
+              withBackground: true,
+              backgroundColor: Colors.transparent,
+            )
+          : null,
+      focusNode: _inputFocus,
+      controller: _inputController,
+      mediaController: _mediaController,
+      onConfigureReasoning: () async {
+        final convo = _currentConversation;
+        if (convo == null) return;
+        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux;
+        if (isDesktop) {
+          await showDesktopReasoningBudgetPopover(
+            context,
+            anchorKey: _inputBarKey,
+            initialValue: convo.thinkingBudget,
+            onValueChanged: (value) async {
+              final updated = await _chatService.setConversationThinkingBudget(convo.id, value);
+              if (updated != null && mounted) {
+                setState(() {
+                  _currentConversation = updated;
+                });
+              }
+            },
+          );
+        } else {
+          if (convo.thinkingBudget != null) {
+            await context.read<SettingsProvider>().setThinkingBudget(convo.thinkingBudget);
+          }
+          await showReasoningBudgetSheet(context);
+          final chosen = context.read<SettingsProvider>().thinkingBudget;
+          final updated = await _chatService.setConversationThinkingBudget(convo.id, chosen);
+          if (updated != null && mounted) {
+            setState(() {
+              _currentConversation = updated;
+            });
+          }
+        }
+      },
+      reasoningActive: _isReasoningEnabled((_currentConversation?.thinkingBudget) ?? settings.thinkingBudget),
+      supportsReasoning: (pk != null && mid != null) ? _isReasoningModel(pk, mid) : false,
+      onConfigureMaxTokens: () async {
+        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux;
+        if (isDesktop) {
+          await showDesktopMaxTokensPopover(
+            context,
+            anchorKey: _inputBarKey,
+          );
+        } else {
+          await showMaxTokensSheet(context);
+        }
+      },
+      onConfigureToolLoop: () async {
+        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux;
+        if (isDesktop) {
+          await showDesktopToolLoopPopover(
+            context,
+            anchorKey: _inputBarKey,
+          );
+        } else {
+          await showToolLoopSheet(context);
+        }
+      },
+      maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
+      onOpenSearch: () {
+        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux;
+        if (isDesktop) {
+          showDesktopSearchProviderPopover(
+            context,
+            anchorKey: _inputBarKey,
+          );
+        } else {
+          showSearchSettingsSheet(context);
+        }
+      },
+      searchAnchorKey: _searchAnchorKey,
+      reasoningAnchorKey: _reasoningAnchorKey,
+      mcpAnchorKey: _mcpAnchorKey,
+      onSend: (text) {
+        _sendMessage(text);
+        _inputController.clear();
+        _dismissKeyboard();
+      },
+      loading: _isCurrentConversationLoading,
+      showMcpButton: (() {
+        final pk2 = a?.chatModelProvider ?? settings.currentModelProvider;
+        final mid3 = a?.chatModelId ?? settings.currentModelId;
+        if (pk2 == null || mid3 == null) return false;
+        return _isToolModel(pk2, mid3) && context.watch<McpProvider>().servers.isNotEmpty;
+      })(),
+      mcpActive: (() {
+        final a = context.watch<AssistantProvider>().currentAssistant;
+        final connected = context.watch<McpProvider>().connectedServers;
+        final selected = a?.mcpServerIds ?? const <String>[];
+        if (selected.isEmpty || connected.isEmpty) return false;
+        return connected.any((s) => selected.contains(s.id));
+      })(),
+      mcpToolCount: (() {
+        final a = context.watch<AssistantProvider>().currentAssistant;
+        final mcpProvider = context.watch<McpProvider>();
+        final selected = a?.mcpServerIds ?? const <String>[];
+        if (selected.isEmpty) return 0;
+        final enabledTools = mcpProvider.getEnabledToolsForServers(selected.toSet());
+        return enabledTools.length;
+      })(),
+      showQuickPhraseButton: false,
+      onQuickPhrase: _showQuickPhraseMenu,
+      onLongPressQuickPhrase: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
+        );
+      },
+      // 移动端通过 BottomToolsSheet (onMore -> _toggleTools) 访问这些功能
+      // 桌面端直接在输入栏显示按钮
+      showMiniMapButton: !isWindowsDesktop,
+      onOpenMiniMap: () async {
+        final collapsed = _collapseVersions(_messages);
+        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux;
+        final String? selectedId;
+        if (isDesktop) {
+          selectedId = await showDesktopMiniMapPopover(
+            context,
+            anchorKey: _inputBarKey,
+            messages: collapsed,
+          );
+        } else {
+          selectedId = await showMiniMapSheet(context, collapsed);
+        }
+        if (selectedId != null && selectedId.isNotEmpty) {
+          await _scrollToMessageId(selectedId);
+        }
+      },
+      // 桌面端直接显示这些按钮，移动端通过 BottomToolsSheet 访问
+      onPickCamera: isMobile ? null : _onPickCamera,
+      onPickPhotos: isMobile ? null : _onPickPhotos,
+      onUploadFiles: isMobile ? null : _onPickFiles,
+      onToggleLearningMode: isMobile ? null : () async {
+        final enabled = await LearningModeStore.isEnabled();
+        await LearningModeStore.setEnabled(!enabled);
+        if (mounted) setState(() => _learningModeEnabled = !enabled);
+      },
+      onLongPressLearning: isMobile ? null : _showLearningPromptSheet,
+      learningModeActive: _learningModeEnabled,
+      showMoreButton: isMobile,
+      onClearContext: isMobile ? null : _onClearContext,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -4048,6 +4256,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface.withOpacity(
+                  (Theme.of(context).brightness == Brightness.dark) ? 0.26 : 0.20,
+                ),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.12),
+                    width: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
         leading: Builder(builder: (context) {
           return IosIconButton(
             size: 20,
@@ -4669,7 +4895,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           }
                         }
                       }
-                      // Compute whether built-in built-in search (Gemini official or Claude) is active to highlight the search button
+                      // Compute whether built-in search is active
                       final currentProvider = a?.chatModelProvider ?? settings.currentModelProvider;
                       final currentModelId = a?.chatModelId ?? settings.currentModelId;
                       final cfg = (currentProvider != null)
@@ -4687,182 +4913,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           builtinSearchActive = list.map((e) => e.toString().toLowerCase()).contains('search');
                         }
                       }
-                      return ChatInputBar(
-                        key: _inputBarKey,
-                        onMore: _toggleTools,
-                        // Highlight when app-level search enabled OR model built-in search enabled
-                        searchEnabled: context.watch<SettingsProvider>().searchEnabled || builtinSearchActive,
-                        onToggleSearch: (enabled) {
-                          context.read<SettingsProvider>().setSearchEnabled(enabled);
-                        },
-                        onSelectModel: () => showModelSelectSheet(context),
-                        onLongPressSelectModel: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const ProvidersPage()),
-                          );
-                        },
-                        onOpenMcp: () {
-                          final a = context.read<AssistantProvider>().currentAssistant;
-                          if (a != null) {
-                            // Desktop: use popover; Mobile: use sheet
-                            final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                defaultTargetPlatform == TargetPlatform.macOS ||
-                                defaultTargetPlatform == TargetPlatform.linux;
-                            if (isDesktop) {
-                              showDesktopMcpServersPopover(
-                                context,
-                                anchorKey: _inputBarKey,
-                                assistantId: a.id,
-                              );
-                            } else {
-                              showAssistantMcpSheet(context, assistantId: a.id);
-                            }
-                          }
-                        },
-                        onLongPressMcp: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const McpPage()),
-                          );
-                        },
-                        onStop: _cancelStreaming,
-                        modelIcon: (settings.showModelIcon && ((a?.chatModelProvider ?? settings.currentModelProvider) != null) && ((a?.chatModelId ?? settings.currentModelId) != null))
-                            ? _CurrentModelIcon(
-                                providerKey: a?.chatModelProvider ?? settings.currentModelProvider,
-                                modelId: a?.chatModelId ?? settings.currentModelId,
-                                size: 40,
-                                withBackground: true,
-                                backgroundColor: Colors.transparent,
-                              )
-                            : null,
-                        focusNode: _inputFocus,
-                        controller: _inputController,
-                        mediaController: _mediaController,
-                        onConfigureReasoning: () async {
-                          final convo = _currentConversation;
-                          if (convo == null) return;
-
-                          // Desktop: use popover; Mobile: use sheet
-                          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                              defaultTargetPlatform == TargetPlatform.macOS ||
-                              defaultTargetPlatform == TargetPlatform.linux;
-
-                          if (isDesktop) {
-                            await showDesktopReasoningBudgetPopover(
-                              context,
-                              anchorKey: _inputBarKey,
-                              initialValue: convo.thinkingBudget,
-                              onValueChanged: (value) async {
-                                // Save directly to conversation
-                                final updated = await _chatService.setConversationThinkingBudget(convo.id, value);
-                                if (updated != null && mounted) {
-                                  setState(() {
-                                    _currentConversation = updated;
-                                  });
-                                }
-                              },
-                            );
-                          } else {
-                            // Mobile: sync through settings for sheet compatibility
-                            if (convo.thinkingBudget != null) {
-                              await context.read<SettingsProvider>().setThinkingBudget(convo.thinkingBudget);
-                            }
-                            await showReasoningBudgetSheet(context);
-                            final chosen = context.read<SettingsProvider>().thinkingBudget;
-                            final updated = await _chatService.setConversationThinkingBudget(convo.id, chosen);
-                            if (updated != null && mounted) {
-                              setState(() {
-                                _currentConversation = updated;
-                              });
-                            }
-                          }
-                        },
-                        reasoningActive: _isReasoningEnabled((_currentConversation?.thinkingBudget) ?? settings.thinkingBudget),
-                        supportsReasoning: (pk != null && mid != null)
-                            ? _isReasoningModel(pk, mid)
-                            : false,
-                        onConfigureMaxTokens: () async {
-                          // Desktop: use popover; Mobile: use sheet
-                          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                              defaultTargetPlatform == TargetPlatform.macOS ||
-                              defaultTargetPlatform == TargetPlatform.linux;
-                          if (isDesktop) {
-                            await showDesktopMaxTokensPopover(
-                              context,
-                              anchorKey: _inputBarKey,
-                            );
-                          } else {
-                            await showMaxTokensSheet(context);
-                          }
-                        },
-                        onConfigureToolLoop: () async {
-                          // Desktop: use popover; Mobile: use sheet
-                          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                              defaultTargetPlatform == TargetPlatform.macOS ||
-                              defaultTargetPlatform == TargetPlatform.linux;
-                          if (isDesktop) {
-                            await showDesktopToolLoopPopover(
-                              context,
-                              anchorKey: _inputBarKey,
-                            );
-                          } else {
-                            await showToolLoopSheet(context);
-                          }
-                        },
-                        maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
-                        onOpenSearch: () {
-                          // Desktop: use popover; Mobile: use sheet
-                          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                              defaultTargetPlatform == TargetPlatform.macOS ||
-                              defaultTargetPlatform == TargetPlatform.linux;
-                          if (isDesktop) {
-                            showDesktopSearchProviderPopover(
-                              context,
-                              anchorKey: _inputBarKey,
-                            );
-                          } else {
-                            showSearchSettingsSheet(context);
-                          }
-                        },
-                        searchAnchorKey: _searchAnchorKey,
-                        reasoningAnchorKey: _reasoningAnchorKey,
-                        mcpAnchorKey: _mcpAnchorKey,
-                        onSend: (text) {
-                          _sendMessage(text);
-                          _inputController.clear();
-                          // Dismiss keyboard after sending
-                          _dismissKeyboard();
-                        },
-                        loading: _isCurrentConversationLoading,
-                        showMcpButton: (() {
-                          final pk2 = a?.chatModelProvider ?? settings.currentModelProvider;
-                          final mid3 = a?.chatModelId ?? settings.currentModelId;
-                          if (pk2 == null || mid3 == null) return false;
-                          return _isToolModel(pk2, mid3) && context.watch<McpProvider>().servers.isNotEmpty;
-                        })(),
-                        mcpActive: (() {
-                          final a = context.watch<AssistantProvider>().currentAssistant;
-                          final connected = context.watch<McpProvider>().connectedServers;
-                          final selected = a?.mcpServerIds ?? const <String>[];
-                          if (selected.isEmpty || connected.isEmpty) return false;
-                          return connected.any((s) => selected.contains(s.id));
-                        })(),
-                        mcpToolCount: (() {
-                          final a = context.watch<AssistantProvider>().currentAssistant;
-                          final mcpProvider = context.watch<McpProvider>();
-                          final selected = a?.mcpServerIds ?? const <String>[];
-                          if (selected.isEmpty) return 0;
-                          final enabledTools = mcpProvider.getEnabledToolsForServers(selected.toSet());
-                          return enabledTools.length;
-                        })(),
-                        // Quick Phrase button moved to bottom tools sheet (mobile) and overflow menu (desktop)
-                        showQuickPhraseButton: false,
-                        onQuickPhrase: _showQuickPhraseMenu,
-                        onLongPressQuickPhrase: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
-                          );
-                        },
-                      );
+                      return _buildChatInputBar(context, builtinSearchActive: builtinSearchActive);
                     },
                   ),
                 ),
@@ -5746,6 +5797,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                       }
                                     }
                                   }
+                                  // Compute whether built-in search is active
                                   final currentProvider = a?.chatModelProvider ?? settings.currentModelProvider;
                                   final currentModelId = a?.chatModelId ?? settings.currentModelId;
                                   final cfg = (currentProvider != null) ? settings.getProviderConfig(currentProvider) : null;
@@ -5762,220 +5814,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     }
                                   }
 
-                                  final screenWidth = MediaQuery.sizeOf(context).width;
-                                  final isMobile = screenWidth < 600;
-                                  // Windows 桌面端：迷你地图改为放在顶部 AppBar；
-                                  // 这里仅用于控制底部输入栏是否显示迷你地图按钮。
-                                  final isWindowsDesktop = !kIsWeb && Platform.isWindows;
-
-                                  Widget input = ChatInputBar(
-                                    key: _inputBarKey,
-                                    onMore: _toggleTools,
-                                    searchEnabled: context.watch<SettingsProvider>().searchEnabled || builtinSearchActive,
-                                    onToggleSearch: (enabled) {
-                                      context.read<SettingsProvider>().setSearchEnabled(enabled);
-                                    },
-                                    onSelectModel: () => showModelSelectSheet(context),
-                                    onLongPressSelectModel: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(builder: (_) => const ProvidersPage()),
-                                      );
-                                    },
-                                    onOpenMcp: () {
-                                      final a = context.read<AssistantProvider>().currentAssistant;
-                                      if (a != null) {
-                                        // Desktop: use popover; Mobile: use sheet
-                                        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                            defaultTargetPlatform == TargetPlatform.macOS ||
-                                            defaultTargetPlatform == TargetPlatform.linux;
-                                        if (isDesktop) {
-                                          showDesktopMcpServersPopover(
-                                            context,
-                                            anchorKey: _inputBarKey,
-                                            assistantId: a.id,
-                                          );
-                                        } else {
-                                          showAssistantMcpSheet(context, assistantId: a.id);
-                                        }
-                                      }
-                                    },
-                                    onLongPressMcp: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(builder: (_) => const McpPage()),
-                                      );
-                                    },
-                                    // Quick Phrase button moved to bottom tools sheet (mobile) and overflow menu (desktop)
-                                    showQuickPhraseButton: false,
-                                    onQuickPhrase: _showQuickPhraseMenu,
-                                    onLongPressQuickPhrase: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
-                                      );
-                                    },
-                                    // Windows 桌面上把迷你地图移动到标题栏，只在非 Windows 桌面/移动端保留底部按钮
-                                    showMiniMapButton: !isWindowsDesktop,
-                                    onOpenMiniMap: () async {
-                                      final collapsed = _collapseVersions(_messages);
-                                      // Desktop: use popover; Mobile: use sheet
-                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                          defaultTargetPlatform == TargetPlatform.macOS ||
-                                          defaultTargetPlatform == TargetPlatform.linux;
-
-                                      final String? selectedId;
-                                      if (isDesktop) {
-                                        selectedId = await showDesktopMiniMapPopover(
-                                          context,
-                                          anchorKey: _inputBarKey,
-                                          messages: collapsed,
-                                        );
-                                      } else {
-                                        selectedId = await showMiniMapSheet(context, collapsed);
-                                      }
-
-                                      if (selectedId != null && selectedId.isNotEmpty) {
-                                        await _scrollToMessageId(selectedId);
-                                      }
-                                    },
-                                    onPickCamera: _onPickCamera,
-                                    onPickPhotos: _onPickPhotos,
-                                    onUploadFiles: _onPickFiles,
-                                    onToggleLearningMode: () async {
-                                      final enabled = await LearningModeStore.isEnabled();
-                                      await LearningModeStore.setEnabled(!enabled);
-                                      if (mounted) setState(() => _learningModeEnabled = !enabled);
-                                    },
-                                    onLongPressLearning: _showLearningPromptSheet,
-                                    learningModeActive: _learningModeEnabled,
-                                    showMoreButton: isMobile,
-                                    onClearContext: _onClearContext,
-                                    onStop: _cancelStreaming,
-                                    modelIcon: (settings.showModelIcon && ((a?.chatModelProvider ?? settings.currentModelProvider) != null) && ((a?.chatModelId ?? settings.currentModelId) != null))
-                                        ? _CurrentModelIcon(
-                                            providerKey: a?.chatModelProvider ?? settings.currentModelProvider,
-                                            modelId: a?.chatModelId ?? settings.currentModelId,
-                                            size: 40,
-                                            withBackground: true,
-                                            backgroundColor: Colors.transparent,
-                                          )
-                                        : null,
-                                    focusNode: _inputFocus,
-                                    controller: _inputController,
-                                    mediaController: _mediaController,
-                                    onConfigureReasoning: () async {
-                                      final convo = _currentConversation;
-                                      if (convo == null) return;
-
-                                      // Desktop: use popover; Mobile: use sheet
-                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                          defaultTargetPlatform == TargetPlatform.macOS ||
-                                          defaultTargetPlatform == TargetPlatform.linux;
-
-                                      if (isDesktop) {
-                                        await showDesktopReasoningBudgetPopover(
-                                          context,
-                                          anchorKey: _inputBarKey,
-                                          initialValue: convo.thinkingBudget,
-                                          onValueChanged: (value) async {
-                                            // Save directly to conversation
-                                            final updated = await _chatService.setConversationThinkingBudget(convo.id, value);
-                                            if (updated != null && mounted) {
-                                              setState(() {
-                                                _currentConversation = updated;
-                                              });
-                                            }
-                                          },
-                                        );
-                                      } else {
-                                        // Mobile: sync through settings for sheet compatibility
-                                        if (convo.thinkingBudget != null) {
-                                          await context.read<SettingsProvider>().setThinkingBudget(convo.thinkingBudget);
-                                        }
-                                        await showReasoningBudgetSheet(context);
-                                        final chosen = context.read<SettingsProvider>().thinkingBudget;
-                                        final updated = await _chatService.setConversationThinkingBudget(convo.id, chosen);
-                                        if (updated != null && mounted) {
-                                          setState(() {
-                                            _currentConversation = updated;
-                                          });
-                                        }
-                                      }
-                                    },
-                                    reasoningActive: _isReasoningEnabled((_currentConversation?.thinkingBudget) ?? settings.thinkingBudget),
-                                    supportsReasoning: (pk != null && mid != null) ? _isReasoningModel(pk, mid) : false,
-                                    onConfigureMaxTokens: () async {
-                                      // Desktop: use popover; Mobile: use sheet
-                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                          defaultTargetPlatform == TargetPlatform.macOS ||
-                                          defaultTargetPlatform == TargetPlatform.linux;
-                                      if (isDesktop) {
-                                        await showDesktopMaxTokensPopover(
-                                          context,
-                                          anchorKey: _inputBarKey,
-                                        );
-                                      } else {
-                                        await showMaxTokensSheet(context);
-                                      }
-                                    },
-                                    onConfigureToolLoop: () async {
-                                      // Desktop: use popover; Mobile: use sheet
-                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                          defaultTargetPlatform == TargetPlatform.macOS ||
-                                          defaultTargetPlatform == TargetPlatform.linux;
-                                      if (isDesktop) {
-                                        await showDesktopToolLoopPopover(
-                                          context,
-                                          anchorKey: _inputBarKey,
-                                        );
-                                      } else {
-                                        await showToolLoopSheet(context);
-                                      }
-                                    },
-                                    maxTokensConfigured: (context.watch<AssistantProvider>().currentAssistant?.maxTokens ?? 0) > 0,
-                                    onOpenSearch: () {
-                                      // Desktop: use popover; Mobile: use sheet
-                                      final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                                          defaultTargetPlatform == TargetPlatform.macOS ||
-                                          defaultTargetPlatform == TargetPlatform.linux;
-                                      if (isDesktop) {
-                                        showDesktopSearchProviderPopover(
-                                          context,
-                                          anchorKey: _inputBarKey,
-                                        );
-                                      } else {
-                                        showSearchSettingsSheet(context);
-                                      }
-                                    },
-                                    searchAnchorKey: _searchAnchorKey,
-                                    reasoningAnchorKey: _reasoningAnchorKey,
-                                    mcpAnchorKey: _mcpAnchorKey,
-                                    onSend: (text) {
-                                      _sendMessage(text);
-                                      _inputController.clear();
-                                      _dismissKeyboard();
-                                    },
-                                    loading: _isCurrentConversationLoading,
-                                    showMcpButton: (() {
-                                      final pk2 = a?.chatModelProvider ?? settings.currentModelProvider;
-                                      final mid3 = a?.chatModelId ?? settings.currentModelId;
-                                      if (pk2 == null || mid3 == null) return false;
-                                      return _isToolModel(pk2, mid3) && context.watch<McpProvider>().servers.isNotEmpty;
-                                    })(),
-                                    mcpActive: (() {
-                                      final a = context.watch<AssistantProvider>().currentAssistant;
-                                      final connected = context.watch<McpProvider>().connectedServers;
-                                      final selected = a?.mcpServerIds ?? const <String>[];
-                                      if (selected.isEmpty || connected.isEmpty) return false;
-                                      return connected.any((s) => selected.contains(s.id));
-                                    })(),
-                                    mcpToolCount: (() {
-                                      final a = context.watch<AssistantProvider>().currentAssistant;
-                                      final mcpProvider = context.watch<McpProvider>();
-                                      final selected = a?.mcpServerIds ?? const <String>[];
-                                      if (selected.isEmpty) return 0;
-                                      final enabledTools = mcpProvider.getEnabledToolsForServers(selected.toSet());
-                                      return enabledTools.length;
-                                    })(),
-                                  );
+                                  Widget input = _buildChatInputBar(context, builtinSearchActive: builtinSearchActive);
 
                                   input = Center(
                                     child: ConstrainedBox(

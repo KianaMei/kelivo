@@ -13,6 +13,7 @@ import 'providers/ollama_search_service.dart';
 import 'providers/jina_search_service.dart';
 import 'providers/bocha_search_service.dart';
 import 'providers/perplexity_search_service.dart';
+import 'providers/duckduckgo_search_service.dart';
 // Import existing ApiKeyConfig and LoadBalanceStrategy
 import '../../models/api_keys.dart';
 import '../api_key_manager.dart';
@@ -56,6 +57,8 @@ abstract class SearchService<T extends SearchServiceOptions> {
         return BochaSearchService() as SearchService;
       case PerplexityOptions:
         return PerplexitySearchService() as SearchService;
+      case DuckDuckGoOptions:
+        return DuckDuckGoSearchService() as SearchService;
       default:
         return BingSearchService() as SearchService;
     }
@@ -171,6 +174,8 @@ abstract class SearchServiceOptions {
         return BochaOptions.fromJson(json);
       case 'perplexity':
         return PerplexityOptions.fromJson(json);
+      case 'duckduckgo':
+        return DuckDuckGoOptions.fromJson(json);
       default:
         return BingLocalOptions(id: json['id']);
     }
@@ -1582,4 +1587,25 @@ class BochaOptions extends SearchServiceOptions {
       exclude: json['exclude'],
     );
   }
+}
+
+class DuckDuckGoOptions extends SearchServiceOptions {
+  final String region;
+
+  DuckDuckGoOptions({
+    required String id,
+    this.region = 'wt-wt',
+  }) : super(id: id);
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'duckduckgo',
+    'id': id,
+    'region': region,
+  };
+
+  factory DuckDuckGoOptions.fromJson(Map<String, dynamic> json) => DuckDuckGoOptions(
+    id: json['id'],
+    region: json['region'] ?? 'wt-wt',
+  );
 }

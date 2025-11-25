@@ -911,6 +911,12 @@ class DataSync {
       }
     }
 
+    // Final safety net: ensure assistant avatars/backgrounds have their files restored.
+    // This covers rare cases where the main copy step above was skipped or failed silently.
+    if (cfg.includeFiles) {
+      try { await _rehydrateAssistantMediaFromExtract(extractDir); } catch (_) {}
+    }
+
     try { await extractDir.delete(recursive: true); } catch (_) {}
   }
 
@@ -1000,6 +1006,83 @@ class DataSync {
           for (final entry in toolEvents.entries) { final e = chatService.getToolEvents(entry.key); if (e.isEmpty) { try { await chatService.setToolEvents(entry.key, entry.value); } catch (_) {} } }
         }
       } catch (_) {}
+    }
+  }
+
+  /// Best-effort fix-up: after restore, ensure assistant avatar/background files exist.
+  /// If missing, attempt to copy from the extracted archive (avatars/ or images/).
+  Future<void> _rehydrateAssistantMediaFromExtract(Directory extractDir) async {
+    // Build quick lookup maps from extracted files (basename -> absolute path)
+    Map<String, String> _buildLookup(String subdir) {
+      final map = <String, String>{};
+      final dir = Directory(p.join(extractDir.path, subdir));
+      if (!dir.existsSync()) return map;
+      for (final ent in dir.listSync(recursive: true, followLinks: false)) {
+        if (ent is File) {
+          map[p.basename(ent.path)] = ent.path;
+        }
+      }
+      return map;
+    }
+
+    String? _basename(String? raw) {
+      if (raw == null) return null;
+      final s = raw.trim();
+      if (s.isEmpty) return null;
+      return p.basename(s.replaceAll('\\', '/'));
+    }
+
+    final prefs = await SharedPreferencesAsync.instance;
+    final snapshot = await prefs.snapshot();
+    final rawAssistants = snapshot['assistants_v1'];
+    if (rawAssistants is! String || rawAssistants.isEmpty) return;
+
+    final avatarsLookup = _buildLookup('avatars');
+    final imagesLookup = _buildLookup('images');
+    if (avatarsLookup.isEmpty && imagesLookup.isEmpty) return;
+
+    final dataRoot = await AppDirs.dataRoot();
+    final avatarsDir = Directory(p.join(dataRoot.path, 'avatars'));
+    final imagesDir = Directory(p.join(dataRoot.path, 'images'));
+    if (!await avatarsDir.exists()) { await avatarsDir.create(recursive: true); }
+    if (!await imagesDir.exists()) { await imagesDir.create(recursive: true); }
+
+    List<dynamic> arr;
+    try {
+      arr = jsonDecode(rawAssistants) as List<dynamic>;
+    } catch (_) {
+      return;
+    }
+
+    for (final a in arr) {
+      if (a is! Map) continue;
+      final avatarName = _basename(a['avatar']?.toString());
+      if (avatarName != null && avatarName.isNotEmpty) {
+        final dst = File(p.join(avatarsDir.path, avatarName));
+        if (!dst.existsSync()) {
+          final srcPath = avatarsLookup[avatarName];
+          if (srcPath != null) {
+            try {
+              await dst.parent.create(recursive: true);
+              await File(srcPath).copy(dst.path);
+            } catch (_) {}
+          }
+        }
+      }
+
+      final bgName = _basename(a['background']?.toString());
+      if (bgName != null && bgName.isNotEmpty) {
+        final dst = File(p.join(imagesDir.path, bgName));
+        if (!dst.existsSync()) {
+          final srcPath = imagesLookup[bgName];
+          if (srcPath != null) {
+            try {
+              await dst.parent.create(recursive: true);
+              await File(srcPath).copy(dst.path);
+            } catch (_) {}
+          }
+        }
+      }
     }
   }
 }
