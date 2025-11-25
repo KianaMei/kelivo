@@ -5507,6 +5507,12 @@ abstract class AppLocalizations {
   /// **'Solid'**
   String get displaySettingsPageChatMessageBackgroundSolid;
 
+  /// No description provided for @displaySettingsPageChatBubbleOpacityTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat Bubble Opacity'**
+  String get displaySettingsPageChatBubbleOpacityTitle;
+
   /// No description provided for @themeSettingsPageUsePureBackgroundTitle.
   ///
   /// In en, this message translates to:

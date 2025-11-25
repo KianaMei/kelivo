@@ -1,7 +1,10 @@
 import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
 import 'app_dirs.dart';
 
-/// Resolves persisted absolute file paths to the current app data directory.
+/// Resolves persisted file paths to the current app data directory.
 ///
 /// Handles multiple scenarios:
 /// 1. iOS sandbox UUID changes after app update:
@@ -12,6 +15,9 @@ import 'app_dirs.dart';
 ///    Windows: C:\Users\...\AppData\Roaming\com.ze\kelivo\Kelivo\upload\x.jpg
 ///    Android: /data/user/0/com.ze.kelivo/app_flutter/upload/x.jpg
 ///
+/// 3. Relative paths persisted for cross-platform compatibility:
+///    images/background_xxx.jpg -> <app data root>/images/background_xxx.jpg
+///
 /// We store absolute paths in message content. This helper rewrites paths
 /// to point to the current app data directory. If the rewritten file exists,
 /// it returns the new path; otherwise returns the mapped path anyway.
@@ -19,6 +25,9 @@ class SandboxPathResolver {
   SandboxPathResolver._();
 
   static String? _dataRoot;
+
+  /// Get the cached app data root directory (for resolving relative paths).
+  static String? get dataRoot => _dataRoot;
 
   /// Call once during app startup to cache the current app data root directory.
   static Future<void> init() async {
@@ -43,6 +52,18 @@ class SandboxPathResolver {
 
     final root = _dataRoot;
     if (root == null || root.isEmpty) return raw;
+
+    // Relative path (e.g., images/bg.jpg): map to current app data root
+    if (!raw.startsWith('/') && !raw.contains(':')) {
+      final mapped = p.normalize(p.join(root, raw));
+      try {
+        if (File(mapped).existsSync()) {
+          return mapped;
+        }
+      } catch (_) {}
+      // File may be created later; still return the mapped absolute path
+      return mapped;
+    }
 
     // Normalize path separators to forward slashes for consistent matching
     final normalized = raw.replaceAll('\\', '/');

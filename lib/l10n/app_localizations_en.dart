@@ -2911,6 +2911,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageChatMessageBackgroundSolid => 'Solid';
 
   @override
+  String get displaySettingsPageChatBubbleOpacityTitle => 'Chat Bubble Opacity';
+
+  @override
   String get themeSettingsPageUsePureBackgroundTitle => 'Pure Background';
 
   @override

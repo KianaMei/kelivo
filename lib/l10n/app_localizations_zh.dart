@@ -2814,6 +2814,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageChatMessageBackgroundSolid => '纯色';
 
   @override
+  String get displaySettingsPageChatBubbleOpacityTitle => '对话气泡不透明度';
+
+  @override
   String get themeSettingsPageUsePureBackgroundTitle => '纯色背景';
 
   @override

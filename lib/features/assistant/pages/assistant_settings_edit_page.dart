@@ -1790,119 +1790,121 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     );
   }
 
-  Future<void> _showContextMessagesSheet(
-    BuildContext context,
-    Assistant a,
-  ) async {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      isScrollControlled: false,
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-            child: Builder(
-              builder: (context) {
-                final theme = Theme.of(context);
-                final cs = theme.colorScheme;
-                final isDark = theme.brightness == Brightness.dark;
-                final value =
-                    context
-                        .watch<AssistantProvider>()
-                        .getById(widget.assistantId)
-                        ?.contextMessageSize ??
-                    20;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Drag handle
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            l10n.assistantEditContextMessagesTitle,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        IosSwitch(
-                          value: a.limitContextMessages,
-                          onChanged: (v) async {
-                            await context
-                                .read<AssistantProvider>()
-                                .updateAssistant(
-                                  a.copyWith(limitContextMessages: v),
-                                );
-                            // Close the bottom sheet after toggle
-                            Navigator.of(ctx).pop();
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (a.limitContextMessages) ...[
-                      _SliderTileNew(
-                        value: value.toDouble().clamp(0, 256),
-                        min: 0,
-                        max: 256,
-                        divisions: 64,
-                        label: value.toString(),
-                        onChanged:
-                            (v) => context
-                                .read<AssistantProvider>()
-                                .updateAssistant(
-                                  a.copyWith(contextMessageSize: v.round()),
-                                ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.assistantEditContextMessagesDescription,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurface.withOpacity(0.6),
-                        ),
-                      ),
-                    ] else ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          l10n.assistantEditParameterDisabled2,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withOpacity(0.6),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
+  // [DEPRECATED] This bottom sheet is no longer used.
+  // Context messages slider is now inline via _ContextMessagesSliderInline.
+  // Future<void> _showContextMessagesSheet(
+  //   BuildContext context,
+  //   Assistant a,
+  // ) async {
+  //   final cs = Theme.of(context).colorScheme;
+  //   final l10n = AppLocalizations.of(context)!;
+  //   await showModalBottomSheet(
+  //     context: context,
+  //     backgroundColor: cs.surface,
+  //     shape: const RoundedRectangleBorder(
+  //       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+  //     ),
+  //     isScrollControlled: false,
+  //     builder: (ctx) {
+  //       return SafeArea(
+  //         child: Padding(
+  //           padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+  //           child: Builder(
+  //             builder: (context) {
+  //               final theme = Theme.of(context);
+  //               final cs = theme.colorScheme;
+  //               final isDark = theme.brightness == Brightness.dark;
+  //               final value =
+  //                   context
+  //                       .watch<AssistantProvider>()
+  //                       .getById(widget.assistantId)
+  //                       ?.contextMessageSize ??
+  //                   20;
+  //               return Column(
+  //                 mainAxisSize: MainAxisSize.min,
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   // Drag handle
+  //                   Center(
+  //                     child: Container(
+  //                       width: 40,
+  //                       height: 4,
+  //                       decoration: BoxDecoration(
+  //                         color: cs.onSurface.withOpacity(0.2),
+  //                         borderRadius: BorderRadius.circular(999),
+  //                       ),
+  //                     ),
+  //                   ),
+  //                   const SizedBox(height: 12),
+  //                   Row(
+  //                     children: [
+  //                       Expanded(
+  //                         child: Text(
+  //                           l10n.assistantEditContextMessagesTitle,
+  //                           style: const TextStyle(
+  //                             fontSize: 16,
+  //                             fontWeight: FontWeight.w600,
+  //                           ),
+  //                         ),
+  //                       ),
+  //                       IosSwitch(
+  //                         value: a.limitContextMessages,
+  //                         onChanged: (v) async {
+  //                           await context
+  //                               .read<AssistantProvider>()
+  //                               .updateAssistant(
+  //                                 a.copyWith(limitContextMessages: v),
+  //                               );
+  //                           // Close the bottom sheet after toggle
+  //                           Navigator.of(ctx).pop();
+  //                         },
+  //                       ),
+  //                     ],
+  //                   ),
+  //                   const SizedBox(height: 8),
+  //                   if (a.limitContextMessages) ...[
+  //                     _SliderTileNew(
+  //                       value: value.toDouble().clamp(0, 256),
+  //                       min: 0,
+  //                       max: 256,
+  //                       divisions: 64,
+  //                       label: value.toString(),
+  //                       onChanged:
+  //                           (v) => context
+  //                               .read<AssistantProvider>()
+  //                               .updateAssistant(
+  //                                 a.copyWith(contextMessageSize: v.round()),
+  //                               ),
+  //                     ),
+  //                     const SizedBox(height: 6),
+  //                     Text(
+  //                       l10n.assistantEditContextMessagesDescription,
+  //                       style: TextStyle(
+  //                         fontSize: 12,
+  //                         color: cs.onSurface.withOpacity(0.6),
+  //                       ),
+  //                     ),
+  //                   ] else ...[
+  //                     Padding(
+  //                       padding: const EdgeInsets.symmetric(vertical: 8),
+  //                       child: Text(
+  //                         l10n.assistantEditParameterDisabled2,
+  //                         style: TextStyle(
+  //                           fontSize: 13,
+  //                           color: cs.onSurface.withOpacity(0.6),
+  //                         ),
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ],
+  //               );
+  //             },
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
 
 }
 
@@ -2199,7 +2201,7 @@ class _ContextMessagesSliderInline extends StatelessWidget {
     final a = context.watch<AssistantProvider>().getById(assistant.id);
     if (a == null) return const SizedBox.shrink();
 
-    final value = a.contextMessageSize.clamp(0, 256);
+    final value = a.contextMessageSize.clamp(0, 512);
     final enabled = a.limitContextMessages;
 
     return Column(
@@ -2254,7 +2256,7 @@ class _ContextMessagesSliderInline extends StatelessWidget {
             child: SfSlider(
               value: value.toDouble(),
               min: 0.0,
-              max: 256.0,
+              max: 512.0,
               interval: 64.0,
               minorTicksPerInterval: 3,
               showTicks: true,

@@ -51,7 +51,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
                 modelProvider: settings.currentModelProvider,
                 modelId: settings.currentModelId,
                 onPick: () async {
-                  final sel = await showModelSelector(context);
+                  final sel = await showModelSelector(
+                    context,
+                    initialProvider: settings.currentModelProvider,
+                    initialModelId: settings.currentModelId,
+                  );
                   if (sel != null) {
                     await context
                         .read<SettingsProvider>()
@@ -72,7 +76,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
                 fallbackProvider: settings.currentModelProvider,
                 fallbackModelId: settings.currentModelId,
                 onPick: () async {
-                  final sel = await showModelSelector(context);
+                  final sel = await showModelSelector(
+                    context,
+                    initialProvider: settings.titleModelProvider ?? settings.currentModelProvider,
+                    initialModelId: settings.titleModelId ?? settings.currentModelId,
+                  );
                   if (sel != null) {
                     await context
                         .read<SettingsProvider>()
@@ -94,7 +102,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
                 fallbackProvider: settings.currentModelProvider,
                 fallbackModelId: settings.currentModelId,
                 onPick: () async {
-                  final sel = await showModelSelector(context);
+                  final sel = await showModelSelector(
+                    context,
+                    initialProvider: settings.translateModelProvider ?? settings.currentModelProvider,
+                    initialModelId: settings.translateModelId ?? settings.currentModelId,
+                  );
                   if (sel != null) {
                     await context
                         .read<SettingsProvider>()
@@ -116,7 +128,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
                 fallbackProvider: settings.currentModelProvider,
                 fallbackModelId: settings.currentModelId,
                 onPick: () async {
-                  final sel = await showModelSelector(context);
+                  final sel = await showModelSelector(
+                    context,
+                    initialProvider: settings.ocrModelProvider ?? settings.currentModelProvider,
+                    initialModelId: settings.ocrModelId ?? settings.currentModelId,
+                  );
                   if (sel != null) {
                     await context
                         .read<SettingsProvider>()

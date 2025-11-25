@@ -170,7 +170,12 @@ _ModelProcessingResult _processModelsInBackground(_ModelProcessingData data) {
   );
 }
 
-Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitProviderKey}) async {
+Future<ModelSelection?> showModelSelector(
+  BuildContext context, {
+  String? limitProviderKey,
+  String? initialProvider,
+  String? initialModelId,
+}) async {
   // Desktop platforms use dialog, mobile keeps bottom sheet UX
   final platform = defaultTargetPlatform;
   if (platform == TargetPlatform.macOS || platform == TargetPlatform.windows || platform == TargetPlatform.linux) {
@@ -179,7 +184,11 @@ Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitPr
       barrierDismissible: true,
       barrierLabel: 'model-select-dialog',
       barrierColor: Colors.black.withOpacity(0.25),
-      pageBuilder: (ctx, _, __) => _ModelSelectDialog(limitProviderKey: limitProviderKey),
+      pageBuilder: (ctx, _, __) => _ModelSelectDialog(
+        limitProviderKey: limitProviderKey,
+        initialProvider: initialProvider,
+        initialModelId: initialModelId,
+      ),
       transitionBuilder: (ctx, anim, _, child) {
         final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
         return FadeTransition(
@@ -198,7 +207,11 @@ Future<ModelSelection?> showModelSelector(BuildContext context, {String? limitPr
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (ctx) => _ModelSelectSheetMobile(limitProviderKey: limitProviderKey),
+    builder: (ctx) => _ModelSelectSheetMobile(
+      limitProviderKey: limitProviderKey,
+      initialProvider: initialProvider,
+      initialModelId: initialModelId,
+    ),
   );
 }
 
@@ -227,21 +240,39 @@ Future<void> showModelSelectSheet(BuildContext context, {bool updateAssistant = 
 
 // Unified widget for both desktop dialog and mobile sheet
 class _ModelSelectDialog extends StatefulWidget {
-  const _ModelSelectDialog({this.limitProviderKey, this.isMobile = false});
+  const _ModelSelectDialog({
+    this.limitProviderKey,
+    this.isMobile = false,
+    this.initialProvider,
+    this.initialModelId,
+  });
   final String? limitProviderKey;
   final bool isMobile;
+  final String? initialProvider;
+  final String? initialModelId;
   @override
   State<_ModelSelectDialog> createState() => _ModelSelectDialogState();
 }
 
 // Alias for mobile bottom sheet
 class _ModelSelectSheetMobile extends StatelessWidget {
-  const _ModelSelectSheetMobile({this.limitProviderKey});
+  const _ModelSelectSheetMobile({
+    this.limitProviderKey,
+    this.initialProvider,
+    this.initialModelId,
+  });
   final String? limitProviderKey;
+  final String? initialProvider;
+  final String? initialModelId;
 
   @override
   Widget build(BuildContext context) {
-    return _ModelSelectDialog(limitProviderKey: limitProviderKey, isMobile: true);
+    return _ModelSelectDialog(
+      limitProviderKey: limitProviderKey,
+      isMobile: true,
+      initialProvider: initialProvider,
+      initialModelId: initialModelId,
+    );
   }
 }
 
@@ -286,9 +317,9 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
       final settings = context.read<SettingsProvider>();
       final assistant = context.read<AssistantProvider>().currentAssistant;
 
-      // Determine current model - use assistant's model if set, otherwise global default
-      final currentProvider = assistant?.chatModelProvider ?? settings.currentModelProvider;
-      final currentModelId = assistant?.chatModelId ?? settings.currentModelId;
+      // Determine current model - prioritize explicit initial values, then assistant's model, then global default
+      final currentProvider = widget.initialProvider ?? assistant?.chatModelProvider ?? settings.currentModelProvider;
+      final currentModelId = widget.initialModelId ?? assistant?.chatModelId ?? settings.currentModelId;
       final currentKey = (currentProvider != null && currentModelId != null)
           ? '$currentProvider::$currentModelId'
           : '';
@@ -319,9 +350,17 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
           _orderedKeys = result.orderedKeys;
           _isLoading = false;
 
-          // Initialize current tab: prioritize last selected tab, fall back to current model provider, then first provider
+          // Initialize current tab: 
+          // 1. If explicit initialProvider is provided, use it (for default model settings page)
+          // 2. Otherwise use lastSelectedProviderTab (for normal model selection)
+          // 3. Fall back to current model provider, then first provider
           final lastTab = settings.lastSelectedProviderTab;
-          if (lastTab != null && (lastTab == '__fav__' || _orderedKeys.contains(lastTab))) {
+          final hasExplicitInitial = widget.initialProvider != null;
+          
+          if (hasExplicitInitial && currentProvider != null && _orderedKeys.contains(currentProvider)) {
+            // Explicit initial provider - prioritize it over lastSelectedProviderTab
+            _currentTab = currentProvider;
+          } else if (lastTab != null && (lastTab == '__fav__' || _orderedKeys.contains(lastTab))) {
             _currentTab = lastTab;
           } else if (currentProvider != null && _orderedKeys.contains(currentProvider)) {
             _currentTab = currentProvider;
@@ -354,9 +393,9 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
 
-    // Determine current model - use assistant's model if set, otherwise global default
-    final currentProvider = assistant?.chatModelProvider ?? settings.currentModelProvider;
-    final currentModelId = assistant?.chatModelId ?? settings.currentModelId;
+    // Determine current model - prioritize explicit initial values, then assistant's model, then global default
+    final currentProvider = widget.initialProvider ?? assistant?.chatModelProvider ?? settings.currentModelProvider;
+    final currentModelId = widget.initialModelId ?? assistant?.chatModelId ?? settings.currentModelId;
     final currentKey = (currentProvider != null && currentModelId != null)
         ? '$currentProvider::$currentModelId'
         : '';
@@ -384,9 +423,17 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
       _orderedKeys = result.orderedKeys;
       _isLoading = false;
 
-      // Initialize current tab: prioritize last selected tab, fall back to current model provider, then first provider
+      // Initialize current tab: 
+      // 1. If explicit initialProvider is provided, use it (for default model settings page)
+      // 2. Otherwise use lastSelectedProviderTab (for normal model selection)
+      // 3. Fall back to current model provider, then first provider
       final lastTab = settings.lastSelectedProviderTab;
-      if (lastTab != null && (lastTab == '__fav__' || _orderedKeys.contains(lastTab))) {
+      final hasExplicitInitial = widget.initialProvider != null;
+      
+      if (hasExplicitInitial && currentProvider != null && _orderedKeys.contains(currentProvider)) {
+        // Explicit initial provider - prioritize it over lastSelectedProviderTab
+        _currentTab = currentProvider;
+      } else if (lastTab != null && (lastTab == '__fav__' || _orderedKeys.contains(lastTab))) {
         _currentTab = lastTab;
       } else if (currentProvider != null && _orderedKeys.contains(currentProvider)) {
         _currentTab = currentProvider;

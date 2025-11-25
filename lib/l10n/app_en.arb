@@ -1189,6 +1189,7 @@
   "displaySettingsPageChatMessageBackgroundDefault": "Default",
   "displaySettingsPageChatMessageBackgroundFrosted": "Frosted",
   "displaySettingsPageChatMessageBackgroundSolid": "Solid",
+  "displaySettingsPageChatBubbleOpacityTitle": "Chat Bubble Opacity",
   "themeSettingsPageUsePureBackgroundTitle": "Pure Background",
   "themeSettingsPageUsePureBackgroundSubtitle": "Only bubbles and accents follow theme colors",
   "desktopDisplaySettingsTopicPositionTitle": "Topic position",

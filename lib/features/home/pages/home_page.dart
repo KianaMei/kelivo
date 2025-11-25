@@ -136,8 +136,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool _showJumpToBottom = false;
   bool _isUserScrolling = false;
   Timer? _userScrollTimer;
-  // OCR cache: imagePath -> extracted text
+  // OCR cache: imagePath -> extracted text (LRU with max 50 entries)
   final Map<String, String> _ocrCache = <String, String>{};
+  final List<String> _ocrCacheKeys = <String>[];
+  static const int _maxOcrCacheSize = 50;
 
   // Sanitize/translate JSON Schema to each provider's accepted subset
   static Map<String, dynamic> _sanitizeToolParametersForProvider(Map<String, dynamic> schema, ProviderKind kind) {
@@ -448,12 +450,28 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   // Get cached OCR text for an image path
   String? _cachedOcrText(String imagePath) {
-    return _ocrCache[imagePath.trim()];
+    final key = imagePath.trim();
+    if (_ocrCache.containsKey(key)) {
+      // Move to end (most recently used)
+      _ocrCacheKeys.remove(key);
+      _ocrCacheKeys.add(key);
+      return _ocrCache[key];
+    }
+    return null;
   }
 
-  // Cache OCR text for an image path
+  // Cache OCR text for an image path (LRU eviction)
   void _cacheOcrText(String imagePath, String text) {
-    _ocrCache[imagePath.trim()] = text;
+    final key = imagePath.trim();
+    if (_ocrCache.containsKey(key)) {
+      _ocrCacheKeys.remove(key);
+    } else if (_ocrCacheKeys.length >= _maxOcrCacheSize) {
+      // Evict least recently used
+      final oldest = _ocrCacheKeys.removeAt(0);
+      _ocrCache.remove(oldest);
+    }
+    _ocrCache[key] = text;
+    _ocrCacheKeys.add(key);
   }
 
   // Wrap OCR text in a structured block
@@ -467,8 +485,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     return buf.toString();
   }
 
-  // Get OCR text for multiple images, using cache when available
-  Future<String?> _getOcrTextForImages(List<String> imagePaths) async {
+  // Get OCR text for multiple images with UI feedback (tool call display)
+  Future<String?> _getOcrTextForImagesWithUI(List<String> imagePaths, String assistantMessageId) async {
     if (imagePaths.isEmpty) return null;
     final settings = context.read<SettingsProvider>();
     if (!(settings.ocrEnabled &&
@@ -492,13 +510,91 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
     }
 
-    // Fetch OCR for uncached images one-by-one to populate cache
-    for (final path in uncached) {
-      final text = await _runOcrForImages([path]);
-      if (text != null && text.trim().isNotEmpty) {
-        final t = text.trim();
-        _cacheOcrText(path, t);
-        combined.writeln(t);
+    // Fetch OCR for uncached images with UI feedback
+    if (uncached.isNotEmpty) {
+      final ocrId = 'ocr_${DateTime.now().millisecondsSinceEpoch}';
+      final imageNames = uncached.map((p) => p.split('/').last.split('\\').last).join(', ');
+
+      // Add loading tool event
+      await _chatService.upsertToolEvent(
+        assistantMessageId,
+        id: ocrId,
+        name: 'image_ocr',
+        arguments: {'images': imageNames, 'count': uncached.length},
+      );
+
+      // Update UI
+      final existing = List<ToolUIPart>.of(_toolParts[assistantMessageId] ?? const []);
+      existing.add(ToolUIPart(
+        id: ocrId,
+        toolName: 'image_ocr',
+        arguments: {'images': imageNames, 'count': uncached.length},
+        loading: true,
+      ));
+      setState(() => _toolParts[assistantMessageId] = existing);
+
+      try {
+        // Run OCR
+        for (final path in uncached) {
+          final text = await _runOcrForImages([path]);
+          if (text != null && text.trim().isNotEmpty) {
+            final t = text.trim();
+            _cacheOcrText(path, t);
+            combined.writeln(t);
+          }
+        }
+
+        final result = combined.toString().trim();
+        final content = result.isEmpty
+            ? 'OCR completed but no text extracted'
+            : 'OCR completed successfully. Extracted ${result.length} characters.';
+
+        // Update tool event with success
+        await _chatService.upsertToolEvent(
+          assistantMessageId,
+          id: ocrId,
+          name: 'image_ocr',
+          arguments: {'images': imageNames, 'count': uncached.length},
+          content: content,
+        );
+
+        // Update UI
+        final parts = List<ToolUIPart>.of(_toolParts[assistantMessageId] ?? const []);
+        final idx = parts.indexWhere((p) => p.id == ocrId);
+        if (idx >= 0) {
+          parts[idx] = ToolUIPart(
+            id: ocrId,
+            toolName: 'image_ocr',
+            arguments: {'images': imageNames, 'count': uncached.length},
+            content: content,
+            loading: false,
+          );
+          setState(() => _toolParts[assistantMessageId] = parts);
+        }
+      } catch (e) {
+        // Update tool event with error
+        final errorMsg = 'OCR failed: ${e.toString()}';
+        await _chatService.upsertToolEvent(
+          assistantMessageId,
+          id: ocrId,
+          name: 'image_ocr',
+          arguments: {'images': imageNames, 'count': uncached.length},
+          content: errorMsg,
+        );
+
+        // Update UI
+        final parts = List<ToolUIPart>.of(_toolParts[assistantMessageId] ?? const []);
+        final idx = parts.indexWhere((p) => p.id == ocrId);
+        if (idx >= 0) {
+          parts[idx] = ToolUIPart(
+            id: ocrId,
+            toolName: 'image_ocr',
+            arguments: {'images': imageNames, 'count': uncached.length},
+            content: errorMsg,
+            loading: false,
+          );
+          setState(() => _toolParts[assistantMessageId] = parts);
+        }
       }
     }
 
@@ -517,12 +613,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     final messages = <Map<String, dynamic>>[
       {
-        'role': 'system',
-        'content': settings.ocrPrompt,
-      },
-      {
         'role': 'user',
-        'content': 'Please perform OCR on the attached image(s) and return only the extracted text and visual descriptions.',
+        'content': settings.ocrPrompt,
       },
     ];
 
@@ -542,14 +634,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
 
     String out = '';
-    try {
-      await for (final chunk in stream) {
-        if (chunk.content.isNotEmpty) {
-          out += chunk.content;
-        }
+    await for (final chunk in stream) {
+      if (chunk.content.isNotEmpty) {
+        out += chunk.content;
       }
-    } catch (_) {
-      return null;
     }
     out = out.trim();
     return out.isEmpty ? null : out;
@@ -1441,7 +1529,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             .toSet()
             .toList();
         if (ocrTargets.isNotEmpty) {
-          final ocrText = await _getOcrTextForImages(ocrTargets);
+          final ocrText = await _getOcrTextForImagesWithUI(ocrTargets, assistantMessage.id);
           if (ocrText != null && ocrText.trim().isNotEmpty) {
             merged = (_wrapOcrBlock(ocrText) + merged).trim();
           }
@@ -1609,15 +1697,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     } catch (_) {}
 
     // Limit context length according to assistant settings
-    if ((assistant?.limitContextMessages ?? true) && (assistant?.contextMessageSize ?? 0) > 0) {
-      final keep = assistant!.contextMessageSize.clamp(1, 512).toInt();
-      // Always keep the first message if it's system
+    if (assistant?.limitContextMessages ?? true) {
+      final keep = (assistant?.contextMessageSize ?? 64).clamp(0, 512);
       int startIdx = 0;
       if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
         startIdx = 1;
       }
       final tail = apiMessages.sublist(startIdx);
-      if (tail.length > keep) {
+      if (keep == 0) {
+        // contextMessageSize=0: clear all history
+        apiMessages.removeRange(startIdx, apiMessages.length);
+      } else if (tail.length > keep) {
         final trimmed = tail.sublist(tail.length - keep);
         apiMessages
           ..removeRange(startIdx, apiMessages.length)
@@ -2718,14 +2808,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     } catch (_) {}
 
     // Limit context length
-    if ((assistant?.limitContextMessages ?? true) && (assistant?.contextMessageSize ?? 0) > 0) {
-      final keep = assistant!.contextMessageSize.clamp(1, 512).toInt();
+    if (assistant?.limitContextMessages ?? true) {
+      final keep = (assistant?.contextMessageSize ?? 64).clamp(0, 512);
       int startIdx = 0;
       if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
         startIdx = 1;
       }
       final tail = apiMessages.sublist(startIdx);
-      if (tail.length > keep) {
+      if (keep == 0) {
+        // contextMessageSize=0: clear all history
+        apiMessages.removeRange(startIdx, apiMessages.length);
+      } else if (tail.length > keep) {
         final trimmed = tail.sublist(tail.length - keep);
         apiMessages..removeRange(startIdx, apiMessages.length)..addAll(trimmed);
       }
@@ -4110,8 +4203,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               provider = NetworkImage(bg);
             } else {
               if (kIsWeb) return const SizedBox.shrink();
-              final localPath = SandboxPathResolver.fix(bg);
-              final file = File(localPath);
+              final file = File(SandboxPathResolver.fix(bg));
               if (!file.existsSync()) return const SizedBox.shrink();
               provider = FileImage(file);
             }
@@ -4753,6 +4845,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           final selected = a?.mcpServerIds ?? const <String>[];
                           if (selected.isEmpty || connected.isEmpty) return false;
                           return connected.any((s) => selected.contains(s.id));
+                        })(),
+                        mcpToolCount: (() {
+                          final a = context.watch<AssistantProvider>().currentAssistant;
+                          final mcpProvider = context.watch<McpProvider>();
+                          final selected = a?.mcpServerIds ?? const <String>[];
+                          if (selected.isEmpty) return 0;
+                          final enabledTools = mcpProvider.getEnabledToolsForServers(selected.toSet());
+                          return enabledTools.length;
                         })(),
                         // Quick Phrase button moved to bottom tools sheet (mobile) and overflow menu (desktop)
                         showQuickPhraseButton: false,

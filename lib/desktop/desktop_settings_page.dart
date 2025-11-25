@@ -438,6 +438,8 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _RowDivider(),
                   _ChatMessageBackgroundRow(),
                   _RowDivider(),
+                  _ChatBubbleOpacityRow(),
+                  _RowDivider(),
                   _TopicPositionRow(),
                   _RowDivider(),
                   _DesktopContentWidthRow(),
@@ -957,6 +959,44 @@ class _ChatMessageBackgroundRow extends StatelessWidget {
     return _LabeledRow(
       label: l10n.displaySettingsPageChatMessageBackgroundTitle,
       trailing: const _BackgroundStyleDropdown(),
+    );
+  }
+}
+
+class _ChatBubbleOpacityRow extends StatelessWidget {
+  const _ChatBubbleOpacityRow();
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final v = context.watch<SettingsProvider>().chatMessageBubbleOpacity;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 8, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.displaySettingsPageChatBubbleOpacityTitle,
+                  style: TextStyle(fontSize: 14, color: cs.onSurface.withOpacity(0.9)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('${(v * 100).round()}%', style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.7))),
+            ],
+          ),
+          Slider(
+            min: 0.0,
+            max: 1.0,
+            divisions: 20,
+            label: '${(v * 100).round()}%',
+            value: v.clamp(0.0, 1.0),
+            onChanged: (nv) => context.read<SettingsProvider>().setChatMessageBubbleOpacity(nv),
+          ),
+        ],
+      ),
     );
   }
 }

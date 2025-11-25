@@ -115,6 +115,17 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
             _iosDivider(context),
             _iosNavRow(
               context,
+              icon: Lucide.MessageCircle,
+              label: l10n.displaySettingsPageChatBubbleOpacityTitle,
+              detailBuilder: (ctx) {
+                final v = ctx.watch<SettingsProvider>().chatMessageBubbleOpacity;
+                return Text('${(v * 100).round()}%', style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 13));
+              },
+              onTap: () => _showChatBubbleOpacitySheet(context),
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
               icon: Lucide.MessageCircleMore,
               label: l10n.displaySettingsPageChatItemDisplayTitle,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChatItemDisplaySettingsPage())),
@@ -512,6 +523,84 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                     ),
                     const SizedBox(width: 8),
                     Text('${(strength * 100).round()}%', style: TextStyle(color: cs.onSurface, fontSize: 12)),
+                  ]),
+                ],
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showChatBubbleOpacitySheet(BuildContext context) async {
+    final cs = Theme.of(context).colorScheme;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: cs.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      isScrollControlled: false,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            child: Builder(builder: (context) {
+              final theme = Theme.of(context);
+              final cs = theme.colorScheme;
+              final isDark = theme.brightness == Brightness.dark;
+              final opacity = context.watch<SettingsProvider>().chatMessageBubbleOpacity;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Text('0%', style: TextStyle(color: cs.onSurface.withOpacity(0.7), fontSize: 12)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SfSliderTheme(
+                        data: SfSliderThemeData(
+                          activeTrackHeight: 8,
+                          inactiveTrackHeight: 8,
+                          overlayRadius: 14,
+                          activeTrackColor: cs.primary,
+                          inactiveTrackColor: cs.onSurface.withOpacity(isDark ? 0.25 : 0.20),
+                          tooltipBackgroundColor: cs.primary,
+                          tooltipTextStyle: TextStyle(color: cs.onPrimary, fontWeight: FontWeight.w600),
+                          activeTickColor: cs.onSurface.withOpacity(isDark ? 0.45 : 0.35),
+                          inactiveTickColor: cs.onSurface.withOpacity(isDark ? 0.30 : 0.25),
+                          activeMinorTickColor: cs.onSurface.withOpacity(isDark ? 0.34 : 0.28),
+                          inactiveMinorTickColor: cs.onSurface.withOpacity(isDark ? 0.24 : 0.20),
+                        ),
+                        child: SfSlider(
+                          value: (opacity * 100).roundToDouble(),
+                          min: 0.0,
+                          max: 100.0001,
+                          stepSize: 5.0,
+                          showTicks: true,
+                          showLabels: true,
+                          interval: 25,
+                          minorTicksPerInterval: 1,
+                          enableTooltip: true,
+                          shouldAlwaysShowTooltip: false,
+                          tooltipShape: const SfPaddleTooltipShape(),
+                          labelFormatterCallback: (value, text) => '${(value as double).round()}%',
+                          thumbIcon: Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: cs.primary,
+                              shape: BoxShape.circle,
+                              boxShadow: isDark ? [] : [
+                                BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: Offset(0, 2)),
+                              ],
+                            ),
+                          ),
+                          onChanged: (v) => context.read<SettingsProvider>().setChatMessageBubbleOpacity(((v as double) / 100.0).clamp(0.0, 1.0)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('${(opacity * 100).round()}%', style: TextStyle(color: cs.onSurface, fontSize: 12)),
                   ]),
                 ],
               );

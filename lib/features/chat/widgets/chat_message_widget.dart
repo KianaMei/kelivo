@@ -982,6 +982,53 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     return _ParsedUserContent(buffer.toString().trim(), images, docs);
   }
 
+  Widget _wrapAssistantBubble(BuildContext context, SettingsProvider settings, Widget child) {
+    final opacity = settings.chatMessageBubbleOpacity.clamp(0.0, 1.0);
+    if (opacity <= 0.0001) return child; // Keep current transparent behavior
+
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final style = settings.chatMessageBackgroundStyle;
+    final radius = BorderRadius.circular(16);
+
+    Color bg;
+    double blur = 0;
+    switch (style) {
+      case ChatMessageBackgroundStyle.frosted:
+        bg = Colors.white.withOpacity(opacity * (isDark ? 0.12 : 0.70));
+        blur = 6 + 10 * opacity;
+        break;
+      case ChatMessageBackgroundStyle.solid:
+        bg = cs.surfaceVariant.withOpacity(opacity);
+        blur = 0;
+        break;
+      case ChatMessageBackgroundStyle.defaultStyle:
+      default:
+        bg = cs.surface.withOpacity(opacity * (isDark ? 0.20 : 0.16));
+        blur = 0;
+    }
+
+    final box = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: radius,
+        border: Border.all(color: cs.outlineVariant.withOpacity(opacity * 0.25), width: 1),
+      ),
+      child: child,
+    );
+
+    if (blur <= 0) return box;
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: box,
+      ),
+    );
+  }
+
   Widget _buildAssistantMessage() {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
@@ -1204,6 +1251,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             ],
           ),
           const SizedBox(height: 8),
+          Builder(
+            builder: (ctx) => _wrapAssistantBubble(
+              ctx,
+              settings,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
           // Mixed reasoning and tool sections
           if (widget.reasoningSegments != null &&
               widget.reasoningSegments!.isNotEmpty) ...[
@@ -1634,6 +1688,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               ],
             ),
           ],
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

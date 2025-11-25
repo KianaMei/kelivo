@@ -951,6 +951,7 @@
   "displaySettingsPageChatMessageBackgroundDefault": "默认",
   "displaySettingsPageChatMessageBackgroundFrosted": "模糊",
   "displaySettingsPageChatMessageBackgroundSolid": "纯色",
+  "displaySettingsPageChatBubbleOpacityTitle": "对话气泡不透明度",
   "themeSettingsPageUsePureBackgroundTitle": "纯色背景",
   "themeSettingsPageUsePureBackgroundSubtitle": "仅气泡与强调色随主题变化",
   "desktopDisplaySettingsTopicPositionTitle": "话题位置",

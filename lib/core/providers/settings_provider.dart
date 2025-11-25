@@ -49,6 +49,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _displayAutoScrollIdleSecondsKey = 'display_auto_scroll_idle_seconds_v1';
   static const String _displayDisableAutoScrollKey = 'display_disable_auto_scroll_v1';
   static const String _displayChatBackgroundMaskStrengthKey = 'display_chat_background_mask_strength_v1';
+  static const String _displayChatBubbleOpacityKey = 'display_chat_bubble_opacity_v1';
   static const String _displayEnableDollarLatexKey = 'display_enable_dollar_latex_v1';
   static const String _displayEnableMathRenderingKey = 'display_enable_math_rendering_v1';
   static const String _displayEnableUserMarkdownKey = 'display_enable_user_markdown_v1';
@@ -117,6 +118,9 @@ class SettingsProvider extends ChangeNotifier {
   // Chat message background style (default/frosted/solid)
   ChatMessageBackgroundStyle _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.defaultStyle;
   ChatMessageBackgroundStyle get chatMessageBackgroundStyle => _chatMessageBackgroundStyle;
+  // Chat bubble opacity (0 = transparent / current behavior)
+  double _chatMessageBubbleOpacity = 0.0;
+  double get chatMessageBubbleOpacity => _chatMessageBubbleOpacity;
 
   // Desktop UI persisted state
   double _desktopSidebarWidth = 240;
@@ -310,6 +314,7 @@ class SettingsProvider extends ChangeNotifier {
     _autoScrollIdleSeconds = prefs.getInt(_displayAutoScrollIdleSecondsKey) ?? 8;
     _disableAutoScroll = prefs.getBool(_displayDisableAutoScrollKey) ?? false;
     _chatBackgroundMaskStrength = prefs.getDouble(_displayChatBackgroundMaskStrengthKey) ?? 1.0;
+    _chatMessageBubbleOpacity = (prefs.getDouble(_displayChatBubbleOpacityKey) ?? 0.0).clamp(0.0, 1.0);
     // display: pure background (desktop default true, mobile default false)
     final pureBgPref = prefs.getBool(_displayUsePureBackgroundKey);
     if (pureBgPref == null) {
@@ -1310,6 +1315,16 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_displayChatBackgroundMaskStrengthKey, _chatBackgroundMaskStrength);
+  }
+
+  // Display: chat bubble opacity (0.0 - 1.0, default 0.0)
+  Future<void> setChatMessageBubbleOpacity(double value) async {
+    final v = value.clamp(0.0, 1.0);
+    if (_chatMessageBubbleOpacity == v) return;
+    _chatMessageBubbleOpacity = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_displayChatBubbleOpacityKey, _chatMessageBubbleOpacity);
   }
 
   // Display: inline $...$ LaTeX rendering
