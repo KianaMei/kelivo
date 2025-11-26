@@ -130,6 +130,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final Map<String, _TranslationData> _translations = <String, _TranslationData>{};
   final Map<String, List<ToolUIPart>> _toolParts = <String, List<ToolUIPart>>{}; // assistantMessageId -> parts
   final Map<String, List<_ReasoningSegmentData>> _reasoningSegments = <String, List<_ReasoningSegmentData>>{}; // assistantMessageId -> reasoning segments
+  // Inline <think> tag tracking for mixed rendering support
+  final Map<String, String> _inlineThinkBuffer = <String, String>{}; // assistantMessageId -> accumulated think content
+  final Map<String, bool> _inInlineThink = <String, bool>{}; // assistantMessageId -> currently inside <think> block
   // Message widget keys for navigation to previous question
   final Map<String, GlobalKey> _messageKeys = <String, GlobalKey>{};
   GlobalKey _keyForMessage(String id) => _messageKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'msg:$id'));
@@ -411,6 +414,107 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     } catch (_) {
       return [];
     }
+  }
+
+  /// Process inline <think> tags in streaming content for mixed rendering support.
+  /// Returns the content with think blocks tracked separately.
+  /// This method updates _inlineThinkBuffer, _inInlineThink, and _reasoningSegments.
+  void _processInlineThinkTag(String messageId, String newContent) {
+    if (newContent.isEmpty) return;
+
+    // Get current state
+    final inThink = _inInlineThink[messageId] ?? false;
+    var buffer = _inlineThinkBuffer[messageId] ?? '';
+
+    // Process the new content character by character to handle tag boundaries
+    var remaining = newContent;
+
+    while (remaining.isNotEmpty) {
+      if (inThink || _inInlineThink[messageId] == true) {
+        // Currently inside <think> block, look for </think>
+        final endIndex = remaining.indexOf('</think>');
+        if (endIndex == -1) {
+          // No closing tag yet, buffer everything
+          buffer += remaining;
+          _inlineThinkBuffer[messageId] = buffer;
+          remaining = '';
+        } else {
+          // Found closing tag
+          buffer += remaining.substring(0, endIndex);
+          remaining = remaining.substring(endIndex + '</think>'.length);
+
+          // Create or update reasoning segment with the buffered content
+          if (buffer.trim().isNotEmpty) {
+            final segments = _reasoningSegments[messageId] ?? <_ReasoningSegmentData>[];
+            final toolCount = _toolParts[messageId]?.length ?? 0;
+
+            // Check if we should append to existing segment or create new one
+            if (segments.isEmpty) {
+              // First segment
+              final seg = _ReasoningSegmentData();
+              seg.text = buffer.trim();
+              seg.startAt = DateTime.now();
+              seg.expanded = true; // Inline think starts expanded
+              seg.toolStartIndex = toolCount;
+              segments.add(seg);
+            } else {
+              final lastSeg = segments.last;
+              // If the last segment has tools after it (finishedAt != null), create new segment
+              if (lastSeg.finishedAt != null && toolCount > lastSeg.toolStartIndex) {
+                final seg = _ReasoningSegmentData();
+                seg.text = buffer.trim();
+                seg.startAt = DateTime.now();
+                seg.expanded = true;
+                seg.toolStartIndex = toolCount;
+                segments.add(seg);
+              } else if (lastSeg.finishedAt == null) {
+                // Append to current segment
+                lastSeg.text += '\n\n' + buffer.trim();
+              } else {
+                // Last segment finished but no new tools, just append
+                lastSeg.text += '\n\n' + buffer.trim();
+                lastSeg.finishedAt = null; // Re-open the segment
+              }
+            }
+
+            // Mark the last segment as finished since </think> was encountered
+            if (segments.isNotEmpty) {
+              segments.last.finishedAt = DateTime.now();
+              // Auto-collapse based on settings
+              final autoCollapse = context.read<SettingsProvider>().autoCollapseThinking;
+              if (autoCollapse) {
+                segments.last.expanded = false;
+              }
+            }
+
+            _reasoningSegments[messageId] = segments;
+          }
+
+          // Reset buffer and mark as not in think block
+          buffer = '';
+          _inlineThinkBuffer[messageId] = buffer;
+          _inInlineThink[messageId] = false;
+        }
+      } else {
+        // Not inside <think> block, look for <think>
+        final startIndex = remaining.indexOf('<think>');
+        if (startIndex == -1) {
+          // No opening tag, content is regular text (handled elsewhere)
+          remaining = '';
+        } else {
+          // Found opening tag, skip content before it (regular text)
+          remaining = remaining.substring(startIndex + '<think>'.length);
+          _inInlineThink[messageId] = true;
+        }
+      }
+    }
+  }
+
+  /// Check if we should use inline think segments for this message.
+  /// Returns true if the message content contains <think> tags but no native reasoning is provided.
+  bool _shouldUseInlineThinkSegments(String messageId, String content, bool hasNativeReasoning) {
+    if (hasNativeReasoning) return false;
+    return content.contains('<think>') || (_inInlineThink[messageId] ?? false);
   }
 
   bool _isReasoningModel(String providerKey, String modelId) {
@@ -768,6 +872,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     // Clear first to avoid stale entries
     _reasoning.clear();
     _reasoningSegments.clear();
+    _inlineThinkBuffer.clear();
+    _inInlineThink.clear();
     _toolParts.clear();
     _translations.clear();
 
@@ -1576,6 +1682,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       _translations.clear();
       _toolParts.clear();
       _reasoningSegments.clear();
+      _inlineThinkBuffer.clear();
+      _inInlineThink.clear();
     });
     if (!_isUserScrolling) _scrollToBottomSoon();
   }
@@ -2308,9 +2416,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       // Track stream per conversation to allow concurrent sessions
       final String _cidForStream = assistantMessage.conversationId;
       await _conversationStreams[_cidForStream]?.cancel();
+
       final _sub = stream.listen(
             (ChatStreamChunk chunk) async {
-          // Capture reasoning deltas only when reasoning is enabled
           if ((chunk.reasoning ?? '').isNotEmpty && supportsReasoning) {
             if (streamOutput) {
               final r = _reasoning[assistantMessage.id] ?? _ReasoningData();
@@ -2373,6 +2481,37 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
           // MCP tool call placeholders
           if ((chunk.toolCalls ?? const []).isNotEmpty) {
+            // Handle incomplete inline <think> block before tool call
+            // If we're in the middle of an inline think block, finalize the current buffer as a segment
+            final inThink = _inInlineThink[assistantMessage.id] ?? false;
+            if (inThink) {
+              final buffer = _inlineThinkBuffer[assistantMessage.id] ?? '';
+              if (buffer.trim().isNotEmpty) {
+                final segs = _reasoningSegments[assistantMessage.id] ?? <_ReasoningSegmentData>[];
+                final toolCount = _toolParts[assistantMessage.id]?.length ?? 0;
+                if (segs.isEmpty || segs.last.finishedAt != null) {
+                  final seg = _ReasoningSegmentData();
+                  seg.text = buffer.trim();
+                  seg.startAt = DateTime.now();
+                  seg.expanded = true;
+                  seg.toolStartIndex = toolCount;
+                  seg.finishedAt = DateTime.now();
+                  segs.add(seg);
+                } else {
+                  segs.last.text += '\n\n' + buffer.trim();
+                  segs.last.finishedAt = DateTime.now();
+                }
+                final autoCollapse = context.read<SettingsProvider>().autoCollapseThinking;
+                if (autoCollapse && segs.isNotEmpty) {
+                  segs.last.expanded = false;
+                }
+                _reasoningSegments[assistantMessage.id] = segs;
+              }
+              // Reset inline think state
+              _inlineThinkBuffer[assistantMessage.id] = '';
+              _inInlineThink[assistantMessage.id] = false;
+            }
+
             // Simply append new tool calls instead of merging by ID/name
             // This allows multiple calls to the same tool
             final existing = List<ToolUIPart>.of(_toolParts[assistantMessage.id] ?? const []);
@@ -2520,6 +2659,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             }
             
             fullContent += chunk.content;
+
+            // Process inline <think> tags for mixed rendering (only when no native reasoning)
+            final hasNativeReasoning = (_reasoning[assistantMessage.id]?.text.isNotEmpty ?? false);
+            if (!hasNativeReasoning && chunk.content.isNotEmpty) {
+              _processInlineThinkTag(assistantMessage.id, chunk.content);
+              // Persist segments if updated
+              final inlineSegs = _reasoningSegments[assistantMessage.id];
+              if (inlineSegs != null && inlineSegs.isNotEmpty) {
+                await _chatService.updateMessage(
+                  assistantMessage.id,
+                  reasoningSegmentsJson: _serializeReasoningSegments(inlineSegs),
+                );
+                if (mounted && _currentConversation?.id == _cidForStream) setState(() {});
+              }
+            }
+
             // if (chunk.totalTokens > 0) { // DEPRECATED
             //   totalTokens = chunk.totalTokens;
             // }
@@ -2531,8 +2686,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             }
 
             if (streamOutput) {
-              // If content has started, consider reasoning finished and collapse (respect setting)
-              if ((chunk.content).isNotEmpty) {
+              // If content has started (outside of <think> blocks), consider reasoning finished
+              // Only finish reasoning if we're NOT inside an inline think block
+              final insideInlineThink = _inInlineThink[assistantMessage.id] ?? false;
+              if ((chunk.content).isNotEmpty && !insideInlineThink) {
                 final r = _reasoning[assistantMessage.id];
                 if (r != null && r.startAt != null && r.finishedAt == null) {
                   r.finishedAt = DateTime.now();
@@ -2549,21 +2706,24 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   if (mounted) setState(() {});
                 }
 
-                // Also finish the current reasoning segment
-                final segments = _reasoningSegments[assistantMessage.id];
-                if (segments != null && segments.isNotEmpty && segments.last.finishedAt == null) {
-                  segments.last.finishedAt = DateTime.now();
-                  final autoCollapse = context.read<SettingsProvider>().autoCollapseThinking;
-                  if (autoCollapse) {
-                    segments.last.expanded = false;
+                // Also finish the current reasoning segment (for native reasoning only)
+                // Inline think segments are finished when </think> is encountered
+                if (hasNativeReasoning) {
+                  final segments = _reasoningSegments[assistantMessage.id];
+                  if (segments != null && segments.isNotEmpty && segments.last.finishedAt == null) {
+                    segments.last.finishedAt = DateTime.now();
+                    final autoCollapse = context.read<SettingsProvider>().autoCollapseThinking;
+                    if (autoCollapse) {
+                      segments.last.expanded = false;
+                    }
+                    _reasoningSegments[assistantMessage.id] = segments;
+                    if (mounted) setState(() {});
+                    // Persist closed segment state
+                    await _chatService.updateMessage(
+                      assistantMessage.id,
+                      reasoningSegmentsJson: _serializeReasoningSegments(segments),
+                    );
                   }
-                  _reasoningSegments[assistantMessage.id] = segments;
-                  if (mounted) setState(() {});
-                  // Persist closed segment state
-                  await _chatService.updateMessage(
-                    assistantMessage.id,
-                    reasoningSegmentsJson: _serializeReasoningSegments(segments),
-                  );
                 }
               }
             }
