@@ -6,6 +6,8 @@ import '../l10n/app_localizations.dart';
 import '../core/providers/mcp_provider.dart';
 import '../core/providers/assistant_provider.dart';
 import '../core/providers/settings_provider.dart';
+import '../core/models/tool_call_mode.dart';
+import '../core/services/tool_call_mode_store.dart';
 import 'desktop_popover.dart';
 
 /// Show desktop MCP servers selection popover
@@ -13,18 +15,53 @@ Future<void> showDesktopMcpServersPopover(
   BuildContext context, {
   required GlobalKey anchorKey,
   required String assistantId,
+  void Function(ToolCallMode mode)? onToolModeChanged,
 }) async {
   await showDesktopPopover(
     context,
     anchorKey: anchorKey,
-    child: _McpServersContent(assistantId: assistantId),
+    child: _McpServersContent(
+      assistantId: assistantId,
+      onToolModeChanged: onToolModeChanged,
+    ),
     maxHeight: 520,
   );
 }
 
-class _McpServersContent extends StatelessWidget {
-  const _McpServersContent({required this.assistantId});
+class _McpServersContent extends StatefulWidget {
+  const _McpServersContent({
+    required this.assistantId,
+    this.onToolModeChanged,
+  });
   final String assistantId;
+  final void Function(ToolCallMode mode)? onToolModeChanged;
+
+  @override
+  State<_McpServersContent> createState() => _McpServersContentState();
+}
+
+class _McpServersContentState extends State<_McpServersContent> {
+  ToolCallMode _toolCallMode = ToolCallMode.native;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadToolCallMode();
+  }
+
+  Future<void> _loadToolCallMode() async {
+    final mode = await ToolCallModeStore.getMode();
+    if (mounted) setState(() => _toolCallMode = mode);
+  }
+
+  Future<void> _toggleToolCallMode() async {
+    final newMode = await ToolCallModeStore.toggleMode();
+    if (mounted) {
+      setState(() => _toolCallMode = newMode);
+      // 实时通知父组件模式已更改
+      widget.onToolModeChanged?.call(newMode);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +69,7 @@ class _McpServersContent extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final mcp = context.watch<McpProvider>();
     final ap = context.watch<AssistantProvider>();
-    final a = ap.getById(assistantId);
+    final a = ap.getById(widget.assistantId);
 
     if (a == null) {
       return const SizedBox.shrink();
@@ -76,16 +113,15 @@ class _McpServersContent extends StatelessWidget {
       ));
     }
 
-    // Pinned section (Clear + Sticker toggle) - compact horizontal layout
+    // Pinned section (Clear + Tool Mode + Sticker toggle) - compact horizontal layout
     Widget pinnedSection = Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Horizontal row with Clear and Sticker toggle
+          // First row: Clear all button
           Row(
             children: [
-              // Clear all button
               Expanded(
                 child: _CompactActionButton(
                   icon: Lucide.CircleX,
@@ -95,6 +131,30 @@ class _McpServersContent extends StatelessWidget {
                       a.copyWith(mcpServerIds: const <String>[]),
                     );
                   },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Second row: Tool call mode toggle + Sticker toggle
+          Row(
+            children: [
+              // Tool call mode toggle (native/prompt)
+              Expanded(
+                child: Tooltip(
+                  message: _toolCallMode == ToolCallMode.prompt
+                      ? l10n.toolModePromptDescription
+                      : l10n.toolModeNativeDescription,
+                  child: _CompactToggleButton(
+                    icon: _toolCallMode == ToolCallMode.prompt
+                        ? Lucide.MessageSquareCode
+                        : Lucide.Wrench,
+                    label: _toolCallMode == ToolCallMode.prompt
+                        ? l10n.toolModePrompt
+                        : l10n.toolModeNative,
+                    enabled: _toolCallMode == ToolCallMode.prompt,
+                    onTap: _toggleToolCallMode,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -380,17 +440,11 @@ class _CompactToggleButtonState extends State<_CompactToggleButton> {
     final Color iconColor;
     final Color textColor;
     
-    if (widget.enabled) {
-      baseBg = cs.primary.withOpacity(0.15);
-      hoverBg = cs.primary.withOpacity(0.25);
-      iconColor = cs.primary;
-      textColor = cs.primary;
-    } else {
-      baseBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
-      hoverBg = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
-      iconColor = cs.onSurface.withOpacity(0.7);
-      textColor = cs.onSurface.withOpacity(0.8);
-    }
+    // Tool mode button no longer changes color when enabled - always use default style
+    baseBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
+    hoverBg = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
+    iconColor = cs.onSurface.withOpacity(0.7);
+    textColor = cs.onSurface.withOpacity(0.8);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -406,7 +460,7 @@ class _CompactToggleButtonState extends State<_CompactToggleButton> {
           decoration: BoxDecoration(
             color: _hovered ? hoverBg : baseBg,
             borderRadius: BorderRadius.circular(10),
-            border: widget.enabled ? Border.all(color: cs.primary.withOpacity(0.3), width: 1) : null,
+            // No border highlight for enabled state
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

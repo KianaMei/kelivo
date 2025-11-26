@@ -870,5 +870,10 @@
   "displaySettingsPageRenderingSettingsTitle": "渲染設定",
   "displaySettingsPageBehaviorStartupTitle": "行為與啟動",
   "displaySettingsPageHapticsSettingsTitle": "觸覺回饋",
-  "assistantSettingsNoPromptPlaceholder": "暫無提示詞"
+  "assistantSettingsNoPromptPlaceholder": "暫無提示詞",
+  "toolModeNative": "原生工具模式",
+  "toolModePrompt": "提示詞工具模式",
+  "toolModeSwitchHint": "切換工具調用模式",
+  "toolModeNativeDescription": "使用 API 原生 Function Calling",
+  "toolModePromptDescription": "透過提示詞模擬工具調用"
 }

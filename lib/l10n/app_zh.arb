@@ -962,5 +962,10 @@
   "displaySettingsPageAndroidBackgroundChatTitle": "后台聊天生成",
   "displaySettingsPageAndroidBackgroundChatOff": "关闭",
   "displaySettingsPageAndroidBackgroundChatOn": "开启（静默）",
-  "displaySettingsPageAndroidBackgroundChatOnNotify": "开启（带通知）"
+  "displaySettingsPageAndroidBackgroundChatOnNotify": "开启（带通知）",
+  "toolModeNative": "原生工具模式",
+  "toolModePrompt": "提示词工具模式",
+  "toolModeSwitchHint": "切换工具调用模式",
+  "toolModeNativeDescription": "使用 API 原生 Function Calling",
+  "toolModePromptDescription": "通过提示词模拟工具调用"
 }

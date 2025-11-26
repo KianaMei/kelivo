@@ -70,6 +70,8 @@ import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/services/sticker/sticker_tool_service.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
 import '../../../core/services/learning_mode_store.dart';
+import '../../../core/services/tool_call_mode_store.dart';
+import '../../../core/models/tool_call_mode.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../shared/animations/widgets.dart';
 import '../../../shared/widgets/snackbar.dart';
@@ -140,6 +142,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final Map<String, String> _ocrCache = <String, String>{};
   final List<String> _ocrCacheKeys = <String>[];
   static const int _maxOcrCacheSize = 50;
+  // Tool call mode state (native or prompt)
+  ToolCallMode _toolCallMode = ToolCallMode.native;
 
   // Sanitize/translate JSON Schema to each provider's accepted subset
   static Map<String, dynamic> _sanitizeToolParametersForProvider(Map<String, dynamic> schema, ProviderKind kind) {
@@ -982,21 +986,33 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           MaterialPageRoute(builder: (_) => const ProvidersPage()),
         );
       },
-      onOpenMcp: () {
+      onOpenMcp: () async {
         final a = context.read<AssistantProvider>().currentAssistant;
         if (a != null) {
           final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
               defaultTargetPlatform == TargetPlatform.macOS ||
               defaultTargetPlatform == TargetPlatform.linux;
+          // 实时更新工具模式的回调
+          void onToolModeChanged(ToolCallMode mode) {
+            if (mounted) setState(() => _toolCallMode = mode);
+          }
           if (isDesktop) {
-            showDesktopMcpServersPopover(
+            await showDesktopMcpServersPopover(
               context,
               anchorKey: _inputBarKey,
               assistantId: a.id,
+              onToolModeChanged: onToolModeChanged,
             );
           } else {
-            showAssistantMcpSheet(context, assistantId: a.id);
+            await showAssistantMcpSheet(
+              context,
+              assistantId: a.id,
+              onToolModeChanged: onToolModeChanged,
+            );
           }
+          // 最终确保状态同步（以防回调未触发）
+          final mode = await ToolCallModeStore.getMode();
+          if (mounted) setState(() => _toolCallMode = mode);
         }
       },
       onLongPressMcp: () {
@@ -1123,6 +1139,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final enabledTools = mcpProvider.getEnabledToolsForServers(selected.toSet());
         return enabledTools.length;
       })(),
+      // Tool mode toggle moved to MCP popover
+      showToolModeButton: false,
+      toolModeIsPrompt: _toolCallMode == ToolCallMode.prompt,
+      onToggleToolMode: null,
       showQuickPhraseButton: false,
       onQuickPhrase: _showQuickPhraseMenu,
       onLongPressQuickPhrase: () {
@@ -1183,6 +1203,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     Future.microtask(() async {
       final v = await LearningModeStore.isEnabled();
       if (mounted) setState(() => _learningModeEnabled = v);
+    });
+    // Load tool call mode
+    Future.microtask(() async {
+      final mode = await ToolCallModeStore.getMode();
+      if (mounted) setState(() => _toolCallMode = mode);
     });
 
     // Initialize quick phrases provider
@@ -2118,10 +2143,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       maxTokens: assistant?.maxTokens,
       maxToolLoopIterations: assistant?.maxToolLoopIterations ?? 10,
       tools: toolDefs.isEmpty ? null : toolDefs,
-        onToolCall: onToolCall,
-        extraHeaders: aHeaders,
-        extraBody: aBody,
-      );
+      onToolCall: onToolCall,
+      extraHeaders: aHeaders,
+      extraBody: aBody,
+      toolCallMode: _toolCallMode,
+    );
 
       Future<void> finish({bool generateTitle = true}) async {
         final shouldGenerateTitle = generateTitle && !_titleQueued;
@@ -3202,6 +3228,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       onToolCall: onToolCall,
       extraHeaders: aHeaders,
       extraBody: aBody,
+      toolCallMode: _toolCallMode,
     );
 
     String fullContent = '';

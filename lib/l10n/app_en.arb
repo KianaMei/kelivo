@@ -1200,5 +1200,10 @@
   "displaySettingsPageAndroidBackgroundChatTitle": "Background chat generation",
   "displaySettingsPageAndroidBackgroundChatOff": "Off",
   "displaySettingsPageAndroidBackgroundChatOn": "On (silent)",
-  "displaySettingsPageAndroidBackgroundChatOnNotify": "On (with notifications)"
+  "displaySettingsPageAndroidBackgroundChatOnNotify": "On (with notifications)",
+  "toolModeNative": "Native Tool Mode",
+  "toolModePrompt": "Prompt Tool Mode",
+  "toolModeSwitchHint": "Switch tool call mode",
+  "toolModeNativeDescription": "Use API native Function Calling",
+  "toolModePromptDescription": "Simulate tool calls via prompts"
 }

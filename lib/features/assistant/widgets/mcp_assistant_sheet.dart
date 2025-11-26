@@ -5,11 +5,17 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/models/tool_call_mode.dart';
+import '../../../core/services/tool_call_mode_store.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
 
-Future<void> showAssistantMcpSheet(BuildContext context, {required String assistantId}) async {
+Future<void> showAssistantMcpSheet(
+  BuildContext context, {
+  required String assistantId,
+  void Function(ToolCallMode mode)? onToolModeChanged,
+}) async {
   final cs = Theme.of(context).colorScheme;
   await showModalBottomSheet<void>(
     context: context,
@@ -18,13 +24,48 @@ Future<void> showAssistantMcpSheet(BuildContext context, {required String assist
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) => _AssistantMcpSheet(assistantId: assistantId),
+    builder: (_) => _AssistantMcpSheet(
+      assistantId: assistantId,
+      onToolModeChanged: onToolModeChanged,
+    ),
   );
 }
 
-class _AssistantMcpSheet extends StatelessWidget {
-  const _AssistantMcpSheet({required this.assistantId});
+class _AssistantMcpSheet extends StatefulWidget {
+  const _AssistantMcpSheet({
+    required this.assistantId,
+    this.onToolModeChanged,
+  });
   final String assistantId;
+  final void Function(ToolCallMode mode)? onToolModeChanged;
+
+  @override
+  State<_AssistantMcpSheet> createState() => _AssistantMcpSheetState();
+}
+
+class _AssistantMcpSheetState extends State<_AssistantMcpSheet> {
+  ToolCallMode _toolCallMode = ToolCallMode.native;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadToolCallMode();
+  }
+
+  Future<void> _loadToolCallMode() async {
+    final mode = await ToolCallModeStore.getMode();
+    if (mounted) setState(() => _toolCallMode = mode);
+  }
+
+  Future<void> _toggleToolCallMode() async {
+    Haptics.light();
+    final newMode = await ToolCallModeStore.toggleMode();
+    if (mounted) {
+      setState(() => _toolCallMode = newMode);
+      // 实时通知父组件模式已更改
+      widget.onToolModeChanged?.call(newMode);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +74,7 @@ class _AssistantMcpSheet extends StatelessWidget {
     final mcp = context.watch<McpProvider>();
     final ap = context.watch<AssistantProvider>();
     final settings = context.watch<SettingsProvider>();
-    final a = ap.getById(assistantId)!;
+    final a = ap.getById(widget.assistantId)!;
 
     final selected = a.mcpServerIds.toSet();
     final servers = mcp.servers.where((s) => mcp.statusFor(s.id) == McpStatus.connected).toList();
@@ -50,14 +91,13 @@ class _AssistantMcpSheet extends StatelessWidget {
 
     final maxHeight = MediaQuery.of(context).size.height * 0.8;
 
-    // Pinned section (Clear + Sticker toggle) - compact horizontal layout
+    // Pinned section (Clear + Tool Mode + Sticker toggle) - compact horizontal layout
     Widget pinnedSection = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Horizontal row with Clear and Sticker toggle
+        // First row: Clear all button
         Row(
           children: [
-            // Clear all button
             Expanded(
               child: _CompactActionButton(
                 icon: Lucide.CircleX,
@@ -67,6 +107,30 @@ class _AssistantMcpSheet extends StatelessWidget {
                   final next = a.copyWith(mcpServerIds: const <String>[]);
                   await context.read<AssistantProvider>().updateAssistant(next);
                 },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Second row: Tool call mode toggle + Sticker toggle
+        Row(
+          children: [
+            // Tool call mode toggle (native/prompt)
+            Expanded(
+              child: Tooltip(
+                message: _toolCallMode == ToolCallMode.prompt
+                    ? l10n.toolModePromptDescription
+                    : l10n.toolModeNativeDescription,
+                child: _CompactToggleButton(
+                  icon: _toolCallMode == ToolCallMode.prompt
+                      ? Lucide.MessageSquareCode
+                      : Lucide.Wrench,
+                  label: _toolCallMode == ToolCallMode.prompt
+                      ? l10n.toolModePrompt
+                      : l10n.toolModeNative,
+                  enabled: _toolCallMode == ToolCallMode.prompt,
+                  onTap: _toggleToolCallMode,
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -183,7 +247,7 @@ class _AssistantMcpSheet extends StatelessWidget {
                             duration: const Duration(milliseconds: 260),
                             onTap: () async {
                               Haptics.light();
-                              final set = a.mcpServerIds.toSet();
+                              final set = Set<String>.from(a.mcpServerIds);
                               if (isSelected) set.remove(s.id); else set.add(s.id);
                               await context.read<AssistantProvider>().updateAssistant(a.copyWith(mcpServerIds: set.toList()));
                             },
@@ -300,15 +364,10 @@ class _CompactToggleButton extends StatelessWidget {
     final Color iconColor;
     final Color textColor;
     
-    if (enabled) {
-      bg = cs.primary.withOpacity(0.15);
-      iconColor = cs.primary;
-      textColor = cs.primary;
-    } else {
-      bg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
-      iconColor = cs.onSurface.withOpacity(0.7);
-      textColor = cs.onSurface.withOpacity(0.8);
-    }
+    // Tool mode button no longer changes color when enabled - always use default style
+    bg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
+    iconColor = cs.onSurface.withOpacity(0.7);
+    textColor = cs.onSurface.withOpacity(0.8);
 
     return GestureDetector(
       onTap: onTap,
@@ -318,7 +377,7 @@ class _CompactToggleButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(12),
-          border: enabled ? Border.all(color: cs.primary.withOpacity(0.3), width: 1) : null,
+          // No border highlight for enabled state
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

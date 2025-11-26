@@ -2949,4 +2949,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get displaySettingsPageAndroidBackgroundChatOnNotify =>
       'On (with notifications)';
+
+  @override
+  String get toolModeNative => 'Native Tool Mode';
+
+  @override
+  String get toolModePrompt => 'Prompt Tool Mode';
+
+  @override
+  String get toolModeSwitchHint => 'Switch tool call mode';
+
+  @override
+  String get toolModeNativeDescription => 'Use API native Function Calling';
+
+  @override
+  String get toolModePromptDescription => 'Simulate tool calls via prompts';
 }

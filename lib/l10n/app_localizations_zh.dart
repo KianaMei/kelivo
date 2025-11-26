@@ -2849,6 +2849,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get displaySettingsPageAndroidBackgroundChatOnNotify => '开启（带通知）';
+
+  @override
+  String get toolModeNative => '原生工具模式';
+
+  @override
+  String get toolModePrompt => '提示词工具模式';
+
+  @override
+  String get toolModeSwitchHint => '切换工具调用模式';
+
+  @override
+  String get toolModeNativeDescription => '使用 API 原生 Function Calling';
+
+  @override
+  String get toolModePromptDescription => '通过提示词模拟工具调用';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -5418,6 +5433,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get providersPageExportAction => '导出';
+
+  @override
+  String get toolModeNative => '原生工具模式';
+
+  @override
+  String get toolModePrompt => '提示词工具模式';
+
+  @override
+  String get toolModeSwitchHint => '切换工具调用模式';
+
+  @override
+  String get toolModeNativeDescription => '使用 API 原生 Function Calling';
+
+  @override
+  String get toolModePromptDescription => '通过提示词模拟工具调用';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -7988,4 +8018,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get providersPageExportAction => '匯出';
+
+  @override
+  String get toolModeNative => '原生工具模式';
+
+  @override
+  String get toolModePrompt => '提示詞工具模式';
+
+  @override
+  String get toolModeSwitchHint => '切換工具調用模式';
+
+  @override
+  String get toolModeNativeDescription => '使用 API 原生 Function Calling';
+
+  @override
+  String get toolModePromptDescription => '透過提示詞模擬工具調用';
 }

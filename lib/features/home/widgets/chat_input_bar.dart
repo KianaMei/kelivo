@@ -80,6 +80,9 @@ class ChatInputBar extends StatefulWidget {
     this.searchAnchorKey,
     this.reasoningAnchorKey,
     this.mcpAnchorKey,
+    this.onToggleToolMode,
+    this.toolModeIsPrompt = false,
+    this.showToolModeButton = false,
   });
 
   final ValueChanged<ChatInputData>? onSend;
@@ -123,6 +126,12 @@ class ChatInputBar extends StatefulWidget {
   final GlobalKey? searchAnchorKey;
   final GlobalKey? reasoningAnchorKey;
   final GlobalKey? mcpAnchorKey;
+  /// Callback when tool mode toggle is pressed
+  final VoidCallback? onToggleToolMode;
+  /// Whether the current tool mode is "prompt" (true) or "native" (false)
+  final bool toolModeIsPrompt;
+  /// Whether to show the tool mode toggle button
+  final bool showToolModeButton;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -777,7 +786,19 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 ),
                               ),
                             ],
-                            //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?
+                            //闂備焦瀵х粙鎴︽偋閸℃稑绀勯柨娑樺鐎氼剟鏌涢幇銊︽珕婵炲牆顭烽弻娑㈠箳閺傛鏆┑鐐存尭閻栫厧鐣烽敐鍛殾闁搞儲婀圭槐鎾绘⒑绾懎鐓愰柨姘辨喐閻楀牊顥堢€规洜濞€閹喚鈧潧鎽滈ˇ?
+                            // Tool mode toggle button (native/prompt)
+                            if (widget.showToolModeButton) ...[
+                              const SizedBox(width: 8),
+                              _CompactIconButton(
+                                tooltip: widget.toolModeIsPrompt
+                                    ? AppLocalizations.of(context)!.toolModePrompt
+                                    : AppLocalizations.of(context)!.toolModeNative,
+                                icon: widget.toolModeIsPrompt ? Lucide.MessageSquareCode : Lucide.Wrench,
+                                active: widget.toolModeIsPrompt,
+                                onTap: widget.onToggleToolMode,
+                              ),
+                            ],
                             // Quick Phrase button moved to bottom tools sheet (mobile) and overflow menu (desktop)
                             if (widget.onPickPhotos != null) ...[
                               const SizedBox(width: 8),
@@ -795,7 +816,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onUploadFiles,
                               ),
                             ],
-                            //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?
+                            //闂備焦瀵х粙鎴︽偋閸℃稑绀勯柨娑樺鐎氼剟鏌涢幇銊︽珕婵炲牆顭烽弻娑㈠箳閺傛鏆┑鐐存尭閻栫厧鐣烽敐鍛殾闁搞儲婀圭槐鎾绘⒑绾懎鐓愰柨姘辨喐閻楀牊顥堢€规洜濞€閹喚鈧潧鎽滈ˇ?
                             if (widget.onClearContext != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -804,9 +825,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onClearContext,
                               ),
                             ],
-                            //闂佹寧绋戦悧鍡涘礄閿涘嫭瀚柛鎰ㄦ櫆濞堝鏌涢幒鏂款暭婵炴挸鐖煎畷锝呯暦閸ユ湹绱撻梺纭呭煐閿氱憸鐗堟瀹曠娀鎮€靛摜顦?
-                            // Collapse toggle 闂佽　鍋撻柟顖嗗嫯鍚梺鎼炲劤閸嬫捇鎮ラ敐澶婄闁告繂瀚崢鐢告煟閵娿儱顏繛鎾崇埣瀹曪綁宕楅崨顔界彿闂佹寧绋掔粙鎴︽儓瀹ュ拋鍤曢柍褜鍓熷顔炬崉閻戞鍚梺绋跨箺濞夋稖銇愰崨濠冪秶闁荤喐婢樿闂佽鍏涘ù鍥箯閻戣棄绀夐柣妯哄暱椤垿鏌涘▎鎴澬ョ紒顔肩Ч瀹曞爼鎮欓鍌氱伇
-                            // 闂佸綊娼ч鍡椻攦閳ь剛绱掗弮鎴濈仸婵炲牞缍侀幐濠呯疀閺傛娼欓梺鍛婄懅婵瓨鎱ㄥ☉銏″殑?
+                            //闂備焦瀵х粙鎴︽偋閸℃稑绀勯柨娑樺鐎氼剟鏌涢幇銊︽珕婵炲牆顭烽弻娑㈠箳閺傛鏆┑鐐存尭閻栫厧鐣烽敐鍛殾闁搞儲婀圭槐鎾绘⒑绾懎鐓愰柨姘辨喐閻楀牊顥堢€规洜濞€閹喚鈧潧鎽滈ˇ?
+                            // Collapse toggle 闂備浇銆€閸嬫捇鏌熼鍡楀閸氼偊姊洪幖鐐插姢闁稿鎹囬幃銉╂晲婢跺﹦顦遍梺鍛婄箓鐎氼噣宕㈤悽鍛婄厽闁靛鍎遍顏呯箾閹惧磭鍩ｇ€规洩缍佸畷妤呭川椤旂晫褰块梻浣瑰缁嬫帞绮欓幋锔藉創鐎广儱鎷嬮崵鏇㈡煃瑜滈崜鐔奉嚕椤旂偓宕夐柣鎴烆焾閸氼偊姊虹粙璺ㄧ婵炲绋栭妵鎰板川婵犲啰绉堕梺鑽ゅ枑濠㈡顤勯梻浣筋嚃閸忔稑霉閸ヮ剙绠柣鎴ｆ缁€澶愭煟濡搫鏆辨い顐ｅ灴閺屾稑鈻庨幋婢儳绱掗鑲┬х€规洖鐖奸幃娆擃敆閸屾氨浼?
+                            // 闂備礁缍婂褔顢栭崱妞绘敠闁逞屽墰缁辨帡寮幋婵堜桓濠电偛鐗炵紞渚€骞愭繝鍛杸闁哄倹顑欏娆撴⒑閸涘﹦鎳呭┑顔肩摠閹便劌鈽夐姀鈥虫畱?
                             if (!isMobile) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -937,7 +958,8 @@ class _CompactIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final fgColor = active ? theme.colorScheme.primary : (isDark ? Colors.white70 : Colors.black54);
+    // Tool mode button no longer changes color when active - always use default color
+    final fgColor = isDark ? Colors.white70 : Colors.black54;
 
     // Keep overall button size constant. For model icon with child, enlarge child slightly
     // and reduce padding so (2*padding + childSize) stays unchanged.
@@ -1140,3 +1162,4 @@ bool _isGrokModel(ProviderConfig cfg, String modelId) {
 
   return false;
 }
+

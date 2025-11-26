@@ -5578,6 +5578,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'On (with notifications)'**
   String get displaySettingsPageAndroidBackgroundChatOnNotify;
+
+  /// No description provided for @toolModeNative.
+  ///
+  /// In en, this message translates to:
+  /// **'Native Tool Mode'**
+  String get toolModeNative;
+
+  /// No description provided for @toolModePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt Tool Mode'**
+  String get toolModePrompt;
+
+  /// No description provided for @toolModeSwitchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch tool call mode'**
+  String get toolModeSwitchHint;
+
+  /// No description provided for @toolModeNativeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use API native Function Calling'**
+  String get toolModeNativeDescription;
+
+  /// No description provided for @toolModePromptDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Simulate tool calls via prompts'**
+  String get toolModePromptDescription;
 }
 
 class _AppLocalizationsDelegate

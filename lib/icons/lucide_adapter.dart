@@ -141,4 +141,5 @@ class Lucide {
   static const IconData Columns2 = lucide.LucideIcons.columns2;
   static const IconData ExternalLink = lucide.LucideIcons.externalLink;
   static const IconData TriangleAlert = lucide.LucideIcons.triangleAlert;
+  static const IconData MessageSquareCode = lucide.LucideIcons.messageSquareCode;
 }
