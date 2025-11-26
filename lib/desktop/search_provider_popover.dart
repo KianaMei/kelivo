@@ -127,17 +127,6 @@ class _SearchProviderContent extends StatelessWidget {
             const SizedBox(height: 8),
           ],
 
-          // Sticker tool toggle
-          if (!builtInEnabled) ...[
-            _SettingRow(
-              icon: Lucide.Image,
-              label: '表情包工具',
-              value: sp.stickerEnabled,
-              onChanged: (v) => sp.setStickerEnabled(v),
-            ),
-            const SizedBox(height: 12),
-          ],
-
           // Service list
           if (!builtInEnabled && services.isNotEmpty) ...[
             ...services.asMap().entries.map((entry) {

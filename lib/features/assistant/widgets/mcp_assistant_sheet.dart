@@ -4,10 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
-import '../../../theme/design_tokens.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../shared/widgets/ios_switch.dart';
-import '../../../shared/widgets/ios_tactile.dart';
-import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
 
@@ -34,6 +32,7 @@ class _AssistantMcpSheet extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final mcp = context.watch<McpProvider>();
     final ap = context.watch<AssistantProvider>();
+    final settings = context.watch<SettingsProvider>();
     final a = ap.getById(assistantId)!;
 
     final selected = a.mcpServerIds.toSet();
@@ -51,14 +50,54 @@ class _AssistantMcpSheet extends StatelessWidget {
 
     final maxHeight = MediaQuery.of(context).size.height * 0.8;
 
+    // Pinned section (Clear + Sticker toggle) - compact horizontal layout
+    Widget pinnedSection = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Horizontal row with Clear and Sticker toggle
+        Row(
+          children: [
+            // Clear all button
+            Expanded(
+              child: _CompactActionButton(
+                icon: Lucide.CircleX,
+                label: l10n.assistantEditClearButton,
+                onTap: () async {
+                  Haptics.light();
+                  final next = a.copyWith(mcpServerIds: const <String>[]);
+                  await context.read<AssistantProvider>().updateAssistant(next);
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Sticker tool toggle
+            Expanded(
+              child: _CompactToggleButton(
+                icon: Lucide.Smile,
+                label: '表情包',
+                enabled: settings.stickerEnabled,
+                onTap: () {
+                  Haptics.light();
+                  context.read<SettingsProvider>().setStickerEnabled(!settings.stickerEnabled);
+                },
+              ),
+            ),
+          ],
+        ),
+        if (servers.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.3)),
+          const SizedBox(height: 10),
+        ],
+      ],
+    );
+
     return SafeArea(
       top: false,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight),
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
             Container(
@@ -86,20 +125,6 @@ class _AssistantMcpSheet extends StatelessWidget {
                     ),
                     if (servers.isNotEmpty) ...[
                       Positioned(
-                        left: 0,
-                        child: IosIconButton(
-                          icon: Lucide.X,
-                          size: 18,
-                          minSize: 34,
-                          padding: const EdgeInsets.all(8),
-                          onTap: () async {
-                            Haptics.light();
-                            final next = a.copyWith(mcpServerIds: const <String>[]);
-                            await context.read<AssistantProvider>().updateAssistant(next);
-                          },
-                        ),
-                      ),
-                      Positioned(
                         right: 0,
                         child: IosIconButton(
                           icon: Lucide.Check,
@@ -120,27 +145,39 @@ class _AssistantMcpSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
+            // Pinned section (always visible)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: servers.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text(
-                          l10n.assistantEditMcpNoServersMessage,
-                          style: TextStyle(color: cs.onSurface.withOpacity(0.6)),
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemBuilder: (context, index) {
-                          final s = servers[index];
-                          final tools = s.tools;
-                          final enabledTools = tools.where((t) => t.enabled).length;
-                          final isSelected = selected.contains(s.id);
-                          return IosCardPress(
+              child: pinnedSection,
+            ),
+            // Scrollable server list
+            if (servers.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+                child: Center(
+                  child: Text(
+                    l10n.assistantEditMcpNoServersMessage,
+                    style: TextStyle(color: cs.onSurface.withOpacity(0.6)),
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...servers.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final s = entry.value;
+                        final tools = s.tools;
+                        final enabledTools = tools.where((t) => t.enabled).length;
+                        final isSelected = selected.contains(s.id);
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: index < servers.length - 1 ? 10 : 0),
+                          child: IosCardPress(
                             borderRadius: BorderRadius.circular(14),
                             baseColor: cs.surface,
                             duration: const Duration(milliseconds: 260),
@@ -165,7 +202,6 @@ class _AssistantMcpSheet extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                // Tools count tag moved to right side before switch
                                 tag(l10n.assistantEditMcpToolsCountTag(enabledTools.toString(), tools.length.toString())),
                                 const SizedBox(width: 8),
                                 IosSwitch(
@@ -178,14 +214,126 @@ class _AssistantMcpSheet extends StatelessWidget {
                                 ),
                               ],
                             ),
-                          );
-                      },
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemCount: servers.length,
-                    ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+/// Compact action button for mobile (e.g., Clear)
+class _CompactActionButton extends StatelessWidget {
+  const _CompactActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: cs.onSurface.withOpacity(0.7)),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface.withOpacity(0.8),
+              ),
             ),
           ],
-          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact toggle button with active state for mobile (e.g., Sticker)
+class _CompactToggleButton extends StatelessWidget {
+  const _CompactToggleButton({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final Color bg;
+    final Color iconColor;
+    final Color textColor;
+    
+    if (enabled) {
+      bg = cs.primary.withOpacity(0.15);
+      iconColor = cs.primary;
+      textColor = cs.primary;
+    } else {
+      bg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
+      iconColor = cs.onSurface.withOpacity(0.7);
+      textColor = cs.onSurface.withOpacity(0.8);
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+          border: enabled ? Border.all(color: cs.primary.withOpacity(0.3), width: 1) : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: iconColor),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+          ],
         ),
       ),
     );

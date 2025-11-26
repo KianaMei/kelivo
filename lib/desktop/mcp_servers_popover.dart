@@ -5,6 +5,7 @@ import '../icons/lucide_adapter.dart';
 import '../l10n/app_localizations.dart';
 import '../core/providers/mcp_provider.dart';
 import '../core/providers/assistant_provider.dart';
+import '../core/providers/settings_provider.dart';
 import 'desktop_popover.dart';
 
 /// Show desktop MCP servers selection popover
@@ -42,20 +43,8 @@ class _McpServersContent extends StatelessWidget {
         .where((s) => mcp.statusFor(s.id) == McpStatus.connected)
         .toList();
 
-    final rows = <Widget>[];
-
-    // Clear all option
-    rows.add(_RowItem(
-      leading: Icon(Lucide.CircleX, size: 16, color: cs.onSurface),
-      label: l10n.assistantEditClearButton,
-      toolCount: null,
-      selected: false,
-      onTap: () async {
-        await context.read<AssistantProvider>().updateAssistant(
-          a.copyWith(mcpServerIds: const <String>[]),
-        );
-      },
-    ));
+    final settings = context.watch<SettingsProvider>();
+    final serverRows = <Widget>[];
 
     // Server list with tool counts
     for (final s in servers) {
@@ -64,7 +53,7 @@ class _McpServersContent extends StatelessWidget {
       final enabledTools = tools.where((t) => t.enabled).length;
       final toolCountText = '$enabledTools/${tools.length}';
 
-      rows.add(_RowItem(
+      serverRows.add(_RowItem(
         leading: Icon(
           Lucide.Hammer,
           size: 16,
@@ -87,18 +76,65 @@ class _McpServersContent extends StatelessWidget {
       ));
     }
 
+    // Pinned section (Clear + Sticker toggle) - compact horizontal layout
+    Widget pinnedSection = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Horizontal row with Clear and Sticker toggle
+          Row(
+            children: [
+              // Clear all button
+              Expanded(
+                child: _CompactActionButton(
+                  icon: Lucide.CircleX,
+                  label: l10n.assistantEditClearButton,
+                  onTap: () async {
+                    await context.read<AssistantProvider>().updateAssistant(
+                      a.copyWith(mcpServerIds: const <String>[]),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Sticker tool toggle
+              Expanded(
+                child: _CompactToggleButton(
+                  icon: Lucide.Smile,
+                  label: '表情包',
+                  enabled: settings.stickerEnabled,
+                  onTap: () => context.read<SettingsProvider>().setStickerEnabled(!settings.stickerEnabled),
+                ),
+              ),
+            ],
+          ),
+          if (servers.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.3)),
+          ],
+        ],
+      ),
+    );
+
     if (servers.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: Text(
-            l10n.assistantEditMcpNoServersMessage,
-            style: TextStyle(
-              color: cs.onSurface.withOpacity(0.6),
-              fontSize: 13,
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          pinnedSection,
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                l10n.assistantEditMcpNoServersMessage,
+                style: TextStyle(
+                  color: cs.onSurface.withOpacity(0.6),
+                  fontSize: 13,
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       );
     }
 
@@ -106,17 +142,27 @@ class _McpServersContent extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 2),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 520),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ...rows.map((w) => Padding(
-                padding: const EdgeInsets.only(bottom: 1),
-                child: w,
-              )),
-            ],
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Pinned section (always visible)
+            pinnedSection,
+            // Scrollable server list
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ...serverRows.map((w) => Padding(
+                      padding: const EdgeInsets.only(bottom: 1),
+                      child: w,
+                    )),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -228,6 +274,154 @@ class _RowItemState extends State<_RowItem> {
                         width: 16,
                         key: ValueKey('space'),
                       ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact action button (e.g., Clear)
+class _CompactActionButton extends StatefulWidget {
+  const _CompactActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_CompactActionButton> createState() => _CompactActionButtonState();
+}
+
+class _CompactActionButtonState extends State<_CompactActionButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final baseBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
+    final hoverBg = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: _hovered ? hoverBg : baseBg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 14, color: cs.onSurface.withOpacity(0.7)),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: cs.onSurface.withOpacity(0.8),
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact toggle button with active state (e.g., Sticker)
+class _CompactToggleButton extends StatefulWidget {
+  const _CompactToggleButton({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  State<_CompactToggleButton> createState() => _CompactToggleButtonState();
+}
+
+class _CompactToggleButtonState extends State<_CompactToggleButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
+    final Color baseBg;
+    final Color hoverBg;
+    final Color iconColor;
+    final Color textColor;
+    
+    if (widget.enabled) {
+      baseBg = cs.primary.withOpacity(0.15);
+      hoverBg = cs.primary.withOpacity(0.25);
+      iconColor = cs.primary;
+      textColor = cs.primary;
+    } else {
+      baseBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
+      hoverBg = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
+      iconColor = cs.onSurface.withOpacity(0.7);
+      textColor = cs.onSurface.withOpacity(0.8);
+    }
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: _hovered ? hoverBg : baseBg,
+            borderRadius: BorderRadius.circular(10),
+            border: widget.enabled ? Border.all(color: cs.primary.withOpacity(0.3), width: 1) : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 14, color: iconColor),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
+                  decoration: TextDecoration.none,
+                ),
               ),
             ],
           ),
