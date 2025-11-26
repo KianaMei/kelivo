@@ -148,135 +148,14 @@ class McpPage extends StatelessWidget {
                       child: Text(text, style: TextStyle(fontSize: 11, color: color ?? cs.primary, fontWeight: FontWeight.w700)),
                     );
 
-                final isDark = Theme.of(context).brightness == Brightness.dark;
-                final row = _TactileRow(
-                  pressedScale: 1.00,
-                  haptics: false,
-                  onTap: () async { await showMcpServerEditSheet(context, serverId: s.id); },
-                  builder: (pressed) {
-                    final base = cs.onSurface.withOpacity(0.9);
-                    return _AnimatedPressColor(
-                      pressed: pressed,
-                      base: base,
-                      builder: (c) {
-                        final overlay = pressed ? (isDark ? Colors.black.withOpacity(0.06) : Colors.white.withOpacity(0.05)) : Colors.transparent;
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.white10 : Colors.white.withOpacity(0.96),
-                            // Soften the list card corners a bit
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: cs.outlineVariant.withOpacity(isDark ? 0.1 : 0.08), width: 0.6),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                            child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    color: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Icon(Lucide.Terminal, size: 20, color: cs.primary),
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: st == McpStatus.connecting
-                                      ? SizedBox(
-                                          width: 12,
-                                          height: 12,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
-                                          ),
-                                        )
-                                      : Container(
-                                          width: 12,
-                                          height: 12,
-                                          decoration: BoxDecoration(
-                                            color: s.enabled ? _statusColor(context, st) : cs.outline,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: cs.surface, width: 1.5),
-                                          ),
-                                        ),
-                                ),
-                                if (overlay != Colors.transparent)
-                                  Positioned.fill(
-                                    child: Container(
-                                      decoration: BoxDecoration(color: overlay, borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    s.name,
-                                    style: TextStyle(fontWeight: FontWeight.w700, color: c),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: [
-                                      tagStyled(st == McpStatus.connected
-                                          ? l10n.mcpPageStatusConnected
-                                          : (st == McpStatus.connecting ? l10n.mcpPageStatusConnecting : l10n.mcpPageStatusDisconnected),
-                                          color: st == McpStatus.connected
-                                              ? Colors.green
-                                              : (st == McpStatus.connecting ? cs.primary : Colors.redAccent)),
-                                      tagStyled(
-                                        s.transport == McpTransportType.inmemory
-                                            ? l10n.mcpTransportTagInmemory
-                                            : (s.transport == McpTransportType.sse ? 'SSE' : 'HTTP'),
-                                      ),
-                                      tagStyled(l10n.mcpPageToolsCount(s.tools.where((t) => t.enabled).length, s.tools.length)),
-                                      if (!s.enabled) tagStyled(l10n.mcpPageStatusDisabled, color: cs.onSurface.withOpacity(0.7)),
-                                    ],
-                                  ),
-                                  if (st == McpStatus.error && (err?.isNotEmpty ?? false)) ...[
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Icon(Lucide.MessageCircleWarning, size: 14, color: Colors.red),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            l10n.mcpPageConnectionFailed,
-                                            style: const TextStyle(fontSize: 12, color: Colors.red),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: () => _showErrorDetails(s.id, err, s.name),
-                                          child: Text(l10n.mcpPageDetails),
-                                        ),
-                          ],
-                          ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(Lucide.ChevronRight, size: 16, color: c),
-                          ],
-                          ),
-                          ),
-                        );
-                      },
-                    );
-                  },
+                final row = _ExpandableServerCard(
+                  server: s,
+                  status: st,
+                  error: err,
+                  onEdit: () async { await showMcpServerEditSheet(context, serverId: s.id); },
+                  onReconnect: () async { await context.read<McpProvider>().reconnect(s.id); },
+                  onDelete: () {}, // Handled by Slidable
+                  onShowError: (msg) => _showErrorDetails(s.id, msg, s.name),
                 );
 
                 return Padding(
@@ -465,6 +344,333 @@ class _AnimatedPressColor extends StatelessWidget {
     return TweenAnimationBuilder<Color?>(
       tween: ColorTween(end: target), duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic,
       builder: (context, color, _) => builder(color ?? base),
+    );
+  }
+}
+
+class _ExpandableServerCard extends StatefulWidget {
+  const _ExpandableServerCard({
+    required this.server,
+    required this.status,
+    required this.error,
+    required this.onEdit,
+    required this.onReconnect,
+    required this.onDelete,
+    required this.onShowError,
+  });
+
+  final McpServerConfig server;
+  final McpStatus status;
+  final String? error;
+  final VoidCallback onEdit;
+  final VoidCallback onReconnect;
+  final VoidCallback onDelete;
+  final Function(String?) onShowError;
+
+  @override
+  State<_ExpandableServerCard> createState() => _ExpandableServerCardState();
+}
+
+class _ExpandableServerCardState extends State<_ExpandableServerCard> {
+  bool _expanded = false;
+
+  Color _statusColor(BuildContext context, McpStatus s) {
+    final cs = Theme.of(context).colorScheme;
+    switch (s) {
+      case McpStatus.connected:
+        return Colors.green;
+      case McpStatus.connecting:
+        return cs.primary;
+      case McpStatus.error:
+      case McpStatus.idle:
+      default:
+        return Colors.red;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final s = widget.server;
+    final st = widget.status;
+    final err = widget.error;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Widget tagStyled(String text, {Color? color}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: (color ?? cs.primary).withOpacity(0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: (color ?? cs.primary).withOpacity(0.35)),
+          ),
+          child: Text(text, style: TextStyle(fontSize: 11, color: color ?? cs.primary, fontWeight: FontWeight.w700)),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white10 : Colors.white.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.outlineVariant.withOpacity(isDark ? 0.1 : 0.08), width: 0.6),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(14),
+              bottom: Radius.circular(_expanded ? 0 : 14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(Lucide.Terminal, size: 20, color: cs.primary),
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: st == McpStatus.connecting
+                            ? SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                                ),
+                              )
+                            : Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: s.enabled ? _statusColor(context, st) : cs.outline,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: cs.surface, width: 1.5),
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          s.name,
+                          style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            tagStyled(
+                                st == McpStatus.connected
+                                    ? l10n.mcpPageStatusConnected
+                                    : (st == McpStatus.connecting ? l10n.mcpPageStatusConnecting : l10n.mcpPageStatusDisconnected),
+                                color: st == McpStatus.connected
+                                    ? Colors.green
+                                    : (st == McpStatus.connecting ? cs.primary : Colors.redAccent)),
+                            tagStyled(
+                              s.transport == McpTransportType.inmemory
+                                  ? l10n.mcpTransportTagInmemory
+                                  : (s.transport == McpTransportType.sse ? 'SSE' : 'HTTP'),
+                            ),
+                            tagStyled(l10n.mcpPageToolsCount(s.tools.where((t) => t.enabled).length, s.tools.length)),
+                            if (!s.enabled) tagStyled(l10n.mcpPageStatusDisabled, color: cs.onSurface.withOpacity(0.7)),
+                          ],
+                        ),
+                        if (st == McpStatus.error && (err?.isNotEmpty ?? false)) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Lucide.MessageCircleWarning, size: 14, color: Colors.red),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  l10n.mcpPageConnectionFailed,
+                                  style: const TextStyle(fontSize: 12, color: Colors.red),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => widget.onShowError(err),
+                                child: Text(l10n.mcpPageDetails),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(_expanded ? Lucide.ChevronUp : Lucide.ChevronDown, size: 16, color: cs.onSurface.withOpacity(0.5)),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            Container(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: cs.outlineVariant.withOpacity(0.1))),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Server Details', // TODO: Localize
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.7)),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: widget.onEdit,
+                        icon: const Icon(Lucide.Edit, size: 14),
+                        label: Text(l10n.assistantSettingsEditButton),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDetailRow(context, 'URL', s.url),
+                  if (s.headers.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    _buildDetailRow(context, 'Headers', '${s.headers.length} custom headers'),
+                  ],
+                  const SizedBox(height: 16),
+                  Text(
+                    'Tools (${s.tools.length})', // TODO: Localize
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.7)),
+                  ),
+                  const SizedBox(height: 8),
+                  if (s.tools.isEmpty)
+                    Text(
+                      'No tools available', // TODO: Localize
+                      style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.5), fontStyle: FontStyle.italic),
+                    )
+                  else
+                    ...s.tools.map((t) => _buildToolItem(context, t)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(BuildContext context, String label, String value) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 60,
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.5)),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.8), fontFamily: 'monospace'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToolItem(BuildContext context, McpToolConfig t) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: cs.outlineVariant.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  t.name,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: cs.primary),
+                ),
+              ),
+              if (!t.enabled)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: cs.outlineVariant.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Disabled', // TODO: Localize
+                    style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.6)),
+                  ),
+                ),
+            ],
+          ),
+          if (t.description?.isNotEmpty == true) ...[
+            const SizedBox(height: 4),
+            Text(
+              t.description!,
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7)),
+            ),
+          ],
+          if (t.params.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Input Parameters:', // TODO: Localize
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.5)),
+            ),
+            const SizedBox(height: 4),
+            ...t.params.map((p) => Padding(
+                  padding: const EdgeInsets.only(left: 8, bottom: 2),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.name,
+                        style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.8), fontFamily: 'monospace'),
+                      ),
+                      if (p.required)
+                        Text('*', style: TextStyle(fontSize: 11, color: Colors.red)),
+                      const SizedBox(width: 8),
+                      Text(
+                        p.type ?? 'any',
+                        style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+        ],
+      ),
     );
   }
 }
