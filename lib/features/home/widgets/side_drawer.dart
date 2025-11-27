@@ -875,6 +875,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     listController: _listController,
                     buildAssistants: () => _buildAssistantsList(context),
                     buildConversations: () => _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
+                    newAssistantButton: _buildNewAssistantButton(context),
                   );
                 }
                 if (_splitDualPane) {
@@ -891,11 +892,18 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           decoration: BoxDecoration(
                             border: Border(right: BorderSide(color: dividerColor, width: 1)),
                           ),
-                          child: ListView(
-                            controller: _assistantListController,
-                            padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                          child: Column(
                             children: [
-                              _buildAssistantsList(context, inlineMode: true),
+                              Expanded(
+                                child: ListView(
+                                  controller: _assistantListController,
+                                  padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                                  children: [
+                                    _buildAssistantsList(context, inlineMode: true),
+                                  ],
+                                ),
+                              ),
+                              _buildNewAssistantButton(context),
                             ],
                           ),
                         ),
@@ -913,11 +921,18 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                   );
                 }
                 if (_assistOnly) {
-                  return ListView(
-                    controller: _listController,
-                    padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                  return Column(
                     children: [
-                      _buildAssistantsList(context, inlineMode: true),
+                      Expanded(
+                        child: ListView(
+                          controller: _listController,
+                          padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                          children: [
+                            _buildAssistantsList(context, inlineMode: true),
+                          ],
+                        ),
+                      ),
+                      _buildNewAssistantButton(context),
                     ],
                   );
                 }
@@ -1955,6 +1970,74 @@ extension on _SideDrawerState {
     );
   }
 
+  Widget _buildNewAssistantButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+      child: _AssistantInlineTile(
+        avatar: Container(
+          width: _isDesktop ? 28 : 32,
+          height: _isDesktop ? 28 : 32,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Icon(Lucide.Plus, size: 16, color: Theme.of(context).colorScheme.primary),
+        ),
+        name: AppLocalizations.of(context)!.assistantProviderNewAssistantName,
+        textColor: Theme.of(context).colorScheme.primary,
+        embedded: widget.embedded,
+        onTap: () async {
+          // Follow the same logic as in AssistantSettingsPage:
+          // 1. Ask for name
+          // 2. Create assistant
+          // 3. Open edit dialog
+          final l10n = AppLocalizations.of(context)!;
+          final controller = TextEditingController();
+          final name = await showDialog<String>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(l10n.assistantSettingsAddSheetTitle),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(hintText: l10n.assistantSettingsAddSheetHint),
+                onSubmitted: (val) => Navigator.of(ctx).pop(val),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(l10n.assistantSettingsAddSheetCancel),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(controller.text),
+                  child: Text(l10n.assistantSettingsAddSheetSave),
+                ),
+              ],
+            ),
+          );
+
+          if (name != null && name.trim().isNotEmpty) {
+            final newId = await context.read<AssistantProvider>().addAssistant(
+              name: name.trim(),
+              context: context,
+            );
+            if (context.mounted) {
+              _openAssistantSettings(newId);
+            }
+          }
+        },
+        onEditTap: () {},
+        onLongPress: null,
+        onSecondaryTapDown: null,
+        selected: false,
+      ),
+    );
+  }
+
   // Build conversations list area, optionally including the update banner.
   Widget _buildConversationsList(
     BuildContext context,
@@ -2546,11 +2629,13 @@ class _DesktopTabViews extends StatelessWidget {
     required this.listController,
     required this.buildAssistants,
     required this.buildConversations,
+    required this.newAssistantButton,
   });
   final TabController controller;
   final ScrollController listController;
   final Widget Function() buildAssistants;
   final Widget Function() buildConversations;
+  final Widget newAssistantButton;
 
   @override
   Widget build(BuildContext context) {
@@ -2563,10 +2648,17 @@ class _DesktopTabViews extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       children: [
         // Assistants
-        ListView(
-          controller: listController,
-          padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
-          children: [buildAssistants()],
+        Column(
+          children: [
+            Expanded(
+              child: ListView(
+                controller: listController,
+                padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                children: [buildAssistants()],
+              ),
+            ),
+            newAssistantButton,
+          ],
         ),
         // Topics (conversations)
         ListView(

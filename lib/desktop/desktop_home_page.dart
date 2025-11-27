@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
-import '../shared/responsive/breakpoints.dart';
 import 'desktop_nav_rail.dart';
 import 'desktop_chat_page.dart';
+import 'desktop_translate_page.dart';
 import 'window_title_bar.dart';
 import 'desktop_settings_page.dart';
 
@@ -52,7 +52,7 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
                   // Chat page remains mounted
                   DesktopChatPage(),
                   // Translate page remains mounted
-                  _TranslatePlaceholder(key: ValueKey('translate_placeholder')),
+                  DesktopTranslatePage(key: ValueKey('translate_page')),
                   // Settings page remains mounted
                   DesktopSettingsPage(key: ValueKey('settings_page')),
                 ],
@@ -90,28 +90,6 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
           ),
         );
       },
-    );
-  }
-}
-
-class _TranslatePlaceholder extends StatelessWidget {
-  const _TranslatePlaceholder({super.key});
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.25)),
-        ),
-        child: Text(
-          '翻译（占位）',
-          style: TextStyle(fontSize: 16, color: cs.onSurface.withOpacity(0.7), fontWeight: FontWeight.w600),
-        ),
-      ),
     );
   }
 }

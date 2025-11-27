@@ -223,59 +223,58 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageLanguageSubtitle => '选择界面语言';
 
   @override
-  String get assistantTagsManageTitle => 'Manage Tags';
+  String get assistantTagsManageTitle => '管理标签';
 
   @override
-  String get assistantTagsCreateButton => 'Create';
+  String get assistantTagsCreateButton => '创建';
 
   @override
-  String get assistantTagsCreateDialogTitle => 'Create Tag';
+  String get assistantTagsCreateDialogTitle => '创建标签';
 
   @override
-  String get assistantTagsCreateDialogOk => 'Create';
+  String get assistantTagsCreateDialogOk => '创建';
 
   @override
-  String get assistantTagsCreateDialogCancel => 'Cancel';
+  String get assistantTagsCreateDialogCancel => '取消';
 
   @override
-  String get assistantTagsNameHint => 'Tag name';
+  String get assistantTagsNameHint => '标签名称';
 
   @override
-  String get assistantTagsRenameButton => 'Rename';
+  String get assistantTagsRenameButton => '重命名';
 
   @override
-  String get assistantTagsRenameDialogTitle => 'Rename Tag';
+  String get assistantTagsRenameDialogTitle => '重命名标签';
 
   @override
-  String get assistantTagsRenameDialogOk => 'Rename';
+  String get assistantTagsRenameDialogOk => '重命名';
 
   @override
-  String get assistantTagsDeleteButton => 'Delete';
+  String get assistantTagsDeleteButton => '删除';
 
   @override
-  String get assistantTagsDeleteConfirmTitle => 'Delete Tag';
+  String get assistantTagsDeleteConfirmTitle => '删除标签';
 
   @override
-  String get assistantTagsDeleteConfirmContent =>
-      'Are you sure you want to delete this tag?';
+  String get assistantTagsDeleteConfirmContent => '确定要删除这个标签吗？';
 
   @override
-  String get assistantTagsDeleteConfirmOk => 'Delete';
+  String get assistantTagsDeleteConfirmOk => '删除';
 
   @override
-  String get assistantTagsDeleteConfirmCancel => 'Cancel';
+  String get assistantTagsDeleteConfirmCancel => '取消';
 
   @override
-  String get assistantTagsContextMenuEditAssistant => 'Edit Assistant';
+  String get assistantTagsContextMenuEditAssistant => '编辑助手';
 
   @override
-  String get assistantTagsContextMenuManageTags => 'Manage Tags';
+  String get assistantTagsContextMenuManageTags => '管理标签';
 
   @override
-  String get assistantTagsContextMenuDeleteAssistant => 'Delete Assistant';
+  String get assistantTagsContextMenuDeleteAssistant => '删除助手';
 
   @override
-  String get assistantTagsClearTag => 'Clear Tag';
+  String get assistantTagsClearTag => '清除标签';
 
   @override
   String get displaySettingsPageLanguageChineseLabel => '简体中文';
