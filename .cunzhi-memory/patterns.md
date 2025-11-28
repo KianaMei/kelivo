@@ -18,3 +18,27 @@
 - 行高优化：Text height 1.2，padding 微调
 - 移动端和桌面端通用
 - 修改文件：lib/features/chat/widgets/chat_message_widget.dart（第3181-3273行，添加 dart:ui import）
+- ## Phase 1A: ChatMessageWidget 重构完成
+
+### 文件结构
+```
+lib/features/chat/widgets/
+├── chat_message_widget.dart (orchestrator, ~165行)
+└── message/
+    ├── message_parts.dart (SharedComponents: ShimmerEffect, Marquee, BranchSelector, TokenUsageDisplay, CitationWidgets)
+    ├── tool_call_item.dart (ToolUIPart, ToolCallItem)
+    ├── reasoning_section.dart (ReasoningSegment, ReasoningSection)
+    ├── user_message_renderer.dart (UserMessageRenderer)
+    └── assistant_message_renderer.dart (AssistantMessageRenderer)
+```
+
+### 关键设计
+1. **Orchestrator 模式**: ChatMessageWidget 保持原接口，内部根据 message.role 分发到 UserMessageRenderer 或 AssistantMessageRenderer
+2. **向后兼容**: 通过 export 语句重新导出 ToolUIPart 和 ReasoningSegment，home_page.dart 无需修改导入
+3. **Provider 传递**: settings、userProvider 通过 context.watch 获取后传入 Renderer
+
+### Spec 文档位置
+docs/SPEC_1A_MESSAGE_SPLIT.md
+
+### 分支
+refactor/chat-message-split

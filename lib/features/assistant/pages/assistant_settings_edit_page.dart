@@ -35,6 +35,14 @@ import '../../../core/models/quick_phrase.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/memory_provider.dart';
 import 'package:uuid/uuid.dart';
+import '../tabs/basic_settings_tab.dart';
+import '../tabs/custom_request_tab.dart';
+import '../tabs/mcp_tab.dart';
+import '../tabs/memory_tab.dart';
+import '../tabs/prompt_tab.dart';
+import '../tabs/quick_phrase_tab.dart';
+import '../widgets/seg_tab_bar.dart';
+import '../widgets/tactile_widgets.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/haptics.dart';
@@ -121,24 +129,17 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
           const SizedBox(width: 12),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
+          preferredSize: const Size.fromHeight(44),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _SegTabBar(
-                    controller: _tabController,
-                    tabs: [
-                      l10n.assistantEditPageBasicTab,
-                      l10n.assistantEditPagePromptsTab,
-                      l10n.assistantEditPageMemoryTab,
-                      // l10n.assistantEditPageMcpTab,
-                      l10n.assistantEditPageQuickPhraseTab,
-                      l10n.assistantEditPageCustomTab,
-                    ],
-                  ),
-                ),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: SegTabBar(
+              controller: _tabController,
+              tabs: [
+                l10n.assistantEditPageBasicTab,
+                l10n.assistantEditPagePromptsTab,
+                l10n.assistantEditPageMemoryTab,
+                l10n.assistantEditPageQuickPhraseTab,
+                l10n.assistantEditPageCustomTab,
               ],
             ),
           ),
@@ -147,12 +148,11 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _BasicSettingsTab(assistantId: assistant.id),
-          _PromptTab(assistantId: assistant.id),
-          _MemoryTab(assistantId: assistant.id),
-          // _McpTab(assistantId: assistant.id),
-          _QuickPhraseTab(assistantId: assistant.id),
-          _CustomRequestTab(assistantId: assistant.id),
+          BasicSettingsTab(assistantId: assistant.id),
+          PromptTab(assistantId: assistant.id),
+          MemoryTab(assistantId: assistant.id),
+          QuickPhraseTab(assistantId: assistant.id),
+          CustomRequestTab(assistantId: assistant.id),
         ],
       ),
     );
@@ -6037,17 +6037,17 @@ class _DesktopAssistantDialogShellState extends State<_DesktopAssistantDialogShe
                   child: () {
                     switch (_menu) {
                       case _AssistantDesktopMenu.basic:
-                        return _BasicSettingsTab(assistantId: widget.assistantId);
+                        return BasicSettingsTab(assistantId: widget.assistantId);
                       case _AssistantDesktopMenu.prompts:
-                        return _PromptTab(assistantId: widget.assistantId);
+                        return PromptTab(assistantId: widget.assistantId);
                       case _AssistantDesktopMenu.memory:
-                        return _MemoryTab(assistantId: widget.assistantId);
+                        return MemoryTab(assistantId: widget.assistantId);
                       case _AssistantDesktopMenu.mcp:
-                        return _McpTab(assistantId: widget.assistantId);
+                        return McpTab(assistantId: widget.assistantId);
                       case _AssistantDesktopMenu.quick:
-                        return _QuickPhraseTab(assistantId: widget.assistantId);
+                        return QuickPhraseTab(assistantId: widget.assistantId);
                       case _AssistantDesktopMenu.custom:
-                        return _CustomRequestTab(assistantId: widget.assistantId);
+                        return CustomRequestTab(assistantId: widget.assistantId);
                     }
                   }(),
                 ),

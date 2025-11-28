@@ -84,6 +84,9 @@ import '../../quick_phrase/pages/quick_phrases_page.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
 import '../../../shared/widgets/typing_indicator.dart';
 import '../../../shared/widgets/animated_loading_text.dart';
+import '../widgets/home_app_bar_builder.dart';
+import '../widgets/sidebar_resize_handle.dart';
+import '../widgets/home_helper_widgets.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -277,6 +280,104 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       ),
     );
   }
+
+  /// Build Mobile AppBar using HomeAppBarBuilder
+  AppBar _buildMobileAppBar({
+    required String title,
+    required String? providerName,
+    required String? modelDisplay,
+    required ColorScheme cs,
+  }) {
+    return HomeAppBarBuilder(
+      context: context,
+      title: title,
+      providerName: providerName,
+      modelDisplay: modelDisplay,
+      cs: cs,
+      miniMapAnchorKey: _miniMapAnchorKey,
+      onToggleSidebar: () {
+        _dismissKeyboard();
+        _drawerController.toggle();
+      },
+      onRenameConversation: _renameCurrentConversation,
+      onShowModelSelect: () => showModelSelectSheet(context),
+      onMiniMapTap: () async {
+        final collapsed = _collapseVersions(_messages);
+        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux;
+        final String? selectedId;
+        if (isDesktop) {
+          selectedId = await showDesktopMiniMapPopover(
+            context,
+            anchorKey: _miniMapAnchorKey,
+            messages: collapsed,
+          );
+        } else {
+          selectedId = await showMiniMapSheet(context, collapsed);
+        }
+        if (!mounted) return;
+        if (selectedId != null && selectedId.isNotEmpty) {
+          await _scrollToMessageId(selectedId);
+        }
+      },
+      onNewConversation: () async {
+        await _createNewConversation();
+        if (mounted) {
+          _forceScrollToBottomSoon();
+        }
+      },
+      onToggleRightSidebar: _toggleRightSidebar,
+    ).buildMobileAppBar();
+  }
+
+  /// Build Tablet AppBar using HomeAppBarBuilder
+  AppBar _buildTabletAppBar({
+    required String title,
+    required String? providerName,
+    required String? modelDisplay,
+    required ColorScheme cs,
+  }) {
+    return HomeAppBarBuilder(
+      context: context,
+      title: title,
+      providerName: providerName,
+      modelDisplay: modelDisplay,
+      cs: cs,
+      miniMapAnchorKey: _miniMapAnchorKey,
+      onToggleSidebar: _toggleTabletSidebar,
+      onRenameConversation: _renameCurrentConversation,
+      onShowModelSelect: () => showModelSelectSheet(context),
+      onMiniMapTap: () async {
+        final collapsed = _collapseVersions(_messages);
+        final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux;
+        final String? selectedId;
+        if (isDesktop) {
+          selectedId = await showDesktopMiniMapPopover(
+            context,
+            anchorKey: _miniMapAnchorKey,
+            messages: collapsed,
+          );
+        } else {
+          selectedId = await showMiniMapSheet(context, collapsed);
+        }
+        if (!mounted) return;
+        if (selectedId != null && selectedId.isNotEmpty) {
+          await _scrollToMessageId(selectedId);
+        }
+      },
+      onNewConversation: () async {
+        await _createNewConversation();
+        if (mounted) {
+          _forceScrollToBottomSoon();
+        }
+      },
+      onToggleRightSidebar: _toggleRightSidebar,
+    ).buildTabletAppBar();
+  }
+
   // no-op placeholders removed
 
   Future<void> _showLearningPromptSheet() async {
@@ -1128,7 +1229,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       },
       onStop: _cancelStreaming,
       modelIcon: (settings.showModelIcon && ((a?.chatModelProvider ?? settings.currentModelProvider) != null) && ((a?.chatModelId ?? settings.currentModelId) != null))
-          ? _CurrentModelIcon(
+          ? CurrentModelIcon(
               providerKey: a?.chatModelProvider ?? settings.currentModelProvider,
               modelId: a?.chatModelId ?? settings.currentModelId,
               size: 40,
@@ -4421,188 +4522,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         },
       ),
       child: Scaffold(
-        // child: Scaffold(
         key: _scaffoldKey,
         resizeToAvoidBottomInset: true,
         extendBodyBehindAppBar: true,
-        // backgroundColor: Theme.of(context).colorScheme.background,
-      appBar: AppBar(
-        // centerTitle: true,
-        systemOverlayStyle: (Theme.of(context).brightness == Brightness.dark)
-            ? const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light, // Android icons
-          statusBarBrightness: Brightness.dark, // iOS text
-        )
-            : const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
+        appBar: _buildMobileAppBar(
+          title: title,
+          providerName: providerName,
+          modelDisplay: modelDisplay,
+          cs: cs,
         ),
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface.withOpacity(
-                  (Theme.of(context).brightness == Brightness.dark) ? 0.26 : 0.20,
-                ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.12),
-                    width: 0.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        leading: Builder(builder: (context) {
-          return IosIconButton(
-            size: 20,
-            padding: const EdgeInsets.all(8),
-            minSize: 40,
-            builder: (color) => SvgPicture.asset(
-              'assets/icons/list.svg',
-              width: 14,
-              height: 14,
-              colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-            ),
-            onTap: () {
-              // Always dismiss keyboard when toggling the sidebar
-              _dismissKeyboard();
-              _drawerController.toggle();
-            },
-          );
-        }),
-        titleSpacing: 2,
-        title: (() {
-          final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
-          final titleWidget = InkWell(
-            borderRadius: BorderRadius.circular(6),
-            onTap: _renameCurrentConversation,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              child: AnimatedTextSwap(
-                text: title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-            ),
-          );
-          final modelWidget = (providerName != null && modelDisplay != null)
-              ? InkWell(
-                  borderRadius: BorderRadius.circular(6),
-                  onTap: () => showModelSelectSheet(context),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      vertical: isDesktop ? 4 : 0,
-                      horizontal: isDesktop ? 8 : 0,
-                    ),
-                    child: AnimatedTextSwap(
-                      text: '$modelDisplay ($providerName)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: cs.onSurface.withOpacity(0.6),
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-              : null;
-
-          // Desktop: horizontal layout (title left, model right)
-          if (isDesktop && modelWidget != null) {
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                titleWidget,
-                const SizedBox(width: 12),
-                modelWidget,
-              ],
-            );
-          }
-
-          // Mobile: vertical layout (title top, model bottom) - compact
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              titleWidget,
-              if (modelWidget != null) modelWidget,
-            ],
-          );
-        })(),
-        actions: [
-          // Right sidebar toggle for desktop topics-on-right mode
-          Builder(builder: (context) {
-            final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                defaultTargetPlatform == TargetPlatform.windows ||
-                defaultTargetPlatform == TargetPlatform.linux;
-            final sp = context.watch<SettingsProvider>();
-            final topicsOnRight = sp.desktopTopicPosition == DesktopTopicPosition.right;
-            if (!isDesktop || !topicsOnRight) return const SizedBox.shrink();
-            return IosIconButton(
-              size: 20,
-              padding: const EdgeInsets.all(8),
-              minSize: 40,
-              icon: Lucide.panelRight,
-              onTap: _toggleRightSidebar,
-            );
-          }),
-          // Mini map button (to the left of new conversation)
-          IosIconButton(
-            key: _miniMapAnchorKey,
-            size: 20,
-            minSize: 44,
-            onTap: () async {
-              final collapsed = _collapseVersions(_messages);
-              // Desktop: use popover; Mobile: use sheet
-              final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                  defaultTargetPlatform == TargetPlatform.macOS ||
-                  defaultTargetPlatform == TargetPlatform.linux;
-
-              final String? selectedId;
-              if (isDesktop) {
-                selectedId = await showDesktopMiniMapPopover(
-                  context,
-                  anchorKey: _miniMapAnchorKey,
-                  messages: collapsed,
-                );
-              } else {
-                selectedId = await showMiniMapSheet(context, collapsed);
-              }
-
-              if (!mounted) return;
-              if (selectedId != null && selectedId.isNotEmpty) {
-                await _scrollToMessageId(selectedId);
-              }
-            },
-            semanticLabel: AppLocalizations.of(context)!.miniMapTooltip,
-            icon: Lucide.Map,
-          ),
-          // const SizedBox(width: 4),
-          IosIconButton(
-            size: 22,
-            minSize: 44,
-            onTap: () async {
-              await _createNewConversation();
-              if (mounted) {
-                // Close drawer if open and scroll to bottom (fresh convo)
-                _forceScrollToBottomSoon();
-              }
-            },
-            icon: Lucide.MessageCirclePlus,
-          ),
-          const SizedBox(width: 4),
-          // Move the right spacer between mini map and new-topic per request
-        ],
-      ),
       body: Stack(
           children: [
             // Assistant-specific chat background + gradient overlay to improve readability
@@ -4779,7 +4707,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     if (mounted) setState(() {});
                                   } : null,
                                   modelIcon: (!useAssist && message.role == 'assistant' && message.providerId != null && message.modelId != null)
-                                      ? _CurrentModelIcon(providerKey: message.providerId, modelId: message.modelId, size: 30)
+                                      ? CurrentModelIcon(providerKey: message.providerId, modelId: message.modelId, size: 30)
                                       : null,
                                   showModelIcon: useAssist ? false : context.watch<SettingsProvider>().showModelIcon,
                                   useAssistantAvatar: useAssist && message.role == 'assistant',
@@ -5143,9 +5071,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               child: Padding(
                 // Move higher: 72 + 12 + 38
                 padding: const EdgeInsets.only(bottom: 122),
-                child: _AnimatedSelectionBar(
+                child: AnimatedSelectionBar(
                   visible: _selecting,
-                  child: _SelectionToolbar(
+                  child: SelectionToolbar(
                     onCancel: () {
                       setState(() {
                         _selecting = false;
@@ -5346,7 +5274,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       children: [
         _buildTabletSidebar(context),
         if (_isDesktop)
-          _SidebarResizeHandle(
+          SidebarResizeHandle(
             visible: _tabletSidebarOpen,
             onDrag: (dx) {
               setState(() {
@@ -5376,198 +5304,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             resizeToAvoidBottomInset: true,
             extendBodyBehindAppBar: true,
             backgroundColor: Colors.transparent,
-            appBar: AppBar(
-              systemOverlayStyle: (Theme.of(context).brightness == Brightness.dark)
-                  ? const SystemUiOverlayStyle(
-                      statusBarColor: Colors.transparent,
-                      statusBarIconBrightness: Brightness.light,
-                      statusBarBrightness: Brightness.dark,
-                    )
-                  : const SystemUiOverlayStyle(
-                      statusBarColor: Colors.transparent,
-                      statusBarIconBrightness: Brightness.dark,
-                      statusBarBrightness: Brightness.light,
-                    ),
-              backgroundColor: Colors.transparent,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              leading: IconButton(
-                onPressed: _toggleTabletSidebar,
-                icon: SvgPicture.asset(
-                  'assets/icons/list.svg',
-                  width: 14,
-                  height: 14,
-                  colorFilter: ColorFilter.mode(
-                    Theme.of(context).iconTheme.color ?? Theme.of(context).colorScheme.onSurface,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-              titleSpacing: 2,
-              title: Builder(builder: (context) {
-                final isDark = Theme.of(context).brightness == Brightness.dark;
-                final bool isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-                    defaultTargetPlatform == TargetPlatform.windows ||
-                    defaultTargetPlatform == TargetPlatform.linux;
-                // Desktop: title and model chip in a single row; Tablet can keep same for consistency
-                final String? brandAsset = (modelDisplay != null
-                        ? (BrandAssets.assetForName(modelDisplay))
-                        : null) ?? (providerName != null ? BrandAssets.assetForName(providerName!) : null);
-
-                Widget? capsule;
-                String? capsuleLabel;
-                if (providerName != null && modelDisplay != null) {
-                  capsuleLabel = '$modelDisplay ($providerName)';
-                  final Widget brandIcon = AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: ScaleTransition(scale: anim, child: child)),
-                    child: (brandAsset != null)
-                        ? (brandAsset.endsWith('.svg')
-                            ? SvgPicture.asset(brandAsset, width: 16, height: 16, key: ValueKey('brand:$brandAsset'))
-                            : Image.asset(brandAsset, width: 16, height: 16, key: ValueKey('brand:$brandAsset')))
-                        : Icon(Lucide.Boxes, size: 16, color: cs.onSurface.withOpacity(0.7), key: const ValueKey('brand:default')),
-                  );
-
-                  capsule = IosCardPress(
-                    borderRadius: BorderRadius.circular(20),
-                    baseColor: Colors.transparent,
-                    pressedBlendStrength: isDark ? 0.18 : 0.12,
-                    padding: EdgeInsets.zero,
-                    onTap: () => showModelSelectSheet(context),
-                    child: AnimatedSize(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOutCubic,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            brandIcon,
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: AnimatedTextSwap(
-                                text: capsuleLabel!,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  height: 1.1,
-                                  color: isDark ? Colors.white.withOpacity(0.92) : cs.onSurface.withOpacity(0.9),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                // Primary header row: title expands, capsule stays close to title's right side
-                final row = Row(
-                  mainAxisSize: MainAxisSize.max,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Title expands and ellipsizes as needed
-                    Flexible(
-                      fit: FlexFit.loose,
-                      child: AnimatedSize(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        child: AnimatedTextSwap(
-                          text: title,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    if (capsule != null) ...[
-                      const SizedBox(width: 8),
-                      Flexible(
-                        fit: FlexFit.loose,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 220),
-                            transitionBuilder: (child, anim) => FadeTransition(
-                              opacity: anim,
-                              child: SlideTransition(
-                                position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(anim),
-                                child: child,
-                              ),
-                            ),
-                            child: KeyedSubtree(
-                              key: ValueKey('cap:${capsuleLabel ?? ''}'),
-                              child: capsule!,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                );
-
-                return Align(
-                  alignment: Alignment.centerLeft,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    transitionBuilder: (child, anim) => FadeTransition(
-                      opacity: anim,
-                      child: SlideTransition(
-                        position: Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero).animate(anim),
-                        child: child,
-                      ),
-                    ),
-                    child: KeyedSubtree(key: ValueKey('hdr:$title|${capsuleLabel ?? ''}'), child: row),
-                  ),
-                );
-              }),
-              actions: [
-                // Mini map button (to the left of new conversation) for embedded/desktop layout
-                IconButton(
-                  key: _miniMapAnchorKey,
-                  onPressed: () async {
-                    final collapsed = _collapseVersions(_messages);
-                    // Desktop: use popover; Mobile: use sheet
-                    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-                        defaultTargetPlatform == TargetPlatform.macOS ||
-                        defaultTargetPlatform == TargetPlatform.linux;
-
-                    final String? selectedId;
-                    if (isDesktop) {
-                      selectedId = await showDesktopMiniMapPopover(
-                        context,
-                        anchorKey: _miniMapAnchorKey,
-                        messages: collapsed,
-                      );
-                    } else {
-                      selectedId = await showMiniMapSheet(context, collapsed);
-                    }
-
-                    if (!mounted) return;
-                    if (selectedId != null && selectedId.isNotEmpty) {
-                      await _scrollToMessageId(selectedId);
-                    }
-                  },
-                  tooltip: AppLocalizations.of(context)!.miniMapTooltip,
-                  icon: const Icon(Lucide.Map, size: 22),
-                ),
-                IconButton(
-                  onPressed: () async {
-                    await _createNewConversation();
-                    if (mounted) _forceScrollToBottomSoon();
-                  },
-                  icon: const Icon(Lucide.MessageCirclePlus, size: 22),
-                ),
-                const SizedBox(width: 6),
-              ],
+            appBar: _buildTabletAppBar(
+              title: title,
+              providerName: providerName,
+              modelDisplay: modelDisplay,
+              cs: cs,
             ),
             body: Stack(
               children: [
@@ -5696,7 +5437,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                                           }
                                                         : null,
                                                     modelIcon: (!useAssist && message.role == 'assistant' && message.providerId != null && message.modelId != null)
-                                                        ? _CurrentModelIcon(providerKey: message.providerId, modelId: message.modelId, size: 30)
+                                                        ? CurrentModelIcon(providerKey: message.providerId, modelId: message.modelId, size: 30)
                                                         : null,
                                                     showModelIcon: useAssist ? false : context.watch<SettingsProvider>().showModelIcon,
                                                     useAssistantAvatar: useAssist && message.role == 'assistant',
@@ -6032,9 +5773,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     child: Padding(
                       // Move higher: 72 + 12 + 38
                       padding: const EdgeInsets.only(bottom: 122),
-                      child: _AnimatedSelectionBar(
+                      child: AnimatedSelectionBar(
                         visible: _selecting,
-                        child: _SelectionToolbar(
+                        child: SelectionToolbar(
                           onCancel: () {
                             setState(() {
                               _selecting = false;
@@ -6210,7 +5951,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             mainAxisSize: MainAxisSize.min,
             children: [
               if (isDesktop)
-                _SidebarResizeHandle(
+                SidebarResizeHandle(
                   visible: _rightSidebarOpen,
                   onDrag: (dx) {
                     setState(() {
@@ -6315,46 +6056,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
 }
 
-class _SidebarResizeHandle extends StatefulWidget {
-  const _SidebarResizeHandle({required this.visible, required this.onDrag, this.onDragEnd});
-  final bool visible;
-  final ValueChanged<double> onDrag;
-  final VoidCallback? onDragEnd;
-
-  @override
-  State<_SidebarResizeHandle> createState() => _SidebarResizeHandleState();
-}
-
-class _SidebarResizeHandleState extends State<_SidebarResizeHandle> {
-  bool _hovered = false;
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    if (!widget.visible) return const SizedBox.shrink();
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onHorizontalDragUpdate: (details) => widget.onDrag(details.delta.dx),
-      onHorizontalDragEnd: (_) => widget.onDragEnd?.call(),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.resizeColumn,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: Container(
-          width: 6,
-          height: double.infinity,
-          color: Colors.transparent,
-          alignment: Alignment.center,
-          child: Container(
-            width: 1,
-            height: double.infinity,
-            color: (_hovered ? cs.primary.withOpacity(0.28) : cs.outlineVariant.withOpacity(0.10)),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ReasoningData {
   String text = '';
   DateTime? startAt;
@@ -6374,263 +6075,4 @@ class _TranslationData {
   bool expanded = true; // default to expanded when translation is added
 }
 
-class _CurrentModelIcon extends StatelessWidget {
-  const _CurrentModelIcon({
-    required this.providerKey,
-    required this.modelId,
-    this.size = 28,
-    this.withBackground = true,
-    this.backgroundColor,
-  });
-  final String? providerKey;
-  final String? modelId;
-  final double size; // outer diameter
-  final bool withBackground; // whether to draw circular background
-  final Color? backgroundColor; // override background color if provided
 
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (providerKey == null || modelId == null) return const SizedBox.shrink();
-    String? asset = BrandAssets.assetForName(modelId!);
-    asset ??= BrandAssets.assetForName(providerKey!);
-    Widget inner;
-    if (asset != null) {
-      if (asset.endsWith('.svg')) {
-        final isColorful = asset.contains('color');
-        final ColorFilter? tint = (Theme.of(context).brightness == Brightness.dark && !isColorful)
-            ? const ColorFilter.mode(Colors.white, BlendMode.srcIn)
-            : null;
-        inner = SvgPicture.asset(
-          asset,
-          width: size * 0.5,
-          height: size * 0.5,
-          colorFilter: tint,
-        );
-      } else {
-        inner = Image.asset(asset, width: size * 0.5, height: size * 0.5, fit: BoxFit.contain);
-      }
-    } else {
-      inner = Text(
-        modelId!.isNotEmpty ? modelId!.characters.first.toUpperCase() : '?',
-        style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.43),
-      );
-    }
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: withBackground
-            ? (backgroundColor ?? (isDark ? Colors.white10 : cs.primary.withOpacity(0.1)))
-            : Colors.transparent,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: SizedBox(
-        width: size * 0.64,
-        height: size * 0.64,
-        child: Center(child: inner is SvgPicture || inner is Image ? inner : FittedBox(child: inner)),
-      ),
-    );
-  }
-}
-
-class _SelectionToolbar extends StatelessWidget {
-  const _SelectionToolbar({required this.onCancel, required this.onConfirm});
-  final VoidCallback onCancel;
-  final VoidCallback onConfirm;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    // Use compact icon-only glass buttons to avoid taking too much width
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _GlassCircleButtonSmall(
-          icon: Lucide.X,
-          color: cs.onSurface,
-          onTap: onCancel,
-          semanticLabel: AppLocalizations.of(context)!.homePageCancel,
-        ),
-        const SizedBox(width: 14),
-        _GlassCircleButtonSmall(
-          icon: Lucide.Check,
-          color: cs.primary,
-          onTap: onConfirm,
-          semanticLabel: AppLocalizations.of(context)!.homePageDone,
-        ),
-      ],
-    );
-  }
-}
-
-// Animated container that slides/fades in/out like provider multi-select bar
-class _AnimatedSelectionBar extends StatelessWidget {
-  const _AnimatedSelectionBar({required this.visible, required this.child});
-  final bool visible;
-  final Widget child;
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedSlide(
-      offset: visible ? Offset.zero : const Offset(0, 1),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      child: AnimatedOpacity(
-        opacity: visible ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        child: IgnorePointer(ignoring: !visible, child: child),
-      ),
-    );
-  }
-}
-
-// iOS-style glass capsule button (no ripple), similar to providers multi-select style
-class _GlassCapsuleButton extends StatefulWidget {
-  const _GlassCapsuleButton({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  State<_GlassCapsuleButton> createState() => _GlassCapsuleButtonState();
-}
-
-class _GlassCapsuleButtonState extends State<_GlassCapsuleButton> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    // Glass background, match providers' capsule taste
-    final glassBase = isDark ? Colors.black.withOpacity(0.06) : Colors.white.withOpacity(0.65);
-    final overlay = isDark ? Colors.black.withOpacity(0.06) : Colors.black.withOpacity(0.05);
-    final tileColor = _pressed ? Color.alphaBlend(overlay, glassBase) : glassBase;
-    final borderColor = cs.outlineVariant.withOpacity(isDark ? 0.35 : 0.40);
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: () {
-        Haptics.light();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: tileColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor, width: 1.0),
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(widget.icon, size: 16, color: widget.color),
-                  const SizedBox(width: 6),
-                  Text(
-                    widget.label,
-                    style: TextStyle(color: widget.color, fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-    );
-  }
-}
-
-// Compact icon-only glass button to minimize width (like providers multi-select icons)
-class _GlassCircleButtonSmall extends StatefulWidget {
-  const _GlassCircleButtonSmall({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.semanticLabel,
-    this.size = 40,
-  });
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final String? semanticLabel;
-  final double size; // diameter
-
-  @override
-  State<_GlassCircleButtonSmall> createState() => _GlassCircleButtonSmallState();
-}
-
-class _GlassCircleButtonSmallState extends State<_GlassCircleButtonSmall> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final glassBase = isDark ? Colors.black.withOpacity(0.06) : Colors.white.withOpacity(0.06);
-    final overlay = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05);
-    final tileColor = _pressed ? Color.alphaBlend(overlay, glassBase) : glassBase;
-    final borderColor = cs.outlineVariant.withOpacity(isDark ? 0.10 : 0.10);
-
-    final child = SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: Center(child: Icon(widget.icon, size: 18, color: widget.color)),
-    );
-
-    return Semantics(
-      button: true,
-      label: widget.semanticLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: () {
-          Haptics.light();
-          widget.onTap();
-        },
-        child: AnimatedScale(
-          scale: _pressed ? 0.95 : 1.0,
-          duration: const Duration(milliseconds: 110),
-          curve: Curves.easeOutCubic,
-          child: ClipOval(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: tileColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: borderColor, width: 1.0),
-                ),
-                child: child,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
- 

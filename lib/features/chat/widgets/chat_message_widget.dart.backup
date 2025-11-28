@@ -37,14 +37,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../utils/safe_tooltip.dart';
-import 'message/assistant_message_renderer.dart';
-import 'message/message_models.dart';
-import 'message/message_parts.dart';
-import 'message/reasoning_section.dart';
-import 'message/tool_call_item.dart';
-import 'message/user_message_renderer.dart';
-
-export 'message/message_models.dart' show ToolUIPart, ReasoningSegment;
 
 class ChatMessageWidget extends StatefulWidget {
   final ChatMessage message;
@@ -2056,82 +2048,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<SettingsProvider>();
-    
-    if (widget.message.role == 'user') {
-      return UserMessageRenderer(
-        message: widget.message,
-        showUserAvatar: widget.showUserAvatar,
-        showUserActions: settings.showUserMessageActions,
-        showVersionSwitcher: (widget.versionCount ?? 1) > 1,
-        versionIndex: widget.versionIndex,
-        versionCount: widget.versionCount,
-        onPrevVersion: widget.onPrevVersion,
-        onNextVersion: widget.onNextVersion,
-        onCopy: widget.onCopy,
-        onResend: widget.onResend,
-        onMore: widget.onMore,
-        onEdit: widget.onEdit,
-        onDelete: widget.onDelete,
-      );
-    }
-    
+    if (widget.message.role == 'user') return _buildUserMessage();
     if (widget.message.role == 'tool') return _buildToolMessage();
-    
-    final extractedThinking = THINKING_REGEX
-        .allMatches(widget.message.content)
-        .map((m) => (m.group(1) ?? '').trim())
-        .where((s) => s.isNotEmpty)
-        .join('\n\n');
-    final contentWithoutThink = extractedThinking.isNotEmpty
-        ? widget.message.content.replaceAll(THINKING_REGEX, '').trim()
-        : widget.message.content;
-    final usingInlineThink =
-        (widget.reasoningText == null || widget.reasoningText!.isEmpty) &&
-        extractedThinking.isNotEmpty;
-    
-    return AssistantMessageRenderer(
-      message: widget.message,
-      modelIcon: widget.modelIcon,
-      showModelIcon: widget.showModelIcon,
-      useAssistantAvatar: widget.useAssistantAvatar,
-      assistantName: widget.assistantName,
-      assistantAvatar: widget.assistantAvatar,
-      showTokenStats: widget.showTokenStats,
-      translationExpanded: widget.translationExpanded,
-      onToggleTranslation: widget.onToggleTranslation,
-      reasoningText: widget.reasoningText,
-      reasoningExpanded: widget.reasoningExpanded,
-      reasoningLoading: widget.reasoningLoading,
-      reasoningStartAt: widget.reasoningStartAt,
-      reasoningFinishedAt: widget.reasoningFinishedAt,
-      onToggleReasoning: widget.onToggleReasoning,
-      reasoningSegments: widget.reasoningSegments,
-      toolParts: widget.toolParts,
-      latestSearchItems: _latestSearchItems(),
-      onShowCitations: () => _showCitationsSheet(_latestSearchItems()),
-      onCitationTap: (id) => _handleCitationTap(id),
-      usingInlineThink: usingInlineThink,
-      inlineThinkExpanded: _inlineThinkExpanded,
-      onToggleInlineThink: () {
-        setState(() {
-          _inlineThinkExpanded = !(_inlineThinkExpanded ?? true);
-          _inlineThinkManuallyToggled = true;
-        });
-      },
-      extractedThinking: extractedThinking,
-      contentWithoutThink: contentWithoutThink,
-      onRegenerate: widget.onRegenerate,
-      onCopy: widget.onCopy,
-      onTranslate: widget.onTranslate,
-      onSpeak: widget.onSpeak,
-      onDelete: widget.onDelete,
-      onMore: widget.onMore,
-      versionIndex: widget.versionIndex,
-      versionCount: widget.versionCount,
-      onPrevVersion: widget.onPrevVersion,
-      onNextVersion: widget.onNextVersion,
-    );
+    return _buildAssistantMessage();
   }
 }
 
@@ -2345,6 +2264,43 @@ class _DocRef {
   _DocRef({required this.path, required this.fileName, required this.mime});
 }
 
+// UI data for MCP tool calls/results
+class ToolUIPart {
+  final String id;
+  final String toolName;
+  final Map<String, dynamic> arguments;
+  final String? content; // null means still loading/result not yet available
+  final bool loading;
+  const ToolUIPart({
+    required this.id,
+    required this.toolName,
+    required this.arguments,
+    this.content,
+    this.loading = false,
+  });
+}
+
+// Data for a reasoning segment (for mixed display)
+class ReasoningSegment {
+  final String text;
+  final bool expanded;
+  final bool loading;
+  final DateTime? startAt;
+  final DateTime? finishedAt;
+  final VoidCallback? onToggle;
+  // Index of the first tool call that occurs after this segment starts.
+  final int toolStartIndex;
+
+  const ReasoningSegment({
+    required this.text,
+    required this.expanded,
+    required this.loading,
+    this.startAt,
+    this.finishedAt,
+    this.onToggle,
+    this.toolStartIndex = 0,
+  });
+}
 
 class _ToolCallItem extends StatelessWidget {
   const _ToolCallItem({required this.part});
