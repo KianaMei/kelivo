@@ -143,5 +143,5 @@
    - `adapters/openai/openai_adapter.dart` - 统一入口 (~75行)
    - `adapters/openai/openai_chat_completions.dart` - Chat Completions API (~650行)
    - `adapters/openai/openai_responses_api.dart` - Responses API (~580行)
-5. 创建 Prompt Tool adapter
+5. ~~创建 Prompt Tool adapter~~ ✅ (`adapters/prompt_tool_adapter.dart` ~195行)
 6. 更新主服务类使用新模块
