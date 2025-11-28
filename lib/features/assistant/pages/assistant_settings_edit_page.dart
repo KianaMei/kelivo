@@ -116,3 +116,123 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
     );
   }
 }
+
+/// Desktop dialog for assistant settings.
+enum _AssistantDesktopMenu { basic, prompts, memory, mcp, quick, custom }
+
+Future<void> showAssistantDesktopDialog(BuildContext context, {required String assistantId}) async {
+  final cs = Theme.of(context).colorScheme;
+  await showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) {
+      return Dialog(
+        backgroundColor: cs.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860, maxHeight: 640),
+          child: _DesktopAssistantDialogShell(assistantId: assistantId),
+        ),
+      );
+    },
+  );
+}
+
+class _DesktopAssistantDialogShell extends StatefulWidget {
+  const _DesktopAssistantDialogShell({required this.assistantId});
+  final String assistantId;
+  
+  @override
+  State<_DesktopAssistantDialogShell> createState() => _DesktopAssistantDialogShellState();
+}
+
+class _DesktopAssistantDialogShellState extends State<_DesktopAssistantDialogShell> {
+  _AssistantDesktopMenu _menu = _AssistantDesktopMenu.basic;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    
+    return Column(
+      children: [
+        SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.assistantEditPageTitle,
+                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Lucide.X, size: 18),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+        Expanded(
+          child: Row(
+            children: [
+              SizedBox(
+                width: 200,
+                child: ListView(
+                  children: [
+                    _menuItem(_AssistantDesktopMenu.basic, l10n.assistantEditPageBasicTab),
+                    _menuItem(_AssistantDesktopMenu.prompts, l10n.assistantEditPagePromptsTab),
+                    _menuItem(_AssistantDesktopMenu.memory, l10n.assistantEditPageMemoryTab),
+                    _menuItem(_AssistantDesktopMenu.mcp, l10n.assistantEditPageMcpTab),
+                    _menuItem(_AssistantDesktopMenu.quick, l10n.assistantEditPageQuickPhraseTab),
+                    _menuItem(_AssistantDesktopMenu.custom, l10n.assistantEditPageCustomTab),
+                  ],
+                ),
+              ),
+              VerticalDivider(width: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _buildContent(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _menuItem(_AssistantDesktopMenu menu, String label) {
+    final selected = _menu == menu;
+    final cs = Theme.of(context).colorScheme;
+    return ListTile(
+      selected: selected,
+      title: Text(label),
+      onTap: () => setState(() => _menu = menu),
+      selectedTileColor: cs.primary.withOpacity(0.1),
+    );
+  }
+  
+  Widget _buildContent() {
+    switch (_menu) {
+      case _AssistantDesktopMenu.basic:
+        return BasicSettingsTab(assistantId: widget.assistantId);
+      case _AssistantDesktopMenu.prompts:
+        return PromptTab(assistantId: widget.assistantId);
+      case _AssistantDesktopMenu.memory:
+        return MemoryTab(assistantId: widget.assistantId);
+      case _AssistantDesktopMenu.mcp:
+        return McpTab(assistantId: widget.assistantId);
+      case _AssistantDesktopMenu.quick:
+        return QuickPhraseTab(assistantId: widget.assistantId);
+      case _AssistantDesktopMenu.custom:
+        return CustomRequestTab(assistantId: widget.assistantId);
+    }
+  }
+}
