@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -40,12 +40,6 @@ import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../desktop/window_title_bar.dart';
-// New modular tabs (gradual migration)
-import '../tabs/memory_tab.dart' as new_tabs;
-import '../tabs/mcp_tab.dart' as new_tabs;
-import '../tabs/custom_request_tab.dart' as new_tabs;
-import '../tabs/quick_phrase_tab.dart' as new_tabs;
-import '../widgets/seg_tab_bar.dart' as new_widgets;
 
 class AssistantSettingsEditPage extends StatefulWidget {
   const AssistantSettingsEditPage({super.key, required this.assistantId});
@@ -2959,118 +2953,118 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
     }
 
     final List<String> quick = const [
-      '😀',
-      '😁',
-      '😂',
-      '🤣',
-      '😃',
-      '😄',
-      '😅',
-      '😊',
-      '😍',
-      '😘',
-      '😗',
-      '😙',
-      '😚',
-      '🙂',
-      '🤗',
-      '🤩',
-      '🫶',
-      '🤝',
-      '👍',
-      '👎',
-      '👋',
-      '🙏',
-      '💪',
-      '🔥',
-      '✨',
-      '🌟',
-      '💡',
-      '🎉',
-      '🎊',
-      '🎈',
-      '🌈',
-      '☀️',
-      '🌙',
-      '⭐',
-      '⚡',
-      '☁️',
-      '❄️',
-      '🌧️',
-      '🍎',
-      '🍊',
-      '🍋',
-      '🍉',
-      '🍇',
-      '🍓',
-      '🍒',
-      '🍑',
-      '🥭',
-      '🍍',
-      '🥝',
-      '🍅',
-      '🥕',
-      '🌽',
-      '🍞',
-      '🧀',
-      '🍔',
-      '🍟',
-      '🍕',
-      '🌮',
-      '🌯',
-      '🍣',
-      '🍜',
-      '🍰',
-      '🍪',
-      '🍩',
-      '🍫',
-      '🍻',
-      '☕',
-      '🧋',
-      '🥤',
-      '⚽',
-      '🏀',
-      '🏈',
-      '🎾',
-      '🏐',
-      '🎮',
-      '🎧',
-      '🎸',
-      '🎹',
-      '🎺',
-      '📚',
-      '✏️',
-      '💼',
-      '💻',
-      '🖥️',
-      '📱',
-      '🛩️',
-      '✈️',
-      '🚗',
-      '🚕',
-      '🚙',
-      '🚌',
-      '🚀',
-      '🛰️',
-      '🧠',
-      '🫀',
-      '💊',
-      '🩺',
-      '🐶',
-      '🐱',
-      '🐭',
-      '🐹',
-      '🐰',
-      '🦊',
-      '🐻',
-      '🐼',
-      '🐨',
-      '🐯',
-      '🦁',
-      '🐮',
-      '🐷',
-      '🐸',
-      '🐵',
+      '馃榾',
+      '馃榿',
+      '馃槀',
+      '馃ぃ',
+      '馃槂',
+      '馃槃',
+      '馃槄',
+      '馃槉',
+      '馃槏',
+      '馃槝',
+      '馃槜',
+      '馃槞',
+      '馃槡',
+      '馃檪',
+      '馃',
+      '馃ぉ',
+      '馃',
+      '馃',
+      '馃憤',
+      '馃憥',
+      '馃憢',
+      '馃檹',
+      '馃挭',
+      '馃敟',
+      '鉁?,
+      '馃専',
+      '馃挕',
+      '馃帀',
+      '馃帄',
+      '馃巿',
+      '馃寛',
+      '鈽€锔?,
+      '馃寵',
+      '猸?,
+      '鈿?,
+      '鈽侊笍',
+      '鉂勶笍',
+      '馃導锔?,
+      '馃崕',
+      '馃崐',
+      '馃崑',
+      '馃崏',
+      '馃崌',
+      '馃崜',
+      '馃崚',
+      '馃崙',
+      '馃キ',
+      '馃崓',
+      '馃',
+      '馃崊',
+      '馃',
+      '馃尳',
+      '馃崬',
+      '馃',
+      '馃崝',
+      '馃崯',
+      '馃崟',
+      '馃尞',
+      '馃尟',
+      '馃崳',
+      '馃崪',
+      '馃嵃',
+      '馃崻',
+      '馃崺',
+      '馃崼',
+      '馃嵒',
+      '鈽?,
+      '馃',
+      '馃イ',
+      '鈿?,
+      '馃弨',
+      '馃張',
+      '馃幘',
+      '馃彁',
+      '馃幃',
+      '馃帶',
+      '馃幐',
+      '馃幑',
+      '馃幒',
+      '馃摎',
+      '鉁忥笍',
+      '馃捈',
+      '馃捇',
+      '馃枼锔?,
+      '馃摫',
+      '馃洨锔?,
+      '鉁堬笍',
+      '馃殫',
+      '馃殨',
+      '馃殭',
+      '馃殞',
+      '馃殌',
+      '馃洶锔?,
+      '馃',
+      '馃珋',
+      '馃拪',
+      '馃┖',
+      '馃惗',
+      '馃惐',
+      '馃惌',
+      '馃惞',
+      '馃惏',
+      '馃',
+      '馃惢',
+      '馃惣',
+      '馃惃',
+      '馃惎',
+      '馃',
+      '馃惍',
+      '馃惙',
+      '馃惛',
+      '馃惖',
     ];
     return showDialog<String>(
       context: context,
@@ -3104,7 +3098,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
                       alignment: Alignment.center,
                       child: Text(
                         value.isEmpty
-                            ? '🙂'
+                            ? '馃檪'
                             : value.characters.take(1).toString(),
                         style: const TextStyle(fontSize: 40),
                       ),
@@ -3880,7 +3874,7 @@ class _PromptTabState extends State<_PromptTab> {
     // Sample preview for message template
     final now = DateTime.now();
     // final ts = zh
-    //     ? DateFormat('yyyy年M月d日 a h:mm:ss', 'zh').format(now)
+    //     ? DateFormat('yyyy骞碝鏈坉鏃?a h:mm:ss', 'zh').format(now)
     //     : DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
     final sampleUser = l10n.assistantEditSampleUser;
     final sampleMsg = l10n.assistantEditSampleMessage;
@@ -3892,7 +3886,7 @@ class _PromptTabState extends State<_PromptTab> {
       final locale = Localizations.localeOf(context);
       final dateStr =
           locale.languageCode == 'zh'
-              ? DateFormat('yyyy年M月d日', 'zh').format(now)
+              ? DateFormat('yyyy骞碝鏈坉鏃?, 'zh').format(now)
               : DateFormat('yyyy-MM-dd').format(now);
       final timeStr =
           locale.languageCode == 'zh'
@@ -5189,7 +5183,7 @@ class _SegTabBar extends StatelessWidget {
         final Color shellBg =
             isDark
                 ? Colors.white.withOpacity(0.08)
-                : Colors.white; // 白底胶囊，无边框阴影
+                : Colors.white; // 鐧藉簳鑳跺泭锛屾棤杈规闃村奖
 
         List<Widget> children = [];
         for (int index = 0; index < tabs.length; index++) {
@@ -5201,20 +5195,17 @@ class _SegTabBar extends StatelessWidget {
               child: _TactileRow(
                 onTap: () => controller.animateTo(index),
                 builder: (pressed) {
-                  // 背景不随按压变化：仅选中时有浅主题底色，未选中透明
+                  // 鑳屾櫙涓嶉殢鎸夊帇鍙樺寲锛氫粎閫変腑鏃舵湁娴呬富棰樺簳鑹诧紝鏈€変腑閫忔槑
                   final Color baseBg =
                       selected
                           ? cs.primary.withOpacity(0.14)
                           : Colors.transparent;
-                  final Color bg = baseBg; // 不叠加遮罩，不改变底色
-
-                  // 仅文字在按压时变浅并有渐变
-                  final Color baseTextColor =
+                  final Color bg = baseBg; // 涓嶅彔鍔犻伄缃╋紝涓嶆敼鍙樺簳鑹?
+                  // 浠呮枃瀛楀湪鎸夊帇鏃跺彉娴呭苟鏈夋笎鍙?                  final Color baseTextColor =
                       selected
                           ? cs
-                              .primary // 选中文字：主题色
-                          : cs.onSurface.withOpacity(0.82); // 未选中：深灰
-                  final Color targetTextColor =
+                              .primary // 閫変腑鏂囧瓧锛氫富棰樿壊
+                          : cs.onSurface.withOpacity(0.82); // 鏈€変腑锛氭繁鐏?                  final Color targetTextColor =
                       pressed
                           ? Color.lerp(baseTextColor, Colors.white, 0.22) ??
                               baseTextColor
@@ -5225,8 +5216,7 @@ class _SegTabBar extends StatelessWidget {
                     curve: Curves.easeOutCubic,
                     decoration: BoxDecoration(
                       color: bg,
-                      borderRadius: BorderRadius.circular(innerRadius), // 选中块圆角
-                    ),
+                      borderRadius: BorderRadius.circular(innerRadius), // 閫変腑鍧楀渾瑙?                    ),
                     alignment: Alignment.center,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -6194,13 +6184,13 @@ Future<String?> _pickEmojiForAssistant(BuildContext context) async {
   }
 
   final List<String> quick = const [
-    '😀', '😁', '😂', '🤣', '😃', '😄', '😅', '😊', '😍', '😘', '😗', '😙', '😚', '🙂', '🤗', '🤩',
-    '🫶', '🤝', '👍', '👎', '👋', '🙏', '💪', '🔥', '✨', '🌟', '💡', '🎉', '🎊', '🎈', '🌈', '☀️',
-    '🌙', '⭐', '⚡', '☁️', '❄️', '🌧️', '🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍒', '🍑', '🥭', '🍍',
-    '🥝', '🍅', '🥕', '🌽', '🍞', '🧀', '🍔', '🍟', '🍕', '🌮', '🌯', '🍣', '🍜', '🍰', '🍪', '🍩',
-    '🍫', '🍻', '☕', '🧋', '🥤', '⚽', '🏀', '🏈', '🎾', '🏐', '🎮', '🎧', '🎸', '🎹', '🎺', '📚',
-    '✏️', '💼', '💻', '🖥️', '📱', '🛩️', '✈️', '🚗', '🚕', '🚙', '🚌', '🚀', '🛰️', '🧠', '🫀', '💊',
-    '🩺', '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵',
+    '馃榾', '馃榿', '馃槀', '馃ぃ', '馃槂', '馃槃', '馃槄', '馃槉', '馃槏', '馃槝', '馃槜', '馃槞', '馃槡', '馃檪', '馃', '馃ぉ',
+    '馃', '馃', '馃憤', '馃憥', '馃憢', '馃檹', '馃挭', '馃敟', '鉁?, '馃専', '馃挕', '馃帀', '馃帄', '馃巿', '馃寛', '鈽€锔?,
+    '馃寵', '猸?, '鈿?, '鈽侊笍', '鉂勶笍', '馃導锔?, '馃崕', '馃崐', '馃崑', '馃崏', '馃崌', '馃崜', '馃崚', '馃崙', '馃キ', '馃崓',
+    '馃', '馃崊', '馃', '馃尳', '馃崬', '馃', '馃崝', '馃崯', '馃崟', '馃尞', '馃尟', '馃崳', '馃崪', '馃嵃', '馃崻', '馃崺',
+    '馃崼', '馃嵒', '鈽?, '馃', '馃イ', '鈿?, '馃弨', '馃張', '馃幘', '馃彁', '馃幃', '馃帶', '馃幐', '馃幑', '馃幒', '馃摎',
+    '鉁忥笍', '馃捈', '馃捇', '馃枼锔?, '馃摫', '馃洨锔?, '鉁堬笍', '馃殫', '馃殨', '馃殭', '馃殞', '馃殌', '馃洶锔?, '馃', '馃珋', '馃拪',
+    '馃┖', '馃惗', '馃惐', '馃惌', '馃惞', '馃惏', '馃', '馃惢', '馃惣', '馃惃', '馃惎', '馃', '馃惍', '馃惙', '馃惛', '馃惖',
   ];
   return showDialog<String>(
     context: context,
@@ -6227,7 +6217,7 @@ Future<String?> _pickEmojiForAssistant(BuildContext context) async {
                     height: 72,
                     decoration: BoxDecoration(color: cs.primary.withOpacity(0.08), shape: BoxShape.circle),
                     alignment: Alignment.center,
-                    child: Text(value.isEmpty ? '🙂' : value.characters.take(1).toString(), style: const TextStyle(fontSize: 40)),
+                    child: Text(value.isEmpty ? '馃檪' : value.characters.take(1).toString(), style: const TextStyle(fontSize: 40)),
                   ),
                   const SizedBox(height: 12),
                   TextField(
