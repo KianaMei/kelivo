@@ -1714,6 +1714,24 @@ class _SelectableMarkdownBodyState extends State<_SelectableMarkdownBody> {
   @override
   Widget build(BuildContext context) {
     final span = TextSpan(style: widget.config.style, children: _spans);
+    final bool isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+    
+    // Desktop: Use SelectionArea + Text.rich for proper text and WidgetSpan selection
+    // Mobile: Use SelectableText.rich (long-press selection works fine)
+    if (isDesktop) {
+      return SelectionArea(
+        child: Text.rich(
+          span,
+          textDirection: widget.config.textDirection,
+          textAlign: widget.config.textAlign ?? TextAlign.start,
+          textScaler: widget.config.textScaler ?? TextScaler.noScaling,
+          maxLines: widget.config.maxLines,
+          softWrap: true,
+          overflow: TextOverflow.clip,
+        ),
+      );
+    }
+    
     return SelectableText.rich(
       span,
       textDirection: widget.config.textDirection,

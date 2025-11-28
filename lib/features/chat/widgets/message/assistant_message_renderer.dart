@@ -497,14 +497,12 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SelectionArea(
-                  child: DefaultTextStyle.merge(
-                    style: const TextStyle(fontSize: 15.7, height: 1.5),
-                    child: MarkdownWithCodeHighlight(
-                      text: widget.contentWithoutThink,
-                      onCitationTap: widget.onCitationTap,
-                      isStreaming: widget.message.role == 'assistant' && widget.message.isStreaming,
-                    ),
+                DefaultTextStyle.merge(
+                  style: const TextStyle(fontSize: 15.7, height: 1.5),
+                  child: MarkdownWithCodeHighlight(
+                    text: widget.contentWithoutThink,
+                    onCitationTap: widget.onCitationTap,
+                    isStreaming: widget.message.role == 'assistant' && widget.message.isStreaming,
                   ),
                 ),
                 if (widget.message.isStreaming)
@@ -564,11 +562,9 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
                             Text(l10n.chatMessageWidgetTranslating, style: TextStyle(fontSize: 15.5, color: cs.onSurface.withOpacity(0.5), fontStyle: FontStyle.italic)),
                           ],
                         )
-                      : SelectionArea(
-                          child: DefaultTextStyle.merge(
-                            style: const TextStyle(fontSize: 15.5, height: 1.4),
-                            child: MarkdownWithCodeHighlight(text: widget.message.translation!, onCitationTap: widget.onCitationTap, isStreaming: false),
-                          ),
+                      : DefaultTextStyle.merge(
+                          style: const TextStyle(fontSize: 15.5, height: 1.4),
+                          child: MarkdownWithCodeHighlight(text: widget.message.translation!, onCitationTap: widget.onCitationTap, isStreaming: false),
                         ),
                 ),
               ],
