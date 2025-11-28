@@ -40,12 +40,12 @@ import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../desktop/window_title_bar.dart';
-// New modular tabs (gradual migration)
-import '../tabs/memory_tab.dart' as new_tabs;
-import '../tabs/mcp_tab.dart' as new_tabs;
-import '../tabs/custom_request_tab.dart' as new_tabs;
-import '../tabs/quick_phrase_tab.dart' as new_tabs;
-import '../widgets/seg_tab_bar.dart' as new_widgets;
+// Modular tabs (memory, mcp, custom_request, quick_phrase are extracted)
+import '../tabs/memory_tab.dart';
+import '../tabs/mcp_tab.dart';
+import '../tabs/custom_request_tab.dart';
+import '../tabs/quick_phrase_tab.dart';
+import '../widgets/seg_tab_bar.dart';
 
 class AssistantSettingsEditPage extends StatefulWidget {
   const AssistantSettingsEditPage({super.key, required this.assistantId});
@@ -127,24 +127,17 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
           const SizedBox(width: 12),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
+          preferredSize: const Size.fromHeight(44),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _SegTabBar(
-                    controller: _tabController,
-                    tabs: [
-                      l10n.assistantEditPageBasicTab,
-                      l10n.assistantEditPagePromptsTab,
-                      l10n.assistantEditPageMemoryTab,
-                      // l10n.assistantEditPageMcpTab,
-                      l10n.assistantEditPageQuickPhraseTab,
-                      l10n.assistantEditPageCustomTab,
-                    ],
-                  ),
-                ),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: SegTabBar(
+              controller: _tabController,
+              tabs: [
+                l10n.assistantEditPageBasicTab,
+                l10n.assistantEditPagePromptsTab,
+                l10n.assistantEditPageMemoryTab,
+                l10n.assistantEditPageQuickPhraseTab,
+                l10n.assistantEditPageCustomTab,
               ],
             ),
           ),
@@ -155,10 +148,9 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
         children: [
           _BasicSettingsTab(assistantId: assistant.id),
           _PromptTab(assistantId: assistant.id),
-          _MemoryTab(assistantId: assistant.id),
-          // _McpTab(assistantId: assistant.id),
-          _QuickPhraseTab(assistantId: assistant.id),
-          _CustomRequestTab(assistantId: assistant.id),
+          MemoryTab(assistantId: assistant.id),
+          QuickPhraseTab(assistantId: assistant.id),
+          CustomRequestTab(assistantId: assistant.id),
         ],
       ),
     );
