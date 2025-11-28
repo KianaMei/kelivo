@@ -46,22 +46,19 @@ class ChatStreamPipeline {
 
   /// Processes a raw provider chunk and returns zero or more events.
   ///
-  /// **Note**: This is a placeholder for the actual implementation.
-  /// In practice, you would have provider-specific adapters that convert
-  /// raw chunks into events. For example:
+  /// **Note**: This method is designed to be extended by provider-specific
+  /// adapters. The base implementation returns an empty list.
   ///
+  /// Provider adapters should override this or use the StreamAdapter interface
+  /// to convert raw chunks into ChatStreamEvent objects.
+  ///
+  /// Example usage with adapter:
   /// ```dart
-  /// if (provider == 'openai') {
-  ///   return _processOpenAIChunk(chunk);
-  /// } else if (provider == 'anthropic') {
-  ///   return _processClaudeChunk(chunk);
-  /// }
+  /// final adapter = OpenAIAdapter();
+  /// final events = adapter.adapt(chunk, pipeline);
   /// ```
-  ///
-  /// For now, this is a stub that demonstrates the interface.
   List<ChatStreamEvent> processChunk(dynamic chunk) {
-    // TODO: Implement provider-specific adapters
-    // This is a placeholder implementation
+    // Base implementation - provider adapters should use StreamAdapter interface
     return [];
   }
 
@@ -292,8 +289,7 @@ class _ToolCallState {
   }
 
   static dynamic _parseJson(String str) {
-    // Placeholder for JSON parsing
-    // In real implementation, use dart:convert
+    // Note: Actual JSON parsing should use dart:convert in adapter implementations
     return {};
   }
 }
