@@ -13,6 +13,13 @@ import '../../services/api_key_manager.dart';
 import '../prompt_tool_use/prompt_tool_use_service.dart';
 import '../prompt_tool_use/xml_tag_extractor.dart';
 import 'package:kelivo/secrets/fallback.dart';
+// Adapters
+import 'adapters/openai/openai_adapter.dart';
+import 'adapters/claude_adapter.dart';
+import 'adapters/google_adapter.dart';
+import 'adapters/prompt_tool_adapter.dart';
+import 'helpers/chat_api_helper.dart';
+import 'models/chat_stream_chunk.dart';
 
 class ChatApiService {
   /// Resolve the upstream/vendor model id for a given logical model key.
@@ -356,7 +363,7 @@ class ChatApiService {
   }) async* {
     // Route to prompt tool use stream if in prompt mode with tools
     if (toolCallMode == ToolCallMode.prompt && tools != null && tools.isNotEmpty && onToolCall != null) {
-      yield* _sendPromptToolUseStream(
+      yield* PromptToolAdapter.sendStream(
         config: config,
         modelId: modelId,
         messages: messages,
@@ -375,7 +382,7 @@ class ChatApiService {
     }
 
     final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
-    final client = _clientFor(config);
+    final client = ChatApiHelper.clientFor(config);
 
     // Track selected key for multi-key management
     String? selectedKeyId;
@@ -394,7 +401,7 @@ class ChatApiService {
     try {
       Stream<ChatStreamChunk> stream;
       if (kind == ProviderKind.openai) {
-        stream = _sendOpenAIStream(
+        stream = OpenAIAdapter.sendStream(
           client,
           config,
           modelId,
@@ -411,7 +418,7 @@ class ChatApiService {
           extraBody: extraBody,
         );
       } else if (kind == ProviderKind.claude) {
-        stream = _sendClaudeStream(
+        stream = ClaudeAdapter.sendStream(
           client,
           config,
           modelId,
@@ -428,7 +435,7 @@ class ChatApiService {
           extraBody: extraBody,
         );
       } else if (kind == ProviderKind.google) {
-        stream = _sendGoogleStream(
+        stream = GoogleAdapter.sendStream(
           client,
           config,
           modelId,
@@ -484,9 +491,9 @@ class ChatApiService {
     Map<String, String>? extraHeaders,
     Map<String, dynamic>? extraBody,
   }) async {
-    final upstreamModelId = _apiModelId(config, modelId);
+    final upstreamModelId = ChatApiHelper.apiModelId(config, modelId);
     final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
-    final client = _clientFor(config);
+    final client = ChatApiHelper.clientFor(config);
 
     // Track selected key for multi-key management
     String? selectedKeyId;
@@ -522,7 +529,7 @@ class ChatApiService {
             return false;
           }
           if (_isResponsesWebSearchSupported(modelId)) {
-            final builtIns = _builtInTools(config, modelId);
+            final builtIns = ChatApiHelper.builtInTools(config, modelId);
             if (builtIns.contains('search')) {
               Map<String, dynamic> ws = const <String, dynamic>{};
               try {
@@ -557,16 +564,16 @@ class ChatApiService {
           };
         }
         final headers = <String, String>{
-          'Authorization': 'Bearer ${_apiKeyForRequest(config, modelId)}',
+          'Authorization': 'Bearer ${ChatApiHelper.apiKeyForRequest(config, modelId)}',
           'Content-Type': 'application/json',
         };
-        headers.addAll(_customHeaders(config, modelId));
+        headers.addAll(ChatApiHelper.customHeaders(config, modelId));
         if (extraHeaders != null && extraHeaders.isNotEmpty) headers.addAll(extraHeaders);
-        final extra = _customBody(config, modelId);
+        final extra = ChatApiHelper.customBody(config, modelId);
         if (extra.isNotEmpty) (body as Map<String, dynamic>).addAll(extra);
         if (extraBody != null && extraBody.isNotEmpty) {
           (extraBody).forEach((k, v) {
-            (body as Map<String, dynamic>)[k] = (v is String) ? _parseOverrideValue(v) : v;
+            (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
           });
         }
         final resp = await client.post(url, headers: headers, body: jsonEncode(body));
@@ -619,17 +626,17 @@ class ChatApiService {
           ],
         };
         final headers = <String, String>{
-          'x-api-key': _apiKeyForRequest(config, modelId),
+          'x-api-key': ChatApiHelper.apiKeyForRequest(config, modelId),
           'anthropic-version': '2023-06-01',
           'Content-Type': 'application/json',
         };
-        headers.addAll(_customHeaders(config, modelId));
+        headers.addAll(ChatApiHelper.customHeaders(config, modelId));
         if (extraHeaders != null && extraHeaders.isNotEmpty) headers.addAll(extraHeaders);
-        final extra = _customBody(config, modelId);
+        final extra = ChatApiHelper.customBody(config, modelId);
         if (extra.isNotEmpty) (body as Map<String, dynamic>).addAll(extra);
         if (extraBody != null && extraBody.isNotEmpty) {
           (extraBody).forEach((k, v) {
-            (body as Map<String, dynamic>)[k] = (v is String) ? _parseOverrideValue(v) : v;
+            (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
           });
         }
         final resp = await client.post(url, headers: headers, body: jsonEncode(body));
@@ -654,7 +661,7 @@ class ChatApiService {
           final base = config.baseUrl.endsWith('/')
               ? config.baseUrl.substring(0, config.baseUrl.length - 1)
               : config.baseUrl;
-          url = '$base/models/$modelId:generateContent?key=${Uri.encodeComponent(_apiKeyForRequest(config, modelId))}';
+          url = '$base/models/$modelId:generateContent?key=${Uri.encodeComponent(ChatApiHelper.apiKeyForRequest(config, modelId))}';
         }
         final body = {
           'contents': [
@@ -693,13 +700,13 @@ class ChatApiService {
           final proj = (config.projectId ?? '').trim();
           if (proj.isNotEmpty) headers['X-Goog-User-Project'] = proj;
         }
-        headers.addAll(_customHeaders(config, modelId));
+        headers.addAll(ChatApiHelper.customHeaders(config, modelId));
         if (extraHeaders != null && extraHeaders.isNotEmpty) headers.addAll(extraHeaders);
-        final extra = _customBody(config, modelId);
+        final extra = ChatApiHelper.customBody(config, modelId);
         if (extra.isNotEmpty) (body as Map<String, dynamic>).addAll(extra);
         if (extraBody != null && extraBody.isNotEmpty) {
           (extraBody).forEach((k, v) {
-            (body as Map<String, dynamic>)[k] = (v is String) ? _parseOverrideValue(v) : v;
+            (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
           });
         }
         final resp = await client.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
@@ -1362,7 +1369,7 @@ class ChatApiService {
     }
     if (extraBody != null && extraBody.isNotEmpty) {
       extraBody.forEach((k, v) {
-        (body as Map<String, dynamic>)[k] = (v is String) ? _parseOverrideValue(v) : v;
+        (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
       });
     }
     request.body = jsonEncode(body);
@@ -3629,7 +3636,7 @@ class ChatApiService {
     if (extraClaude.isNotEmpty) (body as Map<String, dynamic>).addAll(extraClaude);
     if (extraBody != null && extraBody.isNotEmpty) {
       extraBody.forEach((k, v) {
-        (body as Map<String, dynamic>)[k] = (v is String) ? _parseOverrideValue(v) : v;
+        (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
       });
     }
     request.body = jsonEncode(body);
@@ -4031,7 +4038,7 @@ class ChatApiService {
       if (extra.isNotEmpty) (body as Map<String, dynamic>).addAll(extra);
       if (extraBody != null && extraBody.isNotEmpty) {
         extraBody.forEach((k, v) {
-          (body as Map<String, dynamic>)[k] = (v is String) ? _parseOverrideValue(v) : v;
+          (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
         });
       }
       
