@@ -85,55 +85,60 @@
 ## ✅ Phase 1B: Assistant Settings 拆分 - 100% 完成
 
 ### 目标
-将 `assistant_settings_edit_page.dart` (6715行) 拆分成 13+ 个文件
+将 `assistant_settings_edit_page.dart` (6715行) 拆分
 
-### 已完成
-1. 创建目录结构（tabs/, widgets/, sheets/）
-2. `widgets/seg_tab_bar.dart` - Tab导航栏
-3. `widgets/tactile_widgets.dart` - 触觉反馈组件
-4. `tabs/memory_tab.dart` - 记忆管理Tab
-
-### 已完成
-5. `tabs/custom_request_tab.dart` - 自定义请求Tab
-6. `tabs/mcp_tab.dart` - MCP工具Tab
-7. `tabs/quick_phrase_tab.dart` - 快捷短语Tab
-8. 主文件更新使用新Tab
-
-### 编译状态
-- 主文件: 6715行（保留完整功能）
-- 所有提取的Tab都是完整实现
-- 0个占位符
-
-### 重构策略
-**渐进式重构** - 简单Tab提取，复杂Tab保留
-
-已提取的Tab（完整实现）:
-- ✅ MemoryTab (270行) - 记忆增删改查，开关配置
-- ✅ McpTab (147行) - MCP服务器选择，工具统计
-- ✅ CustomRequestTab (365行) - Headers和Body编辑，增删改
-- ✅ QuickPhraseTab (359行) - 短语管理，拖拽排序，删除
-
-保留在主文件的Tab（完整功能）:
-- ✅ _BasicSettingsTab (2625行) - 头像选择、模型卡片、4个滑块、背景预览
-- ✅ _PromptTab (780行) - 系统提示词、消息模板、变量、预设消息
-
-**采用渐进式策略**: 复杂Tab包含3400+行代码和大量辅助类，完整提取需要额外工作量。当前策略确保功能100%完整。
+### 最终结果
+| 文件 | 行数 |
+|------|------|
+| `assistant_settings_edit_page.dart` | 472行 (原6715行, -93%) |
+| `tabs/basic_settings_tab.dart` | 2657行 |
+| `tabs/prompt_tab.dart` | 960行 |
+| `widgets/assistant_helpers.dart` | 730行 |
+| `tabs/memory_tab.dart` | 270行 |
+| `tabs/mcp_tab.dart` | 147行 |
+| `tabs/custom_request_tab.dart` | 365行 |
+| `tabs/quick_phrase_tab.dart` | 359行 |
 
 ---
 
-## 🔄 Phase 2A: Chat API Service 拆分 - 已启动
+## ✅ Phase 1C: Desktop Settings 拆分 - 100% 完成
 
 ### 目标
-拆分 `chat_api_service.dart` (4372行) 为多个adapter
+将 `desktop_settings_page.dart` (3490行) 拆分
+
+### 最终结果
+| 文件 | 行数 |
+|------|------|
+| `desktop_settings_page.dart` | 1220行 (原3490行, -65%) |
+| `panes/desktop_display_pane.dart` | 2499行 |
+| `panes/desktop_assistants_pane.dart` | 683行 |
+
+---
+
+## 🔄 Phase 2A: Chat API Service 拆分 - 规格已完成
+
+### 目标
+拆分 `chat_api_service.dart` (4373行) 为模块化 Adapter 架构
+
+### 流式方法分析
+| 方法 | 行范围 | 行数 |
+|------|--------|------|
+| `_sendOpenAIStream` | 1004-3480 | ~2476行 |
+| `_sendClaudeStream` | 3483-3820 | ~337行 |
+| `_sendGoogleStream` | 3822-4373 | ~551行 |
+| `_sendPromptToolUseStream` | 812-1001 | ~190行 |
 
 ### 已完成
 - ✅ 创建 `adapters/` 目录
 - ✅ 创建 `chat_provider_adapter.dart` 接口
-- 🔍 识别提取目标:
-  - OpenAI adapter: 2479行
-  - Claude adapter: 339行
-  - Google adapter: 465行
-  - Prompt Tool adapter: 192行
+- ✅ 创建 `SPEC_2A_CHAT_API_SPLIT.md` 详细规格
+- ✅ 创建 `helpers/chat_api_helper.dart` - 配置辅助方法 (~330行)
+- ✅ 创建 `models/chat_stream_chunk.dart` - 公共数据类 (~45行)
 
 ### 下一步
-提取各个adapter到独立文件，使用Phase 0A的横切抽象。
+1. ~~创建 `helpers/chat_api_helper.dart`~~ ✅ (~420行)
+2. ~~创建 Claude adapter~~ ✅ (`adapters/claude_adapter.dart` ~340行)
+3. ~~创建 Google adapter~~ ✅ (`adapters/google_adapter.dart` ~450行)
+4. 创建 OpenAI adapter (最复杂 ~2500行)
+5. 创建 Prompt Tool adapter
+6. 更新主服务类使用新模块
