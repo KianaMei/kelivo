@@ -136,9 +136,12 @@
 - ✅ 创建 `models/chat_stream_chunk.dart` - 公共数据类 (~45行)
 
 ### 下一步
-1. ~~创建 `helpers/chat_api_helper.dart`~~ ✅ (~420行)
+1. ~~创建 `helpers/chat_api_helper.dart`~~ ✅ (~520行)
 2. ~~创建 Claude adapter~~ ✅ (`adapters/claude_adapter.dart` ~340行)
 3. ~~创建 Google adapter~~ ✅ (`adapters/google_adapter.dart` ~450行)
-4. 创建 OpenAI adapter (最复杂 ~2500行)
+4. ~~创建 OpenAI adapter~~ ✅ 拆分为子模块:
+   - `adapters/openai/openai_adapter.dart` - 统一入口 (~75行)
+   - `adapters/openai/openai_chat_completions.dart` - Chat Completions API (~650行)
+   - `adapters/openai/openai_responses_api.dart` - Responses API (~580行)
 5. 创建 Prompt Tool adapter
 6. 更新主服务类使用新模块

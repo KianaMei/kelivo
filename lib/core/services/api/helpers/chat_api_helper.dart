@@ -419,6 +419,100 @@ class ChatApiHelper {
       return result;
     }).toList();
   }
+
+  // ========== Vendor-Specific Reasoning Config ==========
+
+  /// Apply vendor-specific reasoning parameters to request body.
+  /// Returns the modified body map.
+  static void applyVendorReasoningConfig({
+    required Map<String, dynamic> body,
+    required String host,
+    required String modelId,
+    required bool isReasoning,
+    required int? thinkingBudget,
+    required String effort,
+    required bool isGrokModel,
+  }) {
+    final off = isReasoningOff(thinkingBudget);
+    
+    if (host.contains('openrouter.ai')) {
+      if (isReasoning) {
+        if (off) {
+          body['reasoning'] = {'enabled': false};
+        } else {
+          final obj = <String, dynamic>{'enabled': true};
+          if (thinkingBudget != null && thinkingBudget > 0) obj['max_tokens'] = thinkingBudget;
+          body['reasoning'] = obj;
+        }
+        body.remove('reasoning_effort');
+      } else {
+        body.remove('reasoning');
+        body.remove('reasoning_effort');
+      }
+    } else if (host.contains('dashscope') || host.contains('aliyun')) {
+      if (isReasoning) {
+        body['enable_thinking'] = !off;
+        if (!off && thinkingBudget != null && thinkingBudget > 0) {
+          body['thinking_budget'] = thinkingBudget;
+        } else {
+          body.remove('thinking_budget');
+        }
+      } else {
+        body.remove('enable_thinking');
+        body.remove('thinking_budget');
+      }
+      body.remove('reasoning_effort');
+    } else if (host.contains('ark.cn-beijing.volces.com') || host.contains('volc') || host.contains('ark')) {
+      if (isReasoning) {
+        body['thinking'] = {'type': off ? 'disabled' : 'enabled'};
+      } else {
+        body.remove('thinking');
+      }
+      body.remove('reasoning_effort');
+    } else if (host.contains('intern-ai') || host.contains('intern') || host.contains('chat.intern-ai.org.cn')) {
+      if (isReasoning) {
+        body['thinking_mode'] = !off;
+      } else {
+        body.remove('thinking_mode');
+      }
+      body.remove('reasoning_effort');
+    } else if (host.contains('siliconflow')) {
+      if (isReasoning) {
+        if (off) {
+          body['enable_thinking'] = false;
+        } else {
+          body.remove('enable_thinking');
+        }
+      } else {
+        body.remove('enable_thinking');
+      }
+      body.remove('reasoning_effort');
+    } else if (host.contains('deepseek') || modelId.toLowerCase().contains('deepseek')) {
+      if (isReasoning) {
+        if (off) {
+          body['reasoning_content'] = false;
+          body.remove('reasoning_budget');
+        } else {
+          body['reasoning_content'] = true;
+          if (thinkingBudget != null && thinkingBudget > 0) {
+            body['reasoning_budget'] = thinkingBudget;
+          } else {
+            body.remove('reasoning_budget');
+          }
+        }
+      } else {
+        body.remove('reasoning_content');
+        body.remove('reasoning_budget');
+      }
+    } else if (host.contains('opencode')) {
+      body.remove('reasoning_effort');
+    } else if (isGrokModel) {
+      final isGrok3Mini = modelId.toLowerCase().contains('grok-3-mini');
+      if (!isGrok3Mini) {
+        body.remove('reasoning_effort');
+      }
+    }
+  }
 }
 
 // ========== Data Classes ==========
