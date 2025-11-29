@@ -5,6 +5,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../services/search/search_service.dart';
+// Re-export ProviderKind from tool_schema_sanitizer for downstream consumers
+export '../utils/tool_schema_sanitizer.dart' show ProviderKind;
+import '../utils/tool_schema_sanitizer.dart' show ProviderKind;
 import '../models/api_keys.dart';
 import '../models/backup.dart';
 import '../services/haptics.dart';
@@ -1598,8 +1601,6 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     return copy;
   }
 }
-
-enum ProviderKind { openai, google, claude }
 
 // Background rendering mode for chat message bubbles
 enum ChatMessageBackgroundStyle { defaultStyle, frosted, solid }

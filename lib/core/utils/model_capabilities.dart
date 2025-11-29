@@ -236,7 +236,7 @@ class ModelCapabilities {
   /// ```
   static String getProviderKind(ProviderConfig config) {
     // Priority 1: Explicit provider type
-    final explicit = config.providerType?.trim().toLowerCase();
+    final explicit = config.providerType?.name.toLowerCase();
     if (explicit != null && explicit.isNotEmpty) {
       return explicit;
     }

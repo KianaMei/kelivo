@@ -88,6 +88,8 @@ import '../../../shared/widgets/animated_loading_text.dart';
 import '../widgets/home_app_bar_builder.dart';
 import '../widgets/sidebar_resize_handle.dart';
 import '../widgets/home_helper_widgets.dart';
+import '../../../core/utils/tool_schema_sanitizer.dart';
+import '../services/chat_message_handler.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -152,72 +154,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   // Tool call mode state (native or prompt)
   ToolCallMode _toolCallMode = ToolCallMode.native;
 
-  // Sanitize/translate JSON Schema to each provider's accepted subset
-  static Map<String, dynamic> _sanitizeToolParametersForProvider(Map<String, dynamic> schema, ProviderKind kind) {
-    Map<String, dynamic> clone = _deepCloneMap(schema);
-    clone = _sanitizeNode(clone, kind) as Map<String, dynamic>;
-    return clone;
-  }
-
-  static dynamic _sanitizeNode(dynamic node, ProviderKind kind) {
-    if (node is List) {
-      return node.map((e) => _sanitizeNode(e, kind)).toList();
-    }
-    if (node is! Map) return node;
-
-    final m = Map<String, dynamic>.from(node as Map);
-    m.remove(r'$schema');
-    if (m.containsKey('const')) {
-      final v = m['const'];
-      if (v is String || v is num || v is bool) {
-        m['enum'] = [v];
-      }
-      m.remove('const');
-    }
-    for (final key in ['anyOf', 'oneOf', 'allOf', 'any_of', 'one_of', 'all_of']) {
-      if (m[key] is List && (m[key] as List).isNotEmpty) {
-        final first = (m[key] as List).first;
-        final flattened = _sanitizeNode(first, kind);
-        m.remove(key);
-        if (flattened is Map<String, dynamic>) {
-          m
-            ..remove('type')
-            ..remove('properties')
-            ..remove('items');
-          m.addAll(flattened);
-        }
-      }
-    }
-    final t = m['type'];
-    if (t is List && t.isNotEmpty) m['type'] = t.first.toString();
-    final items = m['items'];
-    if (items is List && items.isNotEmpty) m['items'] = items.first;
-    if (m['items'] is Map) m['items'] = _sanitizeNode(m['items'], kind);
-    if (m['properties'] is Map) {
-      final props = Map<String, dynamic>.from(m['properties']);
-      final norm = <String, dynamic>{};
-      props.forEach((k, v) {
-        norm[k] = _sanitizeNode(v, kind);
-      });
-      m['properties'] = norm;
-    }
-    Set<String> allowed;
-    switch (kind) {
-      case ProviderKind.google:
-        allowed = {'type', 'description', 'properties', 'required', 'items', 'enum'};
-        break;
-      case ProviderKind.openai:
-      case ProviderKind.claude:
-        allowed = {'type', 'description', 'properties', 'required', 'items', 'enum'};
-        break;
-    }
-    m.removeWhere((k, v) => !allowed.contains(k));
-    return m;
-  }
-
-  static Map<String, dynamic> _deepCloneMap(Map<String, dynamic> input) {
-    return jsonDecode(jsonEncode(input)) as Map<String, dynamic>;
-  }
   // Tablet: whether the left embedded sidebar is visible
   bool _tabletSidebarOpen = true;
   bool _learningModeEnabled = false;
@@ -1025,27 +961,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   List<ChatMessage> _collapseVersions(List<ChatMessage> items) {
-    final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
-    final List<String> order = <String>[];
-    for (final m in items) {
-      final gid = (m.groupId ?? m.id);
-      final list = byGroup.putIfAbsent(gid, () {
-        order.add(gid);
-        return <ChatMessage>[];
-      });
-      list.add(m);
-    }
-    for (final e in byGroup.entries) {
-      e.value.sort((a, b) => a.version.compareTo(b.version));
-    }
-    final out = <ChatMessage>[];
-    for (final gid in order) {
-      final vers = byGroup[gid]!;
-      final sel = _versionSelections[gid];
-      final idx = (sel != null && sel >= 0 && sel < vers.length) ? sel : (vers.length - 1);
-      out.add(vers[idx]);
-    }
-    return out;
+    return ChatMessageHandler.collapseVersions(items, _versionSelections);
   }
 
   String _clearContextLabel() {
@@ -1879,39 +1795,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     // Prepare messages for API
     // Apply truncateIndex and collapse versions first, then transform the last user message to include document content
     final tIndex = _currentConversation?.truncateIndex ?? -1;
-    final List<ChatMessage> sourceAll = (tIndex >= 0 && tIndex <= _messages.length)
-        ? _messages.sublist(tIndex)
-        : List.of(_messages);
-    final List<ChatMessage> source = _collapseVersions(sourceAll);
-    final apiMessages = source
-        .where((m) => m.content.isNotEmpty)
-        .map((m) => {
-              'role': m.role == 'assistant' ? 'assistant' : 'user',
-              'content': m.content,
-            })
-        .toList();
+    final apiMessages = ChatMessageHandler.prepareBaseApiMessages(
+      messages: _messages,
+      truncateIndex: tIndex,
+      versionSelections: _versionSelections,
+    );
 
     // Build document prompts inline for each user message
     // Use a cache to avoid re-reading the same document multiple times
     final Map<String, String?> docTextCache = <String, String?>{};
-
-    Future<String?> readDocumentCached(DocumentAttachment d) async {
-      // Skip video files - they are handled as image-style attachments
-      if (d.mime.toLowerCase().startsWith('video/')) return null;
-
-      if (docTextCache.containsKey(d.path)) {
-        return docTextCache[d.path];
-      }
-
-      try {
-        final text = await DocumentTextExtractor.extract(path: d.path, mime: d.mime);
-        docTextCache[d.path] = text;
-        return text;
-      } catch (_) {
-        docTextCache[d.path] = null;
-        return null;
-      }
-    }
 
     // Check if current chat model supports images
     final currentModelSupportsImages = _isImageInputModel(providerKey, modelId);
@@ -1931,7 +1823,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       if (apiMessages[i]['role'] != 'user') continue;
 
       final rawContent = (apiMessages[i]['content'] ?? '').toString();
-      final parsedInput = _parseInputFromRaw(rawContent);
+      final parsedInput = ChatMessageHandler.parseMessageContent(rawContent);
 
       // Collect video paths to exclude from OCR
       final videoPaths = <String>{
@@ -1949,7 +1841,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       // Build document prompts for this message
       final filePrompts = StringBuffer();
       for (final doc in parsedInput.documents) {
-        final text = await readDocumentCached(doc);
+        final text = await ChatMessageHandler.readDocumentCached(doc, docTextCache);
         if (text == null || text.trim().isEmpty) continue;
 
         filePrompts.writeln('## user sent a file: ${doc.fileName}');
@@ -2261,7 +2153,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             final required = [for (final p in t.params.where((e) => e.required)) p.name];
             baseSchema = {'type': 'object', 'properties': props, if (required.isNotEmpty) 'required': required};
           }
-          final sanitized = _sanitizeToolParametersForProvider(baseSchema, providerKind);
+          final sanitized = ToolSchemaSanitizer.sanitizeForProvider(baseSchema, providerKind);
           return {
             'type': 'function',
             'function': {
@@ -3179,14 +3071,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     // Build API messages from current context (apply truncate + collapse versions)
     final tIndex = _currentConversation?.truncateIndex ?? -1;
-    final List<ChatMessage> sourceAll = (tIndex >= 0 && tIndex <= _messages.length)
-        ? _messages.sublist(tIndex)
-        : List.of(_messages);
-    final List<ChatMessage> source = _collapseVersions(sourceAll);
-    final apiMessages = source
-        .where((m) => m.content.isNotEmpty)
-        .map((m) => {'role': m.role == 'assistant' ? 'assistant' : 'user', 'content': m.content})
-        .toList();
+    final apiMessages = ChatMessageHandler.prepareBaseApiMessages(
+      messages: _messages,
+      truncateIndex: tIndex,
+      versionSelections: _versionSelections,
+    );
 
     // Inject system prompt
     if ((assistant?.systemPrompt.trim().isNotEmpty ?? false)) {
@@ -3401,7 +3290,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             final required = [for (final p in t.params.where((e) => e.required)) p.name];
             baseSchema = {'type': 'object', 'properties': props, if (required.isNotEmpty) 'required': required};
           }
-          final sanitized = _sanitizeToolParametersForProvider(baseSchema, providerKind);
+          final sanitized = ToolSchemaSanitizer.sanitizeForProvider(baseSchema, providerKind);
           return {
             'type': 'function',
             'function': {
@@ -3884,36 +3773,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     cancelOnError: true,
     );
     _conversationStreams[_cid] = _sub2;
-  }
-
-  ChatInputData _parseInputFromRaw(String raw) {
-    final imgRe = RegExp(r"\[image:(.+?)\]");
-    final fileRe = RegExp(r"\[file:(.+?)\|(.+?)\|(.+?)\]");
-    final images = <String>[];
-    final docs = <DocumentAttachment>[];
-    final buffer = StringBuffer();
-    int idx = 0;
-    while (idx < raw.length) {
-      final imgMatch = imgRe.matchAsPrefix(raw, idx);
-      final fileMatch = fileRe.matchAsPrefix(raw, idx);
-      if (imgMatch != null) {
-        final p = imgMatch.group(1)?.trim();
-        if (p != null && p.isNotEmpty) images.add(p);
-        idx = imgMatch.end;
-        continue;
-      }
-      if (fileMatch != null) {
-        final path = fileMatch.group(1)?.trim() ?? '';
-        final name = fileMatch.group(2)?.trim() ?? 'file';
-        final mime = fileMatch.group(3)?.trim() ?? 'text/plain';
-        docs.add(DocumentAttachment(path: path, fileName: name, mime: mime));
-        idx = fileMatch.end;
-        continue;
-      }
-      buffer.write(raw[idx]);
-      idx++;
-    }
-    return ChatInputData(text: buffer.toString().trim(), imagePaths: images, documents: docs);
   }
 
   Future<void> _maybeGenerateTitle({bool force = false}) async {
