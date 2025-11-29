@@ -1717,17 +1717,20 @@ class _SelectableMarkdownBodyState extends State<_SelectableMarkdownBody> {
     final bool isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
     
     // Desktop: Use SelectionArea + Text.rich for proper text and WidgetSpan selection
+    // Wrap in ExcludeSemantics to avoid Windows accessibility crashes
     // Mobile: Use SelectableText.rich (long-press selection works fine)
     if (isDesktop) {
-      return SelectionArea(
-        child: Text.rich(
-          span,
-          textDirection: widget.config.textDirection,
-          textAlign: widget.config.textAlign ?? TextAlign.start,
-          textScaler: widget.config.textScaler ?? TextScaler.noScaling,
-          maxLines: widget.config.maxLines,
-          softWrap: true,
-          overflow: TextOverflow.clip,
+      return ExcludeSemantics(
+        child: SelectionArea(
+          child: Text.rich(
+            span,
+            textDirection: widget.config.textDirection,
+            textAlign: widget.config.textAlign ?? TextAlign.start,
+            textScaler: widget.config.textScaler ?? TextScaler.noScaling,
+            maxLines: widget.config.maxLines,
+            softWrap: true,
+            overflow: TextOverflow.clip,
+          ),
         ),
       );
     }

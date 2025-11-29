@@ -10,7 +10,6 @@ import '../../../../models/token_usage.dart';
 import '../../helpers/chat_api_helper.dart';
 import '../../models/chat_stream_chunk.dart';
 import 'package:kelivo/secrets/fallback.dart';
-import '../../api_key_manager.dart';
 
 /// Handler for OpenAI Chat Completions API streaming.
 class OpenAIChatCompletions {

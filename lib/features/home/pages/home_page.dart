@@ -22,6 +22,7 @@ import '../../../core/providers/memory_provider.dart';
 import '../../../core/services/chat/prompt_transformer.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/models/chat_stream_chunk.dart';
 import '../../../core/services/chat/document_text_extractor.dart';
 import '../../../core/services/mcp/mcp_tool_service.dart';
 import '../../../core/models/token_usage.dart';

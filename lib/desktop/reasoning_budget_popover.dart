@@ -51,7 +51,6 @@ class _ReasoningBudgetContentState extends State<_ReasoningBudgetContent> {
   void initState() {
     super.initState();
     _selected = widget.initialValue ?? -1;
-    print('🔍 [ReasoningBudget] initState: initialValue = ${widget.initialValue}, _selected = $_selected');
   }
 
   int _bucket(int? n) {
@@ -64,10 +63,8 @@ class _ReasoningBudgetContentState extends State<_ReasoningBudgetContent> {
   }
 
   void _select(int value) {
-    print('🎯 [ReasoningBudget] Selecting value: $value');
     setState(() => _selected = value);
     widget.onValueChanged(value);
-    print('✅ [ReasoningBudget] Called onValueChanged with value: $value');
     widget.onDone();
   }
 

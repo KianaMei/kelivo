@@ -3,8 +3,10 @@
 /// Used for models that don't support native function calling.
 
 import '../../../providers/settings_provider.dart';
+import '../../../models/tool_call_mode.dart';
+import '../../prompt_tool_use/prompt_tool_use_service.dart';
+import '../../prompt_tool_use/xml_tag_extractor.dart';
 import '../models/chat_stream_chunk.dart';
-import '../prompt_tool_use_service.dart';
 import '../chat_api_service.dart';
 
 /// Adapter for prompt-based tool use (XML tag parsing).
