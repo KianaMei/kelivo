@@ -13,6 +13,7 @@ analyzer:
   exclude:
     - tmp/**
     - test/*_property_test.dart
+    - lib/shared/widgets/mermaid_bridge_web.dart
 
 linter:
   # The lint rules applied to this project can be customized in the
