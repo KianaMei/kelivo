@@ -35,12 +35,6 @@ import '../widgets/brand_avatar.dart';
 import '../widgets/model_tag_wrap.dart';
 import '../services/provider_test_service.dart';
 
-/// Remove all control characters (newlines, carriage returns, tabs, etc.) from a string
-/// This prevents URL parsing errors when users paste URLs with hidden control characters
-String _sanitizeUrl(String input) {
-  return input.trim().replaceAll(RegExp(r'[\r\n\t\f\v\x00-\x1F\x7F]'), '');
-}
-
 /// Get effective ModelInfo with user overrides applied
 /// Delegates to ProviderTestService.getEffectiveModelInfo
 ModelInfo _getEffectiveModelInfo(String modelId, ProviderConfig cfg) =>
@@ -1523,9 +1517,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       enabled: _enabled,
       name: _nameCtrl.text.trim().isEmpty ? widget.displayName : _nameCtrl.text.trim(),
       apiKey: _keyCtrl.text.trim(),
-      baseUrl: _sanitizeUrl(_baseCtrl.text),
+      baseUrl: ProviderTestService.sanitizeUrl(_baseCtrl.text),
       providerType: _kind,  // Save the selected provider type
-      chatPath: _kind == ProviderKind.openai ? _sanitizeUrl(_pathCtrl.text) : old.chatPath,
+      chatPath: _kind == ProviderKind.openai ? ProviderTestService.sanitizeUrl(_pathCtrl.text) : old.chatPath,
       useResponseApi: _kind == ProviderKind.openai ? _useResp : old.useResponseApi,
       vertexAI: _kind == ProviderKind.google ? _vertexAI : old.vertexAI,
       location: _kind == ProviderKind.google ? _locationCtrl.text.trim() : old.location,
@@ -1801,8 +1795,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     final rawCfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
     // Clean URLs before using config for API calls
     final cfg = rawCfg.copyWith(
-      baseUrl: _sanitizeUrl(rawCfg.baseUrl),
-      chatPath: rawCfg.chatPath != null ? _sanitizeUrl(rawCfg.chatPath!) : null,
+      baseUrl: ProviderTestService.sanitizeUrl(rawCfg.baseUrl),
+      chatPath: rawCfg.chatPath != null ? ProviderTestService.sanitizeUrl(rawCfg.chatPath!) : null,
     );
     final bool _isDefaultSilicon = widget.keyName.toLowerCase() == 'siliconflow';
     final bool _hasUserKey = (cfg.multiKeyEnabled == true && (cfg.apiKeys?.isNotEmpty == true)) || cfg.apiKey.trim().isNotEmpty;

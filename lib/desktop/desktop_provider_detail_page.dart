@@ -128,11 +128,6 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
     _syncCtrl(_saJsonCtrl, cfg.serviceAccountJson ?? '');
   }
 
-  /// Remove all control characters (newlines, carriage returns, tabs, etc.) from a string
-  String _sanitizeUrl(String input) {
-    return input.trim().replaceAll(RegExp(r'[\r\n\t\f\v\x00-\x1F\x7F]'), '');
-  }
-
   @override
   void dispose() {
     _filterCtrl.dispose();
@@ -378,7 +373,7 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
             Focus(
               onFocusChange: (has) async {
                 if (!has) {
-                  final v = _sanitizeUrl(_baseUrlCtrl.text);
+                  final v = ProviderTestService.sanitizeUrl(_baseUrlCtrl.text);
                   final old = sp.getProviderConfig(widget.keyName, defaultName: widget.displayName);
                   await sp.setProviderConfig(widget.keyName, old.copyWith(baseUrl: v));
                 }
@@ -388,7 +383,7 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
                 onChanged: (v) async {
                   if (_baseUrlCtrl.value.composing.isValid) return;
                   final old = sp.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-                  await sp.setProviderConfig(widget.keyName, old.copyWith(baseUrl: _sanitizeUrl(v)));
+                  await sp.setProviderConfig(widget.keyName, old.copyWith(baseUrl: ProviderTestService.sanitizeUrl(v)));
                 },
                 style: const TextStyle(fontSize: 14),
                 decoration: _inputDecoration(context).copyWith(
@@ -489,7 +484,7 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
             Focus(
               onFocusChange: (has) async {
                 if (!has) {
-                  final v = _sanitizeUrl(_apiPathCtrl.text);
+                  final v = ProviderTestService.sanitizeUrl(_apiPathCtrl.text);
                   final old = sp.getProviderConfig(widget.keyName, defaultName: widget.displayName);
                   await sp.setProviderConfig(widget.keyName, old.copyWith(chatPath: v));
                 }
@@ -499,7 +494,7 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
                 onChanged: (v) async {
                   if (_apiPathCtrl.value.composing.isValid) return;
                   final old = sp.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-                  await sp.setProviderConfig(widget.keyName, old.copyWith(chatPath: _sanitizeUrl(v)));
+                  await sp.setProviderConfig(widget.keyName, old.copyWith(chatPath: ProviderTestService.sanitizeUrl(v)));
                 },
                 style: const TextStyle(fontSize: 14),
                 decoration: _inputDecoration(context).copyWith(hintText: '/chat/completions'),

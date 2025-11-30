@@ -146,4 +146,5 @@ class Lucide {
   static const IconData CircleCheck = lucide.LucideIcons.circleCheck;
   static const IconData Clock = lucide.LucideIcons.clock;
   static const IconData CircleMinus = lucide.LucideIcons.circleMinus;
+  static const IconData Play = lucide.LucideIcons.play;
 }

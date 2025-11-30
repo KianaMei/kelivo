@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'app_dirs.dart';
 import 'package:uuid/uuid.dart';
+import 'package:uuid/data.dart';
 
 class MarkdownMediaSanitizer {
   static final Uuid _uuid = const Uuid();
@@ -31,7 +32,6 @@ class MarkdownMediaSanitizer {
 
     final sb = StringBuffer();
     int last = 0;
-    int idx = 0;
     for (final m in matches) {
       sb.write(markdown.substring(last, m.start));
       final dataUrl = m.group(1)!;
@@ -59,7 +59,7 @@ class MarkdownMediaSanitizer {
 
       // Deterministic filename by content hash to prevent duplicates
       // Same base64 -> same filename across runs
-      final digest = _uuid.v5(Uuid.NAMESPACE_URL, normalized);
+      final digest = _uuid.v5(Namespace.url.value, normalized);
       final file = File('${dir.path}/img_$digest.$ext');
       if (!await file.exists()) {
         await file.writeAsBytes(bytes, flush: true);
@@ -69,7 +69,6 @@ class MarkdownMediaSanitizer {
       final replaced = markdown.substring(m.start, m.end).replaceFirst(dataUrl, file.path);
       sb.write(replaced);
       last = m.end;
-      idx++;
     }
     sb.write(markdown.substring(last));
     return sb.toString();

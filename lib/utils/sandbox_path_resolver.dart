@@ -16,7 +16,7 @@ import 'app_dirs.dart';
 ///    Android: /data/user/0/com.ze.kelivo/app_flutter/upload/x.jpg
 ///
 /// 3. Relative paths persisted for cross-platform compatibility:
-///    images/background_xxx.jpg -> <app data root>/images/background_xxx.jpg
+///    images/background_xxx.jpg -> [app data root]/images/background_xxx.jpg
 ///
 /// We store absolute paths in message content. This helper rewrites paths
 /// to point to the current app data directory. If the rewritten file exists,

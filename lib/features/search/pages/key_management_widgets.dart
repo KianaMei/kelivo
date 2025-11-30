@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../../../core/services/search/search_service.dart';
 import '../../../core/models/api_keys.dart';
 import '../../../core/services/api_key_manager.dart';
+import '../../../core/services/haptics.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/ios_switch.dart';
@@ -297,120 +299,263 @@ class _KeyManagementDialogState extends State<KeyManagementDialog> {
     _save();
   }
 
+  String _mask(String key) {
+    if (key.length <= 8) return key;
+    return '${key.substring(0, 4)}••••${key.substring(key.length - 4)}';
+  }
+
+  String _statusText(ApiKeyStatus st) {
+    switch (st) {
+      case ApiKeyStatus.active: return '正常';
+      case ApiKeyStatus.disabled: return '已禁用';
+      case ApiKeyStatus.error: return '错误';
+      case ApiKeyStatus.rateLimited: return '限流中';
+    }
+  }
+
+  void _showContextMenu(BuildContext context, ApiKeyConfig k, int realIndex, Offset position) {
+    final cs = Theme.of(context).colorScheme;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: cs.surface,
+      elevation: 8,
+      items: [
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(children: [
+            Icon(Lucide.Pencil, size: 16, color: cs.primary),
+            const SizedBox(width: 12),
+            const Text('编辑'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'test',
+          child: Row(children: [
+            Icon(Lucide.Play, size: 16, color: Colors.green),
+            const SizedBox(width: 12),
+            const Text('测试'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'copy',
+          child: Row(children: [
+            Icon(Lucide.Copy, size: 16, color: cs.onSurface.withOpacity(0.7)),
+            const SizedBox(width: 12),
+            const Text('复制'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(children: [
+            Icon(Lucide.Trash2, size: 16, color: cs.error),
+            const SizedBox(width: 12),
+            Text('删除', style: TextStyle(color: cs.error)),
+          ]),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'edit') _editKey(context, realIndex);
+      if (value == 'test') _testKey(k);
+      if (value == 'copy') {
+        Clipboard.setData(ClipboardData(text: k.key));
+        showAppSnackBar(context, message: '已复制', type: NotificationType.success);
+      }
+      if (value == 'delete') _deleteKey(realIndex);
+    });
+  }
+
+  void _deleteKey(int index) {
+    if (_apiKeys.length <= 1) {
+      showAppSnackBar(context, message: '至少需要保留一个Key', type: NotificationType.info);
+      return;
+    }
+    setState(() => _apiKeys.removeAt(index));
+    _save();
+  }
+
+  Future<void> _testKey(ApiKeyConfig k) async {
+    showAppSnackBar(context, message: '正在测试...', type: NotificationType.info);
+    try {
+      final testService = SearchServiceFactory.updateMultiKey(
+        widget.service,
+        [k.copyWith(isEnabled: true)],
+        LoadBalanceStrategy.roundRobin,
+      );
+      final searchService = SearchService.getService(testService);
+      await searchService.search(
+        query: 'test',
+        commonOptions: const SearchCommonOptions(resultSize: 1),
+        serviceOptions: testService,
+      ).timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      showAppSnackBar(context, message: '测试成功 ✓', type: NotificationType.success);
+    } on TimeoutException {
+      if (!mounted) return;
+      showAppSnackBar(context, message: '测试超时', type: NotificationType.error);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      if (msg.contains('401')) {
+        showAppSnackBar(context, message: 'Key 无效', type: NotificationType.error);
+      } else if (msg.contains('429')) {
+        showAppSnackBar(context, message: '请求频率限制', type: NotificationType.warning);
+      } else {
+        showAppSnackBar(context, message: '测试失败: ${msg.length > 50 ? '${msg.substring(0, 50)}...' : msg}', type: NotificationType.error);
+      }
+    }
+  }
+
   Widget _keyRow(BuildContext context, ApiKeyConfig k, int index, {required bool canReorder}) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final status = _getKeyStatus(k.id);
     final token = _revealToken(k, index);
-    final isHidden = !_hiddenKeyIds.contains(token);
+    // 默认展示key（不在集合中=展示）
+    final isHidden = _hiddenKeyIds.contains(token);
     
     Color statusColor;
-    IconData statusIcon;
     switch (status) {
       case ApiKeyStatus.active:
         statusColor = Colors.green;
-        statusIcon = Lucide.CircleCheck;
         break;
       case ApiKeyStatus.error:
         statusColor = cs.error;
-        statusIcon = Lucide.CircleX;
         break;
       case ApiKeyStatus.rateLimited:
         statusColor = Colors.orange;
-        statusIcon = Lucide.Clock;
         break;
       case ApiKeyStatus.disabled:
         statusColor = cs.onSurface.withOpacity(0.4);
-        statusIcon = Lucide.CircleMinus;
         break;
     }
 
     final realIndex = _apiKeys.indexWhere((key) => key.id == k.id);
+    final alias = (k.name ?? '').trim();
+    final hasAlias = alias.isNotEmpty;
+    final keyLabel = isHidden ? _mask(k.key) : k.key;
+    final display = hasAlias ? alias : keyLabel;
+    final usageCount = ApiKeyManager().getKeyState(k.id)?.totalRequests ?? 0;
+    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                      defaultTargetPlatform == TargetPlatform.linux ||
+                      defaultTargetPlatform == TargetPlatform.macOS;
 
-    return Material(
-      key: ValueKey(k.id),
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _editKey(context, realIndex),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.2))),
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.2))),
+      ),
+      child: Row(
+        children: [
+          // 状态条
+          Container(
+            width: 3,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor,
+              borderRadius: BorderRadius.circular(1.5),
+            ),
           ),
-          child: Row(
-            children: [
-              // 状态图标
-              Icon(statusIcon, size: 20, color: statusColor),
-              const SizedBox(width: 12),
-              // Key 信息
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(width: 14),
+          // Key 信息 - 三行布局
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 第一行：名字（或 key）
+                if (hasAlias)
+                  Text(
+                    alias,
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: k.isEnabled ? null : cs.onSurface.withOpacity(0.5)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                // 第二行：key 本身
+                const SizedBox(height: 2),
+                isHidden
+                    ? Text(
+                        keyLabel,
+                        style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.6)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : SelectableText(
+                        k.key,
+                        style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.6)),
+                        maxLines: 1,
+                      ),
+                // 第三行：优先级 + 使用次数
+                const SizedBox(height: 4),
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        if (_strategy == LoadBalanceStrategy.priority && k.priority <= 10)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: cs.primaryContainer,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('P${k.priority}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer)),
-                          ),
-                        Expanded(
-                          child: Text(
-                            k.name?.isNotEmpty == true ? k.name! : 'API Key ${index + 1}',
-                            style: TextStyle(fontWeight: FontWeight.w600, color: k.isEnabled ? null : cs.onSurface.withOpacity(0.5)),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                    if (_strategy == LoadBalanceStrategy.priority && k.priority <= 10) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: cs.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                        child: Text('P${k.priority}', style: TextStyle(color: cs.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     Text(
-                      isHidden ? '••••••••••••••••' : k.key,
-                      style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.6)),
-                      overflow: TextOverflow.ellipsis,
+                      _statusText(status),
+                      style: TextStyle(color: statusColor, fontSize: 11),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '已调用 $usageCount 次',
+                      style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
                     ),
                   ],
                 ),
-              ),
-              // 显示/隐藏按钮
-              IconButton(
-                icon: Icon(isHidden ? Lucide.Eye : Lucide.EyeOff, size: 18, color: cs.onSurface.withOpacity(0.5)),
-                onPressed: () {
-                  setState(() {
-                    if (isHidden) {
-                      _hiddenKeyIds.add(token);
-                    } else {
-                      _hiddenKeyIds.remove(token);
-                    }
-                  });
-                },
-              ),
-              // 开关
-              IosSwitch(
-                value: k.isEnabled,
-                onChanged: (v) {
-                  if (realIndex >= 0) _toggleKey(realIndex, v);
-                },
-                width: 40,
-                height: 24,
-              ),
-              // 拖拽手柄
-              if (canReorder) ...[
-                const SizedBox(width: 8),
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Icon(Lucide.GripVertical, color: cs.onSurface.withOpacity(0.2), size: 20),
-                ),
               ],
-            ],
+            ),
           ),
-        ),
+          // 右侧按钮：眼睛、复制、拖动手柄
+          IconButton(
+            icon: Icon(isHidden ? Lucide.Eye : Lucide.EyeOff, size: 16, color: cs.onSurface.withOpacity(0.4)),
+            visualDensity: VisualDensity.compact,
+            tooltip: isHidden ? '显示' : '隐藏',
+            onPressed: () {
+              setState(() {
+                if (isHidden) {
+                  _hiddenKeyIds.remove(token);
+                } else {
+                  _hiddenKeyIds.add(token);
+                }
+              });
+            },
+          ),
+          IconButton(
+            icon: Icon(Lucide.Copy, size: 16, color: cs.onSurface.withOpacity(0.4)),
+            visualDensity: VisualDensity.compact,
+            tooltip: '复制',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: k.key));
+              showAppSnackBar(context, message: '已复制', type: NotificationType.success);
+            },
+          ),
+          // 拖拽手柄
+          if (canReorder) ...[
+            const SizedBox(width: 4),
+            ReorderableDragStartListener(
+              index: index,
+              child: Icon(Lucide.GripVertical, color: cs.onSurface.withOpacity(0.2), size: 20),
+            ),
+          ],
+        ],
       ),
+    );
+
+    // 使用触感列表行组件
+    return _TactileKeyRow(
+      key: ValueKey(k.id),
+      onTap: () => _editKey(context, realIndex),
+      onSecondaryTap: isDesktop ? (pos) => _showContextMenu(context, k, realIndex, pos) : null,
+      onLongPress: !isDesktop ? (pos) => _showContextMenu(context, k, realIndex, pos) : null,
+      child: content,
     );
   }
 
@@ -602,6 +747,116 @@ class _KeyManagementDialogState extends State<KeyManagementDialog> {
       case LoadBalanceStrategy.leastUsed: return '最少使用';
       case LoadBalanceStrategy.priority: return '优先级';
     }
+  }
+
+  Widget _buildKeyRowContent(BuildContext context, ApiKeyConfig k, int index, bool isHidden, String keyLabel, String alias, bool hasAlias, int usageCount, Color statusColor, ApiKeyStatus status, bool canReorder) {
+    final cs = Theme.of(context).colorScheme;
+    final token = _revealToken(k, index);
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.2))),
+      ),
+      child: Row(
+        children: [
+          // 状态条
+          Container(
+            width: 3,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor,
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+          const SizedBox(width: 14),
+          // Key 信息 - 三行布局
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasAlias)
+                  Text(
+                    alias,
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: k.isEnabled ? null : cs.onSurface.withOpacity(0.5)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const SizedBox(height: 2),
+                isHidden
+                    ? Text(
+                        keyLabel,
+                        style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.6)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : SelectableText(
+                        k.key,
+                        style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.6)),
+                        maxLines: 1,
+                      ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    if (_strategy == LoadBalanceStrategy.priority && k.priority <= 10) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: cs.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text('P${k.priority}', style: TextStyle(color: cs.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Text(
+                      _statusText(status),
+                      style: TextStyle(color: statusColor, fontSize: 11),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '已调用 $usageCount 次',
+                      style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // 右侧按钮
+          _TactileIconButton(
+            icon: isHidden ? Lucide.Eye : Lucide.EyeOff,
+            color: cs.onSurface.withOpacity(0.4),
+            tooltip: isHidden ? '显示' : '隐藏',
+            onTap: () {
+              setState(() {
+                if (isHidden) {
+                  _hiddenKeyIds.remove(token);
+                } else {
+                  _hiddenKeyIds.add(token);
+                }
+              });
+            },
+          ),
+          _TactileIconButton(
+            icon: Lucide.Copy,
+            color: cs.onSurface.withOpacity(0.4),
+            tooltip: '复制',
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: k.key));
+              showAppSnackBar(context, message: '已复制', type: NotificationType.success);
+            },
+          ),
+          if (canReorder) ...[
+            const SizedBox(width: 4),
+            ReorderableDragStartListener(
+              index: index,
+              child: Icon(Lucide.GripVertical, color: cs.onSurface.withOpacity(0.2), size: 20),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -883,131 +1138,258 @@ class _KeyManagementSheetState extends State<KeyManagementSheet> {
     _save();
   }
 
+  String _mask(String key) {
+    if (key.length <= 8) return key;
+    return '${key.substring(0, 4)}••••${key.substring(key.length - 4)}';
+  }
+
+  String _statusText(ApiKeyStatus st) {
+    switch (st) {
+      case ApiKeyStatus.active: return '正常';
+      case ApiKeyStatus.disabled: return '已禁用';
+      case ApiKeyStatus.error: return '错误';
+      case ApiKeyStatus.rateLimited: return '限流中';
+    }
+  }
+
+  void _showContextMenu(BuildContext context, ApiKeyConfig k, int realIndex, Offset position) {
+    final cs = Theme.of(context).colorScheme;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: cs.surface,
+      elevation: 8,
+      items: [
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(children: [
+            Icon(Lucide.Pencil, size: 16, color: cs.primary),
+            const SizedBox(width: 12),
+            const Text('编辑'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'test',
+          child: Row(children: [
+            Icon(Lucide.Play, size: 16, color: Colors.green),
+            const SizedBox(width: 12),
+            const Text('测试'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'copy',
+          child: Row(children: [
+            Icon(Lucide.Copy, size: 16, color: cs.onSurface.withOpacity(0.7)),
+            const SizedBox(width: 12),
+            const Text('复制'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(children: [
+            Icon(Lucide.Trash2, size: 16, color: cs.error),
+            const SizedBox(width: 12),
+            Text('删除', style: TextStyle(color: cs.error)),
+          ]),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'edit') _editKey(context, realIndex);
+      if (value == 'test') _testKey(k);
+      if (value == 'copy') {
+        Clipboard.setData(ClipboardData(text: k.key));
+        showAppSnackBar(context, message: '已复制', type: NotificationType.success);
+      }
+      if (value == 'delete') _deleteKey(realIndex);
+    });
+  }
+
+  void _deleteKey(int index) {
+    if (_apiKeys.length <= 1) {
+      showAppSnackBar(context, message: '至少需要保留一个Key', type: NotificationType.info);
+      return;
+    }
+    setState(() => _apiKeys.removeAt(index));
+    _save();
+  }
+
+  Future<void> _testKey(ApiKeyConfig k) async {
+    showAppSnackBar(context, message: '正在测试...', type: NotificationType.info);
+    try {
+      final testService = SearchServiceFactory.updateMultiKey(
+        widget.service,
+        [k.copyWith(isEnabled: true)],
+        LoadBalanceStrategy.roundRobin,
+      );
+      final searchService = SearchService.getService(testService);
+      await searchService.search(
+        query: 'test',
+        commonOptions: const SearchCommonOptions(resultSize: 1),
+        serviceOptions: testService,
+      ).timeout(const Duration(seconds: 15));
+      if (!mounted) return;
+      showAppSnackBar(context, message: '测试成功 ✓', type: NotificationType.success);
+    } on TimeoutException {
+      if (!mounted) return;
+      showAppSnackBar(context, message: '测试超时', type: NotificationType.error);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      if (msg.contains('401')) {
+        showAppSnackBar(context, message: 'Key 无效', type: NotificationType.error);
+      } else if (msg.contains('429')) {
+        showAppSnackBar(context, message: '请求频率限制', type: NotificationType.warning);
+      } else {
+        showAppSnackBar(context, message: '测试失败: ${msg.length > 50 ? '${msg.substring(0, 50)}...' : msg}', type: NotificationType.error);
+      }
+    }
+  }
+
   Widget _keyRow(BuildContext context, ApiKeyConfig k, int index, {required bool canReorder}) {
     final cs = Theme.of(context).colorScheme;
     final status = _getKeyStatus(k.id);
     final token = _revealToken(k, index);
-    final isHidden = !_hiddenKeyIds.contains(token);
+    // 默认展示key（不在集合中=展示）
+    final isHidden = _hiddenKeyIds.contains(token);
     
     Color statusColor;
-    IconData statusIcon;
     switch (status) {
       case ApiKeyStatus.active:
         statusColor = Colors.green;
-        statusIcon = Lucide.CircleCheck;
         break;
       case ApiKeyStatus.error:
         statusColor = cs.error;
-        statusIcon = Lucide.CircleX;
         break;
       case ApiKeyStatus.rateLimited:
         statusColor = Colors.orange;
-        statusIcon = Lucide.Clock;
         break;
       case ApiKeyStatus.disabled:
         statusColor = cs.onSurface.withOpacity(0.4);
-        statusIcon = Lucide.CircleMinus;
         break;
     }
 
     final realIndex = _apiKeys.indexWhere((key) => key.id == k.id);
+    final alias = (k.name ?? '').trim();
+    final hasAlias = alias.isNotEmpty;
+    final keyLabel = isHidden ? _mask(k.key) : k.key;
+    final usageCount = ApiKeyManager().getKeyState(k.id)?.totalRequests ?? 0;
 
-    return Dismissible(
-      key: ValueKey(k.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: cs.error,
-        child: const Icon(Lucide.Trash2, color: Colors.white),
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.2))),
       ),
-      confirmDismiss: (_) async {
-        if (_apiKeys.length <= 1) {
-          showAppSnackBar(context, message: '至少需要保留一个Key', type: NotificationType.info);
-          return false;
-        }
-        return true;
-      },
-      onDismissed: (_) {
-        setState(() => _apiKeys.removeAt(realIndex));
-        _save();
-      },
-      child: InkWell(
-        onTap: () => _editKey(context, realIndex),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: cs.outlineVariant.withOpacity(0.2))),
+      child: Row(
+        children: [
+          // 状态条
+          Container(
+            width: 3,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor,
+              borderRadius: BorderRadius.circular(1.5),
+            ),
           ),
-          child: Row(
-            children: [
-              Icon(statusIcon, size: 20, color: statusColor),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(width: 14),
+          // Key 信息 - 三行布局
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 第一行：名字（或 key）
+                if (hasAlias)
+                  Text(
+                    alias,
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: k.isEnabled ? null : cs.onSurface.withOpacity(0.5)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                // 第二行：key 本身
+                const SizedBox(height: 2),
+                isHidden
+                    ? Text(
+                        keyLabel,
+                        style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.6)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : SelectableText(
+                        k.key,
+                        style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.6)),
+                        maxLines: 1,
+                      ),
+                // 第三行：优先级 + 使用次数
+                const SizedBox(height: 4),
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        if (_strategy == LoadBalanceStrategy.priority && k.priority <= 10)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: cs.primaryContainer,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text('P${k.priority}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer)),
-                          ),
-                        Expanded(
-                          child: Text(
-                            k.name?.isNotEmpty == true ? k.name! : 'API Key ${index + 1}',
-                            style: TextStyle(fontWeight: FontWeight.w600, color: k.isEnabled ? null : cs.onSurface.withOpacity(0.5)),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                    if (_strategy == LoadBalanceStrategy.priority && k.priority <= 10) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: cs.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
+                        child: Text('P${k.priority}', style: TextStyle(color: cs.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     Text(
-                      isHidden ? '••••••••••••••••' : k.key,
-                      style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.6)),
-                      overflow: TextOverflow.ellipsis,
+                      _statusText(status),
+                      style: TextStyle(color: statusColor, fontSize: 11),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '已调用 $usageCount 次',
+                      style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
                     ),
                   ],
                 ),
-              ),
-              IconButton(
-                icon: Icon(isHidden ? Lucide.Eye : Lucide.EyeOff, size: 18, color: cs.onSurface.withOpacity(0.5)),
-                onPressed: () {
-                  setState(() {
-                    if (isHidden) {
-                      _hiddenKeyIds.add(token);
-                    } else {
-                      _hiddenKeyIds.remove(token);
-                    }
-                  });
-                },
-              ),
-              IosSwitch(
-                value: k.isEnabled,
-                onChanged: (v) {
-                  if (realIndex >= 0) _toggleKey(realIndex, v);
-                },
-                width: 40,
-                height: 24,
-              ),
-              if (canReorder) ...[
-                const SizedBox(width: 8),
-                ReorderableDragStartListener(
-                  index: index,
-                  child: Icon(Lucide.GripVertical, color: cs.onSurface.withOpacity(0.2), size: 20),
-                ),
               ],
-            ],
+            ),
           ),
-        ),
+          // 右侧按钮：眼睛、复制、拖动手柄
+          IconButton(
+            icon: Icon(isHidden ? Lucide.Eye : Lucide.EyeOff, size: 16, color: cs.onSurface.withOpacity(0.4)),
+            visualDensity: VisualDensity.compact,
+            tooltip: isHidden ? '显示' : '隐藏',
+            onPressed: () {
+              setState(() {
+                if (isHidden) {
+                  _hiddenKeyIds.remove(token);
+                } else {
+                  _hiddenKeyIds.add(token);
+                }
+              });
+            },
+          ),
+          IconButton(
+            icon: Icon(Lucide.Copy, size: 16, color: cs.onSurface.withOpacity(0.4)),
+            visualDensity: VisualDensity.compact,
+            tooltip: '复制',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: k.key));
+              showAppSnackBar(context, message: '已复制', type: NotificationType.success);
+            },
+          ),
+          // 拖拽手柄
+          if (canReorder) ...[
+            const SizedBox(width: 4),
+            ReorderableDragStartListener(
+              index: index,
+              child: Icon(Lucide.GripVertical, color: cs.onSurface.withOpacity(0.2), size: 20),
+            ),
+          ],
+        ],
       ),
+    );
+
+    // 使用触感列表行组件
+    return _TactileKeyRow(
+      key: ValueKey(k.id),
+      onTap: () => _editKey(context, realIndex),
+      onLongPress: (pos) => _showContextMenu(context, k, realIndex, pos),
+      child: content,
     );
   }
 
@@ -1201,5 +1583,138 @@ class _KeyManagementSheetState extends State<KeyManagementSheet> {
       case LoadBalanceStrategy.leastUsed: return '最少使用';
       case LoadBalanceStrategy.priority: return '优先级';
     }
+  }
+}
+
+// ============================================================================
+// Tactile Widgets - 触感反馈组件
+// ============================================================================
+
+/// iOS 风格触感图标按钮 - 带缩放动画
+class _TactileIconButton extends StatefulWidget {
+  const _TactileIconButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.tooltip,
+    this.size = 16,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final String? tooltip;
+  final double size;
+
+  @override
+  State<_TactileIconButton> createState() => _TactileIconButtonState();
+}
+
+class _TactileIconButtonState extends State<_TactileIconButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(
+      widget.icon,
+      size: widget.size,
+      color: _pressed ? widget.color.withOpacity(0.5) : widget.color,
+    );
+
+    final button = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: () {
+        Haptics.light();
+        widget.onTap();
+      },
+      child: AnimatedScale(
+        scale: _pressed ? 0.85 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: icon,
+        ),
+      ),
+    );
+
+    if (widget.tooltip != null) {
+      return Tooltip(message: widget.tooltip!, child: button);
+    }
+    return button;
+  }
+}
+
+/// 触感列表行 - 带缩放和颜色变化动画
+class _TactileKeyRow extends StatefulWidget {
+  const _TactileKeyRow({
+    super.key,
+    required this.child,
+    required this.onTap,
+    this.onSecondaryTap,
+    this.onLongPress,
+  });
+
+  final Widget child;
+  final VoidCallback onTap;
+  final void Function(Offset position)? onSecondaryTap;
+  final void Function(Offset position)? onLongPress;
+
+  @override
+  State<_TactileKeyRow> createState() => _TactileKeyRowState();
+}
+
+class _TactileKeyRowState extends State<_TactileKeyRow> {
+  bool _pressed = false;
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                      defaultTargetPlatform == TargetPlatform.linux ||
+                      defaultTargetPlatform == TargetPlatform.macOS;
+
+    return MouseRegion(
+      onEnter: isDesktop ? (_) => setState(() => _hovered = true) : null,
+      onExit: isDesktop ? (_) => setState(() => _hovered = false) : null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: () {
+          Haptics.soft();
+          widget.onTap();
+        },
+        onSecondaryTapUp: widget.onSecondaryTap != null
+            ? (details) => widget.onSecondaryTap!(details.globalPosition)
+            : null,
+        onLongPressStart: widget.onLongPress != null
+            ? (details) {
+                Haptics.medium();
+                widget.onLongPress!(details.globalPosition);
+              }
+            : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          color: _pressed
+              ? cs.primary.withOpacity(0.08)
+              : _hovered
+                  ? cs.primary.withOpacity(0.04)
+                  : Colors.transparent,
+          child: AnimatedScale(
+            scale: _pressed ? 0.98 : 1.0,
+            duration: const Duration(milliseconds: 100),
+            curve: Curves.easeOut,
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
   }
 }

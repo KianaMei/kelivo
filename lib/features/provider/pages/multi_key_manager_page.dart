@@ -576,20 +576,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
             ),
           ),
           const SizedBox(width: 4),
-          Tooltip(
-            message: l10n.multiKeyPageCopy,
-            child: _TactileIconButton(
-              icon: Lucide.Copy,
-              color: cs.onSurface.withOpacity(0.4),
-              size: 16,
-              onTap: () async {
-                await Clipboard.setData(ClipboardData(text: k.key));
-                if (!context.mounted) return;
-                showAppSnackBar(context, message: l10n.multiKeyPageCopy, type: NotificationType.success);
-              },
-            ),
-          ),
-          const SizedBox(width: 4),
+          // 眼睛：显示/隐藏
           _TactileIconButton(
             icon: isHidden ? Lucide.Eye : Lucide.EyeOff,
             color: cs.onSurface.withOpacity(0.4),
@@ -604,39 +591,30 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
               });
             },
           ),
-          const SizedBox(width: 8),
-          IosSwitch(
-            value: k.isEnabled,
-            onChanged: (v) async {
-              await _updateKey(k.copyWith(isEnabled: v));
-            },
-            width: 40,
-            height: 24,
+          // 复制
+          Tooltip(
+            message: l10n.multiKeyPageCopy,
+            child: _TactileIconButton(
+              icon: Lucide.Copy,
+              color: cs.onSurface.withOpacity(0.4),
+              size: 16,
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: k.key));
+                if (!context.mounted) return;
+                showAppSnackBar(context, message: l10n.multiKeyPageCopy, type: NotificationType.success);
+              },
+            ),
           ),
-          if (isDesktop) ...[
-            const SizedBox(width: 4),
-            _TactileIconButton(
-              icon: Lucide.Pencil,
-              color: cs.primary,
-              size: 16,
-              semanticLabel: l10n.multiKeyPageEdit,
-              onTap: () async {
-                await _editKey(k);
-              },
-            ),
-            const SizedBox(width: 4),
-            _TactileIconButton(
-              icon: Lucide.Trash2,
-              color: cs.error,
-              size: 16,
-              semanticLabel: l10n.multiKeyPageDelete,
-              onTap: () async {
-                await _deleteKey(k);
-              },
-            ),
-          ],
+          // 检测
+          _TactileIconButton(
+            icon: Lucide.Play,
+            color: Colors.green,
+            size: 16,
+            onTap: () => _testSingleKeyInteractive(k),
+          ),
+          // 拖动手柄
           if (canReorder) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
             ReorderableDragStartListener(
               index: index,
               child: Icon(Lucide.GripVertical, color: cs.onSurface.withOpacity(0.2), size: 20),
@@ -646,15 +624,17 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       ),
     );
 
+    // 桌面端：单击编辑，右击菜单
     if (isDesktop) {
-      return InkWell(
+      return _TactileKeyRow(
         key: ValueKey(k.id),
         onTap: () => _editKey(k),
-        onLongPress: () => _testSingleKeyInteractive(k),
+        onSecondaryTap: (pos) => _showContextMenu(k, pos),
         child: content,
       );
     }
 
+    // 移动端：滑动删除，长按菜单
     return Dismissible(
       key: ValueKey(k.id),
       direction: DismissDirection.endToStart,
@@ -685,9 +665,9 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
         );
       },
       onDismissed: (_) => _deleteKey(k),
-      child: InkWell(
+      child: _TactileKeyRow(
         onTap: () => _editKey(k),
-        onLongPress: () => _testSingleKeyInteractive(k),
+        onLongPress: (pos) => _showContextMenu(k, pos),
         child: content,
       ),
     );
@@ -819,6 +799,60 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       final verifiedKey = verified.apiKeys?.firstWhere((e) => e.id == updated.id);
       print('[MultiKey] Verification - Priority in settings: ${verifiedKey?.priority}');
     }
+  }
+
+  void _showContextMenu(ApiKeyConfig k, Offset position) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: cs.surface,
+      elevation: 8,
+      items: [
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(children: [
+            Icon(Lucide.Pencil, size: 16, color: cs.primary),
+            const SizedBox(width: 12),
+            Text(l10n.multiKeyPageEdit),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'test',
+          child: Row(children: [
+            Icon(Lucide.Play, size: 16, color: Colors.green),
+            const SizedBox(width: 12),
+            Text(l10n.multiKeyPageDetect),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'copy',
+          child: Row(children: [
+            Icon(Lucide.Copy, size: 16, color: cs.onSurface.withOpacity(0.7)),
+            const SizedBox(width: 12),
+            Text(l10n.multiKeyPageCopy),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(children: [
+            Icon(Lucide.Trash2, size: 16, color: cs.error),
+            const SizedBox(width: 12),
+            Text(l10n.multiKeyPageDelete, style: TextStyle(color: cs.error)),
+          ]),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'edit') _editKey(k);
+      if (value == 'test') _testSingleKeyInteractive(k);
+      if (value == 'copy') {
+        Clipboard.setData(ClipboardData(text: k.key));
+        showAppSnackBar(context, message: l10n.multiKeyPageCopy, type: NotificationType.success);
+      }
+      if (value == 'delete') _deleteKey(k);
+    });
   }
 
   Future<void> _deleteKey(ApiKeyConfig k) async {
@@ -1802,8 +1836,12 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
   @override
   Widget build(BuildContext context) {
     final base = widget.color;
-    final pressColor = base.withOpacity(0.7);
-    final icon = Icon(widget.icon, size: widget.size, color: _pressed ? pressColor : base, semanticLabel: widget.semanticLabel);
+    final icon = Icon(
+      widget.icon,
+      size: widget.size,
+      color: _pressed ? base.withOpacity(0.5) : base,
+      semanticLabel: widget.semanticLabel,
+    );
 
     return Semantics(
       button: true,
@@ -1814,21 +1852,21 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
         onTapUp: (_) => setState(() => _pressed = false),
         onTapCancel: () => setState(() => _pressed = false),
         onTap: () {
-          // Haptics.light();
+          Haptics.light();
           widget.onTap();
         },
         onLongPress: widget.onLongPress == null
             ? null
             : () {
-                 Haptics.light();
+                Haptics.light();
                 widget.onLongPress!.call();
               },
         child: AnimatedScale(
-          scale: _pressed ? 0.95 : 1.0,
+          scale: _pressed ? 0.85 : 1.0,
           duration: const Duration(milliseconds: 100),
           curve: Curves.easeOut,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            padding: const EdgeInsets.all(8),
             child: icon,
           ),
         ),
@@ -1873,6 +1911,77 @@ class _TactileRowState extends State<_TactileRow> {
         duration: const Duration(milliseconds: 110),
         curve: Curves.easeOutCubic,
         child: widget.builder(_pressed),
+      ),
+    );
+  }
+}
+
+/// 触感列表行 - 带 hover 高亮和缩放动画
+class _TactileKeyRow extends StatefulWidget {
+  const _TactileKeyRow({
+    super.key,
+    required this.child,
+    required this.onTap,
+    this.onSecondaryTap,
+    this.onLongPress,
+  });
+
+  final Widget child;
+  final VoidCallback onTap;
+  final void Function(Offset position)? onSecondaryTap;
+  final void Function(Offset position)? onLongPress;
+
+  @override
+  State<_TactileKeyRow> createState() => _TactileKeyRowState();
+}
+
+class _TactileKeyRowState extends State<_TactileKeyRow> {
+  bool _pressed = false;
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
+                      defaultTargetPlatform == TargetPlatform.linux ||
+                      defaultTargetPlatform == TargetPlatform.macOS;
+
+    return MouseRegion(
+      onEnter: isDesktop ? (_) => setState(() => _hovered = true) : null,
+      onExit: isDesktop ? (_) => setState(() => _hovered = false) : null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: () {
+          Haptics.soft();
+          widget.onTap();
+        },
+        onSecondaryTapUp: widget.onSecondaryTap != null
+            ? (details) => widget.onSecondaryTap!(details.globalPosition)
+            : null,
+        onLongPressStart: widget.onLongPress != null
+            ? (details) {
+                Haptics.medium();
+                widget.onLongPress!(details.globalPosition);
+              }
+            : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          color: _pressed
+              ? cs.primary.withOpacity(0.08)
+              : _hovered
+                  ? cs.primary.withOpacity(0.04)
+                  : Colors.transparent,
+          child: AnimatedScale(
+            scale: _pressed ? 0.98 : 1.0,
+            duration: const Duration(milliseconds: 100),
+            curve: Curves.easeOut,
+            child: widget.child,
+          ),
+        ),
       ),
     );
   }

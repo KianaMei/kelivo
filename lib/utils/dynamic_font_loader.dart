@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 /// Runtime local font loader. Registers a font family alias with the engine.
