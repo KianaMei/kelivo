@@ -1,0 +1,146 @@
+name: CI Refactor Branch
+
+on:
+  push:
+    branches: [ refactor/chat-message-split ]
+  pull_request:
+    branches: [ refactor/chat-message-split ]
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    name: Flutter Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.35.7'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate required files
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Run analyzer
+        run: flutter analyze --no-fatal-infos
+
+  build-android:
+    name: Build Android APK
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.35.7'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK with unique build number
+        run: |
+          echo "Building APK with build number ${{ github.run_number }}..."
+          flutter build apk --release --split-per-abi --no-tree-shake-icons --build-number=${{ github.run_number }}
+
+      - name: Rename APK files
+        run: |
+          cd build/app/outputs/flutter-apk
+          for file in app-*-release.apk; do
+            if [ -f "$file" ]; then
+              newname=$(echo "$file" | sed 's/app-/kelivo-refactor-/')
+              mv "$file" "$newname"
+              echo "Renamed: $file -> $newname"
+            fi
+          done
+          ls -lh
+
+      - name: Upload to refactor release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: refactor-latest
+          name: "Refactor Branch Build"
+          body: |
+            **重构分支自动构建**
+
+            分支: `refactor/chat-message-split`
+            提交: ${{ github.sha }}
+            构建号: ${{ github.run_number }}
+          files: build/app/outputs/flutter-apk/kelivo-*.apk
+          prerelease: true
+          make_latest: false
+
+  build-windows:
+    name: Build Windows App
+    needs: analyze
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.35.7'
+          cache: true
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate required files
+        shell: pwsh
+        run: |
+          flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Build Windows app
+        run: flutter build windows --release --no-tree-shake-icons --build-number=${{ github.run_number }}
+
+      - name: Create portable package
+        shell: pwsh
+        run: |
+          $buildPath = "build\windows\x64\runner\Release"
+          $outputDir = "kelivo-refactor-windows-x64"
+          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+          Copy-Item -Path "$buildPath\*" -Destination $outputDir -Recurse -Force
+          Compress-Archive -Path $outputDir -DestinationPath "kelivo-refactor-windows-x64.zip" -Force
+          Write-Host "Created kelivo-refactor-windows-x64.zip"
+
+      - name: Upload to refactor release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: refactor-latest
+          name: "Refactor Branch Build"
+          body: |
+            **重构分支自动构建**
+
+            分支: `refactor/chat-message-split`
+            提交: ${{ github.sha }}
+            构建号: ${{ github.run_number }}
+          files: kelivo-refactor-windows-x64.zip
+          prerelease: true
+          make_latest: false
