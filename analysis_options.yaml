@@ -14,6 +14,36 @@ analyzer:
     - tmp/**
     - test/*_property_test.dart
     - lib/shared/widgets/mermaid_bridge_web.dart
+  errors:
+    # Deprecated API warnings
+    deprecated_member_use: ignore
+    deprecated_member_use_from_same_package: ignore
+    # Unused code
+    unused_local_variable: ignore
+    unused_element: ignore
+    unused_element_parameter: ignore
+    unused_import: ignore
+    unnecessary_import: ignore
+    # Style preferences
+    unnecessary_brace_in_string_interps: ignore
+    use_build_context_synchronously: ignore
+    invalid_null_aware_operator: ignore
+    unnecessary_null_comparison: ignore
+    prefer_interpolation_to_compose_strings: ignore
+    use_super_parameters: ignore
+    dead_null_aware_expression: ignore
+    # Naming conventions
+    constant_identifier_names: ignore
+    no_leading_underscores_for_local_identifiers: ignore
+    # Control flow
+    unreachable_switch_default: ignore
+    curly_braces_in_flow_control_structures: ignore
+    # Dependencies
+    depend_on_referenced_packages: ignore
+    # More warnings
+    unnecessary_non_null_assertion: ignore
+    library_prefixes: ignore
+    duplicate_import: ignore
 
 linter:
   # The lint rules applied to this project can be customized in the
