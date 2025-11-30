@@ -17,7 +17,6 @@ import '../../search/pages/search_services_page.dart';
 import '../../backup/pages/backup_page.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../../core/services/haptics.dart';
 
 class SettingsPage extends StatelessWidget {

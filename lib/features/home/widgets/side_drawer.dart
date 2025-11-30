@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
-import 'package:characters/characters.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import '../../../icons/lucide_adapter.dart';
@@ -9,7 +8,6 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/models/chat_item.dart';
-import '../../../core/models/chat_message.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../settings/pages/settings_page.dart';
 import '../../translate/pages/translate_page.dart';
@@ -29,7 +27,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animations/animations.dart';
-import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/avatar_cache.dart';
 import 'dart:ui' as ui;
 import '../../../shared/widgets/ios_tactile.dart';
@@ -40,6 +37,13 @@ import '../../../shared/widgets/emoji_text.dart';
 import '../../../core/providers/tag_provider.dart';
 import '../../assistant/pages/tags_manager_page.dart';
 import '../../assistant/widgets/tags_manager_dialog.dart';
+// Extracted sidebar widgets
+import '../sidebar/models/chat_group.dart';
+import '../sidebar/widgets/chat_tile.dart';
+import '../sidebar/widgets/group_header.dart';
+import '../sidebar/widgets/assistant_inline_tile.dart';
+import '../sidebar/desktop/desktop_sidebar_tabs.dart';
+import '../sidebar/desktop/desktop_tab_views.dart';
 
 class SideDrawer extends StatefulWidget {
   const SideDrawer({
@@ -505,7 +509,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     return fmt.format(date);
   }
 
-  List<_ChatGroup> _groupByDate(BuildContext context, List<ChatItem> source) {
+  List<ChatGroup> _groupByDate(BuildContext context, List<ChatItem> source) {
     final items = [...source];
     // group by day (truncate time)
     final map = <DateTime, List<ChatItem>>{};
@@ -518,7 +522,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       ..sort((a, b) => b.compareTo(a));
     return [
       for (final k in keys)
-        _ChatGroup(
+        ChatGroup(
           label: _dateLabel(context, k),
           items: (map[k]!..sort((a, b) => b.created.compareTo(a.created)))!,
         )
@@ -860,7 +864,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                   
                   // 桌面端：替换为 Tab（助手 / 话题）
                   if (_useTabs)
-                    _DesktopSidebarTabs(textColor: textBase, controller: _tabController!),
+                    DesktopSidebarTabs(textColor: textBase, controller: _tabController!),
                   // 注意：内联助手列表已移动至下方可滚动区域
                 ],
               ),
@@ -870,7 +874,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             Expanded(
               child: () {
                 if (_useTabs) {
-                  return _DesktopTabViews(
+                  return DesktopTabViews(
                     controller: _tabController!,
                     listController: _listController,
                     buildAssistants: () => _buildAssistantsList(context),
@@ -947,7 +951,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                     ],
                   );
                 }
-                return _LegacyListArea(
+                return LegacyListArea(
                   listController: _listController,
                   isDesktop: _isDesktop,
                   buildAssistants: () => _buildAssistantsList(context, inlineMode: true),
@@ -1872,7 +1876,7 @@ extension on _SideDrawerState {
     Widget buildTile(Assistant a) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        child: _AssistantInlineTile(
+        child: AssistantInlineTile(
           avatar: _assistantAvatar(context, a, size: _isDesktop ? 28 : 32),
           name: a.name,
           textColor: textBase2,
@@ -1948,7 +1952,7 @@ extension on _SideDrawerState {
           for (final t in tags)
             if ((groupedByTag[t.id] ?? const <Assistant>[]).isNotEmpty) ...[
               const SizedBox(height: 4),
-              _GroupHeader(
+              GroupHeader(
                 title: t.name,
                 collapsed: tp.isCollapsed(t.id),
                 onToggle: () => tp.toggleCollapsed(t.id),
@@ -1973,7 +1977,7 @@ extension on _SideDrawerState {
   Widget _buildNewAssistantButton(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-      child: _AssistantInlineTile(
+      child: AssistantInlineTile(
         avatar: Container(
           width: _isDesktop ? 28 : 32,
           height: _isDesktop ? 28 : 32,
@@ -2045,7 +2049,7 @@ extension on _SideDrawerState {
     Color textBase,
     ChatService chatService,
     List<ChatItem> pinnedList,
-    List<_ChatGroup> groups, {
+    List<ChatGroup> groups, {
     bool includeUpdateBanner = false,
   }) {
     final children = <Widget>[];
@@ -2146,11 +2150,12 @@ extension on _SideDrawerState {
               Column(
                 children: [
                   for (int i = 0; i < pinnedList.length; i++)
-                    _ChatTile(
+                    ChatTile(
                       chat: pinnedList[i],
                       textColor: textBase,
                       selected: pinnedList[i].id == chatService.currentConversationId,
                       loading: widget.loadingConversationIds.contains(pinnedList[i].id),
+                      embedded: widget.embedded,
                       onTap: () => widget.onSelectConversation?.call(pinnedList[i].id),
                       onLongPress: () => _showChatMenu(context, pinnedList[i]),
                       onSecondaryTap: (pos) => _showChatMenu(context, pinnedList[i], anchor: pos),
@@ -2174,11 +2179,12 @@ extension on _SideDrawerState {
               Column(
                 children: [
                   for (int j = 0; j < group.items.length; j++)
-                    _ChatTile(
+                    ChatTile(
                       chat: group.items[j],
                       textColor: textBase,
                       selected: group.items[j].id == chatService.currentConversationId,
                       loading: widget.loadingConversationIds.contains(group.items[j].id),
+                      embedded: widget.embedded,
                       onTap: () => widget.onSelectConversation?.call(group.items[j].id),
                       onLongPress: () => _showChatMenu(context, group.items[j]),
                       onSecondaryTap: (pos) => _showChatMenu(context, group.items[j], anchor: pos),
@@ -2196,598 +2202,5 @@ extension on _SideDrawerState {
     );
 
     return Column(children: children);
-  }
-}
-
-class _ChatGroup {
-  final String label;
-  final List<ChatItem> items;
-  _ChatGroup({required this.label, required this.items});
-}
-
-class _ChatTile extends StatefulWidget {
-  const _ChatTile({
-    required this.chat,
-    required this.textColor,
-    this.onTap,
-    this.onLongPress,
-    this.onSecondaryTap,
-    this.selected = false,
-    this.loading = false,
-  });
-
-  final ChatItem chat;
-  final Color textColor;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-  final void Function(Offset globalPosition)? onSecondaryTap;
-  final bool selected;
-  final bool loading;
-
-  @override
-  State<_ChatTile> createState() => _ChatTileState();
-}
-
-class _ChatTileState extends State<_ChatTile> {
-  bool _hovered = false;
-  bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    // Count assistant messages for this conversation
-    final assistantCount = context.select<ChatService, int>((svc) {
-      final cid = widget.chat.id;
-      final msgs = svc.getMessages(cid);
-      if (msgs.isEmpty) return 0;
-
-      final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
-      final List<String> order = <String>[];
-      for (final m in msgs) {
-        final gid = (m.groupId ?? m.id);
-        final list = byGroup.putIfAbsent(gid, () {
-          order.add(gid);
-          return <ChatMessage>[];
-        });
-        list.add(m);
-      }
-
-      for (final e in byGroup.entries) {
-        e.value.sort((a, b) => a.version.compareTo(b.version));
-      }
-
-      final sel = svc.getVersionSelections(cid);
-      int n = 0;
-      for (final gid in order) {
-        final vers = byGroup[gid]!;
-        int idx = sel[gid] ?? (vers.length - 1);
-        if (idx < 0 || idx >= vers.length) idx = vers.length - 1;
-        final chosen = vers[idx];
-        if (chosen.role == 'assistant') n++;
-      }
-      return n;
-    });
-    final embedded = context.findAncestorWidgetOfExactType<SideDrawer>()?.embedded ?? false;
-    final Color tileColor;
-    if (embedded) {
-      // In tablet embedded mode, keep selected highlight, others transparent
-      tileColor = widget.selected ? cs.primary.withOpacity(0.16) : Colors.transparent;
-    } else {
-      tileColor = widget.selected ? cs.primary.withOpacity(0.12) : cs.surface;
-    }
-    final base = _isDesktop && !widget.selected && _hovered
-        ? (embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9))
-        : tileColor;
-    final double _vGap = _isDesktop ? 4 : 4;
-    return Padding(
-      padding: EdgeInsets.only(bottom: _vGap),
-      child: GestureDetector(
-        onSecondaryTapDown: (details) {
-          if (_isDesktop) {
-            widget.onSecondaryTap?.call(details.globalPosition);
-          }
-        },
-        onLongPress: () {
-          if (_isDesktop) return;
-          widget.onLongPress?.call();
-        },
-        child: MouseRegion(
-          onEnter: (_) { if (_isDesktop) setState(() => _hovered = true); },
-          onExit: (_) { if (_isDesktop) setState(() => _hovered = false); },
-          cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        child: IosCardPress(
-          baseColor: base,
-          borderRadius: BorderRadius.circular(16),
-          haptics: false,
-          onTap: widget.onTap,
-          onLongPress: _isDesktop ? null : widget.onLongPress,
-          padding: EdgeInsets.fromLTRB(_isDesktop ? 14 : 14, _isDesktop ? 9 : 10, 8, _isDesktop ? 9 : 10),
-          child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.chat.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: _isDesktop ? 14 : 15,
-                      color: widget.textColor,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-                if (assistantCount > 0) ...[
-                  const SizedBox(width: 8),
-                  _CountBadge(count: assistantCount, selected: widget.selected),
-                ],
-                if (widget.loading) ...[
-                  const SizedBox(width: 8),
-                  _LoadingDot(),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LoadingDot extends StatefulWidget {
-  @override
-  State<_LoadingDot> createState() => _LoadingDotState();
-}
-
-class _LoadingDotState extends State<_LoadingDot> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
-    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return FadeTransition(
-      opacity: _anim,
-      child: Container(
-        width: 9,
-        height: 9,
-        decoration: BoxDecoration(color: cs.primary, shape: BoxShape.circle),
-      ),
-    );
-  }
-}
-
-class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.count, this.selected = false});
-
-  final int count;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    final Color bg = selected
-        ? cs.onSurface.withOpacity(isDark ? 0.22 : 0.12)
-        : cs.onSurface.withOpacity(isDark ? 0.16 : 0.08);
-    final Color fg = selected
-        ? cs.onSurface.withOpacity(0.95)
-        : cs.onSurface.withOpacity(0.75);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-      constraints: const BoxConstraints(minHeight: 18, minWidth: 22),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: cs.onSurface.withOpacity(isDark ? 0.18 : 0.12),
-          width: 0.5,
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        count.toString(),
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: fg,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
-  }
-}
-
-
-class _GroupHeader extends StatelessWidget {
-  const _GroupHeader({required this.title, required this.collapsed, required this.onToggle});
-  final String title;
-  final bool collapsed;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textBase = cs.onSurface;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onToggle,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Row(
-          children: [
-            AnimatedRotation(
-              turns: collapsed ? 0.0 : 0.25, // right -> down
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOutCubic,
-              child: Icon(
-                Lucide.ChevronRight,
-                size: 16,
-                color: textBase.withOpacity(0.7),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: textBase),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Desktop: Header tabs (Assistants / Topics)
-class _DesktopSidebarTabs extends StatefulWidget {
-  const _DesktopSidebarTabs({required this.textColor, required this.controller});
-  final Color textColor;
-  final TabController controller;
-  @override
-  State<_DesktopSidebarTabs> createState() => _DesktopSidebarTabsState();
-}
-
-class _DesktopSidebarTabsState extends State<_DesktopSidebarTabs> {
-  bool _hoverLeft = false;
-  bool _hoverRight = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_rebuildOnTabChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_rebuildOnTabChanged);
-    super.dispose();
-  }
-
-  void _rebuildOnTabChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final idx = widget.controller.index;
-    return SizedBox(
-      height: 40,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final double pad = 4;
-            final double segW = (constraints.maxWidth - pad * 2) / 2;
-            return Container(
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white10 : Colors.grey.shade200.withOpacity(0.80),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Stack(
-                children: [
-                  // Selection knob
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 140),
-                    curve: Curves.easeOutCubic,
-                    left: pad + (idx == 0 ? 0 : segW),
-                    top: pad,
-                    bottom: pad,
-                    width: segW,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 140),
-                      curve: Curves.easeOutCubic,
-                      decoration: BoxDecoration(
-                        color: cs.primary.withOpacity(isDark ? 0.16 : 0.12),
-                        borderRadius: BorderRadius.circular(13),
-                      ),
-                    ),
-                  ),
-                  // Left segment
-                  Row(
-                    children: [
-                      Expanded(
-                        child: MouseRegion(
-                          onEnter: (_) => setState(() => _hoverLeft = true),
-                          onExit: (_) => setState(() => _hoverLeft = false),
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => widget.controller.animateTo(0, duration: const Duration(milliseconds: 140), curve: Curves.easeOutCubic),
-                            child: Stack(
-                              children: [
-                                // Hover wash
-                                AnimatedOpacity(
-                                  duration: const Duration(milliseconds: 120),
-                                  curve: Curves.easeOutCubic,
-                                  opacity: _hoverLeft && idx != 0 ? 1 : 0,
-                                  child: Container(
-                                    margin: EdgeInsets.all(pad),
-                                    decoration: BoxDecoration(
-                                      color: cs.primary.withOpacity(0.06),
-                                      borderRadius: BorderRadius.circular(13),
-                                    ),
-                                  ),
-                                ),
-                                // Label
-                                Center(
-                                  child: AnimatedDefaultTextStyle(
-                                    duration: const Duration(milliseconds: 140),
-                                    curve: Curves.easeOutCubic,
-                                    style: (Theme.of(context).textTheme.titleSmall ?? const TextStyle()).copyWith(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: idx == 0 ? cs.primary : widget.textColor.withOpacity(0.78),
-                                    ),
-                                    child: Text(l10n.desktopSidebarTabAssistants, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: MouseRegion(
-                          onEnter: (_) => setState(() => _hoverRight = true),
-                          onExit: (_) => setState(() => _hoverRight = false),
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => widget.controller.animateTo(1, duration: const Duration(milliseconds: 140), curve: Curves.easeOutCubic),
-                            child: Stack(
-                              children: [
-                                AnimatedOpacity(
-                                  duration: const Duration(milliseconds: 120),
-                                  curve: Curves.easeOutCubic,
-                                  opacity: _hoverRight && idx != 1 ? 1 : 0,
-                                  child: Container(
-                                    margin: EdgeInsets.all(pad),
-                                    decoration: BoxDecoration(
-                                      color: cs.primary.withOpacity(0.06),
-                                      borderRadius: BorderRadius.circular(13),
-                                    ),
-                                  ),
-                                ),
-                                Center(
-                                  child: AnimatedDefaultTextStyle(
-                                    duration: const Duration(milliseconds: 140),
-                                    curve: Curves.easeOutCubic,
-                                    style: (Theme.of(context).textTheme.titleSmall ?? const TextStyle()).copyWith(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: idx == 1 ? cs.primary : widget.textColor.withOpacity(0.78),
-                                    ),
-                                    child: Text(l10n.desktopSidebarTabTopics, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-// Desktop: TabBarView area hosting assistants and topics lists
-class _DesktopTabViews extends StatelessWidget {
-  const _DesktopTabViews({
-    required this.controller,
-    required this.listController,
-    required this.buildAssistants,
-    required this.buildConversations,
-    required this.newAssistantButton,
-  });
-  final TabController controller;
-  final ScrollController listController;
-  final Widget Function() buildAssistants;
-  final Widget Function() buildConversations;
-  final Widget newAssistantButton;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux;
-    final topPad = context.watch<SettingsProvider>().showChatListDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
-    return TabBarView(
-      controller: controller,
-      physics: const BouncingScrollPhysics(),
-      children: [
-        // Assistants
-        Column(
-          children: [
-            Expanded(
-              child: ListView(
-                controller: listController,
-                padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
-                children: [buildAssistants()],
-              ),
-            ),
-            newAssistantButton,
-          ],
-        ),
-        // Topics (conversations)
-        ListView(
-          controller: listController,
-          padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
-          children: [buildConversations()],
-        ),
-      ],
-    );
-  }
-}
-
-// Legacy (mobile/tablet): original single-list layout with optional inline assistants
-class _LegacyListArea extends StatelessWidget {
-  const _LegacyListArea({
-    required this.listController,
-    required this.isDesktop,
-    required this.buildAssistants,
-    required this.buildConversations,
-  });
-  final ScrollController listController;
-  final bool isDesktop;
-  final Widget Function() buildAssistants;
-  final Widget Function() buildConversations;
-
-  @override
-  Widget build(BuildContext context) {
-    final showDate = context.watch<SettingsProvider>().showChatListDate;
-    final double topPadding = showDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
-    return ListView(
-      controller: listController,
-      padding: EdgeInsets.fromLTRB(10, topPadding, 10, 16),
-      children: [
-        buildAssistants(),
-        const SizedBox(height: 12),
-        buildConversations(),
-      ],
-    );
-  }
-}
-
-class _AssistantInlineTile extends StatefulWidget {
-  const _AssistantInlineTile({
-    required this.avatar,
-    required this.name,
-    required this.textColor,
-    required this.embedded,
-    required this.onTap,
-    required this.onEditTap,
-    this.onLongPress,
-    this.onSecondaryTapDown,
-    this.selected = false,
-  });
-
-  final Widget avatar;
-  final String name;
-  final Color textColor;
-  final bool embedded;
-  final VoidCallback onTap;
-  final VoidCallback onEditTap;
-  final VoidCallback? onLongPress;
-  final void Function(Offset globalPosition)? onSecondaryTapDown;
-  final bool selected;
-
-  @override
-  State<_AssistantInlineTile> createState() => _AssistantInlineTileState();
-}
-
-class _AssistantInlineTileState extends State<_AssistantInlineTile> {
-  bool _hovered = false;
-  bool get _isDesktop => defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final embedded = widget.embedded;
-    final Color tileColor = _isDesktop
-        ? (embedded
-            ? (widget.selected ? cs.primary.withOpacity(0.16) : Colors.transparent)
-            : (widget.selected ? cs.primary.withOpacity(0.12) : cs.surface))
-        : (embedded ? Colors.transparent : cs.surface);
-    final Color bg = _isDesktop && !widget.selected && _hovered
-        ? (embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9))
-        : tileColor;
-    final content = MouseRegion(
-      onEnter: (_) { if (_isDesktop) setState(() => _hovered = true); },
-      onExit: (_) { if (_isDesktop) setState(() => _hovered = false); },
-      cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: IosCardPress(
-        baseColor: bg,
-        borderRadius: BorderRadius.circular(16),
-        haptics: false,
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
-        padding: EdgeInsets.fromLTRB(_isDesktop ? 12 : 4, 6, 12, 6),
-        child: Row(
-          children: [
-            widget.avatar,
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                widget.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: _isDesktop ? 14 : 15, fontWeight: FontWeight.w600, color: widget.textColor),
-              ),
-            ),
-            if (!_isDesktop) ...[
-              const SizedBox(width: 8),
-              IosIconButton(
-                icon: Lucide.Pencil,
-                size: 18,
-                color: cs.onSurface.withOpacity(0.7),
-                padding: const EdgeInsets.all(8),
-                minSize: 36,
-                onTap: widget.onEditTap,
-                semanticLabel: 'Edit assistant',
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onSecondaryTapDown: widget.onSecondaryTapDown == null
-          ? null
-          : (details) => widget.onSecondaryTapDown!(details.globalPosition),
-      child: content,
-    );
   }
 }

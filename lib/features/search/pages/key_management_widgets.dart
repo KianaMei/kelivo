@@ -1,11 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/models/api_keys.dart';
 import '../../../core/services/api_key_manager.dart';
-import '../../../icons/lucide_adapter.dart';
 
 // Windows/Desktop Dialog for multi-key management
 class KeyManagementDialog extends StatefulWidget {

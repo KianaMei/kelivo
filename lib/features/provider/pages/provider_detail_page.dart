@@ -29,6 +29,11 @@ import 'multi_key_manager_page.dart';
 import 'provider_network_page.dart';
 import '../../../core/services/haptics.dart';
 import '../../../desktop/window_title_bar.dart';
+import '../widgets/bottom_tabs.dart';
+import '../widgets/tactile_widgets.dart';
+import '../widgets/brand_avatar.dart';
+import '../widgets/model_tag_wrap.dart';
+import '../services/provider_test_service.dart';
 
 /// Remove all control characters (newlines, carriage returns, tabs, etc.) from a string
 /// This prevents URL parsing errors when users paste URLs with hidden control characters
@@ -37,37 +42,9 @@ String _sanitizeUrl(String input) {
 }
 
 /// Get effective ModelInfo with user overrides applied
-ModelInfo _getEffectiveModelInfo(String modelId, ProviderConfig cfg) {
-  // Start with inferred model info
-  ModelInfo base = ModelRegistry.infer(ModelInfo(id: modelId, displayName: modelId));
-  
-  // Apply user overrides if they exist
-  final ov = cfg.modelOverrides[modelId] as Map?;
-  if (ov != null) {
-    final name = (ov['name'] as String?)?.trim() ?? base.displayName;
-    final typeStr = (ov['type'] as String?) ?? '';
-    final type = typeStr == 'embedding' ? ModelType.embedding : ModelType.chat;
-    
-    final inArr = (ov['input'] as List?)?.map((e) => e.toString()).toList() ?? [];
-    final outArr = (ov['output'] as List?)?.map((e) => e.toString()).toList() ?? [];
-    final abArr = (ov['abilities'] as List?)?.map((e) => e.toString()).toList() ?? [];
-    
-    final input = inArr.isEmpty ? base.input : inArr.map((e) => e == 'image' ? Modality.image : Modality.text).toList();
-    final output = outArr.isEmpty ? base.output : outArr.map((e) => e == 'image' ? Modality.image : Modality.text).toList();
-    final abilities = abArr.isEmpty ? base.abilities : abArr.map((e) => e == 'reasoning' ? ModelAbility.reasoning : ModelAbility.tool).toList();
-    
-    return ModelInfo(
-      id: modelId,
-      displayName: name,
-      type: type,
-      input: input,
-      output: output,
-      abilities: abilities,
-    );
-  }
-  
-  return base;
-}
+/// Delegates to ProviderTestService.getEffectiveModelInfo
+ModelInfo _getEffectiveModelInfo(String modelId, ProviderConfig cfg) =>
+    ProviderTestService.getEffectiveModelInfo(modelId, cfg);
 
 class ProviderDetailPage extends StatefulWidget {
   const ProviderDetailPage({super.key, required this.keyName, required this.displayName});
@@ -195,7 +172,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       appBar: AppBar(
         leading: Tooltip(
           message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+          child: ProviderTactileIconButton(
             icon: Lucide.ArrowLeft,
             color: cs.onSurface,
             semanticLabel: l10n.settingsPageBackButton,
@@ -205,7 +182,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         ),
         title: Row(
           children: [
-            _BrandAvatar(
+            BrandAvatar(
               key: ValueKey(cfg.customAvatarPath),
               name: (_nameCtrl.text.isEmpty ? widget.displayName : _nameCtrl.text),
               size: 22,
@@ -225,7 +202,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         actions: [
           Tooltip(
             message: l10n.providerDetailPageTestButton,
-            child: _TactileIconButton(
+            child: ProviderTactileIconButton(
               icon: Lucide.HeartPulse,
               color: cs.onSurface,
               semanticLabel: l10n.providerDetailPageTestButton,
@@ -235,7 +212,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           ),
           Tooltip(
             message: l10n.providerDetailPageShareTooltip,
-            child: _TactileIconButton(
+            child: ProviderTactileIconButton(
               icon: Lucide.Share2,
               color: cs.onSurface,
               semanticLabel: l10n.providerDetailPageShareTooltip,
@@ -248,7 +225,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           if (_isUserAdded(widget.keyName))
             Tooltip(
               message: l10n.providerDetailPageDeleteProviderTooltip,
-              child: _TactileIconButton(
+              child: ProviderTactileIconButton(
                 icon: Lucide.Trash2,
                 color: cs.error,
                 semanticLabel: l10n.providerDetailPageDeleteProviderTooltip,
@@ -306,7 +283,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-          child: _BottomTabs(
+          child: ProviderBottomTabs(
             index: _index,
             leftIcon: Lucide.Settings2,
             leftLabel: l10n.providerDetailPageConfigTab,
@@ -477,7 +454,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             trailing: IosSwitch(value: _multiKeyEnabled, onChanged: (v) { setState(() => _multiKeyEnabled = v); _save(); }),
           ),
           if (_multiKeyEnabled)
-          _TactileRow(
+          ProviderTactileRow(
             onTap: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute(
@@ -524,7 +501,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               label: l10n.providerDetailPageVertexAiTitle,
               trailing: IosSwitch(value: _vertexAI, onChanged: (v) { setState(() => _vertexAI = v); _save(); }),
             ),
-          _TactileRow(
+          ProviderTactileRow(
             onTap: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute(
@@ -746,7 +723,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _TactileRow(
+              ProviderTactileRow(
                 pressedScale: 0.97,
                 haptics: false,
                 onTap: () => _showModelPicker(context),
@@ -769,7 +746,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 },
               ),
               const SizedBox(width: 10),
-              _TactileRow(
+              ProviderTactileRow(
                 pressedScale: 0.97,
                 haptics: false,
                 onTap: () async {
@@ -935,7 +912,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           child: Row(
             children: [
               // Avatar preview
-              _BrandAvatar(
+              BrandAvatar(
                 key: ValueKey(cfg.customAvatarPath),
                 name: _nameCtrl.text.isEmpty ? widget.displayName : _nameCtrl.text,
                 size: 48,
@@ -1393,7 +1370,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     GestureTapCallback? onTap,
   }) {
     final cs = Theme.of(context).colorScheme;
-    return _TactileRow(
+    return ProviderTactileRow(
       onTap: onTap,
       builder: (pressed) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1434,7 +1411,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           return 'OpenAI';
       }
     }
-    return _TactileRow(
+    return ProviderTactileRow(
       onTap: _showProviderKindSheet,
       builder: (pressed) {
         final cs = Theme.of(context).colorScheme;
@@ -1502,7 +1479,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   Widget _providerKindTile(BuildContext ctx, ProviderKind k, {required String label}) {
     final cs = Theme.of(ctx).colorScheme;
     final selected = _kind == k;
-    return _TactileRow(
+    return ProviderTactileRow(
       pressedScale: 1.00,
       haptics: false,
       onTap: () => Navigator.of(ctx).pop(k),
@@ -1967,7 +1944,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: _TactileRow(
+              child: ProviderTactileRow(
                 pressedScale: 0.98,
                 haptics: false,
                 onTap: () async {
@@ -2115,317 +2092,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     );
   }
 
-  // Legacy bottom sheet method (kept for reference, not used)
-  Future<void> _showModelPickerOld(BuildContext context) async {
-    final cs = Theme.of(context).colorScheme;
-    final settings = context.read<SettingsProvider>();
-    final rawCfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-    // Clean URLs before using config for API calls
-    final cfg = rawCfg.copyWith(
-      baseUrl: _sanitizeUrl(rawCfg.baseUrl),
-      chatPath: rawCfg.chatPath != null ? _sanitizeUrl(rawCfg.chatPath!) : null,
-    );
-    final bool _isDefaultSilicon = widget.keyName.toLowerCase() == 'siliconflow';
-    final bool _hasUserKey = (cfg.multiKeyEnabled == true && (cfg.apiKeys?.isNotEmpty == true)) || cfg.apiKey.trim().isNotEmpty;
-    final bool _restrictToFree = _isDefaultSilicon && !_hasUserKey;
-    final controller = TextEditingController();
-    List<dynamic> items = const [];
-    bool loading = true;
-    String error = '';
-    // Collapsed state per group in the selector dialog
-    final Map<String, bool> collapsed = <String, bool>{};
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setLocal) {
-          final l10n = AppLocalizations.of(ctx)!;
-          Future<void> _load() async {
-            try {
-              if (_restrictToFree) {
-                final list = <ModelInfo>[
-                  ModelRegistry.infer(ModelInfo(id: 'THUDM/GLM-4-9B-0414', displayName: 'THUDM/GLM-4-9B-0414')),
-                  ModelRegistry.infer(ModelInfo(id: 'Qwen/Qwen3-8B', displayName: 'Qwen/Qwen3-8B')),
-                ];
-                setLocal(() {
-                  items = list;
-                  loading = false;
-                });
-              } else {
-                final list = await ProviderManager.listModels(cfg);
-                setLocal(() {
-                  items = list;
-                  loading = false;
-                });
-              }
-            } catch (e) {
-              setLocal(() {
-                items = const [];
-                loading = false;
-                error = '$e';
-              });
-            }
-          }
-
-          if (loading) {
-            // kick off loading once
-            Future.microtask(_load);
-          }
-
-          final selected = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName).models.toSet();
-          final query = controller.text.trim().toLowerCase();
-          final filtered = <ModelInfo>[
-            for (final m in items)
-              if (m is ModelInfo && (query.isEmpty || m.id.toLowerCase().contains(query) || m.displayName.toLowerCase().contains(query))) m
-          ];
-
-          String _groupFor(ModelInfo m) {
-            final id = m.id.toLowerCase();
-            // Embeddings first
-            if (m.type == ModelType.embedding || id.contains('embedding') || id.contains('embed')) {
-              return l10n.providerDetailPageEmbeddingsGroupTitle;
-            }
-            // OpenAI families
-            // if (RegExp(r'gpt-4o|gpt-4\.1|gpt-4|gpt4').hasMatch(id)) return 'GPT-4';
-            if (id.contains('gpt') || RegExp(r'(^|[^a-z])o[134]').hasMatch(id)) return 'GPT';
-            // if (RegExp(r'(^|[^a-z])o[134]').hasMatch(id)) return zhLocal ? 'o 系列' : 'o Series';
-            // if (id.contains('gpt-5')) return 'GPT-5';
-            // Google Gemini
-            if (id.contains('gemini-2.0')) return 'Gemini 2.0';
-            if (id.contains('gemini-2.5')) return 'Gemini 2.5';
-            if (id.contains('gemini-1.5')) return 'Gemini 1.5';
-            if (id.contains('gemini')) return 'Gemini';
-            // Anthropic Claude
-            if (id.contains('claude-3.5')) return 'Claude 3.5';
-            if (id.contains('claude-3')) return 'Claude 3';
-            if (id.contains('claude-4')) return 'Claude 4';
-            if (id.contains('claude-sonnet')) return 'Claude Sonnet';
-            if (id.contains('claude-opus')) return 'Claude Opus';
-            // Others by vendor keyword
-            if (id.contains('deepseek')) return 'DeepSeek';
-            if (RegExp(r'qwen|qwq|qvq|dashscope').hasMatch(id)) return 'Qwen';
-            if (RegExp(r'doubao|ark|volc').hasMatch(id)) return 'Doubao';
-            if (id.contains('glm') || id.contains('zhipu')) return 'GLM';
-            if (id.contains('mistral')) return 'Mistral';
-            if (id.contains('grok') || id.contains('xai')) return 'Grok';
-            return l10n.providerDetailPageOtherModelsGroupTitle;
-          }
-
-          final Map<String, List<ModelInfo>> grouped = {};
-          for (final m in filtered) {
-            final g = _groupFor(m);
-            (grouped[g] ??= []).add(m);
-          }
-          final groupKeys = grouped.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-          return SafeArea(
-            top: false,
-            child: AnimatedPadding(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-              child: DraggableScrollableSheet(
-                expand: false,
-                initialChildSize: 0.7,
-                maxChildSize: 0.8,
-                minChildSize: 0.4,
-                builder: (c, scrollController) {
-                  final bottomPadding = MediaQuery.of(ctx).padding.bottom + 16;
-                  return Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      Container(width: 40, height: 4, decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999))),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: TextField(
-                          controller: controller,
-                          onChanged: (_) => setLocal(() {}),
-                          decoration: InputDecoration(
-                            hintText: l10n.providerDetailPageFilterHint,
-                            filled: true,
-                            fillColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.white10 : const Color(0xFFF2F3F5),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.transparent)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: cs.primary.withOpacity(0.4))),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: loading
-                            ? const Center(child: CircularProgressIndicator())
-                          : error.isNotEmpty
-                              ? Center(child: Text(error, style: TextStyle(color: cs.error)))
-                              : ListView(
-                                  controller: scrollController,
-                                  padding: EdgeInsets.only(bottom: bottomPadding),
-                                  children: [
-                                    for (final g in groupKeys) ...[
-                                      // Group header with actions
-                                      Padding(
-                                        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                                        child: _TactileRow(
-                                          pressedScale: 0.98,
-                                          haptics: false,
-                                          onTap: () => setLocal(() {
-                                            collapsed[g] = !(collapsed[g] == true);
-                                          }),
-                                          builder: (_) {
-                                            return Container(
-                                              decoration: BoxDecoration(
-                                                color: Theme.of(context).brightness == Brightness.dark
-                                                    ? Colors.white10
-                                                    : const Color(0xFFF2F3F5),
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                                                child: Row(
-                                                  children: [
-                                                  SizedBox(
-                                                    width: 28,
-                                                    child: Center(
-                                                      child: AnimatedRotation(
-                                                        turns: (collapsed[g] == true) ? 0.0 : 0.25,
-                                                        duration: const Duration(milliseconds: 220),
-                                                        curve: Curves.easeOutCubic,
-                                                        child: Icon(
-                                                          Lucide.ChevronRight,
-                                                          size: 20,
-                                                          color: cs.onSurface.withOpacity(0.7),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 16),
-                                                  Expanded(
-                                                    child: Text(
-                                                      g,
-                                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Builder(builder: (ctx2) {
-                                                    final allAdded = grouped[g]!.every((m) => selected.contains(m.id));
-                                                    return IconButton(
-                                                      padding: EdgeInsets.zero,
-                                                      constraints: const BoxConstraints(minWidth: 48, minHeight: 40),
-                                                      tooltip: allAdded ? l10n.providerDetailPageRemoveGroupTooltip : l10n.providerDetailPageAddGroupTooltip,
-                                                      icon: Icon(allAdded ? Lucide.Minus : Lucide.Plus, size: 24, color: allAdded ? cs.onSurface.withValues(alpha: 0.7) : cs.onSurface.withValues(alpha: 0.7)),
-                                                      onPressed: () async {
-                                                        final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-                                                        if (allAdded) {
-                                                          final toRemove = grouped[g]!.map((m) => m.id).toSet();
-                                                          final list = old.models.where((id) => !toRemove.contains(id)).toList();
-                                                          await settings.setProviderConfig(widget.keyName, old.copyWith(models: list));
-                                                        } else {
-                                                          final toAdd = grouped[g]!.where((m) => !selected.contains(m.id)).map((m) => m.id).toList();
-                                                          if (toAdd.isEmpty) return;
-                                                          final set = old.models.toSet()..addAll(toAdd);
-                                                          await settings.setProviderConfig(widget.keyName, old.copyWith(models: set.toList()));
-                                                        }
-                                                        setLocal(() {});
-                                                      },
-                                                    );
-                                                  }),
-                                                ],
-                                              ),
-                                              ));
-
-                                          },
-                                        ),
-                                      ),
-                                      AnimatedSize(
-                                        duration: const Duration(milliseconds: 220),
-                                        curve: Curves.easeOutCubic,
-                                        child: (collapsed[g] == true)
-                                            ? const SizedBox.shrink()
-                                            : Column(
-                                                children: [
-                                                  for (final m in grouped[g]!)
-                                                    Builder(builder: (c2) {
-                                            final added = selected.contains(m.id);
-                                            return Padding(
-                                              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                                              child: _TactileRow(
-                                                pressedScale: 0.98,
-                                                haptics: false,
-                                                onTap: () {},
-                                                builder: (_) {
-                                                  return Container(
-                                                    decoration: BoxDecoration(
-                                                      borderRadius: BorderRadius.circular(12),
-                                                    ),
-                                                    child: Padding(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                                      child: Row(
-                                                        children: [
-                                                          SizedBox(
-                                                            width: 28,
-                                                            child: Center(child: _BrandAvatar(name: m.id, size: 28)),
-                                                          ),
-                                                          const SizedBox(width: 16),
-                                                          Expanded(
-                                                            child: Column(
-                                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                                              children: [
-                                                                Text(m.displayName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                                                const SizedBox(height: 4),
-                                                                _modelTagWrap(context, m),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                          const SizedBox(width: 8),
-                                                          IconButton(
-                                                            padding: EdgeInsets.zero,
-                                                            constraints: const BoxConstraints(minWidth: 48, minHeight: 40),
-                                                            onPressed: () async {
-                                                              final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-                                                              final list = old.models.toList();
-                                                              if (added) {
-                                                                list.removeWhere((e) => e == m.id);
-                                                              } else {
-                                                                list.add(m.id);
-                                                              }
-                                                              await settings.setProviderConfig(widget.keyName, old.copyWith(models: list));
-                                                              setLocal(() {});
-                                                            },
-                                                            icon: Icon(added ? Lucide.Minus : Lucide.Plus, size: 24, color: added ? cs.onSurface.withValues(alpha: 0.7) : cs.onSurface.withValues(alpha: 0.7)),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            );
-                                          }),
-                                                ],
-                                              ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                    ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          );
-        });
-      },
-    );
-  }
-
   Widget _capPill(BuildContext context, IconData icon, String label) {
     final cs = Theme.of(context).colorScheme;
     return Container(
@@ -2474,7 +2140,7 @@ class _ModelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    return _TactileRow(
+    return ProviderTactileRow(
       pressedScale: 0.98,
       haptics: false,
       onTap: null,
@@ -2493,7 +2159,7 @@ class _ModelCard extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      _BrandAvatar(name: modelId, size: 28),
+                      BrandAvatar(name: modelId, size: 28),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -2501,7 +2167,7 @@ class _ModelCard extends StatelessWidget {
                           children: [
                             Text(_displayName(context), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                             const SizedBox(height: 4),
-                            _modelTagWrap(context, _effective(context)),
+                            buildModelTagWrap(context, _effective(context)),
                           ],
                         ),
                       ),
@@ -2717,7 +2383,7 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _BrandAvatar(name: _selectedModelId!, size: 24),
+              BrandAvatar(name: _selectedModelId!, size: 24),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -2744,7 +2410,7 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _BrandAvatar(name: _selectedModelId!, size: 24),
+              BrandAvatar(name: _selectedModelId!, size: 24),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
@@ -2771,7 +2437,7 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (_selectedModelId != null)
-          _TactileRow(
+          ProviderTactileRow(
             pressedScale: 0.98,
             haptics: false,
             onTap: _pickModel,
@@ -2782,7 +2448,7 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.max,
                   children: [
-                    _BrandAvatar(name: _selectedModelId!, size: 24),
+                    BrandAvatar(name: _selectedModelId!, size: 24),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -2855,23 +2521,23 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
       _state = _TestState.loading;
       _errorMessage = '';
     });
-    try {
-      final rawCfg = context.read<SettingsProvider>().getProviderConfig(widget.providerKey, defaultName: widget.providerDisplayName);
-      // Clean URLs before testing connection
-      final cfg = rawCfg.copyWith(
-        baseUrl: _sanitizeUrl(rawCfg.baseUrl),
-        chatPath: rawCfg.chatPath != null ? _sanitizeUrl(rawCfg.chatPath!) : null,
-      );
-      await ProviderManager.testConnection(cfg, _selectedModelId!);
-      if (!mounted) return;
-      setState(() => _state = _TestState.success);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
+    
+    final result = await ProviderTestService.testConnection(
+      context: context,
+      providerKey: widget.providerKey,
+      providerDisplayName: widget.providerDisplayName,
+      modelId: _selectedModelId!,
+    );
+    
+    if (!mounted) return;
+    setState(() {
+      if (result.isSuccess) {
+        _state = _TestState.success;
+      } else if (result.isError) {
         _state = _TestState.error;
-        _errorMessage = e.toString();
-      });
-    }
+        _errorMessage = result.errorMessage ?? '';
+      }
+    });
   }
 }
 
@@ -2919,396 +2585,8 @@ ModelInfo _effectiveFor(BuildContext context, String providerKey, String provide
 
 // Using flutter_slidable for reliable swipe actions with confirm + undo.
 
-Widget _modelTagWrap(BuildContext context, ModelInfo m) {
-  final cs = Theme.of(context).colorScheme;
-  final l10n = AppLocalizations.of(context)!;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  List<Widget> chips = [];
-  // type tag
-  chips.add(Container(
-    decoration: BoxDecoration(
-      color: isDark ? cs.primary.withOpacity(0.25) : cs.primary.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: cs.primary.withOpacity(0.2), width: 0.5),
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    child: Text(m.type == ModelType.chat ? l10n.modelSelectSheetChatType : l10n.modelSelectSheetEmbeddingType, style: TextStyle(fontSize: 11, color: isDark ? cs.primary : cs.primary.withOpacity(0.9), fontWeight: FontWeight.w500)),
-  ));
-  // modality tag capsule
-  chips.add(Container(
-    decoration: BoxDecoration(
-      color: isDark ? cs.tertiary.withOpacity(0.25) : cs.tertiary.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: cs.tertiary.withOpacity(0.2), width: 0.5),
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      for (final mod in m.input)
-        Padding(
-          padding: const EdgeInsets.only(right: 2),
-          child: Icon(mod == Modality.text ? Lucide.Type : Lucide.Image, size: 12, color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9)),
-        ),
-      Icon(Lucide.ChevronRight, size: 12, color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9)),
-      for (final mod in m.output)
-        Padding(
-          padding: const EdgeInsets.only(left: 2),
-          child: Icon(mod == Modality.text ? Lucide.Type : Lucide.Image, size: 12, color: isDark ? cs.tertiary : cs.tertiary.withOpacity(0.9)),
-        ),
-    ]),
-  ));
-  // abilities capsules (icon-only)
-  for (final ab in m.abilities) {
-    if (ab == ModelAbility.tool) {
-      chips.add(Container(
-        decoration: BoxDecoration(
-          color: isDark ? cs.primary.withOpacity(0.25) : cs.primary.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: cs.primary.withOpacity(0.2), width: 0.5),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        child: Icon(Lucide.Hammer, size: 12, color: isDark ? cs.primary : cs.primary.withOpacity(0.9)),
-      ));
-    } else if (ab == ModelAbility.reasoning) {
-      chips.add(Container(
-        decoration: BoxDecoration(
-          color: isDark ? cs.secondary.withOpacity(0.3) : cs.secondary.withOpacity(0.18),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: cs.secondary.withOpacity(0.25), width: 0.5),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        child: SvgPicture.asset('assets/icons/deepthink.svg', width: 12, height: 12, colorFilter: ColorFilter.mode(isDark ? cs.secondary : cs.secondary.withOpacity(0.9), BlendMode.srcIn)),
-      ));
-    }
-  }
-  return Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: chips);
-}
-
-
 // Legacy page-based implementations removed in favor of swipeable PageView tabs.
 
-
-class _BrandAvatar extends StatelessWidget {
-  const _BrandAvatar({super.key, required this.name, this.size = 20, this.customAvatarPath});
-  final String name;
-  final double size;
-  final String? customAvatarPath;
-
-
-  bool _preferMonochromeWhite(String n) {
-    final k = n.toLowerCase();
-    if (RegExp(r'openai|gpt|o\d').hasMatch(k)) return true;
-    if (RegExp(r'grok|xai').hasMatch(k)) return true;
-    return false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? Colors.white10 : cs.primary.withOpacity(0.1);
-
-    // Priority 1: Custom avatar
-    if (customAvatarPath != null && customAvatarPath!.isNotEmpty) {
-      final av = customAvatarPath!.trim();
-
-      // 1. URL - Network image
-      if (av.startsWith('http')) {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundColor: bg,
-          child: ClipOval(
-            child: Image.network(
-              av,
-              key: ValueKey(av), // Force reload when URL changes
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
-            ),
-          ),
-        );
-      }
-      // 2. File path (contains / or :)
-      else if (av.startsWith('/') || av.contains(':') || av.contains('/')) {
-        return FutureBuilder<String?>(
-          key: ValueKey(av), // Force FutureBuilder to rebuild when path changes
-          future: AssistantProvider.resolveToAbsolutePath(av),
-          builder: (context, snapshot) {
-            if (snapshot.hasData && snapshot.data != null) {
-              final file = File(snapshot.data!);
-              if (file.existsSync()) {
-                return CircleAvatar(
-                  radius: size / 2,
-                  backgroundColor: bg,
-                  child: ClipOval(
-                    child: Image.file(
-                      file,
-                      key: ValueKey(file.path), // Force reload when file path changes
-                      width: size,
-                      height: size,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
-                    ),
-                  ),
-                );
-              }
-            }
-            // Fallback while loading or if invalid
-            return _buildBrandAvatar(cs, isDark);
-          },
-        );
-      }
-      // 3. Emoji - Display as text
-      else {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundColor: bg,
-          child: Text(
-            av,
-            style: TextStyle(
-              fontSize: size * 0.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        );
-      }
-    }
-
-    // Priority 2 & 3: Brand assets or initials
-    return _buildBrandAvatar(cs, isDark);
-  }
-
-  Widget _buildBrandAvatar(ColorScheme cs, bool isDark) {
-    final asset = BrandAssets.assetForName(name);
-    final lower = name.toLowerCase();
-    final bool _mono = isDark && (RegExp(r'openai|gpt|o\\d').hasMatch(lower) || RegExp(r'grok|xai').hasMatch(lower) || RegExp(r'openrouter').hasMatch(lower));
-    return CircleAvatar(
-      radius: size / 2,
-      backgroundColor: isDark ? Colors.white10 : cs.primary.withOpacity(0.1),
-      child: asset == null
-          ? Text(name.isNotEmpty ? name.characters.first.toUpperCase() : '?',
-              style: TextStyle(color: cs.primary, fontSize: size * 0.5, fontWeight: FontWeight.w700))
-          : (asset.endsWith('.svg')
-              ? SvgPicture.asset(
-                  asset,
-                  width: size * 0.7,
-                  height: size * 0.7,
-                  colorFilter: _mono ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null,
-                )
-              : Image.asset(
-                  asset,
-                  width: size * 0.7,
-                  height: size * 0.7,
-                  fit: BoxFit.contain,
-                  color: _mono ? Colors.white : null,
-                  colorBlendMode: _mono ? BlendMode.srcIn : null,
-                )),
-    );
-  }
-
-}
-
-
-// Top-level tactile row used by iOS-style lists here
-class _TactileRow extends StatefulWidget {
-  const _TactileRow({required this.builder, this.onTap, this.pressedScale = 1.00, this.haptics = true});
-  final Widget Function(bool pressed) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-  final bool haptics;
-  @override
-  State<_TactileRow> createState() => _TactileRowState();
-}
-
-// Icon-only tactile button for AppBar (no ripple, slight press scale)
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.onLongPress,
-    this.semanticLabel,
-    this.size = 22,
-    this.haptics = true,
-  });
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress;
-  final String? semanticLabel;
-  final double size;
-  final bool haptics;
-
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final pressColor = base.withOpacity(0.7);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
-        child: Container(
-          // 固定尺寸，防止布局问题
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          child: Icon(
-            widget.icon,
-            size: widget.size,
-            color: _pressed ? pressColor : base,
-            semanticLabel: widget.semanticLabel,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TactileRowState extends State<_TactileRow> {
-  bool _pressed = false;
-  void _setPressed(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-  @override
-  Widget build(BuildContext context) {
-    // If no onTap, don't use GestureDetector to avoid blocking child interactions
-    if (widget.onTap == null) {
-      return widget.builder(_pressed);
-    }
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
-      onTap: () {
-        if (widget.haptics && context.read<SettingsProvider>().hapticsOnListItemTap) Haptics.soft();
-        widget.onTap!.call();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? widget.pressedScale : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: widget.builder(_pressed),
-      ),
-    );
-  }
-}
-
-// Bottom tactile tabs (two items) without ripple
-class _BottomTabs extends StatelessWidget {
-  const _BottomTabs({
-    required this.index,
-    required this.leftIcon,
-    required this.leftLabel,
-    required this.rightIcon,
-    required this.rightLabel,
-    required this.onSelect,
-  });
-  final int index;
-  final IconData leftIcon;
-  final String leftLabel;
-  final IconData rightIcon;
-  final String rightLabel;
-  final ValueChanged<int> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.transparent : cs.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant.withOpacity(isDark ? 0.18 : 0.12), width: 0.8),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-      child: Row(
-        children: [
-          Expanded(child: _BottomTabItem(icon: leftIcon, label: leftLabel, selected: index == 0, onTap: () => onSelect(0))),
-          Expanded(child: _BottomTabItem(icon: rightIcon, label: rightLabel, selected: index == 1, onTap: () => onSelect(1))),
-        ],
-      ),
-    );
-  }
-}
-
-class _BottomTabItem extends StatefulWidget {
-  const _BottomTabItem({required this.icon, required this.label, required this.selected, required this.onTap});
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_BottomTabItem> createState() => _BottomTabItemState();
-}
-
-class _BottomTabItemState extends State<_BottomTabItem> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final baseColor = cs.onSurface.withOpacity(0.7);
-    final selColor = cs.primary;
-    final target = widget.selected ? selColor : baseColor;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: () {
-        Haptics.soft();
-        widget.onTap();
-      },
-      child: TweenAnimationBuilder<Color?>(
-        tween: ColorTween(end: target),
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        builder: (context, color, _) {
-          final c = color ?? baseColor;
-          return AnimatedScale(
-            scale: _pressed ? 0.95 : 1.0,
-            duration: const Duration(milliseconds: 110),
-            curve: Curves.easeOutCubic,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(widget.icon, size: 20, color: c),
-                  const SizedBox(height: 4),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeOutCubic,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c),
-                    child: Text(widget.label, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
 
 // Mobile model group widget with collapsible header
 class _MobileModelGroup extends StatelessWidget {

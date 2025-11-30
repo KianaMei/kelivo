@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -12,10 +11,13 @@ import '../../../core/services/api_key_manager.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../utils/brand_assets.dart';
 import '../../../core/services/haptics.dart';
 import '../../../utils/safe_tooltip.dart';
-import 'key_management_widgets.dart';
+import '../../../shared/widgets/tactile_widgets.dart';
+// Extracted widgets
+import '../widgets/service_icon.dart';
+import '../widgets/brand_badge.dart';
+import '../editors/generic_service_editor.dart';
 
 class SearchServicesPage extends StatefulWidget {
   const SearchServicesPage({super.key, this.embedded = false});
@@ -156,13 +158,6 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       } else if (_selectedIndex > index) {
         _selectedIndex--;
       }
-    });
-    _saveChanges();
-  }
-
-  void _selectService(int index) {
-    setState(() {
-      _selectedIndex = index;
     });
     _saveChanges();
   }
@@ -374,7 +369,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
                 const Spacer(),
                 Tooltip(
                   message: l10n.searchServicesPageAddProvider,
-                  child: _TactileIconButton(
+                  child: SharedTactileIconButton(
                     icon: Lucide.Plus,
                     color: cs.onSurface,
                     size: 22,
@@ -396,7 +391,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       appBar: AppBar(
         leading: Tooltip(
           message: l10n.searchServicesPageBackTooltip,
-          child: _TactileIconButton(
+          child: SharedTactileIconButton(
             icon: Lucide.ArrowLeft,
             color: cs.onSurface,
             size: 22,
@@ -407,7 +402,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
         actions: [
           Tooltip(
             message: l10n.searchServicesPageAddProvider,
-            child: _TactileIconButton(
+            child: SharedTactileIconButton(
               icon: Lucide.Plus,
               color: cs.onSurface,
               size: 22,
@@ -454,7 +449,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     }
 
     return _iosSectionCard(children: [
-      _TactileRow(
+      SharedTactileRow(
         onTap: null, // no navigation, so no chevron
         pressedScale: 1.00,
         haptics: false,
@@ -496,7 +491,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
         },
       ),
       _iosDivider(context),
-      _TactileRow(
+      SharedTactileRow(
         onTap: null,
         pressedScale: 1.00,
         haptics: false,
@@ -569,7 +564,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
       statusBg = cs.onSurface.withOpacity(0.06);
       statusFg = cs.onSurface.withOpacity(0.7);
     }
-    return _TactileRow(
+    return SharedTactileRow(
       onTap: () {
         // Tap to edit (bottom sheet)
         _editService(index);
@@ -589,7 +584,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
                 child: Row(
                   children: [
-                    SizedBox(width: 36, child: Center(child: _BrandBadge.forService(s, size: 22))),
+                    SizedBox(width: 36, child: Center(child: BrandBadge.forService(s, size: 22))),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -622,7 +617,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
                       if (_services.length > 1)
                         Tooltip(
                           message: '删除服务',
-                          child: _TactileIconButton(
+                          child: SharedTactileIconButton(
                             icon: Lucide.Trash2,
                             color: cs.error.withOpacity(0.8),
                             size: 18,
@@ -671,149 +666,6 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
           ),
         );
       },
-    );
-  }
-
-  IconData _getServiceIcon(SearchServiceOptions service) {
-    if (service is BingLocalOptions) return Lucide.Search;
-    if (service is TavilyOptions) return Lucide.Sparkles;
-    if (service is ExaOptions) return Lucide.Brain;
-    if (service is ZhipuOptions) return Lucide.Languages;
-    if (service is SearXNGOptions) return Lucide.Shield;
-    if (service is LinkUpOptions) return Lucide.Link2;
-    if (service is BraveOptions) return Lucide.Shield;
-    if (service is MetasoOptions) return Lucide.Compass;
-    if (service is JinaOptions) return Lucide.Sparkles;
-    if (service is PerplexityOptions) return Lucide.Search;
-    if (service is BochaOptions) return Lucide.Search;
-    if (service is DuckDuckGoOptions) return Lucide.Search;
-    return Lucide.Search;
-  }
-
-  String? _getServiceStatus(SearchServiceOptions service) {
-    final l10n = AppLocalizations.of(context)!;
-    if (service is BingLocalOptions) return null;
-    if (service is TavilyOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is ExaOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is ZhipuOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is SearXNGOptions) return service.url.isNotEmpty ? l10n.searchServicesPageConfiguredStatus : l10n.searchServicesPageUrlRequiredStatus;
-    if (service is LinkUpOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is BraveOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is MetasoOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is OllamaOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is JinaOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is PerplexityOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is BochaOptions) {
-      final enabledCount = service.apiKeys.where((k) => k.isEnabled).length;
-      if (enabledCount == 0) return l10n.searchServicesPageApiKeyRequiredStatus;
-      return enabledCount == 1 ? l10n.searchServicesPageConfiguredStatus : '$enabledCount keys';
-    }
-    if (service is DuckDuckGoOptions) return null;
-    return null;
-  }
-
-  // Brand badge for known services using assets/icons; falls back to letter if unknown
-  // ignore: unused_element
-  Widget _brandBadgeForName(String name, {double size = 20}) => _BrandBadge(name: name, size: size);
-}
-
-class _BrandBadge extends StatelessWidget {
-  const _BrandBadge({required this.name, this.size = 20});
-  final String name;
-  final double size;
-
-  static Widget forService(SearchServiceOptions s, {double size = 24}) {
-    final n = _nameForService(s);
-    return _BrandBadge(name: n, size: size);
-  }
-
-  static String _nameForService(SearchServiceOptions s) {
-    if (s is BingLocalOptions) return 'bing';
-    if (s is TavilyOptions) return 'tavily';
-    if (s is ExaOptions) return 'exa';
-    if (s is ZhipuOptions) return 'zhipu';
-    if (s is SearXNGOptions) return 'searxng';
-    if (s is LinkUpOptions) return 'linkup';
-    if (s is BraveOptions) return 'brave';
-    if (s is MetasoOptions) return 'metaso';
-    if (s is OllamaOptions) return 'ollama';
-    if (s is JinaOptions) return 'jina';
-    if (s is PerplexityOptions) return 'perplexity';
-    if (s is BochaOptions) return 'bocha';
-    if (s is DuckDuckGoOptions) return 'duckduckgo';
-    return 'search';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Use BrandAssets to get the icon path
-    final asset = BrandAssets.assetForName(name);
-    final bg = isDark ? Colors.white10 : cs.primary.withOpacity(0.1);
-    if (asset != null) {
-      if (asset!.endsWith('.svg')) {
-        final isColorful = asset!.contains('color');
-        final ColorFilter? tint = (isDark && !isColorful) ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) : null;
-        return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-          alignment: Alignment.center,
-          child: SvgPicture.asset(asset!, width: size * 0.62, height: size * 0.62, colorFilter: tint),
-        );
-      } else {
-        return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-          alignment: Alignment.center,
-          child: Image.asset(asset!, width: size * 0.62, height: size * 0.62, fit: BoxFit.contain),
-        );
-      }
-    }
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-      alignment: Alignment.center,
-      child: Text(name.isNotEmpty ? name.characters.first.toUpperCase() : '?', style: TextStyle(color: cs.primary, fontWeight: FontWeight.w700, fontSize: size * 0.42)),
     );
   }
 }
@@ -942,7 +794,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
             context,
             icon: Lucide.Globe,
             label: item['name'] as String,
-            leading: _ServiceIcon(type: item['type'] as String, name: item['name'] as String, size: 36),
+            leading: ServiceIcon(type: item['type'] as String, name: item['name'] as String, size: 36),
             bgOnPress: false,
             onTap: () {
               setState(() => _selectedType = item['type'] as String);
@@ -1581,7 +1433,7 @@ class _EditServiceDialog extends StatefulWidget {
 
 class _EditServiceDialogState extends State<_EditServiceDialog> {
   late SearchServiceOptions _current;
-  final GlobalKey<_GenericServiceEditorState> _genericKey = GlobalKey<_GenericServiceEditorState>();
+  final GlobalKey<GenericServiceEditorState> _genericKey = GlobalKey<GenericServiceEditorState>();
 
   @override
   void initState() {
@@ -1648,7 +1500,7 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
                             initial: _current,
                             onChanged: (v) => setState(() => _current = v),
                           )
-                        : _GenericServiceEditor(key: _genericKey, initial: _current),
+                        : GenericServiceEditor(key: _genericKey, initial: _current),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -2579,275 +2431,7 @@ class _MultiKeyEditorState extends State<_MultiKeyEditor> {
   }
 }
 
-class _GenericServiceEditor extends StatefulWidget {
-  const _GenericServiceEditor({super.key, required this.initial});
-  final SearchServiceOptions initial;
-
-  @override
-  State<_GenericServiceEditor> createState() => _GenericServiceEditorState();
-}
-
-class _GenericServiceEditorState extends State<_GenericServiceEditor> {
-  final Map<String, TextEditingController> _c = {};
-
-  @override
-  void initState() {
-    super.initState();
-    final s = widget.initial;
-    // 这些服务现在使用多Key，不应该在这里处理
-    if (s is SearXNGOptions) {
-      _c['url'] = TextEditingController(text: s.url);
-      _c['engines'] = TextEditingController(text: s.engines);
-      _c['language'] = TextEditingController(text: s.language);
-      _c['username'] = TextEditingController(text: s.username);
-      _c['password'] = TextEditingController(text: s.password);
-    }
-  }
-
-  @override
-  void dispose() {
-    for (final v in _c.values) v.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final s = widget.initial;
-
-    Widget field(String k, String label, {bool obscure = false, String? hint}) => Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: TextField(
-            controller: _c.putIfAbsent(k, () => TextEditingController()),
-            obscureText: obscure,
-            decoration: InputDecoration(
-              labelText: label,
-              hintText: hint,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
-          ),
-        );
-
-    if (s is SearXNGOptions) {
-      return SingleChildScrollView(
-        child: Column(
-          children: [
-            field('url', '实例地址'),
-            field('engines', '引擎（可选）', hint: 'google,duckduckgo'),
-            field('language', '语言（可选）', hint: 'en-US'),
-            field('username', '用户名（可选）'),
-            field('password', '密码（可选）', obscure: true),
-          ],
-        ),
-      );
-    }
-
-    if (s is BingLocalOptions) {
-      return Center(child: Text('无额外配置', style: TextStyle(color: cs.onSurface.withOpacity(0.8))));
-    }
-
-    // 所有单Key服务都已转换为多Key，这里应该不会执行到
-    return const Center(child: Text('此服务应使用多Key编辑器'));
-  }
-
-  SearchServiceOptions? buildUpdated() {
-    final s = widget.initial;
-    // 所有这些服务现在都使用多Key，应该由MultiKeyEditor处理
-    if (s is SearXNGOptions) {
-      return SearXNGOptions(
-        id: s.id,
-        url: _c['url']!.text,
-        engines: _c['engines']!.text,
-        language: _c['language']!.text,
-        username: _c['username']!.text,
-        password: _c['password']!.text,
-      );
-    }
-    if (s is BingLocalOptions) return s;
-    return null;
-  }
-}
-
-// Service Icon Widget - Uses BrandAssets
-class _ServiceIcon extends StatelessWidget {
-  const _ServiceIcon({
-    required this.type,
-    required this.name,
-    this.size = 40,
-  });
-
-  final String type;  // Service type like 'bing_local', 'tavily', etc.
-  final String name;  // Display name for fallback
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Use type for matching, not the localized name
-    final matchName = _getMatchName(type);
-    final asset = BrandAssets.assetForName(matchName);
-    final bg = isDark ? Colors.white10 : cs.primary.withOpacity(0.1);
-    
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      alignment: Alignment.center,
-      child: asset != null
-          ? _buildAssetIcon(asset, size, isDark)
-          : _buildLetterIcon(name, size, cs),
-    );
-  }
-
-  Widget _buildAssetIcon(String asset, double size, bool isDark) {
-    final iconSize = size * 0.62;
-    if (asset.endsWith('.svg')) {
-      final isColorful = asset.contains('color');
-      final ColorFilter? tint = (isDark && !isColorful) 
-          ? const ColorFilter.mode(Colors.white, BlendMode.srcIn) 
-          : null;
-      return SvgPicture.asset(
-        asset,
-        width: iconSize,
-        height: iconSize,
-        colorFilter: tint,
-      );
-    } else {
-      return Image.asset(
-        asset,
-        width: iconSize,
-        height: iconSize,
-        fit: BoxFit.contain,
-      );
-    }
-  }
-
-  Widget _buildLetterIcon(String name, double size, ColorScheme cs) {
-    return Text(
-      name.isNotEmpty ? name.characters.first.toUpperCase() : '?',
-      style: TextStyle(
-        color: cs.primary,
-        fontWeight: FontWeight.w700,
-        fontSize: size * 0.42,
-      ),
-    );
-  }
-
-  // Map service type to name for BrandAssets matching
-  String _getMatchName(String type) {
-    switch (type) {
-      case 'bing_local':
-        return 'bing';
-      case 'tavily':
-        return 'tavily';
-      case 'exa':
-        return 'exa';
-      case 'zhipu':
-        return 'zhipu';
-      case 'searxng':
-        return 'searxng';
-      case 'linkup':
-        return 'linkup';
-      case 'brave':
-        return 'brave';
-      case 'metaso':
-        return 'metaso';
-      case 'jina':
-        return 'jina';
-      case 'ollama':
-        return 'ollama';
-      case 'bocha':
-        return 'bocha';
-      default:
-        return type;
-    }
-  }
-}
-
 // --- iOS-style tactile + section helpers (local copy to avoid ripple) ---
-
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.onLongPress,
-    this.semanticLabel,
-    this.size = 22,
-    this.haptics = true,
-  });
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress;
-  final String? semanticLabel;
-  final double size;
-  final bool haptics;
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final pressColor = base.withOpacity(0.7);
-    final icon = Icon(widget.icon, size: widget.size, color: _pressed ? pressColor : base, semanticLabel: widget.semanticLabel);
-    return Semantics(
-      button: true,
-      label: widget.semanticLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: () { if (widget.haptics) Haptics.light(); widget.onTap(); },
-        onLongPress: widget.onLongPress == null ? null : () { if (widget.haptics) Haptics.light(); widget.onLongPress!.call(); },
-        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6), child: icon),
-      ),
-    );
-  }
-}
-
-class _TactileRow extends StatefulWidget {
-  const _TactileRow({required this.builder, this.onTap, this.pressedScale = 1.00, this.haptics = true});
-  final Widget Function(bool pressed) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-  final bool haptics;
-  @override
-  State<_TactileRow> createState() => _TactileRowState();
-}
-
-class _TactileRowState extends State<_TactileRow> {
-  bool _pressed = false;
-  void _setPressed(bool v) { if (_pressed != v) setState(() => _pressed = v); }
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
-      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap == null ? null : () {
-        if (widget.haptics && context.read<SettingsProvider>().hapticsOnListItemTap) Haptics.soft();
-        widget.onTap!.call();
-      },
-      child: widget.builder(_pressed),
-    );
-  }
-}
 
 class _AnimatedPressColor extends StatelessWidget {
   const _AnimatedPressColor({required this.pressed, required this.base, required this.builder});
@@ -2904,7 +2488,7 @@ Widget _sheetOption(
 }) {
   final cs = Theme.of(context).colorScheme;
   final isDark = Theme.of(context).brightness == Brightness.dark;
-  return _TactileRow(
+  return SharedTactileRow(
     pressedScale: 1.00,
     haptics: true,
     onTap: onTap,
@@ -3093,7 +2677,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                _ServiceIcon(type: item['type'] as String, name: item['name'] as String, size: 36),
+                ServiceIcon(type: item['type'] as String, name: item['name'] as String, size: 36),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(

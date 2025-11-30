@@ -30,39 +30,12 @@ import '../core/services/haptics.dart';
 import 'widgets/desktop_avatar_picker_dialog.dart' show showDesktopAvatarPickerDialog;
 import 'desktop_context_menu.dart' show showDesktopAnchoredMenu, DesktopContextMenuItem;
 import '../features/provider/pages/multi_key_manager_page.dart';
+import '../features/provider/services/provider_test_service.dart';
 
 /// Get effective ModelInfo with user overrides applied
-ModelInfo _getEffectiveModelInfo(String modelId, ProviderConfig cfg) {
-  // Start with inferred model info
-  ModelInfo base = ModelRegistry.infer(ModelInfo(id: modelId, displayName: modelId));
-  
-  // Apply user overrides if they exist
-  final ov = cfg.modelOverrides[modelId] as Map?;
-  if (ov != null) {
-    final name = (ov['name'] as String?)?.trim() ?? base.displayName;
-    final typeStr = (ov['type'] as String?) ?? '';
-    final type = typeStr == 'embedding' ? ModelType.embedding : ModelType.chat;
-    
-    final inArr = (ov['input'] as List?)?.map((e) => e.toString()).toList() ?? [];
-    final outArr = (ov['output'] as List?)?.map((e) => e.toString()).toList() ?? [];
-    final abArr = (ov['abilities'] as List?)?.map((e) => e.toString()).toList() ?? [];
-    
-    final input = inArr.isEmpty ? base.input : inArr.map((e) => e == 'image' ? Modality.image : Modality.text).toList();
-    final output = outArr.isEmpty ? base.output : outArr.map((e) => e == 'image' ? Modality.image : Modality.text).toList();
-    final abilities = abArr.isEmpty ? base.abilities : abArr.map((e) => e == 'reasoning' ? ModelAbility.reasoning : ModelAbility.tool).toList();
-    
-    return ModelInfo(
-      id: modelId,
-      displayName: name,
-      type: type,
-      input: input,
-      output: output,
-      abilities: abilities,
-    );
-  }
-  
-  return base;
-}
+/// Delegates to ProviderTestService.getEffectiveModelInfo
+ModelInfo _getEffectiveModelInfo(String modelId, ProviderConfig cfg) =>
+    ProviderTestService.getEffectiveModelInfo(modelId, cfg);
 
 /// Shows desktop provider detail dialog (75% of screen size)
 Future<void> showDesktopProviderDetailDialog(
@@ -994,284 +967,6 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
     if (ok == true) {
       setState(() {});
     }
-  }
-
-  // Old inline implementation (replaced by imported dialog)
-  Future<void> _showDesktopModelFetchDialogOld(BuildContext context) async {
-    final sp = context.read<SettingsProvider>();
-    final cfg = sp.getProviderConfig(widget.keyName, defaultName: widget.displayName);
-    final l10n = AppLocalizations.of(context)!;
-    
-    // Check if we have API key for providers that need it
-    final bool _isDefaultSilicon = widget.keyName.toLowerCase() == 'siliconflow';
-    final bool _hasUserKey = (cfg.multiKeyEnabled == true && (cfg.apiKeys?.isNotEmpty == true)) || cfg.apiKey.trim().isNotEmpty;
-    final bool _restrictToFree = _isDefaultSilicon && !_hasUserKey;
-
-    List<dynamic> items = [];
-    bool loading = true;
-    String error = '';
-    final Set<String> selected = Set<String>.from(cfg.models);
-    final filterCtrl = TextEditingController();
-
-    await showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'model-fetch-dialog',
-      barrierColor: Colors.black.withOpacity(0.25),
-      transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (ctx, _, __) {
-        final cs = Theme.of(ctx).colorScheme;
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final size = MediaQuery.of(ctx).size;
-
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            // Load models on first build
-            if (loading && items.isEmpty && error.isEmpty) {
-              Future.microtask(() async {
-                try {
-                  if (_restrictToFree) {
-                    // SiliconFlow free models only
-                    final list = <ModelInfo>[
-                      ModelRegistry.infer(ModelInfo(id: 'THUDM/GLM-4-9B-0414', displayName: 'THUDM/GLM-4-9B-0414')),
-                      ModelRegistry.infer(ModelInfo(id: 'Qwen/Qwen3-8B', displayName: 'Qwen/Qwen3-8B')),
-                    ];
-                    setLocal(() {
-                      items = list;
-                      loading = false;
-                    });
-                  } else {
-                    final list = await ProviderManager.listModels(cfg);
-                    setLocal(() {
-                      items = list;
-                      loading = false;
-                    });
-                  }
-                } catch (e) {
-                  setLocal(() {
-                    items = [];
-                    loading = false;
-                    error = e.toString();
-                  });
-                }
-              });
-            }
-
-            final query = filterCtrl.text.trim().toLowerCase();
-            final filtered = <ModelInfo>[
-              for (final m in items)
-                if (m is ModelInfo && (query.isEmpty || m.id.toLowerCase().contains(query) || m.displayName.toLowerCase().contains(query))) m
-            ];
-
-            // Group models
-            final Map<String, List<ModelInfo>> grouped = {};
-            for (final m in filtered) {
-              final g = _groupForModel(m, l10n);
-              (grouped[g] ??= []).add(m);
-            }
-            final groupKeys = grouped.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: size.width * 0.65,
-                  maxHeight: size.height * 0.75,
-                ),
-                child: Material(
-                  color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF7F7F9),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(
-                      color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.25),
-                      width: 1,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Header
-                        Container(
-                          height: 56,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  l10n.providerDetailPageFetchModelsButton,
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                              _IconBtn(
-                                icon: Lucide.X,
-                                color: cs.onSurface,
-                                onTap: () => Navigator.of(ctx).pop(),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.12)),
-
-                        // Search field
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                          child: TextField(
-                            controller: filterCtrl,
-                            onChanged: (_) => setLocal(() {}),
-                            style: const TextStyle(fontSize: 14),
-                            decoration: InputDecoration(
-                              hintText: l10n.providerDetailPageFilterHint,
-                              filled: true,
-                              fillColor: isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFEBECF0),
-                              prefixIcon: Icon(Lucide.Search, size: 18, color: cs.onSurface.withOpacity(0.7)),
-                              suffixIcon: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Tooltip(
-                                    message: filtered.isNotEmpty && filtered.every((m) => selected.contains(m.id)) 
-                                      ? l10n.mcpAssistantSheetClearAll
-                                      : l10n.mcpAssistantSheetSelectAll,
-                                    child: _IconBtn(
-                                      icon: filtered.isNotEmpty && filtered.every((m) => selected.contains(m.id))
-                                        ? Lucide.Square
-                                        : Lucide.CheckSquare,
-                                      color: cs.onSurface.withOpacity(0.7),
-                                      onTap: () async {
-                                        if (filtered.isEmpty) return;
-                                        final allSelected = filtered.every((m) => selected.contains(m.id));
-                                        if (allSelected) {
-                                          // Deselect all filtered
-                                          for (final m in filtered) {
-                                            selected.remove(m.id);
-                                          }
-                                        } else {
-                                          // Select all filtered
-                                          for (final m in filtered) {
-                                            selected.add(m.id);
-                                          }
-                                        }
-                                        await sp.setProviderConfig(widget.keyName, cfg.copyWith(models: selected.toList()));
-                                        setLocal(() {});
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Tooltip(
-                                    message: l10n.modelFetchInvertTooltip,
-                                    child: _IconBtn(
-                                      icon: Lucide.Repeat,
-                                      color: cs.onSurface.withOpacity(0.7),
-                                      onTap: () async {
-                                        if (filtered.isEmpty) return;
-                                        for (final m in filtered) {
-                                          if (selected.contains(m.id)) {
-                                            selected.remove(m.id);
-                                          } else {
-                                            selected.add(m.id);
-                                          }
-                                        }
-                                        await sp.setProviderConfig(widget.keyName, cfg.copyWith(models: selected.toList()));
-                                        setLocal(() {});
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                ],
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: cs.primary.withOpacity(0.4)),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              isDense: true,
-                            ),
-                          ),
-                        ),
-
-                        // Content
-                        Expanded(
-                          child: loading
-                            ? const Center(child: CircularProgressIndicator())
-                            : error.isNotEmpty
-                              ? Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(24),
-                                    child: Text(
-                                      error,
-                                      style: TextStyle(color: cs.error),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                                  itemCount: groupKeys.length,
-                                  itemBuilder: (c, i) {
-                                    final g = groupKeys[i];
-                                    final models = grouped[g]!;
-                                    return _DesktopModelGroup(
-                                      groupName: g,
-                                      models: models,
-                                      selected: selected,
-                                      onToggleGroup: () async {
-                                        final allAdded = models.every((m) => selected.contains(m.id));
-                                        if (allAdded) {
-                                          for (final m in models) {
-                                            selected.remove(m.id);
-                                          }
-                                        } else {
-                                          for (final m in models) {
-                                            if (!selected.contains(m.id)) {
-                                              selected.add(m.id);
-                                            }
-                                          }
-                                        }
-                                        await sp.setProviderConfig(widget.keyName, cfg.copyWith(models: selected.toList()));
-                                        setLocal(() {});
-                                      },
-                                      onToggleModel: (modelId) async {
-                                        if (selected.contains(modelId)) {
-                                          selected.remove(modelId);
-                                        } else {
-                                          selected.add(modelId);
-                                        }
-                                        await sp.setProviderConfig(widget.keyName, cfg.copyWith(models: selected.toList()));
-                                        setLocal(() {});
-                                      },
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-      transitionBuilder: (ctx, anim, _, child) {
-        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-            child: child,
-          ),
-        );
-      },
-    );
   }
 
   String _groupForModel(ModelInfo m, AppLocalizations l10n) {
@@ -3384,21 +3079,23 @@ class _DesktopConnectionTestDialogState extends State<_DesktopConnectionTestDial
       _state = _TestState.loading;
       _errorMessage = '';
     });
-    try {
-      final cfg = context.read<SettingsProvider>().getProviderConfig(
-        widget.providerKey,
-        defaultName: widget.displayName,
-      );
-      await ProviderManager.testConnection(cfg, _selectedModelId!);
-      if (!mounted) return;
-      setState(() => _state = _TestState.success);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
+    
+    final result = await ProviderTestService.testConnection(
+      context: context,
+      providerKey: widget.providerKey,
+      providerDisplayName: widget.displayName,
+      modelId: _selectedModelId!,
+    );
+    
+    if (!mounted) return;
+    setState(() {
+      if (result.isSuccess) {
+        _state = _TestState.success;
+      } else if (result.isError) {
         _state = _TestState.error;
-        _errorMessage = e.toString();
-      });
-    }
+        _errorMessage = result.errorMessage ?? '';
+      }
+    });
   }
 }
 
