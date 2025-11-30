@@ -3,8 +3,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
 import '../../../core/services/search/search_service.dart';
+import '../services/search_service_factory.dart';
+import '../services/search_service_names.dart';
+import '../widgets/service_form_fields.dart';
+import 'key_management_widgets.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/models/api_keys.dart';
 import '../../../core/services/api_key_manager.dart';
@@ -81,54 +84,113 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
 
   void _editService(int index) {
     final service = _services[index];
+    final isMultiKey = SearchServiceFactory.supportsMultiKey(service);
+    final serviceName = SearchService.getService(service).name;
+    
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-      showGeneralDialog(
-        context: context,
-        barrierDismissible: true,
-        barrierLabel: 'edit-service',
-        barrierColor: Colors.black.withOpacity(0.25),
-        transitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (ctx, a1, a2) {
-          return Center(
-            child: _EditServiceDialog(
+      // 桌面端：使用 Dialog
+      if (isMultiKey) {
+        // 多Key服务使用 KeyManagementDialog（和 Provider 一致）
+        showGeneralDialog(
+          context: context,
+          barrierDismissible: true,
+          barrierLabel: 'key-management',
+          barrierColor: Colors.black.withOpacity(0.25),
+          transitionDuration: const Duration(milliseconds: 220),
+          pageBuilder: (ctx, a1, a2) {
+            return KeyManagementDialog(
               service: service,
+              serviceName: serviceName,
               onSave: (updated) {
                 setState(() {
                   _services[index] = updated;
                 });
                 _saveChanges();
               },
-            ),
-          );
-        },
-        transitionBuilder: (ctx, anim, sec, child) {
-          final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
-          return FadeTransition(
-            opacity: curved,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
-              child: child,
-            ),
-          );
-        },
-      );
-    } else {
-      final cs = Theme.of(context).colorScheme;
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: cs.surface,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-        builder: (ctx) => _EditServiceSheet(
-          service: service,
-          onSave: (updated) {
-            setState(() {
-              _services[index] = updated;
-            });
-            _saveChanges();
+            );
           },
-        ),
-      );
+          transitionBuilder: (ctx, anim, sec, child) {
+            final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+            return FadeTransition(
+              opacity: curved,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
+                child: child,
+              ),
+            );
+          },
+        );
+      } else {
+        // 非多Key服务使用原有的 _EditServiceDialog
+        showGeneralDialog(
+          context: context,
+          barrierDismissible: true,
+          barrierLabel: 'edit-service',
+          barrierColor: Colors.black.withOpacity(0.25),
+          transitionDuration: const Duration(milliseconds: 220),
+          pageBuilder: (ctx, a1, a2) {
+            return Center(
+              child: _EditServiceDialog(
+                service: service,
+                onSave: (updated) {
+                  setState(() {
+                    _services[index] = updated;
+                  });
+                  _saveChanges();
+                },
+              ),
+            );
+          },
+          transitionBuilder: (ctx, anim, sec, child) {
+            final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+            return FadeTransition(
+              opacity: curved,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
+                child: child,
+              ),
+            );
+          },
+        );
+      }
+    } else {
+      // 移动端：使用 Sheet
+      final cs = Theme.of(context).colorScheme;
+      if (isMultiKey) {
+        // 多Key服务使用 KeyManagementSheet（和 Provider 一致）
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) => KeyManagementSheet(
+            service: service,
+            serviceName: serviceName,
+            onSave: (updated) {
+              setState(() {
+                _services[index] = updated;
+              });
+              _saveChanges();
+            },
+          ),
+        );
+      } else {
+        // 非多Key服务使用原有的 _EditServiceSheet
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: cs.surface,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+          builder: (ctx) => _EditServiceSheet(
+            service: service,
+            onSave: (updated) {
+              setState(() {
+                _services[index] = updated;
+              });
+              _saveChanges();
+            },
+          ),
+        );
+      }
     }
   }
 
@@ -767,64 +829,33 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
 
   Widget _buildServiceTypeList() {
     final l10n = AppLocalizations.of(context)!;
-    final services = [
-      {'type': 'bing_local', 'name': l10n.searchServiceNameBingLocal},
-      {'type': 'tavily', 'name': l10n.searchServiceNameTavily},
-      {'type': 'exa', 'name': l10n.searchServiceNameExa},
-      {'type': 'zhipu', 'name': l10n.searchServiceNameZhipu},
-      {'type': 'searxng', 'name': l10n.searchServiceNameSearXNG},
-      {'type': 'linkup', 'name': l10n.searchServiceNameLinkUp},
-      {'type': 'brave', 'name': l10n.searchServiceNameBrave},
-      {'type': 'metaso', 'name': l10n.searchServiceNameMetaso},
-      {'type': 'jina', 'name': l10n.searchServiceNameJina},
-      {'type': 'ollama', 'name': l10n.searchServiceNameOllama},
-      {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
-      {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
-      {'type': 'duckduckgo', 'name': l10n.searchServiceNameDuckDuckGo},
-    ];
+    final types = SearchServiceFactory.allTypes;
     return ListView.builder(
       key: const ValueKey('service_list'),
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       shrinkWrap: true,
-      itemCount: services.length,
+      itemCount: types.length,
       itemBuilder: (context, index) {
-        final item = services[index];
+        final type = types[index];
+        final name = getSearchServiceName(type, l10n);
         return Column(children: [
           _sheetOption(
             context,
             icon: Lucide.Globe,
-            label: item['name'] as String,
-            leading: ServiceIcon(type: item['type'] as String, name: item['name'] as String, size: 36),
+            label: name,
+            leading: ServiceIcon(type: type, name: name, size: 36),
             bgOnPress: false,
             onTap: () {
-              setState(() => _selectedType = item['type'] as String);
+              setState(() => _selectedType = type);
             },
           ),
-          if (index != services.length - 1) _sheetDivider(context),
+          if (index != types.length - 1) _sheetDivider(context),
         ]);
       },
     );
   }
 
-  String _getServiceName(String type) {
-    final l10n = AppLocalizations.of(context)!;
-    switch (type) {
-      case 'bing_local': return l10n.searchServiceNameBingLocal;
-      case 'tavily': return l10n.searchServiceNameTavily;
-      case 'exa': return l10n.searchServiceNameExa;
-      case 'zhipu': return l10n.searchServiceNameZhipu;
-      case 'searxng': return l10n.searchServiceNameSearXNG;
-      case 'linkup': return l10n.searchServiceNameLinkUp;
-      case 'brave': return l10n.searchServiceNameBrave;
-      case 'metaso': return l10n.searchServiceNameMetaso;
-      case 'jina': return l10n.searchServiceNameJina;
-      case 'ollama': return l10n.searchServiceNameOllama;
-      case 'perplexity': return l10n.searchServiceNamePerplexity;
-      case 'bocha': return l10n.searchServiceNameBocha;
-      case 'duckduckgo': return l10n.searchServiceNameDuckDuckGo;
-      default: return '';
-    }
-  }
+  String _getServiceName(String type) => getSearchServiceName(type, AppLocalizations.of(context)!);
 
   Widget _buildFormView() {
     final l10n = AppLocalizations.of(context)!;
@@ -836,7 +867,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
         key: _formKey,
         child: Column(
           children: [
-            ..._buildFieldsForType(_selectedType!),
+            ServiceFormFields(type: _selectedType!, controllers: _controllers),
             const SizedBox(height: 20),
             // Add button
             SizedBox(
@@ -867,236 +898,17 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
     );
   }
 
-  List<Widget> _buildFieldsForType(String type) {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    Widget _buildTextField({
-      required String key,
-      required String label,
-      String? hint,
-      bool obscureText = false,
-      String? Function(String?)? validator,
-    }) {
-      _controllers[key] ??= TextEditingController();
-      return Container(
-        decoration: BoxDecoration(
-          color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: TextFormField(
-          controller: _controllers[key],
-          obscureText: obscureText,
-          style: const TextStyle(fontSize: 16),
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hint,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-          validator: validator,
-        ),
-      );
-    }
-    
-    switch (type) {
-      case 'bing_local':
-        return [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Lucide.Search, size: 20, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    l10n.searchServiceNameBingLocal,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: cs.onSurface.withOpacity(0.8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ];
-      case 'duckduckgo':
-        return [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Lucide.Search, size: 20, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    l10n.searchServiceNameDuckDuckGo,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: cs.onSurface.withOpacity(0.8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'region',
-            label: 'Region (optional)',
-            hint: 'wt-wt',
-          ),
-        ];
-      case 'tavily':
-      case 'exa':
-      case 'zhipu':
-      case 'linkup':
-      case 'brave':
-      case 'metaso':
-      case 'jina':
-      case 'ollama':
-      case 'perplexity':
-      case 'bocha':
-        return [
-          _buildTextField(
-            key: 'apiKey',
-            label: 'API Key',
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return l10n.searchServicesAddDialogApiKeyRequired;
-              }
-              return null;
-            },
-          ),
-        ];
-      case 'searxng':
-        return [
-          _buildTextField(
-            key: 'url',
-            label: l10n.searchServicesAddDialogInstanceUrl,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return l10n.searchServicesAddDialogUrlRequired;
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'engines',
-            label: l10n.searchServicesAddDialogEnginesOptional,
-            hint: 'google,duckduckgo',
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'language',
-            label: l10n.searchServicesAddDialogLanguageOptional,
-            hint: 'en-US',
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'username',
-            label: l10n.searchServicesAddDialogUsernameOptional,
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'password',
-            label: l10n.searchServicesAddDialogPasswordOptional,
-            obscureText: true,
-          ),
-        ];
-      default:
-        return [];
-    }
-  }
-
   SearchServiceOptions _createService() {
-    final uuid = Uuid();
-    final id = uuid.v4().substring(0, 8);
-    
-    switch (_selectedType) {
-      case 'bing_local':
-        return BingLocalOptions(id: id);
-      case 'tavily':
-        return TavilyOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'exa':
-        return ExaOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'zhipu':
-        return ZhipuOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'searxng':
-        return SearXNGOptions(
-          id: id,
-          url: _controllers['url']!.text,
-          engines: _controllers['engines']!.text,
-          language: _controllers['language']!.text,
-          username: _controllers['username']!.text,
-          password: _controllers['password']!.text,
-        );
-      case 'linkup':
-        return LinkUpOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'brave':
-        return BraveOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'metaso':
-        return MetasoOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'jina':
-        return JinaOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'ollama':
-        return OllamaOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'perplexity':
-        return PerplexityOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'bocha':
-        return BochaOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'duckduckgo':
-        return DuckDuckGoOptions(
-          id: id,
-          region: _controllers['region']?.text ?? 'wt-wt',
-        );
-      default:
-        return BingLocalOptions(id: id);
-    }
+    return SearchServiceFactory.create(
+      type: _selectedType!,
+      apiKey: _controllers['apiKey']?.text,
+      url: _controllers['url']?.text,
+      engines: _controllers['engines']?.text,
+      language: _controllers['language']?.text,
+      username: _controllers['username']?.text,
+      password: _controllers['password']?.text,
+      region: _controllers['region']?.text,
+    );
   }
 }
 
@@ -1115,43 +927,26 @@ class _EditServiceSheet extends StatefulWidget {
 }
 
 class _EditServiceSheetState extends State<_EditServiceSheet> {
+  late SearchServiceOptions _current;
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
+  final GlobalKey<GenericServiceEditorState> _genericKey = GlobalKey<GenericServiceEditorState>();
 
   @override
   void initState() {
     super.initState();
+    _current = widget.service;
     _initControllers();
   }
 
   void _initControllers() {
     final service = widget.service;
-    if (service is TavilyOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is ExaOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is ZhipuOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is SearXNGOptions) {
+    if (service is SearXNGOptions) {
       _controllers['url'] = TextEditingController(text: service.url);
       _controllers['engines'] = TextEditingController(text: service.engines);
       _controllers['language'] = TextEditingController(text: service.language);
       _controllers['username'] = TextEditingController(text: service.username);
       _controllers['password'] = TextEditingController(text: service.password);
-    } else if (service is LinkUpOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is BraveOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is MetasoOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is OllamaOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is JinaOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is PerplexityOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
-    } else if (service is BochaOptions) {
-      _controllers['apiKey'] = TextEditingController(text: service.apiKeys.isNotEmpty ? service.apiKeys.first.key : '');
     } else if (service is DuckDuckGoOptions) {
       _controllers['region'] = TextEditingController(text: service.region);
     }
@@ -1170,9 +965,12 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
     final l10n = AppLocalizations.of(context)!;
     final searchService = SearchService.getService(widget.service);
     final cs = Theme.of(context).colorScheme;
+    // 注意：多Key服务现在使用独立的 KeyManagementSheet，此 Widget 只处理非多Key服务
+
     return SafeArea(
       top: false,
-      child: Padding(
+      child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
         padding: EdgeInsets.only(
           left: 16,
           right: 16,
@@ -1190,7 +988,6 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
                 decoration: BoxDecoration(color: cs.onSurface.withOpacity(0.2), borderRadius: BorderRadius.circular(999)),
               ),
             ),
-            // Title (match Add sheet style: centered name)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
               child: Center(
@@ -1200,6 +997,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
                 ),
               ),
             ),
+            // 多Key服务现在使用独立的 KeyManagementSheet，这里只处理非多Key服务
             Form(
               key: _formKey,
               child: SingleChildScrollView(
@@ -1239,7 +1037,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    Widget _buildTextField({
+    Widget buildTextField({
       required String key,
       required String label,
       String? hint,
@@ -1272,30 +1070,9 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
 
     if (service is BingLocalOptions) {
       return [Text(l10n.searchServicesEditDialogBingLocalNoConfig)];
-    } else if (service is TavilyOptions ||
-        service is ExaOptions ||
-        service is ZhipuOptions ||
-        service is LinkUpOptions ||
-        service is BraveOptions ||
-        service is MetasoOptions ||
-        service is OllamaOptions ||
-        service is JinaOptions ||
-        service is BochaOptions) {
-      return [
-        _buildTextField(
-          key: 'apiKey',
-          label: 'API Key',
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return l10n.searchServicesEditDialogApiKeyRequired;
-            }
-            return null;
-          },
-        ),
-      ];
     } else if (service is SearXNGOptions) {
       return [
-        _buildTextField(
+        buildTextField(
           key: 'url',
           label: l10n.searchServicesEditDialogInstanceUrl,
           validator: (value) {
@@ -1306,24 +1083,24 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           },
         ),
         const SizedBox(height: 12),
-        _buildTextField(
+        buildTextField(
           key: 'engines',
           label: l10n.searchServicesEditDialogEnginesOptional,
           hint: 'google,duckduckgo',
         ),
         const SizedBox(height: 12),
-        _buildTextField(
+        buildTextField(
           key: 'language',
           label: l10n.searchServicesEditDialogLanguageOptional,
           hint: 'en-US',
         ),
         const SizedBox(height: 12),
-        _buildTextField(
+        buildTextField(
           key: 'username',
           label: l10n.searchServicesEditDialogUsernameOptional,
         ),
         const SizedBox(height: 12),
-        _buildTextField(
+        buildTextField(
           key: 'password',
           label: l10n.searchServicesEditDialogPasswordOptional,
           obscureText: true,
@@ -1331,7 +1108,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
       ];
     } else if (service is DuckDuckGoOptions) {
       return [
-        _buildTextField(
+        buildTextField(
           key: 'region',
           label: 'Region (optional)',
           hint: 'wt-wt',
@@ -1344,23 +1121,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
 
   SearchServiceOptions _updateService() {
     final service = widget.service;
-    
-    if (service is TavilyOptions) {
-      return TavilyOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-      );
-    } else if (service is ExaOptions) {
-      return ExaOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-      );
-    } else if (service is ZhipuOptions) {
-      return ZhipuOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-      );
-    } else if (service is SearXNGOptions) {
+    if (service is SearXNGOptions) {
       return SearXNGOptions(
         id: service.id,
         url: _controllers['url']!.text,
@@ -1369,58 +1130,16 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
         username: _controllers['username']!.text,
         password: _controllers['password']!.text,
       );
-    } else if (service is LinkUpOptions) {
-      return LinkUpOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-      );
-    } else if (service is BraveOptions) {
-      return BraveOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-      );
-    } else if (service is MetasoOptions) {
-      return MetasoOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-      );
-    } else if (service is OllamaOptions) {
-      return OllamaOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-      );
-    } else if (service is JinaOptions) {
-      return JinaOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-      );
-    } else if (service is PerplexityOptions) {
-      return PerplexityOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-        country: service.country,
-        searchDomainFilter: service.searchDomainFilter,
-        maxTokensPerPage: service.maxTokensPerPage,
-      );
-    } else if (service is BochaOptions) {
-      return BochaOptions.single(
-        id: service.id,
-        apiKey: _controllers['apiKey']!.text,
-        freshness: service.freshness,
-        summary: service.summary,
-        include: service.include,
-        exclude: service.exclude,
-      );
     } else if (service is DuckDuckGoOptions) {
       return DuckDuckGoOptions(
         id: service.id,
         region: _controllers['region']?.text ?? 'wt-wt',
       );
     }
-
-    return service;
+    return service; // Multi-key services handled via _current
   }
 }
+
 
 class _EditServiceDialog extends StatefulWidget {
   const _EditServiceDialog({required this.service, required this.onSave});
@@ -1445,18 +1164,9 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMultiKey = _current is TavilyOptions || 
-                      _current is ExaOptions || 
-                      _current is ZhipuOptions || 
-                      _current is LinkUpOptions || 
-                      _current is BraveOptions || 
-                      _current is MetasoOptions || 
-                      _current is OllamaOptions || 
-                      _current is JinaOptions || 
-                      _current is PerplexityOptions || 
-                      _current is BochaOptions;
-    final double w = isMultiKey ? 680 : 520;
-    final double h = isMultiKey ? 720 : 600;
+    // 注意：多Key服务现在使用独立的 KeyManagementDialog，此 Widget 只处理非多Key服务
+    const double w = 520;
+    const double h = 600;
     final bg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.06 : 0.03), cs.surface);
 
     return ConstrainedBox(
@@ -1495,12 +1205,7 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
                   ),
                   const SizedBox(height: 8),
                   Expanded(
-                    child: isMultiKey
-                        ? _MultiKeyEditor(
-                            initial: _current,
-                            onChanged: (v) => setState(() => _current = v),
-                          )
-                        : GenericServiceEditor(key: _genericKey, initial: _current),
+                    child: GenericServiceEditor(key: _genericKey, initial: _current),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -1513,10 +1218,8 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
                       const SizedBox(width: 12),
                       FilledButton(
                         onPressed: () {
-                          if (!isMultiKey) {
-                            final updated = _genericKey.currentState?.buildUpdated();
-                            if (updated != null) _current = updated;
-                          }
+                          final updated = _genericKey.currentState?.buildUpdated();
+                          if (updated != null) _current = updated;
                           widget.onSave(_current);
                           Navigator.of(context).maybePop();
                         },
@@ -1531,903 +1234,6 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
         ),
       ),
     );
-  }
-}
-
-class _MultiKeyEditor extends StatefulWidget {
-  const _MultiKeyEditor({required this.initial, required this.onChanged});
-  final SearchServiceOptions initial;
-  final ValueChanged<SearchServiceOptions> onChanged;
-
-  @override
-  State<_MultiKeyEditor> createState() => _MultiKeyEditorState();
-}
-
-class _MultiKeyEditorState extends State<_MultiKeyEditor> {
-  late List<ApiKeyConfig> _keys;
-  late LoadBalanceStrategy _strategy;
-  int? _editingIndex;
-  bool _adding = false;
-  final TextEditingController _editKeyController = TextEditingController();
-  final TextEditingController _editNameController = TextEditingController();
-  final TextEditingController _editLimitController = TextEditingController();
-  int _editPriority = 5;
-  bool _editUnlimited = true;
-
-  @override
-  void initState() {
-    super.initState();
-    final initial = widget.initial;
-    
-    // 获取 apiKeys 和 strategy
-    if (initial is TavilyOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is ExaOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is ZhipuOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is LinkUpOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is BraveOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is MetasoOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is OllamaOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is JinaOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is PerplexityOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else if (initial is BochaOptions) {
-      _keys = initial.apiKeys.map((k) => k).toList();
-      _strategy = initial.strategy;
-    } else {
-      // 默认值（不应该发生）
-      _keys = [];
-      _strategy = LoadBalanceStrategy.roundRobin;
-    }
-  }
-
-  void _emit() {
-    final initial = widget.initial;
-    SearchServiceOptions updated;
-    
-    if (initial is TavilyOptions) {
-      updated = TavilyOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
-    } else if (initial is ExaOptions) {
-      updated = ExaOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
-    } else if (initial is ZhipuOptions) {
-      updated = ZhipuOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
-    } else if (initial is LinkUpOptions) {
-      updated = LinkUpOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
-    } else if (initial is BraveOptions) {
-      updated = BraveOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
-    } else if (initial is MetasoOptions) {
-      updated = MetasoOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
-    } else if (initial is OllamaOptions) {
-      updated = OllamaOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
-    } else if (initial is JinaOptions) {
-      updated = JinaOptions(id: initial.id, apiKeys: _keys, strategy: _strategy);
-    } else if (initial is PerplexityOptions) {
-      updated = PerplexityOptions(
-        id: initial.id, 
-        apiKeys: _keys, 
-        strategy: _strategy,
-        country: initial.country,
-        searchDomainFilter: initial.searchDomainFilter,
-        maxTokensPerPage: initial.maxTokensPerPage,
-      );
-    } else if (initial is BochaOptions) {
-      updated = BochaOptions(
-        id: initial.id, 
-        apiKeys: _keys, 
-        strategy: _strategy,
-        freshness: initial.freshness,
-        summary: initial.summary,
-        include: initial.include,
-        exclude: initial.exclude,
-      );
-    } else {
-      return; // Should not happen
-    }
-    
-    widget.onChanged(updated);
-  }
-
-  @override
-  void dispose() {
-    _editKeyController.dispose();
-    _editNameController.dispose();
-    _editLimitController.dispose();
-    super.dispose();
-  }
-
-  void _beginEdit(int index) {
-    final k = _keys[index];
-    _editingIndex = index;
-    _adding = false;
-    _editKeyController.text = k.key;
-    _editNameController.text = k.name ?? '';
-    _editLimitController.text = k.maxRequestsPerMinute?.toString() ?? '';
-    _editUnlimited = k.maxRequestsPerMinute == null || k.maxRequestsPerMinute == 0;
-    _editPriority = k.priority;
-    setState(() {});
-  }
-
-  void _beginAdd() {
-    _editingIndex = -1;
-    _adding = true;
-    _editKeyController.text = '';
-    _editNameController.text = '';
-    _editLimitController.text = '';
-    _editUnlimited = true;
-    _editPriority = 5;
-    setState(() {});
-  }
-
-  void _cancelEdit() {
-    _editingIndex = null;
-    _adding = false;
-    setState(() {});
-  }
-
-  void _commitEdit() {
-    final key = _editKeyController.text.trim();
-    if (key.isEmpty) return;
-    final rpmText = _editLimitController.text.trim();
-    final rpm = (!_editUnlimited && rpmText.isNotEmpty) ? int.tryParse(rpmText) : null;
-    final clampedPri = _editPriority.clamp(1, 10);
-    if (_adding) {
-      final cfg = ApiKeyConfig.create(key).copyWith(
-        name: _editNameController.text.trim().isEmpty ? null : _editNameController.text.trim(),
-        maxRequestsPerMinute: (rpm == null || rpm <= 0) ? null : rpm,
-        priority: clampedPri,
-      );
-      setState(() {
-        _keys.add(cfg);
-        _emit();
-        _cancelEdit();
-      });
-    } else if (_editingIndex != null && _editingIndex! >= 0 && _editingIndex! < _keys.length) {
-      final old = _keys[_editingIndex!];
-      final cfg = old.copyWith(
-        key: key,
-        name: _editNameController.text.trim().isEmpty ? null : _editNameController.text.trim(),
-        maxRequestsPerMinute: (rpm == null || rpm <= 0) ? null : rpm,
-        priority: clampedPri,
-      );
-      setState(() {
-        _keys[_editingIndex!] = cfg;
-        _emit();
-        _cancelEdit();
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SegmentedButton<LoadBalanceStrategy>(
-          segments: const <ButtonSegment<LoadBalanceStrategy>>[
-            ButtonSegment(
-              value: LoadBalanceStrategy.roundRobin,
-              icon: Icon(Lucide.RotateCw, size: 16),
-              label: Text('轮询'),
-            ),
-            ButtonSegment(
-              value: LoadBalanceStrategy.random,
-              icon: Icon(Lucide.Shuffle, size: 16),
-              label: Text('随机'),
-            ),
-            ButtonSegment(
-              value: LoadBalanceStrategy.leastUsed,
-              icon: Icon(Lucide.ListOrdered, size: 16),
-              label: Text('最少使用'),
-            ),
-            ButtonSegment(
-              value: LoadBalanceStrategy.priority,
-              icon: Icon(Lucide.Sparkles, size: 16),
-              label: Text('优先级'),
-            ),
-          ],
-          selected: <LoadBalanceStrategy>{_strategy},
-          onSelectionChanged: (s) {
-            if (s.isNotEmpty) {
-              setState(() => _strategy = s.first);
-              _emit();
-            }
-          },
-          showSelectedIcon: false,
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.zero,
-            itemCount: _keys.length + (_adding ? 1 : 0),
-            itemBuilder: (ctx, i) {
-              if (_adding && i == _keys.length) {
-                return _newKeyCard(cs, isDark);
-              }
-              return _keyCard(context, i, cs, isDark);
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            OutlinedButton.icon(
-              onPressed: _beginAdd,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('添加 Key'),
-            ),
-            const Spacer(),
-            Text('${_keys.length} 个 Key', style: TextStyle(color: cs.onSurface.withOpacity(0.6))),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _keyCard(BuildContext context, int index, ColorScheme cs, bool isDark) {
-    final k = _keys[index];
-    final bg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.05 : 0.03), cs.surface);
-    final border = cs.outlineVariant.withOpacity(isDark ? 0.16 : 0.18);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: border, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Switch(value: k.isEnabled, onChanged: (v) {
-                setState(() {
-                  _keys[index] = k.copyWith(isEnabled: v);
-                  _emit();
-                });
-              }),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(k.name ?? 'API Key ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Lucide.Activity, size: 14, color: cs.primary),
-                        const SizedBox(width: 6),
-                        Text('已使用 ${ApiKeyManager().getKeyState(k.id)?.totalRequests ?? 0}', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
-                        const SizedBox(width: 12),
-                        Icon(k.maxRequestsPerMinute == null ? Lucide.Repeat : Lucide.Thermometer, size: 14, color: cs.primary),
-                        const SizedBox(width: 6),
-                        Text(k.maxRequestsPerMinute == null ? '无限制' : '限流 ${k.maxRequestsPerMinute}/分', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.7))),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (_editingIndex != index) ...[
-                IconButton(
-                  onPressed: _testingKeys.contains(index) ? null : () => _testSingleKey(index),
-                  icon: _testingKeys.contains(index)
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
-                          ),
-                        )
-                      : const Icon(Lucide.HeartPulse, size: 18),
-                  tooltip: safeTooltipMessage(_testingKeys.contains(index) ? '正在测试...' : '测试连接'),
-                ),
-                IconButton(onPressed: () => _beginEdit(index), icon: const Icon(Icons.edit, size: 18))
-              ] else
-                const SizedBox.shrink(),
-              IconButton(onPressed: () => _deleteKey(index), icon: const Icon(Icons.delete, size: 18)),
-            ],
-          ),
-          if (_editingIndex == index) ...[
-            const SizedBox(height: 10),
-            TextField(
-              controller: _editNameController,
-              decoration: const InputDecoration(labelText: '名称（可选）', hintText: '例如：google / 备用Key'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _editKeyController,
-              decoration: const InputDecoration(labelText: 'API Key'),
-            ),
-            const SizedBox(height: 10),
-            SegmentedButton<int>(
-              segments: const [
-                ButtonSegment(value: 0, label: Text('无限制')),
-                ButtonSegment(value: 1, label: Text('自定义')),
-              ],
-              selected: {_editUnlimited ? 0 : 1},
-              onSelectionChanged: (s) {
-                if (s.isNotEmpty) setState(() => _editUnlimited = s.first == 0);
-              },
-              showSelectedIcon: false,
-            ),
-            const SizedBox(height: 8),
-            if (!_editUnlimited)
-              TextField(
-                controller: _editLimitController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: '每分钟限流',
-                  hintText: '例如 60',
-                  helperText: '留空或 0 表示无限制。示例：60 表示每分钟最多 60 次请求。',
-                  suffixText: '/分',
-                ),
-              ),
-            if (!_editUnlimited) const SizedBox(height: 10),
-            Row(
-              children: [
-                const Text('优先级'),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Slider(
-                    min: 1,
-                    max: 10,
-                    divisions: 9,
-                    label: '$_editPriority',
-                    value: _editPriority.toDouble(),
-                    onChanged: (v) => setState(() => _editPriority = v.round().clamp(1, 10)),
-                  ),
-                ),
-                Text('$_editPriority'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(onPressed: _cancelEdit, child: const Text('取消')),
-                const SizedBox(width: 8),
-                FilledButton(onPressed: _commitEdit, child: const Text('保存')),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _newKeyCard(ColorScheme cs, bool isDark) {
-    final bg = Color.alphaBlend(cs.primary.withOpacity(isDark ? 0.05 : 0.03), cs.surface);
-    final border = cs.outlineVariant.withOpacity(isDark ? 0.16 : 0.18);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: border, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('添加新的 API Key', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _editNameController,
-            decoration: const InputDecoration(labelText: '名称（可选）', hintText: '例如：google / 备用Key'),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _editKeyController,
-            decoration: const InputDecoration(labelText: 'API Key'),
-          ),
-          const SizedBox(height: 10),
-          SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 0, label: Text('无限制')),
-              ButtonSegment(value: 1, label: Text('自定义')),
-            ],
-            selected: {_editUnlimited ? 0 : 1},
-            onSelectionChanged: (s) {
-              if (s.isNotEmpty) setState(() => _editUnlimited = s.first == 0);
-            },
-            showSelectedIcon: false,
-          ),
-          const SizedBox(height: 8),
-          if (!_editUnlimited)
-            TextField(
-              controller: _editLimitController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '每分钟限流',
-                hintText: '例如 60',
-                helperText: '留空或 0 表示无限制。示例：60 表示每分钟最多 60 次请求。',
-                suffixText: '/分',
-              ),
-            ),
-          if (!_editUnlimited) const SizedBox(height: 10),
-          Row(
-            children: [
-              const Text('优先级'),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Slider(
-                  min: 1,
-                  max: 10,
-                  divisions: 9,
-                  label: '$_editPriority',
-                  value: _editPriority.toDouble(),
-                  onChanged: (v) => setState(() => _editPriority = v.round().clamp(1, 10)),
-                ),
-              ),
-              Text('$_editPriority'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(onPressed: _cancelEdit, child: const Text('取消')),
-              const SizedBox(width: 8),
-              FilledButton(onPressed: _commitEdit, child: const Text('添加')),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showKeyDialog(BuildContext context, int? editIndex) async {
-    final keyController = TextEditingController();
-    final nameController = TextEditingController();
-    final limitController = TextEditingController();
-    final priorityController = TextEditingController(text: '5');
-    if (editIndex != null) {
-      final c = _keys[editIndex];
-      keyController.text = c.key;
-      nameController.text = c.name ?? '';
-      limitController.text = c.maxRequestsPerMinute?.toString() ?? '';
-      priorityController.text = c.priority.toString();
-    }
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text(editIndex == null ? '添加 API Key' : '编辑 API Key'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: keyController, decoration: const InputDecoration(labelText: 'API Key')),
-                const SizedBox(height: 12),
-                TextField(controller: nameController, decoration: const InputDecoration(labelText: '名称（可选）')),
-                const SizedBox(height: 12),
-                TextField(controller: limitController, decoration: const InputDecoration(labelText: '每分钟限流（可选）'), keyboardType: TextInputType.number),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: priorityController,
-                  decoration: const InputDecoration(labelText: '优先级 1-10（可选，默认5，数字越小优先级越高）'),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-            FilledButton(
-              onPressed: () {
-                final key = keyController.text.trim();
-                if (key.isEmpty) return;
-                final pr = int.tryParse(priorityController.text.trim());
-                final clampedPri = pr == null ? null : pr.clamp(1, 10) as int;
-                final cfg = (editIndex == null ? ApiKeyConfig.create(key) : _keys[editIndex!])
-                    .copyWith(
-                      key: key,
-                      name: nameController.text.trim().isEmpty ? null : nameController.text.trim(),
-                      maxRequestsPerMinute: limitController.text.trim().isEmpty ? null : int.tryParse(limitController.text.trim()),
-                      priority: clampedPri ?? (editIndex == null ? 5 : _keys[editIndex!].priority),
-                    );
-                setState(() {
-                  if (editIndex == null) {
-                    _keys.add(cfg);
-                  } else {
-                    _keys[editIndex!] = cfg;
-                  }
-                  _emit();
-                });
-                Navigator.pop(ctx);
-              },
-              child: const Text('保存'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _deleteKey(int index) {
-    if (_keys.length <= 1) return;
-    setState(() {
-      _keys.removeAt(index);
-      _emit();
-    });
-  }
-
-  // 添加测试状态跟踪
-  final Set<int> _testingKeys = <int>{};
-
-  Future<void> _testSingleKey(int index) async {
-    if (index < 0 || index >= _keys.length || _testingKeys.contains(index)) return;
-    final k = _keys[index];
-    final initial = widget.initial;
-    
-    // 标记正在测试
-    setState(() {
-      _testingKeys.add(index);
-    });
-    
-    // 显示测试开始的消息
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('开始测试 Key "${k.name ?? k.key.substring(0, 8)}..."'),
-        backgroundColor: Colors.blue,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    
-    try {
-      // 创建一个临时的服务配置，只使用这一个Key
-      SearchServiceOptions testConfig;
-      if (initial is TavilyOptions) {
-        testConfig = TavilyOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
-      } else if (initial is ExaOptions) {
-        testConfig = ExaOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
-      } else if (initial is ZhipuOptions) {
-        testConfig = ZhipuOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
-      } else if (initial is LinkUpOptions) {
-        testConfig = LinkUpOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
-      } else if (initial is BraveOptions) {
-        testConfig = BraveOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
-      } else if (initial is MetasoOptions) {
-        testConfig = MetasoOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
-      } else if (initial is OllamaOptions) {
-        testConfig = OllamaOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
-      } else if (initial is JinaOptions) {
-        testConfig = JinaOptions(id: initial.id, apiKeys: [k], strategy: LoadBalanceStrategy.roundRobin);
-      } else if (initial is PerplexityOptions) {
-        testConfig = PerplexityOptions(
-          id: initial.id, 
-          apiKeys: [k], 
-          strategy: LoadBalanceStrategy.roundRobin,
-          country: initial.country,
-          searchDomainFilter: initial.searchDomainFilter,
-          maxTokensPerPage: initial.maxTokensPerPage,
-        );
-      } else if (initial is BochaOptions) {
-        testConfig = BochaOptions(
-          id: initial.id, 
-          apiKeys: [k], 
-          strategy: LoadBalanceStrategy.roundRobin,
-          freshness: initial.freshness,
-          summary: initial.summary,
-          include: initial.include,
-          exclude: initial.exclude,
-        );
-      } else {
-        return; // 不支持的服务类型
-      }
-      
-      // 执行真实的搜索测试
-      final svc = SearchService.getService(testConfig);
-      final results = await svc.search(
-        query: 'test connectivity',
-        commonOptions: const SearchCommonOptions(
-          resultSize: 1, 
-          timeout: 10000, // 10秒超时
-        ),
-        serviceOptions: testConfig,
-      );
-      
-      // 检查是否真的得到了结果
-      if (results.items.isEmpty) {
-        throw Exception('API 返回了空结果');
-      }
-
-      // 测试成功 - 更新Key状态到ApiKeyManager
-      await ApiKeyManager().updateKeyStatus(
-        k.id,
-        true, // success
-        maxFailuresBeforeDisable: 3,
-      );
-      setState(() {}); // Trigger UI update
-
-      // 显示成功弹窗
-      if (mounted) {
-        await _showTestResultDialog(
-          context,
-          success: true,
-          keyName: k.name ?? k.key.substring(0, 8),
-          message: '连接测试成功！\n\n✅ API Key 有效\n✅ 网络连接正常\n✅ 返回了搜索结果',
-          details: 'Key: ${k.key.substring(0, 12)}***\n查询: test connectivity\n结果数量: ${results.items.length}',
-        );
-      }
-    } catch (e) {
-      // 测试失败 - 更新Key状态到ApiKeyManager
-      await ApiKeyManager().updateKeyStatus(
-        k.id,
-        false, // failure
-        error: e.toString(),
-        maxFailuresBeforeDisable: 3,
-      );
-      setState(() {}); // Trigger UI update
-
-      // 显示失败弹窗
-      if (mounted) {
-        await _showTestResultDialog(
-          context,
-          success: false,
-          keyName: k.name ?? k.key.substring(0, 8),
-          message: '连接测试失败',
-          details: 'Key: ${k.key.substring(0, 12)}***\n错误信息: $e',
-        );
-      }
-    } finally {
-      // 清除测试状态
-      if (mounted) {
-        setState(() {
-          _testingKeys.remove(index);
-        });
-      }
-    }
-  }
-
-  Future<void> _showTestResultDialog(
-    BuildContext context, {
-    required bool success,
-    required String keyName,
-    required String message,
-    required String details,
-  }) async {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-      // 桌面端：使用Dialog
-      return showDialog<void>(
-        context: context,
-        builder: (BuildContext context) {
-          return Dialog(
-          backgroundColor: cs.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480, maxHeight: 400),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 标题行
-                  Row(
-                    children: [
-                      Icon(
-                        success ? Icons.check_circle : Icons.error,
-                        color: success ? Colors.green : Colors.red,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Key "$keyName"',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // 消息内容
-                  Text(
-                    message,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: success ? Colors.green : Colors.red,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // 详细信息（可选择和复制）
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[800] : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: cs.outlineVariant.withOpacity(0.5),
-                      ),
-                    ),
-                    child: SelectableText(
-                      details,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                        color: cs.onSurface.withOpacity(0.8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // 按钮
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          // 复制详细信息到剪贴板
-                          Clipboard.setData(ClipboardData(text: details));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('详细信息已复制到剪贴板'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        child: const Text('复制详情'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('确定'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-    } else {
-      // 移动端：使用BottomSheet
-      return showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: cs.surface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (BuildContext context) {
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 拖拽条
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: cs.onSurface.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // 标题行
-                  Row(
-                    children: [
-                      Icon(
-                        success ? Icons.check_circle : Icons.error,
-                        color: success ? Colors.green : Colors.red,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Key "$keyName"',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // 消息内容
-                  Text(
-                    message,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: success ? Colors.green : Colors.red,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // 详细信息（可选择和复制）
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[800] : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: cs.outlineVariant.withOpacity(0.5),
-                      ),
-                    ),
-                    child: SelectableText(
-                      details,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                        color: cs.onSurface.withOpacity(0.8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // 按钮
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          // 复制详细信息到剪贴板
-                          Clipboard.setData(ClipboardData(text: details));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('详细信息已复制到剪贴板'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        child: const Text('复制详情'),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('确定'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    }
   }
 }
 
@@ -2643,45 +1449,32 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
 
   Widget _buildServiceTypeList() {
     final l10n = AppLocalizations.of(context)!;
-    final services = [
-      {'type': 'bing_local', 'name': l10n.searchServiceNameBingLocal},
-      {'type': 'tavily', 'name': l10n.searchServiceNameTavily},
-      {'type': 'exa', 'name': l10n.searchServiceNameExa},
-      {'type': 'zhipu', 'name': l10n.searchServiceNameZhipu},
-      {'type': 'searxng', 'name': l10n.searchServiceNameSearXNG},
-      {'type': 'linkup', 'name': l10n.searchServiceNameLinkUp},
-      {'type': 'brave', 'name': l10n.searchServiceNameBrave},
-      {'type': 'metaso', 'name': l10n.searchServiceNameMetaso},
-      {'type': 'jina', 'name': l10n.searchServiceNameJina},
-      {'type': 'ollama', 'name': l10n.searchServiceNameOllama},
-      {'type': 'perplexity', 'name': l10n.searchServiceNamePerplexity},
-      {'type': 'bocha', 'name': l10n.searchServiceNameBocha},
-      {'type': 'duckduckgo', 'name': l10n.searchServiceNameDuckDuckGo},
-    ];
+    final types = SearchServiceFactory.allTypes;
 
     return ListView.builder(
       key: const ValueKey('service_list'),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       shrinkWrap: true,
-      itemCount: services.length,
+      itemCount: types.length,
       itemBuilder: (context, index) {
-        final item = services[index];
+        final type = types[index];
+        final name = getSearchServiceName(type, l10n);
         final cs = Theme.of(context).colorScheme;
-        
+
         return InkWell(
           borderRadius: BorderRadius.circular(8),
           onTap: () {
-            setState(() => _selectedType = item['type'] as String);
+            setState(() => _selectedType = type);
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                ServiceIcon(type: item['type'] as String, name: item['name'] as String, size: 36),
+                ServiceIcon(type: type, name: name, size: 36),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    item['name'] as String,
+                    name,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                 ),
@@ -2718,9 +1511,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
             // 表单字段
             Flexible(
               child: SingleChildScrollView(
-                child: Column(
-                  children: _buildFieldsForType(_selectedType!),
-                ),
+                child: ServiceFormFields(type: _selectedType!, controllers: _controllers),
               ),
             ),
             const SizedBox(height: 20),
@@ -2752,257 +1543,18 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
     );
   }
 
-  // 其他方法保持与BottomSheet版本相同
-  String _getServiceName(String type) {
-    final l10n = AppLocalizations.of(context)!;
-    switch (type) {
-      case 'bing_local': return l10n.searchServiceNameBingLocal;
-      case 'tavily': return l10n.searchServiceNameTavily;
-      case 'exa': return l10n.searchServiceNameExa;
-      case 'zhipu': return l10n.searchServiceNameZhipu;
-      case 'searxng': return l10n.searchServiceNameSearXNG;
-      case 'linkup': return l10n.searchServiceNameLinkUp;
-      case 'brave': return l10n.searchServiceNameBrave;
-      case 'metaso': return l10n.searchServiceNameMetaso;
-      case 'jina': return l10n.searchServiceNameJina;
-      case 'ollama': return l10n.searchServiceNameOllama;
-      case 'perplexity': return l10n.searchServiceNamePerplexity;
-      case 'bocha': return l10n.searchServiceNameBocha;
-      default: return '';
-    }
-  }
-
-  List<Widget> _buildFieldsForType(String type) {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    Widget _buildTextField({
-      required String key,
-      required String label,
-      String? hint,
-      bool obscureText = false,
-      String? Function(String?)? validator,
-    }) {
-      _controllers[key] ??= TextEditingController();
-      return Container(
-        decoration: BoxDecoration(
-          color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: TextFormField(
-          controller: _controllers[key],
-          obscureText: obscureText,
-          style: const TextStyle(fontSize: 16),
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hint,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-          validator: validator,
-        ),
-      );
-    }
-    
-    switch (type) {
-      case 'bing_local':
-        return [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Lucide.Search, size: 20, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    l10n.searchServiceNameBingLocal,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: cs.onSurface.withOpacity(0.8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ];
-      case 'duckduckgo':
-        return [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cs.surfaceVariant.withOpacity(isDark ? 0.18 : 0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Lucide.Search, size: 20, color: cs.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    l10n.searchServiceNameDuckDuckGo,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: cs.onSurface.withOpacity(0.8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'region',
-            label: 'Region (optional)',
-            hint: 'wt-wt',
-          ),
-        ];
-      case 'tavily':
-      case 'exa':
-      case 'zhipu':
-      case 'linkup':
-      case 'brave':
-      case 'metaso':
-      case 'jina':
-      case 'ollama':
-      case 'perplexity':
-      case 'bocha':
-        return [
-          _buildTextField(
-            key: 'apiKey',
-            label: 'API Key',
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return l10n.searchServicesAddDialogApiKeyRequired;
-              }
-              return null;
-            },
-          ),
-        ];
-      case 'searxng':
-        return [
-          _buildTextField(
-            key: 'url',
-            label: l10n.searchServicesAddDialogInstanceUrl,
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return l10n.searchServicesAddDialogUrlRequired;
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'engines',
-            label: l10n.searchServicesAddDialogEnginesOptional,
-            hint: 'google,duckduckgo',
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'language',
-            label: l10n.searchServicesAddDialogLanguageOptional,
-            hint: 'en-US',
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'username',
-            label: l10n.searchServicesAddDialogUsernameOptional,
-          ),
-          const SizedBox(height: 12),
-          _buildTextField(
-            key: 'password',
-            label: l10n.searchServicesAddDialogPasswordOptional,
-            obscureText: true,
-          ),
-        ];
-      default:
-        return [];
-    }
-  }
+  String _getServiceName(String type) => getSearchServiceName(type, AppLocalizations.of(context)!);
 
   SearchServiceOptions _createService() {
-    final uuid = const Uuid();
-    final id = uuid.v4().substring(0, 8);
-    
-    switch (_selectedType) {
-      case 'bing_local':
-        return BingLocalOptions(id: id);
-      case 'tavily':
-        return TavilyOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'exa':
-        return ExaOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'zhipu':
-        return ZhipuOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'searxng':
-        return SearXNGOptions(
-          id: id,
-          url: _controllers['url']!.text,
-          engines: _controllers['engines']!.text,
-          language: _controllers['language']!.text,
-          username: _controllers['username']!.text,
-          password: _controllers['password']!.text,
-        );
-      case 'linkup':
-        return LinkUpOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'brave':
-        return BraveOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'metaso':
-        return MetasoOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'jina':
-        return JinaOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'ollama':
-        return OllamaOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'perplexity':
-        return PerplexityOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'bocha':
-        return BochaOptions.single(
-          id: id,
-          apiKey: _controllers['apiKey']!.text,
-        );
-      case 'duckduckgo':
-        return DuckDuckGoOptions(
-          id: id,
-          region: _controllers['region']?.text ?? 'wt-wt',
-        );
-      default:
-        return BingLocalOptions(id: id);
-    }
+    return SearchServiceFactory.create(
+      type: _selectedType!,
+      apiKey: _controllers['apiKey']?.text,
+      url: _controllers['url']?.text,
+      engines: _controllers['engines']?.text,
+      language: _controllers['language']?.text,
+      username: _controllers['username']?.text,
+      password: _controllers['password']?.text,
+      region: _controllers['region']?.text,
+    );
   }
 }
-
-// (removed: now implemented as instance method on state)

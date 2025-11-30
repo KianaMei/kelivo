@@ -142,4 +142,8 @@ class Lucide {
   static const IconData ExternalLink = lucide.LucideIcons.externalLink;
   static const IconData TriangleAlert = lucide.LucideIcons.triangleAlert;
   static const IconData MessageSquareCode = lucide.LucideIcons.messageSquareCode;
+  static const IconData Lightbulb = lucide.LucideIcons.lightbulb;
+  static const IconData CircleCheck = lucide.LucideIcons.circleCheck;
+  static const IconData Clock = lucide.LucideIcons.clock;
+  static const IconData CircleMinus = lucide.LucideIcons.circleMinus;
 }
