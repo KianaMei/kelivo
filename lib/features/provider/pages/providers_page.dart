@@ -545,6 +545,7 @@ class _ProvidersList extends StatelessWidget {
             ),
             clipBehavior: Clip.none,
             child: ReorderableGridView.builder(
+              key: const PageStorageKey<String>('providers_grid'),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               itemCount: items.length,
               onReorder: onReorder,
