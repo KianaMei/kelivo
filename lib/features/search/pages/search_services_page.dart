@@ -156,7 +156,11 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     } else {
       // 移动端：使用 Sheet
       final cs = Theme.of(context).colorScheme;
-      if (isMultiKey) {
+      // 只有 BingLocal、SearXNG、DuckDuckGo 使用旧的编辑界面，其他都用多Key管理
+      final useSimpleEditor = service is BingLocalOptions || 
+                              service is SearXNGOptions || 
+                              service is DuckDuckGoOptions;
+      if (!useSimpleEditor) {
         // 多Key服务使用 KeyManagementSheet（和 Provider 一致）
         showModalBottomSheet(
           context: context,
