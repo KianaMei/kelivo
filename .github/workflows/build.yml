@@ -2,19 +2,83 @@ name: Build Apps
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master, main, refactor/chat-message-split ]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-android:
-    name: Build Android APK
+  bump-version:
+    name: Bump Version
     runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      new_build: ${{ steps.bump.outputs.new_build }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version number
+        id: bump
+        run: |
+          # Read current version from pubspec.yaml
+          current=$(grep -E '^version:' pubspec.yaml | sed 's/version: //')
+          echo "Current version: $current"
+          
+          # Split into version and build number
+          version_part=$(echo "$current" | cut -d'+' -f1)
+          build_part=$(echo "$current" | cut -d'+' -f2)
+          
+          # Split version into major.minor.patch
+          major=$(echo "$version_part" | cut -d'.' -f1)
+          minor=$(echo "$version_part" | cut -d'.' -f2)
+          patch=$(echo "$version_part" | cut -d'.' -f3)
+          
+          # Increment patch by 1 (0.01 in semantic terms, but patch is integer)
+          new_patch=$((patch + 1))
+          new_build=$((build_part + 1))
+          
+          new_version="${major}.${minor}.${new_patch}"
+          full_version="${new_version}+${new_build}"
+          
+          echo "New version: $full_version"
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+          echo "new_build=$new_build" >> $GITHUB_OUTPUT
+          
+          # Update pubspec.yaml
+          sed -i "s/^version: .*/version: $full_version/" pubspec.yaml
+          
+          # Update msix_version (format: X.X.X.0)
+          msix_version="${major}.${minor}.${new_patch}.0"
+          sed -i "s/msix_version: .*/msix_version: $msix_version/" pubspec.yaml
+          
+          echo "Updated pubspec.yaml:"
+          grep -E '^version:|msix_version:' pubspec.yaml
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "chore: bump version to $(grep -E '^version:' pubspec.yaml | sed 's/version: //') [skip ci]" || echo "No changes to commit"
+          git push
+
+  build-android:
+    name: Build Android APK
+    needs: bump-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code with latest version
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Pull latest changes
+        run: git pull origin ${{ github.ref_name }}
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -96,24 +160,33 @@ jobs:
           tag_name: latest
           name: "Latest Build (Auto)"
           body: |
-            **自动构建** - 每次推送到 master 自动更新
+            **自动构建** - 每次推送自动更新
 
             提交: ${{ github.sha }}
             时间: ${{ github.event.head_commit.timestamp }}
 
             ### 下载
             - Android APK (arm64, armeabi-v7a, x86_64)
-            - Windows x64 便携版
+            - Windows x64 便携版 (ZIP)
+            - Windows x64 安装程序 (EXE)
+            - Windows x64 MSIX 安装包
           files: build/app/outputs/flutter-apk/kelivo-*.apk
           prerelease: true
           make_latest: false
 
   build-windows:
     name: Build Windows App
+    needs: bump-version
     runs-on: windows-latest
     steps:
-      - name: Checkout code
+      - name: Checkout code with latest version
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Pull latest changes
+        run: git pull origin ${{ github.ref_name }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -323,13 +396,34 @@ jobs:
             throw "ERROR: Installer file not created!"
           }
 
+      - name: Build MSIX installer
+        shell: pwsh
+        run: |
+          Write-Host "Building MSIX installer..."
+          flutter pub run msix:create
+          
+          # Verify MSIX was created
+          $msixFiles = Get-ChildItem -Path "build\windows\x64\runner\Release" -Filter "*.msix" -Recurse
+          if ($msixFiles) {
+            foreach ($msix in $msixFiles) {
+              Write-Host "✓ MSIX created: $($msix.FullName)"
+              $msixSize = $msix.Length / 1MB
+              Write-Host "  Size: ${msixSize:N2} MB"
+              
+              # Copy to root for easier upload
+              Copy-Item $msix.FullName -Destination "kelivo-windows-installer.msix" -Force
+            }
+          } else {
+            Write-Host "⚠ Warning: No MSIX file found, continuing with EXE only..."
+          }
+
       - name: Upload to latest release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: "Latest Build (Auto)"
           body: |
-            **自动构建** - 每次推送到 master 自动更新
+            **自动构建** - 每次推送自动更新
 
             提交: ${{ github.sha }}
             时间: ${{ github.event.head_commit.timestamp }}
@@ -338,9 +432,11 @@ jobs:
             - Android APK (arm64, armeabi-v7a, x86_64)
             - Windows x64 便携版 (ZIP)
             - Windows x64 安装程序 (EXE)
+            - Windows x64 MSIX 安装包
           files: |
             kelivo-windows-x64.zip
             kelivo-windows-*-setup.exe
+            kelivo-windows-installer.msix
           prerelease: true
           make_latest: false
 

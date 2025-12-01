@@ -207,7 +207,7 @@ flutter_native_splash:
 msix_config:
   display_name: Kelivo
   publisher_display_name: Kelivo
-  identity_name: com.kelivo.app
+  identity_name: com.ze.kelivo
   msix_version: 1.1.30.0
   logo_path: assets\app_icon.png
   capabilities: internetClient, runFullTrust
