@@ -262,6 +262,7 @@ class _UserMessageRendererState extends State<UserMessageRenderer> {
               children: [
                 if (parsed.text.isNotEmpty)
                   SelectionArea(
+                    key: ValueKey('user_${widget.message.id}'),
                     child: Text(
                       parsed.text,
                       style: TextStyle(

@@ -1078,7 +1078,7 @@ class _MermaidBlockState extends State<_MermaidBlock> {
   }
 }
 
-// Softer horizontal rule: shorter width and subtle color
+// Full-width horizontal rule with softer color
 class SoftHrLine extends BlockMd {
   @override
   String get expString => (r"^\s*(?:-{3,}|⸻)\s*$");
@@ -1086,19 +1086,15 @@ class SoftHrLine extends BlockMd {
   @override
   Widget build(BuildContext context, String text, GptMarkdownConfig config) {
     final cs = Theme.of(context).colorScheme;
-    final width = MediaQuery.of(context).size.width;
-    final lineWidth = (width * 0.42).clamp(120.0, 420.0);
-    final color = cs.outlineVariant.withOpacity(0.9);
+    final color = cs.outlineVariant.withOpacity(0.4);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Center(
-        child: Container(
-          width: lineWidth,
-          height: 1,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(1),
-          ),
+      child: Container(
+        width: double.infinity,
+        height: 1,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(1),
         ),
       ),
     );
@@ -1488,8 +1484,7 @@ class ModernBlockQuote extends InlineMd {
 
   @override
   RegExp get exp => RegExp(
-    r"(?:(?:^)\ *>[^\n]+)(?:(?:\n)\ *>[^\n]+)*",
-    dotAll: true,
+    r"^[ \t]*>[^\n]*(?:\n[ \t]*>[^\n]*)*",
     multiLine: true,
   );
 

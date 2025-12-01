@@ -586,6 +586,7 @@ class _TokenUsageDisplayState extends State<TokenUsageDisplay> {
                           ],
                         ),
                         child: SelectionArea(
+                          key: ValueKey('token_usage_${widget.tokenText.length}_${widget.tooltipLines.length}'),
                           child: IntrinsicWidth(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

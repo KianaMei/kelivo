@@ -2,12 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/preset_message.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/snackbar.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../widgets/tactile_widgets.dart';
 
@@ -405,9 +407,47 @@ class PromptTabState extends State<PromptTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l10n.assistantEditSystemPromptTitle,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.assistantEditSystemPromptTitle,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                HoverPillButton(
+                  icon: Lucide.Upload,
+                  color: cs.primary,
+                  label: l10n.assistantEditSystemPromptImportButton,
+                  onTap: () async {
+                    try {
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: ['txt', 'md'],
+                        allowMultiple: false,
+                      );
+                      if (result == null || result.files.isEmpty) return;
+                      final file = File(result.files.first.path!);
+                      final content = await file.readAsString();
+                      if (content.trim().isEmpty) {
+                        if (mounted) {
+                          showAppSnackBar(context, message: l10n.assistantEditSystemPromptImportEmpty, type: NotificationType.warning);
+                        }
+                        return;
+                      }
+                      _sysCtrl.text = content;
+                      if (mounted) {
+                        context.read<AssistantProvider>().updateAssistant(a.copyWith(systemPrompt: content));
+                        showAppSnackBar(context, message: l10n.assistantEditSystemPromptImportSuccess, type: NotificationType.success);
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        showAppSnackBar(context, message: l10n.assistantEditSystemPromptImportFailed, type: NotificationType.error);
+                      }
+                    }
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             TextField(

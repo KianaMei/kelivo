@@ -61,6 +61,7 @@ class AssistantMessageRenderer extends StatefulWidget {
   final int? versionCount;
   final VoidCallback? onPrevVersion;
   final VoidCallback? onNextVersion;
+  final bool isGenerating;
 
   const AssistantMessageRenderer({
     super.key,
@@ -99,6 +100,7 @@ class AssistantMessageRenderer extends StatefulWidget {
     this.versionCount,
     this.onPrevVersion,
     this.onNextVersion,
+    this.isGenerating = false,
   });
 
   @override
@@ -576,6 +578,35 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
   }
 
   Widget _buildActions(ColorScheme cs, AppLocalizations l10n) {
+    // Hide most actions while generating, only show copy and branch selector
+    if (widget.isGenerating) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Row(
+          children: [
+            IconButton(
+              icon: Icon(Lucide.Copy, size: 16),
+              onPressed: widget.onCopy ?? () {
+                Clipboard.setData(ClipboardData(text: widget.message.content));
+                showAppSnackBar(context, message: l10n.chatMessageWidgetCopiedToClipboard, type: NotificationType.success);
+              },
+              visualDensity: VisualDensity.compact,
+              iconSize: 16,
+            ),
+            if ((widget.versionCount ?? 1) > 1) ...[
+              const SizedBox(width: 6),
+              BranchSelector(
+                index: widget.versionIndex ?? 0,
+                total: widget.versionCount ?? 1,
+                onPrev: widget.onPrevVersion,
+                onNext: widget.onNextVersion,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(

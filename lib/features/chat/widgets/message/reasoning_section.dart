@@ -192,6 +192,7 @@ class _ReasoningSectionState extends State<ReasoningSection>
     Widget body = Padding(
       padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
       child: SelectionArea(
+        key: ValueKey('reasoning_body_${display.length}'),
         child: MarkdownWithCodeHighlight(
           text: display.isNotEmpty ? display : '…',
           baseStyle: baseStyle,
@@ -236,6 +237,7 @@ class _ReasoningSectionState extends State<ReasoningSection>
                       controller: _scroll,
                       physics: const BouncingScrollPhysics(),
                       child: SelectionArea(
+                        key: ValueKey('reasoning_loading_overflow_${display.length}'),
                         child: MarkdownWithCodeHighlight(
                           text: display.isNotEmpty ? display : '…',
                           baseStyle: baseStyle,
@@ -249,6 +251,7 @@ class _ReasoningSectionState extends State<ReasoningSection>
                   controller: _scroll,
                   physics: const NeverScrollableScrollPhysics(),
                   child: SelectionArea(
+                    key: ValueKey('reasoning_loading_${display.length}'),
                     child: MarkdownWithCodeHighlight(
                       text: display.isNotEmpty ? display : '…',
                       baseStyle: baseStyle,

@@ -148,6 +148,15 @@ class _ChatInputBarState extends State<ChatInputBar> {
   // Collapse toggle for a subset of quick-action buttons (tool loop / camera / learning / mini-map).
   // Default collapsed as requested.
   bool _extraActionsCollapsed = true;
+  // Expand/collapse for input field
+  bool _isExpanded = false;
+  
+  /// Show expand button when text has 3+ lines
+  bool get _showExpandButton {
+    final text = _controller.text;
+    if (text.isEmpty) return false;
+    return '\n'.allMatches(text).length >= 2;
+  }
 
   void _addImages(List<String> paths) {
     if (paths.isEmpty) return;
@@ -579,52 +588,70 @@ class _ChatInputBarState extends State<ChatInputBar> {
                   // Input field
                   Padding(
                     padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xxs, AppSpacing.md, AppSpacing.xs),
-                    child: Focus(
-                      onKey: (node, event) => _handleKeyEvent(node, event),
-                      child: TextField(
-                      controller: _controller,
-                      focusNode: widget.focusNode,
-                      onChanged: (_) => setState(() {}),
-                      minLines: 1,
-                      maxLines: 5,
-                      // On iOS, show "Send" on the return key and submit on tap.
-                      // Still keep multiline so pasted text preserves line breaks.
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: (!kIsWeb && Platform.isIOS) ? TextInputAction.send : TextInputAction.newline,
-                      onSubmitted: (!kIsWeb && Platform.isIOS) ? (_) => _handleSend() : null,
-                      contextMenuBuilder: (!kIsWeb && Platform.isIOS)
-                          ? (BuildContext context, EditableTextState state) {
-                              final l10n = AppLocalizations.of(context)!;
-                              return AdaptiveTextSelectionToolbar.buttonItems(
-                                anchors: state.contextMenuAnchors,
-                                buttonItems: <ContextMenuButtonItem>[
-                                  ...state.contextMenuButtonItems,
-                                  ContextMenuButtonItem(
-                                    onPressed: () {
-                                      // Insert a newline at current caret or replace selection
-                                      _insertNewlineAtCursor();
-                                      state.hideToolbar();
-                                    },
-                                    label: l10n.chatInputBarInsertNewline,
-                                  ),
-                                ],
-                              );
-                            }
-                          : null,
-                      autofocus: false,
-                      decoration: InputDecoration(
-                        hintText: _hint(context),
-                        hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.45)),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 2),
-                      ),
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface,
-                        fontSize: 15,
-                      ),
-                      cursorColor: theme.colorScheme.primary,
+                    child: Stack(
+                      children: [
+                        Focus(
+                          onKey: (node, event) => _handleKeyEvent(node, event),
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: widget.focusNode,
+                            onChanged: (_) => setState(() {}),
+                            minLines: 1,
+                            maxLines: _isExpanded ? 25 : 5,
+                            // On iOS, show "Send" on the return key and submit on tap.
+                            // Still keep multiline so pasted text preserves line breaks.
+                            keyboardType: TextInputType.multiline,
+                            textInputAction: (!kIsWeb && Platform.isIOS) ? TextInputAction.send : TextInputAction.newline,
+                            onSubmitted: (!kIsWeb && Platform.isIOS) ? (_) => _handleSend() : null,
+                            contextMenuBuilder: (!kIsWeb && Platform.isIOS)
+                                ? (BuildContext context, EditableTextState state) {
+                                    final l10n = AppLocalizations.of(context)!;
+                                    return AdaptiveTextSelectionToolbar.buttonItems(
+                                      anchors: state.contextMenuAnchors,
+                                      buttonItems: <ContextMenuButtonItem>[
+                                        ...state.contextMenuButtonItems,
+                                        ContextMenuButtonItem(
+                                          onPressed: () {
+                                            // Insert a newline at current caret or replace selection
+                                            _insertNewlineAtCursor();
+                                            state.hideToolbar();
+                                          },
+                                          label: l10n.chatInputBarInsertNewline,
+                                        ),
+                                      ],
+                                    );
+                                  }
+                                : null,
+                            autofocus: false,
+                            decoration: InputDecoration(
+                              hintText: _hint(context),
+                              hintStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.45)),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 2),
+                            ),
+                            style: TextStyle(
+                              color: theme.colorScheme.onSurface,
+                              fontSize: 15,
+                            ),
+                            cursorColor: theme.colorScheme.primary,
+                          ),
+                        ),
+                        // Expand/Collapse icon button (only shown when 3+ lines)
+                        if (_showExpandButton)
+                          Positioned(
+                            top: 10,
+                            right: 12,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _isExpanded = !_isExpanded),
+                              child: Icon(
+                                _isExpanded ? Lucide.ChevronsDownUp : Lucide.ChevronsUpDown,
+                                size: 16,
+                                color: theme.colorScheme.onSurface.withOpacity(0.45),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
                   ),
                   // Bottom buttons row (no divider)
                   Padding(

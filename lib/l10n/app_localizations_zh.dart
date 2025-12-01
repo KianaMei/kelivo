@@ -647,6 +647,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditSystemPromptHint => '输入系统提示词…';
 
   @override
+  String get assistantEditSystemPromptImportButton => '从文件导入';
+
+  @override
+  String get assistantEditSystemPromptImportSuccess => '已从文件更新系统提示词';
+
+  @override
+  String get assistantEditSystemPromptImportFailed => '导入失败';
+
+  @override
+  String get assistantEditSystemPromptImportEmpty => '文件内容为空';
+
+  @override
   String get assistantEditAvailableVariables => '可用变量：';
 
   @override

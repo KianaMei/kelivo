@@ -459,6 +459,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       versionCount: widget.versionCount,
       onPrevVersion: widget.onPrevVersion,
       onNextVersion: widget.onNextVersion,
+      isGenerating: widget.reasoningLoading,
     );
   }
 }

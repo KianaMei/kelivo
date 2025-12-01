@@ -147,4 +147,6 @@ class Lucide {
   static const IconData Clock = lucide.LucideIcons.clock;
   static const IconData CircleMinus = lucide.LucideIcons.circleMinus;
   static const IconData Play = lucide.LucideIcons.play;
+  static const IconData ChevronsUpDown = lucide.LucideIcons.chevronsUpDown;
+  static const IconData ChevronsDownUp = lucide.LucideIcons.chevronsDownUp;
 }
