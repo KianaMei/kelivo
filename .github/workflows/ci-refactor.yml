@@ -62,13 +62,13 @@ jobs:
 
       - name: Build APK with unique build number
         run: |
-          echo "Building APK with build number ${{ github.run_number }}..."
-          flutter build apk --release --split-per-abi --no-tree-shake-icons --build-number=${{ github.run_number }}
+          echo "Building DEBUG APK with build number ${{ github.run_number }}..."
+          flutter build apk --debug --split-per-abi --build-number=${{ github.run_number }}
 
       - name: Rename APK files
         run: |
           cd build/app/outputs/flutter-apk
-          for file in app-*-release.apk; do
+          for file in app-*-debug.apk; do
             if [ -f "$file" ]; then
               newname=$(echo "$file" | sed 's/app-/kelivo-refactor-/')
               mv "$file" "$newname"
