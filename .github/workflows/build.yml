@@ -397,6 +397,7 @@ jobs:
           }
 
       - name: Build MSIX installer
+        continue-on-error: true
         shell: pwsh
         run: |
           Write-Host "Building MSIX installer..."

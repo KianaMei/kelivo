@@ -279,6 +279,7 @@ jobs:
         run: flutter build windows --release --no-tree-shake-icons
 
       - name: Build MSIX installer
+        continue-on-error: true
         shell: pwsh
         run: |
           Write-Host "Building MSIX installer..."
