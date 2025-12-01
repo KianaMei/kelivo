@@ -56,8 +56,11 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
 
-            if (hasKeystore) {
-                signingConfig = signingConfigs.getByName("release")
+            // 有签名配置用 release 签名，没有则用 debug 签名（CI 构建）
+            signingConfig = if (hasKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
             }
         }
     }
