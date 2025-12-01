@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 import '../../../utils/platform_utils.dart';
 import '../../../utils/app_dirs.dart';
 
@@ -23,7 +24,7 @@ class MediaPickerService {
         return [];
       }
 
-      final dir = Directory("${docs.path}/upload");
+      final dir = Directory(p.join(docs.path, 'upload'));
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
@@ -33,7 +34,7 @@ class MediaPickerService {
           final name = f.name.isNotEmpty
               ? f.name
               : DateTime.now().millisecondsSinceEpoch.toString();
-          final dest = File("${dir.path}/$name");
+          final dest = File(p.join(dir.path, name));
           await dest.writeAsBytes(await f.readAsBytes());
           out.add(dest.path);
         } catch (_) {}

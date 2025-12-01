@@ -75,8 +75,8 @@ class SandboxPathResolver {
     for (final candidate in unixCandidates) {
       final idx = normalized.indexOf(candidate);
       if (idx != -1) {
-        final tail = normalized.substring(idx + '/Documents'.length); // includes the slash
-        final mapped = '$root$tail';
+        final tail = normalized.substring(idx + '/Documents'.length + 1); // skip the slash
+        final mapped = p.normalize(p.join(root, tail));
         try {
           if (File(mapped).existsSync()) {
             return mapped;
@@ -94,9 +94,9 @@ class SandboxPathResolver {
     for (final candidate in folderCandidates) {
       final idx = normalized.lastIndexOf(candidate);
       if (idx != -1) {
-        // Extract from folder onwards (e.g., /upload/file.jpg)
-        final tail = normalized.substring(idx);
-        final mapped = '$root$tail';
+        // Extract from folder onwards (e.g., upload/file.jpg)
+        final tail = normalized.substring(idx + 1); // skip the leading slash
+        final mapped = p.normalize(p.join(root, tail));
         try {
           if (File(mapped).existsSync()) {
             return mapped;
