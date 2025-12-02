@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
@@ -2159,7 +2160,14 @@ class _ModelCard extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(_displayName(context), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            GestureDetector(
+                              onLongPress: () {
+                                Haptics.light();
+                                Clipboard.setData(ClipboardData(text: modelId));
+                                showAppSnackBar(context, message: '已复制: $modelId');
+                              },
+                              child: Text(_displayName(context), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            ),
                             const SizedBox(height: 4),
                             buildModelTagWrap(context, _effective(context)),
                           ],

@@ -461,6 +461,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   }
 
   Future<void> _regenerateTitle(BuildContext context, String conversationId) async {
+    final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final chatService = context.read<ChatService>();
     final convo = chatService.getConversation(conversationId);
@@ -468,7 +469,12 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     // Decide model
     final provKey = settings.titleModelProvider ?? settings.currentModelProvider;
     final mdlId = settings.titleModelId ?? settings.currentModelId;
-    if (provKey == null || mdlId == null) return;
+    if (provKey == null || mdlId == null) {
+      if (context.mounted) {
+        showAppSnackBar(context, message: l10n.titleGenerationNoModel, type: NotificationType.warning);
+      }
+      return;
+    }
     final cfg = settings.getProviderConfig(provKey);
     // Content
     final msgs = chatService.getMessages(conversationId);
@@ -480,8 +486,15 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       final title = (await ChatApiService.generateText(config: cfg, modelId: mdlId, prompt: prompt)).trim();
       if (title.isNotEmpty) {
         await chatService.renameConversation(conversationId, title);
+        if (context.mounted) {
+          showAppSnackBar(context, message: l10n.titleGenerationSuccess(title), type: NotificationType.success);
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      if (context.mounted) {
+        showAppSnackBar(context, message: l10n.titleGenerationFailed(e.toString()), type: NotificationType.error);
+      }
+    }
   }
 
   @override

@@ -37,7 +37,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageColorMode => 'Color Mode';
 
   @override
-  String get settingsPageDisplay => 'Display';
+  String get settingsPageDisplay => 'System';
 
   @override
   String get settingsPageDisplaySubtitle => 'Appearance and text size';
@@ -1323,6 +1323,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sideDrawerMenuRegenerateTitle => 'Regenerate Title';
+
+  @override
+  String get titleGenerationNoModel =>
+      'No model configured for title generation';
+
+  @override
+  String titleGenerationSuccess(String title) {
+    return 'Title: $title';
+  }
+
+  @override
+  String titleGenerationFailed(String error) {
+    return 'Title generation failed: $error';
+  }
 
   @override
   String get sideDrawerMenuDelete => 'Delete';

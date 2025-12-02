@@ -8,7 +8,7 @@
   "settingsPageWarningMessage": "Some services are not configured; features may be limited.",
   "settingsPageGeneralSection": "General",
   "settingsPageColorMode": "Color Mode",
-  "settingsPageDisplay": "Display",
+  "settingsPageDisplay": "System",
   "settingsPageDisplaySubtitle": "Appearance and text size",
   "settingsPageAssistant": "Assistant",
   "settingsPageAssistantSubtitle": "Default assistant and style",
@@ -571,6 +571,19 @@
   "sideDrawerMenuPin": "Pin",
   "sideDrawerMenuUnpin": "Unpin",
   "sideDrawerMenuRegenerateTitle": "Regenerate Title",
+  "titleGenerationNoModel": "No model configured for title generation",
+  "titleGenerationSuccess": "Title: {title}",
+  "@titleGenerationSuccess": {
+    "placeholders": {
+      "title": {"type": "String"}
+    }
+  },
+  "titleGenerationFailed": "Title generation failed: {error}",
+  "@titleGenerationFailed": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
   "sideDrawerMenuDelete": "Delete",
   "sideDrawerDeleteSnackbar": "Deleted \"{title}\"",
   "@sideDrawerDeleteSnackbar": {

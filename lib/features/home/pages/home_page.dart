@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../state/reasoning_state.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/snackbar.dart';
 import 'dart:async';
 import 'dart:convert';
 // Replaced flutter_zoom_drawer with a custom InteractiveDrawer
@@ -2973,6 +2974,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         .replaceAll('{locale}', locale)
         .replaceAll('{content}', content);
 
+    final l10n = AppLocalizations.of(context)!;
     try {
       final title = (await ChatApiService.generateText(config: cfg, modelId: mdlId, prompt: prompt)).trim();
       if (title.isNotEmpty) {
@@ -2982,9 +2984,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             _currentConversation = _chatService.getConversation(convo.id);
           });
         }
+        if (mounted) {
+          showAppSnackBar(context, message: l10n.titleGenerationSuccess(title), type: NotificationType.success);
+        }
       }
-    } catch (_) {
-      // Ignore title generation failure silently
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, message: l10n.titleGenerationFailed(e.toString()), type: NotificationType.error);
+      }
     }
   }
 

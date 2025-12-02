@@ -1531,9 +1531,20 @@ class _ModelRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              modelId,
-              style: const TextStyle(fontSize: 13),
+            child: Tooltip(
+              message: '点击复制模型 ID',
+              waitDuration: const Duration(milliseconds: 400),
+              child: InkWell(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: modelId));
+                  showAppSnackBar(context, message: '已复制: $modelId');
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Text(
+                  modelId,
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 8),

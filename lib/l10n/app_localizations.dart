@@ -157,7 +157,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsPageDisplay.
   ///
   /// In en, this message translates to:
-  /// **'Display'**
+  /// **'System'**
   String get settingsPageDisplay;
 
   /// No description provided for @settingsPageDisplaySubtitle.
@@ -2554,6 +2554,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Regenerate Title'**
   String get sideDrawerMenuRegenerateTitle;
+
+  /// No description provided for @titleGenerationNoModel.
+  ///
+  /// In en, this message translates to:
+  /// **'No model configured for title generation'**
+  String get titleGenerationNoModel;
+
+  /// No description provided for @titleGenerationSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Title: {title}'**
+  String titleGenerationSuccess(String title);
+
+  /// No description provided for @titleGenerationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Title generation failed: {error}'**
+  String titleGenerationFailed(String error);
 
   /// No description provided for @sideDrawerMenuDelete.
   ///

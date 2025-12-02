@@ -36,7 +36,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPageColorMode => '颜色模式';
 
   @override
-  String get settingsPageDisplay => '显示设置';
+  String get settingsPageDisplay => '系统设置';
 
   @override
   String get settingsPageDisplaySubtitle => '界面主题与字号等外观设置';
@@ -1284,6 +1284,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sideDrawerMenuRegenerateTitle => '重新生成标题';
+
+  @override
+  String get titleGenerationNoModel => '未配置标题生成模型';
+
+  @override
+  String titleGenerationSuccess(String title) {
+    return '标题: $title';
+  }
+
+  @override
+  String titleGenerationFailed(String error) {
+    return '标题生成失败: $error';
+  }
 
   @override
   String get sideDrawerMenuDelete => '删除';
@@ -2909,7 +2922,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get settingsPageColorMode => '颜色模式';
 
   @override
-  String get settingsPageDisplay => '显示设置';
+  String get settingsPageDisplay => '系统设置';
 
   @override
   String get settingsPageDisplaySubtitle => '界面主题与字号等外观设置';
@@ -4035,6 +4048,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get sideDrawerMenuRegenerateTitle => '重新生成标题';
+
+  @override
+  String get titleGenerationNoModel => '未配置标题生成模型';
+
+  @override
+  String titleGenerationSuccess(String title) {
+    return '标题: $title';
+  }
+
+  @override
+  String titleGenerationFailed(String error) {
+    return '标题生成失败: $error';
+  }
 
   @override
   String get sideDrawerMenuDelete => '删除';
