@@ -6,6 +6,7 @@ import 'settings_provider.dart';
 import '../services/api_key_manager.dart';
 import 'package:kelivo/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
+import '../utils/http_logger.dart';
 
 enum ModelType { chat, embedding }
 enum Modality { text, image }
@@ -85,13 +86,15 @@ abstract class BaseProvider {
 }
 
 class _Http {
-  static http.Client clientFor(ProviderConfig cfg) {
+  static http.Client clientFor(ProviderConfig cfg, {bool enableLogging = true}) {
     final enabled = cfg.proxyEnabled == true;
     final host = (cfg.proxyHost ?? '').trim();
     final portStr = (cfg.proxyPort ?? '').trim();
     final user = (cfg.proxyUsername ?? '').trim();
     final pass = (cfg.proxyPassword ?? '').trim();
     final allowInsecure = cfg.allowInsecureConnection == true;
+
+    http.Client baseClient;
 
     // Create HttpClient if proxy is enabled OR SSL verification needs to be disabled
     if (enabled || allowInsecure) {
@@ -111,10 +114,16 @@ class _Http {
         io.badCertificateCallback = (cert, host, port) => true;
       }
 
-      return IOClient(io);
+      baseClient = IOClient(io);
+    } else {
+      baseClient = http.Client();
     }
 
-    return http.Client();
+    // 包装 TalkerHttpClient 用于日志记录
+    if (enableLogging) {
+      return TalkerHttpClient(baseClient);
+    }
+    return baseClient;
   }
 }
 

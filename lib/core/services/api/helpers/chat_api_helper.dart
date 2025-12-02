@@ -12,6 +12,7 @@ import '../../../../utils/sandbox_path_resolver.dart';
 import '../../api_key_manager.dart';
 import 'package:kelivo/secrets/fallback.dart';
 import '../models/chat_stream_chunk.dart';
+import '../../../utils/http_logger.dart';
 
 export '../models/chat_stream_chunk.dart';
 
@@ -343,9 +344,9 @@ class ChatApiHelper {
           }
         }
       }
-      return IOClient(io);
+      return TalkerHttpClient(IOClient(io));
     }
-    return http.Client();
+    return TalkerHttpClient(http.Client());
   }
 
   // ========== Timestamp ==========

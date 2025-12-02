@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kDebugMode;
+import 'package:flutter/services.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 import 'desktop_nav_rail.dart';
 import 'desktop_chat_page.dart';
 import 'desktop_translate_page.dart';
 import 'window_title_bar.dart';
 import 'desktop_settings_page.dart';
+import '../core/utils/http_logger.dart';
 
 /// Desktop home screen: left compact rail + main content.
 /// Phase 1 focuses on structure and platform-appropriate interactions/hover.
@@ -18,6 +21,20 @@ class DesktopHomePage extends StatefulWidget {
 class _DesktopHomePageState extends State<DesktopHomePage> {
   int _tabIndex = 0; // 0=Chat, 1=Translate, 2=Settings
 
+  void _openDevTools() {
+    if (!kDebugMode) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: SizedBox(
+          width: 800,
+          height: 600,
+          child: TalkerScreen(talker: talker),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Ensure a reasonable min size to avoid overflow on aggressive resize.
@@ -26,70 +43,80 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
 
     final isWindows = defaultTargetPlatform == TargetPlatform.windows;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight;
-        final needsWidthPad = w < minWidth;
-        final needsHeightPad = h < minHeight;
+    // Ctrl+D 打开开发者工具（仅 Debug 模式）
+    return CallbackShortcuts(
+      bindings: {
+        if (kDebugMode)
+          const SingleActivator(LogicalKeyboardKey.keyD, control: true): _openDevTools,
+      },
+      child: Focus(
+        autofocus: true,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            final h = constraints.maxHeight;
+            final needsWidthPad = w < minWidth;
+            final needsHeightPad = h < minHeight;
 
-        Widget body = Row(
-          children: [
-            DesktopNavRail(
-              activeIndex: _tabIndex,
-              onTapChat: () => setState(() => _tabIndex = 0),
-              onTapTranslate: () => setState(() => _tabIndex = 1),
-              onTapSettings: () {
-                setState(() => _tabIndex = 2);
-              },
-            ),
-            Expanded(
-              // Keep all pages alive so ongoing chat streams are not canceled
-              // when switching tabs (Chat/Translate/Settings) on desktop.
-              child: IndexedStack(
-                index: _tabIndex,
-                children: const [
-                  // Chat page remains mounted
-                  DesktopChatPage(),
-                  // Translate page remains mounted
-                  DesktopTranslatePage(key: ValueKey('translate_page')),
-                  // Settings page remains mounted
-                  DesktopSettingsPage(key: ValueKey('settings_page')),
-                ],
-              ),
-            ),
-          ],
-        );
-
-        // Wrap with Windows custom title bar when on Windows platform.
-        final content = isWindows
-            ? Column(
-                children: [
-                  // Align custom title bar to match kelivo-remote (icon + title on the left)
-                  WindowTitleBar(
-                    leftChildren: const [
-                      _TitleBarLeading(),
+            Widget body = Row(
+              children: [
+                DesktopNavRail(
+                  activeIndex: _tabIndex,
+                  onTapChat: () => setState(() => _tabIndex = 0),
+                  onTapTranslate: () => setState(() => _tabIndex = 1),
+                  onTapSettings: () {
+                    setState(() => _tabIndex = 2);
+                  },
+                ),
+                Expanded(
+                  // Keep all pages alive so ongoing chat streams are not canceled
+                  // when switching tabs (Chat/Translate/Settings) on desktop.
+                  child: IndexedStack(
+                    index: _tabIndex,
+                    children: const [
+                      // Chat page remains mounted
+                      DesktopChatPage(),
+                      // Translate page remains mounted
+                      DesktopTranslatePage(key: ValueKey('translate_page')),
+                      // Settings page remains mounted
+                      DesktopSettingsPage(key: ValueKey('settings_page')),
                     ],
                   ),
-                  Expanded(child: body),
-                ],
-              )
-            : body;
+                ),
+              ],
+            );
 
-        if (!needsWidthPad && !needsHeightPad) return content;
+            // Wrap with Windows custom title bar when on Windows platform.
+            final content = isWindows
+                ? Column(
+                    children: [
+                      // Align custom title bar to match kelivo-remote (icon + title on the left)
+                      WindowTitleBar(
+                        leftChildren: const [
+                          _TitleBarLeading(),
+                        ],
+                      ),
+                      Expanded(child: body),
+                    ],
+                  )
+                : body;
 
-        // Center a constrained area if window is smaller than our minimum
-        return Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: minWidth, minHeight: minHeight),
-            child: SizedBox(
-              width: needsWidthPad ? minWidth : w,
-              height: needsHeightPad ? minHeight : h,
-              child: content,
-            ),
-          ),
-        );
-      },
+            if (!needsWidthPad && !needsHeightPad) return content;
+
+            // Center a constrained area if window is smaller than our minimum
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: minWidth, minHeight: minHeight),
+                child: SizedBox(
+                  width: needsWidthPad ? minWidth : w,
+                  height: needsHeightPad ? minHeight : h,
+                  child: content,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
