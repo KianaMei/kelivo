@@ -216,7 +216,25 @@ Future<ModelSelection?> showModelSelector(
 }
 
 Future<void> showModelSelectSheet(BuildContext context, {bool updateAssistant = true}) async {
-  final sel = await showModelSelector(context);
+  // Get current model from assistant (if updateAssistant) or global settings
+  String? initialProvider;
+  String? initialModelId;
+  
+  if (updateAssistant) {
+    final assistant = context.read<AssistantProvider>().currentAssistant;
+    initialProvider = assistant?.chatModelProvider;
+    initialModelId = assistant?.chatModelId;
+  } else {
+    final settings = context.read<SettingsProvider>();
+    initialProvider = settings.currentModelProvider;
+    initialModelId = settings.currentModelId;
+  }
+  
+  final sel = await showModelSelector(
+    context,
+    initialProvider: initialProvider,
+    initialModelId: initialModelId,
+  );
   if (sel != null) {
     if (updateAssistant) {
       // Update assistant's model instead of global default

@@ -850,9 +850,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
 
         final result = combined.toString().trim();
+        // Show actual OCR text in tool card, not just character count
         final content = result.isEmpty
             ? 'OCR completed but no text extracted'
-            : 'OCR completed successfully. Extracted ${result.length} characters.';
+            : result;
 
         // Update tool event with success
         await _chatService.upsertToolEvent(
