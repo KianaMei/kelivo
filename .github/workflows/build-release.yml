@@ -74,9 +74,16 @@ jobs:
           # Create and push tag for release (only if triggered by branch push)
           if [[ "${{ github.ref_type }}" != "tag" ]]; then
             new_version="${{ steps.bump.outputs.new_version }}"
-            git tag "v${new_version}"
-            git push origin "v${new_version}"
-            echo "Created and pushed tag: v${new_version}"
+            tag_name="v${new_version}"
+            
+            # Check if tag already exists
+            if git ls-remote --tags origin | grep -q "refs/tags/${tag_name}$"; then
+              echo "Tag ${tag_name} already exists, skipping tag creation"
+            else
+              git tag "${tag_name}"
+              git push origin "${tag_name}"
+              echo "Created and pushed tag: ${tag_name}"
+            fi
           fi
 
   create-release:
