@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../../../icons/lucide_adapter.dart';
+import '../../../core/services/http/dio_client.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/chat_api_service.dart';
@@ -1676,8 +1677,15 @@ extension on _SideDrawerState {
                     // debugPrint(qq);
                     final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=' + qq + '&spec=100';
                     try {
-                      final resp = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-                      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+                      final resp = await simpleDio.get<List<int>>(
+                        url,
+                        options: Options(
+                          responseType: ResponseType.bytes,
+                          receiveTimeout: const Duration(seconds: 5),
+                        ),
+                      );
+                      final bytes = resp.data ?? [];
+                      if (resp.statusCode == 200 && bytes.isNotEmpty) {
                         await context.read<UserProvider>().setAvatarUrl(url);
                         applied = true;
                         break;

@@ -3,7 +3,7 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../providers/model_provider.dart';
 import '../../../../models/token_usage.dart';
@@ -17,7 +17,7 @@ class OpenAIChatCompletions {
 
   /// Send streaming request using Chat Completions API.
   static Stream<ChatStreamChunk> sendStream(
-    http.Client client,
+    Dio dio,
     ProviderConfig config,
     String modelId,
     List<Map<String, dynamic>> messages, {
@@ -141,24 +141,35 @@ class OpenAIChatCompletions {
       });
     }
 
-    // Send request
-    final request = http.Request('POST', url);
-    request.headers.addAll(headers);
-    request.body = jsonEncode(body);
+    // Send request with Dio
+    final Response<ResponseBody> response;
+    try {
+      response = await dio.post<ResponseBody>(
+        url.toString(),
+        data: body,
+        options: Options(
+          headers: headers,
+          responseType: ResponseType.stream,
+          validateStatus: (status) => true, // Handle status manually
+        ),
+      );
+    } on DioException catch (e) {
+      throw HttpException('Dio error: ${e.message}');
+    }
 
-    final response = await client.send(request);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final errorBody = await response.stream.bytesToString();
+    if (response.statusCode == null || response.statusCode! < 200 || response.statusCode! >= 300) {
+      final errorBytes = await response.data?.stream.toList() ?? [];
+      final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
       throw HttpException('HTTP ${response.statusCode}: $errorBody');
     }
 
     // Process stream
     yield* _processStream(
-      client: client,
+      dio: dio,
       config: config,
       modelId: modelId,
       messages: messages,
-      response: response,
+      responseStream: response.data!.stream,
       url: url,
       headers: headers,
       isReasoning: isReasoning,
@@ -179,11 +190,11 @@ class OpenAIChatCompletions {
   // ========== Stream Processing ==========
 
   static Stream<ChatStreamChunk> _processStream({
-    required http.Client client,
+    required Dio dio,
     required ProviderConfig config,
     required String modelId,
     required List<Map<String, dynamic>> messages,
-    required http.StreamedResponse response,
+    required Stream<List<int>> responseStream,
     required Uri url,
     required Map<String, String> headers,
     required bool isReasoning,
@@ -203,7 +214,7 @@ class OpenAIChatCompletions {
     final host = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
     final isGrok = ChatApiHelper.isGrokModel(config, modelId);
     
-    final stream = response.stream.transform(utf8.decoder);
+    final stream = responseStream.cast<List<int>>().transform(utf8.decoder);
     String buffer = '';
     int totalTokens = 0;
     TokenUsage? usage;
@@ -232,7 +243,7 @@ class OpenAIChatCompletions {
           // Handle tool calls at stream end
           if (onToolCall != null && toolAcc.isNotEmpty) {
             yield* _executeToolsAndContinue(
-              client: client,
+              dio: dio,
               config: config,
               modelId: modelId,
               messages: messages,
@@ -390,7 +401,7 @@ class OpenAIChatCompletions {
           // Handle immediate tool execution for finish_reason='tool_calls'
           if (finishReason == 'tool_calls' && toolAcc.isNotEmpty && onToolCall != null) {
             yield* _executeToolsAndContinue(
-              client: client,
+              dio: dio,
               config: config,
               modelId: modelId,
               messages: messages,
@@ -428,7 +439,7 @@ class OpenAIChatCompletions {
   // ========== Tool Execution ==========
 
   static Stream<ChatStreamChunk> _executeToolsAndContinue({
-    required http.Client client,
+    required Dio dio,
     required ProviderConfig config,
     required String modelId,
     required List<Map<String, dynamic>> messages,
@@ -533,19 +544,31 @@ class OpenAIChatCompletions {
         });
       }
 
-      final req2 = http.Request('POST', url);
       final headers2 = Map<String, String>.from(headers);
       if (extraHeaders != null && extraHeaders.isNotEmpty) headers2.addAll(extraHeaders);
-      req2.headers.addAll(headers2);
-      req2.body = jsonEncode(body2);
 
-      final resp2 = await client.send(req2);
-      if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
-        final errorBody = await resp2.stream.bytesToString();
+      final Response<ResponseBody> resp2;
+      try {
+        resp2 = await dio.post<ResponseBody>(
+          url.toString(),
+          data: body2,
+          options: Options(
+            headers: headers2,
+            responseType: ResponseType.stream,
+            validateStatus: (status) => true,
+          ),
+        );
+      } on DioException catch (e) {
+        throw HttpException('Dio error: ${e.message}');
+      }
+
+      if (resp2.statusCode == null || resp2.statusCode! < 200 || resp2.statusCode! >= 300) {
+        final errorBytes = await resp2.data?.stream.toList() ?? [];
+        final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
         throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
       }
 
-      final s2 = resp2.stream.transform(utf8.decoder);
+      final s2 = resp2.data!.stream.cast<List<int>>().transform(utf8.decoder);
       String buf2 = '';
       final Map<int, Map<String, String>> toolAcc2 = {};
       String? finishReason2;

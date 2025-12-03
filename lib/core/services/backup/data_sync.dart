@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:archive/archive_io.dart';
 import 'package:archive/archive.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../../utils/app_dirs.dart';
@@ -17,6 +17,7 @@ import '../../models/backup.dart';
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../chat/chat_service.dart';
+import '../http/dio_client.dart';
 
 class DataSync {
   final ChatService chatService;
@@ -153,59 +154,83 @@ class DataSync {
   }
 
   Future<void> _ensureCollection(WebDavConfig cfg) async {
-    final client = http.Client();
     try {
       // Ensure each segment exists
       final url = cfg.url.trim().replaceAll(RegExp(r'/+$'), '');
-      final segments = cfg.path.split('/').where((s) => s.trim().isNotEmpty).toList();
-      String acc = url;
-      for (final seg in segments) {
+      final parts = Uri.parse(url).pathSegments;
+      String acc = Uri.parse(url).origin;
+      if (acc.endsWith('/')) acc = acc.substring(0, acc.length - 1);
+
+      for (final seg in parts) {
+        if (seg.isEmpty) continue;
         acc = acc + '/' + seg;
         // PROPFIND depth 0 on this collection (with trailing slash)
         final u = Uri.parse(acc + '/');
-        final req = http.Request('PROPFIND', u);
-        req.headers.addAll({
+        
+        final headers = {
           'Depth': '0',
           'Content-Type': 'application/xml; charset=utf-8',
           ..._authHeaders(cfg),
-        });
-        req.body = '<?xml version="1.0" encoding="utf-8" ?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>';
-        final res = await client.send(req).then(http.Response.fromStream);
-        if (res.statusCode == 404) {
-          // create this level
-          final mk = await client
-              .send(http.Request('MKCOL', u)..headers.addAll(_authHeaders(cfg)))
-              .then(http.Response.fromStream);
-          if (mk.statusCode != 201 && mk.statusCode != 200 && mk.statusCode != 405) {
-            throw Exception('MKCOL failed at $u: ${mk.statusCode}');
+        };
+
+        try {
+          final res = await simpleDio.request(
+            u.toString(),
+            data: '<?xml version="1.0" encoding="utf-8" ?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>',
+            options: Options(
+              method: 'PROPFIND',
+              headers: headers,
+              validateStatus: (status) => true,
+            ),
+          );
+
+          if (res.statusCode == 404) {
+            // create this level
+            final mk = await simpleDio.request(
+              u.toString(),
+              options: Options(
+                method: 'MKCOL',
+                headers: _authHeaders(cfg),
+                validateStatus: (status) => true,
+              ),
+            );
+            if (mk.statusCode != 201 && mk.statusCode != 200 && mk.statusCode != 405) {
+              throw Exception('MKCOL failed at $u: ${mk.statusCode}');
+            }
+          } else if (res.statusCode != 207 && (res.statusCode! < 200 || res.statusCode! >= 300)) {
+             throw Exception('PROPFIND check failed at $u: ${res.statusCode}');
           }
-        } else if (res.statusCode == 401) {
-          throw Exception('Unauthorized');
-        } else if (!(res.statusCode >= 200 && res.statusCode < 400)) {
-          // Some servers return 207 Multi-Status; accept 2xx/3xx/207
-          if (res.statusCode != 207) {
-            throw Exception('PROPFIND error at $u: ${res.statusCode}');
-          }
+        } catch (e) {
+           throw Exception('WebDAV setup failed at $u: $e');
         }
       }
-    } finally {
-      client.close();
+    } catch (e) {
+      print('WebDAV ensure collection error: $e');
+      rethrow;
     }
   }
 
   // ===== Public APIs =====
   Future<void> testWebdav(WebDavConfig cfg) async {
     final uri = _collectionUri(cfg);
-    final req = http.Request('PROPFIND', uri);
-    req.headers.addAll({'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8', ..._authHeaders(cfg)});
-    req.body = '<?xml version="1.0" encoding="utf-8" ?>\n'
+    final body = '<?xml version="1.0" encoding="utf-8" ?>\n'
         '<d:propfind xmlns:d="DAV:">\n'
         '  <d:prop>\n'
         '    <d:displayname/>\n'
         '  </d:prop>\n'
         '</d:propfind>';
-    final res = await http.Client().send(req).then(http.Response.fromStream);
-    if (res.statusCode != 207 && (res.statusCode < 200 || res.statusCode >= 300)) {
+    
+    final res = await simpleDio.request(
+      uri.toString(),
+      data: body,
+      options: Options(
+        method: 'PROPFIND',
+        headers: {'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8', ..._authHeaders(cfg)},
+        validateStatus: (status) => true,
+      ),
+    );
+
+    if (res.statusCode != 207 && (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300)) {
       throw Exception('WebDAV test failed: ${res.statusCode}');
     }
   }
@@ -312,11 +337,21 @@ class DataSync {
     await _ensureCollection(cfg);
     final target = _fileUri(cfg, p.basename(file.path));
     final bytes = await file.readAsBytes();
-    final res = await http.put(target, headers: {
-      'content-type': 'application/zip',
-      ..._authHeaders(cfg),
-    }, body: bytes);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
+    final res = await simpleDio.put(
+      target.toString(),
+      data: Stream.fromIterable([bytes]),
+      options: Options(
+        headers: {
+          'Content-Type': 'application/zip',
+          'Content-Length': bytes.length.toString(),
+          ..._authHeaders(cfg),
+        },
+        sendTimeout: const Duration(minutes: 10),  // 大文件上传需要更长时间
+        receiveTimeout: const Duration(minutes: 5),
+        validateStatus: (status) => true,
+      ),
+    );
+    if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
       throw Exception('Upload failed: ${res.statusCode}');
     }
   }
@@ -324,21 +359,31 @@ class DataSync {
   Future<List<BackupFileItem>> listBackupFiles(WebDavConfig cfg) async {
     await _ensureCollection(cfg);
     final uri = _collectionUri(cfg);
-    final req = http.Request('PROPFIND', uri);
-    req.headers.addAll({'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8', ..._authHeaders(cfg)});
-    req.body = '<?xml version="1.0" encoding="utf-8" ?>\n'
+    final body = '<?xml version="1.0" encoding="utf-8" ?>\n'
         '<d:propfind xmlns:d="DAV:">\n'
         '  <d:prop>\n'
         '    <d:displayname/>\n'
-        '    <d:getcontentlength/>\n'
         '    <d:getlastmodified/>\n'
+        '    <d:getcontentlength/>\n'
         '  </d:prop>\n'
         '</d:propfind>';
-    final res = await http.Client().send(req).then(http.Response.fromStream);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
+    
+    final res = await simpleDio.request(
+      uri.toString(),
+      data: body,
+      options: Options(
+        method: 'PROPFIND',
+        headers: {'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8', ..._authHeaders(cfg)},
+        validateStatus: (status) => true,
+      ),
+    );
+
+    if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
       throw Exception('PROPFIND failed: ${res.statusCode}');
     }
-    final doc = XmlDocument.parse(res.body);
+    
+    final content = res.data is String ? res.data : res.data.toString();
+    final doc = XmlDocument.parse(content);
     final items = <BackupFileItem>[];
     final baseStr = uri.toString();
     for (final resp in doc.findAllElements('response', namespace: '*')) {
@@ -351,27 +396,31 @@ class DataSync {
               .findAllElements('displayname', namespace: '*')
               .map((e) => e.innerText)
               .toList();
-      final sizeStr = resp
-          .findAllElements('getcontentlength', namespace: '*')
-          .map((e) => e.innerText)
-          .cast<String>()
-          .toList();
       final mtimeStr = resp
           .findAllElements('getlastmodified', namespace: '*')
           .map((e) => e.innerText)
           .cast<String>()
           .toList();
-      final size = (sizeStr.isNotEmpty) ? int.tryParse(sizeStr.first) ?? 0 : 0;
-      DateTime? mtime;
-      if (mtimeStr.isNotEmpty) {
-        try { mtime = DateTime.parse(mtimeStr.first); } catch (_) {}
-      }
+      final sizeStr = resp
+          .findAllElements('getcontentlength', namespace: '*')
+          .map((e) => e.innerText)
+          .cast<String>()
+          .toList();
       final name = (disp.isNotEmpty && disp.first.trim().isNotEmpty)
           ? disp.first.trim()
           : Uri.parse(href).pathSegments.last;
       
+      // Parse file size
+      int size = 0;
+      if (sizeStr.isNotEmpty) {
+        size = int.tryParse(sizeStr.first) ?? 0;
+      }
+      
       // If mtime is null, try to extract from filename (format: kelivo_backup_2025-01-19T12-34-56.123456.zip)
-      if (mtime == null) {
+      DateTime? mtime;
+      if (mtimeStr.isNotEmpty) {
+        try { mtime = DateTime.parse(mtimeStr.first); } catch (_) {}
+      } else {
         final match = RegExp(r'kelivo_backup_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d+)\.zip').firstMatch(name);
         if (match != null) {
           try {
@@ -392,26 +441,38 @@ class DataSync {
   }
 
   Future<void> restoreFromWebDav(WebDavConfig cfg, BackupFileItem item, {RestoreMode mode = RestoreMode.overwrite}) async {
-    final res = await http.get(item.href, headers: _authHeaders(cfg));
-    if (res.statusCode < 200 || res.statusCode >= 300) {
+    final res = await simpleDio.get<List<int>>(
+      item.href.toString(),
+      options: Options(
+        headers: _authHeaders(cfg),
+        responseType: ResponseType.bytes,
+        validateStatus: (status) => true,
+      ),
+    );
+    if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
       throw Exception('Download failed: ${res.statusCode}');
     }
+    final bytes = Uint8List.fromList(res.data ?? []);
     if (kIsWeb) {
-      await _restoreFromZipBytes(res.bodyBytes, cfg, mode: mode);
+      await _restoreFromZipBytes(bytes, cfg, mode: mode);
       return;
     }
     final tmpDir = await getTemporaryDirectory();
     final file = File(p.join(tmpDir.path, item.displayName));
-    await file.writeAsBytes(res.bodyBytes);
+    await file.writeAsBytes(bytes);
     await _restoreFromBackupFile(file, cfg, mode: mode);
     try { await file.delete(); } catch (_) {}
   }
 
   Future<void> deleteWebDavBackupFile(WebDavConfig cfg, BackupFileItem item) async {
-    final req = http.Request('DELETE', item.href);
-    req.headers.addAll(_authHeaders(cfg));
-    final res = await http.Client().send(req).then(http.Response.fromStream);
-    if (res.statusCode < 200 || res.statusCode >= 300) {
+    final res = await simpleDio.delete(
+      item.href.toString(),
+      options: Options(
+        headers: _authHeaders(cfg),
+        validateStatus: (status) => true,
+      ),
+    );
+    if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
       throw Exception('Delete failed: ${res.statusCode}');
     }
   }

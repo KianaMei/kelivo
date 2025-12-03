@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:html/parser.dart' as parser;
 import '../../../../l10n/app_localizations.dart';
-import 'package:http/http.dart' as http;
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class BingSearchService extends SearchService<BingLocalOptions> {
   @override
@@ -25,19 +26,22 @@ class BingSearchService extends SearchService<BingLocalOptions> {
       final encodedQuery = Uri.encodeComponent(query);
       final url = 'https://www.bing.com/search?q=$encodedQuery';
       
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept-Language': serviceOptions.acceptLanguage,
-        },
-      ).timeout(Duration(milliseconds: commonOptions.timeout));
+      final response = await simpleDio.get(
+        url,
+        options: Options(
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept-Language': serviceOptions.acceptLanguage,
+          },
+          receiveTimeout: Duration(milliseconds: commonOptions.timeout),
+        ),
+      );
       
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch results: ${response.statusCode}');
       }
       
-      final document = parser.parse(response.body);
+      final document = parser.parse(response.data);
       final results = <SearchResultItem>[];
       
       final elements = document.querySelectorAll('li.b_algo');

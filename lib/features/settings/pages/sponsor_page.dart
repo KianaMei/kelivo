@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/services/http/dio_client.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/services/haptics.dart';
@@ -26,11 +27,14 @@ class _SponsorPageState extends State<SponsorPage> {
 
   Future<_SponsorData> _fetchSponsors() async {
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final uri = Uri.parse('https://kelivo.psycheas.top/sponsor.json?kelivo=$ts');
+    final url = 'https://kelivo.psycheas.top/sponsor.json?kelivo=$ts';
     try {
-      final res = await http.get(uri).timeout(const Duration(seconds: 12));
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final obj = jsonDecode(res.body) as Map<String, dynamic>;
+      final res = await simpleDio.get(
+        url,
+        options: Options(receiveTimeout: const Duration(seconds: 12)),
+      );
+      if (res.statusCode != null && res.statusCode! >= 200 && res.statusCode! < 300) {
+        final obj = (res.data is String ? jsonDecode(res.data) : res.data) as Map<String, dynamic>;
         final updatedAt = (obj['updatedAt'] as String?) ?? '';
         final list = (obj['sponsors'] as List?) ?? const [];
         final sponsors = <_Sponsor>[];

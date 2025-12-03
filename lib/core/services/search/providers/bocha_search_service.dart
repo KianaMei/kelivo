@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../../../l10n/app_localizations.dart';
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class BochaSearchService extends SearchService<BochaOptions> {
   @override
@@ -44,16 +45,18 @@ class BochaSearchService extends SearchService<BochaOptions> {
             'exclude': serviceOptions.exclude,
         };
 
-        final response = await http
-            .post(
-              Uri.parse('https://api.bochaai.com/v1/web-search'),
-              headers: {
-                'Authorization': 'Bearer ${keyConfig.key}',
-                'Content-Type': 'application/json',
-              },
-              body: jsonEncode(body),
-            )
-            .timeout(Duration(milliseconds: commonOptions.timeout));
+        final response = await simpleDio.post(
+          'https://api.bochaai.com/v1/web-search',
+          data: body,
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer ${keyConfig.key}',
+              'Content-Type': 'application/json',
+            },
+            receiveTimeout: Duration(milliseconds: commonOptions.timeout),
+            validateStatus: (status) => true,
+          ),
+        );
 
         if (response.statusCode == 429) {
           serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
@@ -67,7 +70,7 @@ class BochaSearchService extends SearchService<BochaOptions> {
           continue;
         }
 
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final data = (response.data is String ? jsonDecode(response.data) : response.data) as Map<String, dynamic>;
         if ((data['code'] as int?) != 200) {
           serviceOptions.markKeyFailure(keyConfig.id, error: 'api_error_${data['code']}');
           lastError = Exception('API error code: ${data['code']}');

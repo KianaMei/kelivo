@@ -1,7 +1,7 @@
 /// OpenAI Provider Adapter - Unified entry point
 /// Routes to appropriate sub-handler based on API type.
 
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../helpers/chat_api_helper.dart';
 import '../../models/chat_stream_chunk.dart';
@@ -15,7 +15,7 @@ class OpenAIAdapter {
   /// Send streaming request to OpenAI-compatible API.
   /// Routes to Responses API or Chat Completions based on config.
   static Stream<ChatStreamChunk> sendStream(
-    http.Client client,
+    Dio dio,
     ProviderConfig config,
     String modelId,
     List<Map<String, dynamic>> messages, {
@@ -33,7 +33,7 @@ class OpenAIAdapter {
     if (config.useResponseApi == true) {
       // Use OpenAI Responses API
       yield* OpenAIResponsesApi.sendStream(
-        client,
+        dio,
         config,
         modelId,
         messages,
@@ -51,7 +51,7 @@ class OpenAIAdapter {
     } else {
       // Use standard Chat Completions API
       yield* OpenAIChatCompletions.sendStream(
-        client,
+        dio,
         config,
         modelId,
         messages,

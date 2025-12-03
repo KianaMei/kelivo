@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
+import 'package:dio/dio.dart';
 import 'settings_provider.dart';
 import '../services/api_key_manager.dart';
 import 'package:kelivo/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
-import '../utils/http_logger.dart';
+import '../services/http/dio_client.dart';
 
 enum ModelType { chat, embedding }
 enum Modality { text, image }
@@ -85,71 +84,27 @@ abstract class BaseProvider {
   Future<List<ModelInfo>> listModels(ProviderConfig cfg);
 }
 
-class _Http {
-  static http.Client clientFor(ProviderConfig cfg, {bool enableLogging = true}) {
-    final enabled = cfg.proxyEnabled == true;
-    final host = (cfg.proxyHost ?? '').trim();
-    final portStr = (cfg.proxyPort ?? '').trim();
-    final user = (cfg.proxyUsername ?? '').trim();
-    final pass = (cfg.proxyPassword ?? '').trim();
-    final allowInsecure = cfg.allowInsecureConnection == true;
-
-    http.Client baseClient;
-
-    // Create HttpClient if proxy is enabled OR SSL verification needs to be disabled
-    if (enabled || allowInsecure) {
-      final io = HttpClient();
-
-      // Configure proxy if enabled
-      if (enabled && host.isNotEmpty && portStr.isNotEmpty) {
-        final port = int.tryParse(portStr) ?? 8080;
-        io.findProxy = (uri) => 'PROXY $host:$port';
-        if (user.isNotEmpty) {
-          io.addProxyCredentials(host, port, '', HttpClientBasicCredentials(user, pass));
-        }
-      }
-
-      // Skip SSL certificate verification if requested (for self-signed certs)
-      if (allowInsecure) {
-        io.badCertificateCallback = (cert, host, port) => true;
-      }
-
-      baseClient = IOClient(io);
-    } else {
-      baseClient = http.Client();
-    }
-
-    // 包装 TalkerHttpClient 用于日志记录
-    if (enableLogging) {
-      return TalkerHttpClient(baseClient);
-    }
-    return baseClient;
-  }
-}
-
 class OpenAIProvider extends BaseProvider {
   @override
   Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
     final key = ProviderManager._effectiveApiKey(cfg);
     if (key.isEmpty) return [];
-    final client = _Http.clientFor(cfg);
-    try {
-      final uri = Uri.parse('${cfg.baseUrl}/models');
-      final res = await client.get(uri, headers: {
-        'Authorization': 'Bearer $key',
-      });
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final data = (jsonDecode(res.body)['data'] as List?) ?? [];
-        return [
-          for (final e in data)
-            if (e is Map && e['id'] is String)
-              ModelRegistry.infer(ModelInfo(id: e['id'] as String, displayName: e['id'] as String))
-        ];
-      }
-      return [];
-    } finally {
-      client.close();
+    final dio = createDioForProvider(cfg);
+    final url = '${cfg.baseUrl}/models';
+    final res = await dio.get(
+      url,
+      options: Options(headers: {'Authorization': 'Bearer $key'}),
+    );
+    if (res.statusCode != null && res.statusCode! >= 200 && res.statusCode! < 300) {
+      final body = res.data is String ? jsonDecode(res.data) : res.data;
+      final data = (body['data'] as List?) ?? [];
+      return [
+        for (final e in data)
+          if (e is Map && e['id'] is String)
+            ModelRegistry.infer(ModelInfo(id: e['id'] as String, displayName: e['id'] as String))
+      ];
     }
+    return [];
   }
 }
 
@@ -159,29 +114,28 @@ class ClaudeProvider extends BaseProvider {
   Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
     final key = ProviderManager._effectiveApiKey(cfg);
     if (key.isEmpty) return [];
-    final client = _Http.clientFor(cfg);
-    try {
-      final uri = Uri.parse('${cfg.baseUrl}/models');
-      final res = await client.get(uri, headers: {
+    final dio = createDioForProvider(cfg);
+    final url = '${cfg.baseUrl}/models';
+    final res = await dio.get(
+      url,
+      options: Options(headers: {
         'x-api-key': key,
         'anthropic-version': anthropicVersion,
-      });
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final obj = jsonDecode(res.body) as Map<String, dynamic>;
-        final data = (obj['data'] as List?) ?? [];
-        return [
-          for (final e in data)
-            if (e is Map && e['id'] is String)
-              ModelRegistry.infer(ModelInfo(
-                id: e['id'] as String,
-                displayName: (e['display_name'] as String?) ?? (e['id'] as String),
-              ))
-        ];
-      }
-      return [];
-    } finally {
-      client.close();
+      }),
+    );
+    if (res.statusCode != null && res.statusCode! >= 200 && res.statusCode! < 300) {
+      final obj = (res.data is String ? jsonDecode(res.data) : res.data) as Map<String, dynamic>;
+      final data = (obj['data'] as List?) ?? [];
+      return [
+        for (final e in data)
+          if (e is Map && e['id'] is String)
+            ModelRegistry.infer(ModelInfo(
+              id: e['id'] as String,
+              displayName: (e['display_name'] as String?) ?? (e['id'] as String),
+            ))
+      ];
     }
+    return [];
   }
 }
 
@@ -202,52 +156,48 @@ class GoogleProvider extends BaseProvider {
 
   @override
   Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
-    final client = _Http.clientFor(cfg);
-    try {
-      final url = _buildUrl(cfg);
-      final headers = <String, String>{};
-      if (cfg.vertexAI == true) {
-        final jsonStr = (cfg.serviceAccountJson ?? '').trim();
-        if (jsonStr.isNotEmpty) {
-          try {
-            final token = await GoogleServiceAccountAuth.getAccessTokenFromJson(jsonStr);
-            headers['Authorization'] = 'Bearer $token';
-            final proj = (cfg.projectId ?? '').trim();
-            if (proj.isNotEmpty) headers['X-Goog-User-Project'] = proj;
-          } catch (_) {}
-        } else {
-          final key = ProviderManager._effectiveApiKey(cfg);
-          if (key.isNotEmpty) {
-            // Fallback: treat apiKey as a bearer token if user pasted one
-            headers['Authorization'] = 'Bearer $key';
-          }
+    final dio = createDioForProvider(cfg);
+    final url = _buildUrl(cfg);
+    final headers = <String, String>{};
+    if (cfg.vertexAI == true) {
+      final jsonStr = (cfg.serviceAccountJson ?? '').trim();
+      if (jsonStr.isNotEmpty) {
+        try {
+          final token = await GoogleServiceAccountAuth.getAccessTokenFromJson(jsonStr);
+          headers['Authorization'] = 'Bearer $token';
+          final proj = (cfg.projectId ?? '').trim();
+          if (proj.isNotEmpty) headers['X-Goog-User-Project'] = proj;
+        } catch (_) {}
+      } else {
+        final key = ProviderManager._effectiveApiKey(cfg);
+        if (key.isNotEmpty) {
+          // Fallback: treat apiKey as a bearer token if user pasted one
+          headers['Authorization'] = 'Bearer $key';
         }
       }
-      final res = await client.get(Uri.parse(url), headers: headers);
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        final obj = jsonDecode(res.body) as Map<String, dynamic>;
-        final arr = (obj['models'] as List?) ?? [];
-        final out = <ModelInfo>[];
-        for (final e in arr) {
-          if (e is Map) {
-            final name = (e['name'] as String?) ?? '';
-            final id = name.contains('/') ? name.split('/').last : name;
-            final displayName = (e['displayName'] as String?) ?? id;
-            final methods = (e['supportedGenerationMethods'] as List?)?.map((m) => m.toString()).toSet() ?? {};
-            if (!(methods.contains('generateContent') || methods.contains('embedContent'))) continue;
-            out.add(ModelRegistry.infer(ModelInfo(
-              id: id,
-              displayName: displayName,
-              type: methods.contains('generateContent') ? ModelType.chat : ModelType.embedding,
-            )));
-          }
-        }
-        return out;
-      }
-      return [];
-    } finally {
-      client.close();
     }
+    final res = await dio.get(url, options: Options(headers: headers));
+    if (res.statusCode != null && res.statusCode! >= 200 && res.statusCode! < 300) {
+      final obj = (res.data is String ? jsonDecode(res.data) : res.data) as Map<String, dynamic>;
+      final arr = (obj['models'] as List?) ?? [];
+      final out = <ModelInfo>[];
+      for (final e in arr) {
+        if (e is Map) {
+          final name = (e['name'] as String?) ?? '';
+          final id = name.contains('/') ? name.split('/').last : name;
+          final displayName = (e['displayName'] as String?) ?? id;
+          final methods = (e['supportedGenerationMethods'] as List?)?.map((m) => m.toString()).toSet() ?? {};
+          if (!(methods.contains('generateContent') || methods.contains('embedContent'))) continue;
+          out.add(ModelRegistry.infer(ModelInfo(
+            id: id,
+            displayName: displayName,
+            type: methods.contains('generateContent') ? ModelType.chat : ModelType.embedding,
+          )));
+        }
+      }
+      return out;
+    }
+    return [];
   }
 }
 
@@ -330,9 +280,8 @@ class ProviderManager {
 
   static Future<void> testConnection(ProviderConfig cfg, String modelId) async {
     final kind = ProviderConfig.classify(cfg.id, explicitType: cfg.providerType);
-    final client = _Http.clientFor(cfg);
-    try {
-      if (kind == ProviderKind.openai) {
+    final dio = createDioForProvider(cfg);
+    if (kind == ProviderKind.openai) {
         final base = cfg.baseUrl.endsWith('/') ? cfg.baseUrl.substring(0, cfg.baseUrl.length - 1) : cfg.baseUrl;
         final path = (cfg.useResponseApi == true) ? '/responses' : (cfg.chatPath ?? '/chat/completions');
         final url = Uri.parse('$base$path');
@@ -380,14 +329,15 @@ class ProviderManager {
         print('[TEST API] Headers: ${headers.map((k,v) => MapEntry(k, k.toLowerCase() == 'authorization' || k.toLowerCase().contains('key') ? '***' : v))}');
         print('[TEST API] Request Body: ${jsonEncode(body)}');
         
-        final res = await client.post(url, headers: headers, body: jsonEncode(body));
+        final res = await dio.post(url.toString(), data: body, options: Options(headers: headers));
         
         // Log response
         print('[TEST API] Response Status: ${res.statusCode}');
-        print('[TEST API] Response Body: ${res.body.length > 500 ? res.body.substring(0, 500) + '...' : res.body}');
+        final resBody = res.data is String ? res.data : jsonEncode(res.data);
+        print('[TEST API] Response Body: ${resBody.length > 500 ? resBody.substring(0, 500) + '...' : resBody}');
         
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          throw HttpException('HTTP ${res.statusCode}: ${res.body}');
+        if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
+          throw HttpException('HTTP ${res.statusCode}: $resBody');
         }
         return;
       } else if (kind == ProviderKind.claude) {
@@ -420,14 +370,15 @@ class ProviderManager {
         print('[TEST API] Headers: ${headers.map((k,v) => MapEntry(k, k.toLowerCase().contains('key') ? '***' : v))}');
         print('[TEST API] Request Body: ${jsonEncode(body)}');
         
-        final res = await client.post(url, headers: headers, body: jsonEncode(body));
+        final res = await dio.post(url.toString(), data: body, options: Options(headers: headers));
         
         // Log Claude response
         print('[TEST API] Response Status: ${res.statusCode}');
-        print('[TEST API] Response Body: ${res.body.length > 500 ? res.body.substring(0, 500) + '...' : res.body}');
+        final resBody = res.data is String ? res.data : jsonEncode(res.data);
+        print('[TEST API] Response Body: ${resBody.length > 500 ? resBody.substring(0, 500) + '...' : resBody}');
         
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          throw HttpException('HTTP ${res.statusCode}: ${res.body}');
+        if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
+          throw HttpException('HTTP ${res.statusCode}: $resBody');
         }
         return;
       } else if (kind == ProviderKind.google) {
@@ -482,14 +433,12 @@ class ProviderManager {
         headers.addAll(_customHeaders(cfg, modelId));
         final extra = _customBody(cfg, modelId);
         if (extra.isNotEmpty) (body as Map<String, dynamic>).addAll(extra);
-        final res = await client.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          throw HttpException('HTTP ${res.statusCode}: ${res.body}');
+        final res = await dio.post(url, data: body, options: Options(headers: headers));
+        if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
+          final resBody = res.data is String ? res.data : jsonEncode(res.data);
+          throw HttpException('HTTP ${res.statusCode}: $resBody');
         }
         return;
       }
-    } finally {
-      client.close();
-    }
   }
 }

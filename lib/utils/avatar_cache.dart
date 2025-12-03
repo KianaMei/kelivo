@@ -1,9 +1,10 @@
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'app_dirs.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../core/services/http/dio_client.dart';
 
 class AvatarCache {
   AvatarCache._();
@@ -44,11 +45,15 @@ class AvatarCache {
     if (_memo.containsKey(url)) return _memo[url];
     try {
       // Download and save
-      final res = await http.get(Uri.parse(url));
-      if (res.statusCode >= 200 && res.statusCode < 300) {
+      final res = await simpleDio.get<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (res.statusCode != null && res.statusCode! >= 200 && res.statusCode! < 300) {
+        final bytes = res.data ?? [];
         if (kIsWeb) {
           final mime = _inferMimeFromUrl(url) ?? 'image/png';
-          final b64 = base64Encode(res.bodyBytes);
+          final b64 = base64Encode(bytes);
           final dataUrl = 'data:$mime;base64,$b64';
           _memo[url] = dataUrl;
           return dataUrl;
@@ -56,7 +61,7 @@ class AvatarCache {
           final dir = await _cacheDir();
           final name = _safeName(url);
           final file = File('${dir.path}/$name');
-          await file.writeAsBytes(res.bodyBytes, flush: true);
+          await file.writeAsBytes(bytes, flush: true);
           _memo[url] = file.path;
           return file.path;
         }

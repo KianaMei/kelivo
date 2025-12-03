@@ -33,6 +33,7 @@ import 'shared/widgets/snackbar.dart';
 import 'utils/restart_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:system_fonts/system_fonts.dart';
+import 'core/services/http/dio_client.dart';
 
 final RouteObserver<ModalRoute<dynamic>> routeObserver = RouteObserver<ModalRoute<dynamic>>();
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -42,6 +43,8 @@ bool _didEnsureAssistants = false; // ensure defaults after l10n ready
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Initialize global Dio HTTP client
+  initDio();
   // Init app data directories and migrate legacy Windows data if needed
   await AppDirs.init();
   // Desktop (Windows) window setup: hide native title bar for custom Flutter bar

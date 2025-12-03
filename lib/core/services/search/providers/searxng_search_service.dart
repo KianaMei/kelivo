@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../../../l10n/app_localizations.dart';
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class SearXNGSearchService extends SearchService<SearXNGOptions> {
   @override
@@ -42,16 +43,19 @@ class SearXNGSearchService extends SearchService<SearXNGOptions> {
         headers['Authorization'] = 'Basic $auth';
       }
       
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      ).timeout(Duration(milliseconds: commonOptions.timeout));
+      final response = await simpleDio.get(
+        url,
+        options: Options(
+          headers: headers,
+          receiveTimeout: Duration(milliseconds: commonOptions.timeout),
+        ),
+      );
       
       if (response.statusCode != 200) {
         throw Exception('Request failed with status ${response.statusCode}');
       }
       
-      final data = jsonDecode(response.body);
+      final data = response.data is String ? jsonDecode(response.data) : response.data;
       final results = (data['results'] as List)
           .take(commonOptions.resultSize)
           .map((item) {

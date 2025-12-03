@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../../../l10n/app_localizations.dart';
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class LinkUpSearchService extends SearchService<LinkUpOptions> {
   @override
@@ -39,14 +40,18 @@ class LinkUpSearchService extends SearchService<LinkUpOptions> {
           'includeImages': 'false',
         });
         
-        final response = await http.post(
-          Uri.parse('https://api.linkup.so/v1/search'),
-          headers: {
-            'Authorization': 'Bearer ${keyConfig.key}',
-            'Content-Type': 'application/json',
-          },
-          body: body,
-        ).timeout(Duration(milliseconds: commonOptions.timeout));
+        final response = await simpleDio.post(
+          'https://api.linkup.so/v1/search',
+          data: jsonDecode(body),
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer ${keyConfig.key}',
+              'Content-Type': 'application/json',
+            },
+            receiveTimeout: Duration(milliseconds: commonOptions.timeout),
+            validateStatus: (status) => true,
+          ),
+        );
         
         if (response.statusCode == 429) {
           serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
@@ -60,7 +65,7 @@ class LinkUpSearchService extends SearchService<LinkUpOptions> {
           continue;
         }
         
-        final data = jsonDecode(response.body);
+        final data = response.data is String ? jsonDecode(response.data) : response.data;
         final sources = data['sources'] as List? ?? [];
         final results = sources.take(commonOptions.resultSize).map((item) {
           return SearchResultItem(

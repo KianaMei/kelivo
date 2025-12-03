@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../../../l10n/app_localizations.dart';
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class ExaSearchService extends SearchService<ExaOptions> {
   @override
@@ -40,14 +41,18 @@ class ExaSearchService extends SearchService<ExaOptions> {
           },
         });
         
-        final response = await http.post(
-          Uri.parse('https://api.exa.ai/search'),
-          headers: {
-            'Authorization': 'Bearer ${keyConfig.key}',
-            'Content-Type': 'application/json',
-          },
-          body: body,
-        ).timeout(Duration(milliseconds: commonOptions.timeout));
+        final response = await simpleDio.post(
+          'https://api.exa.ai/search',
+          data: jsonDecode(body),
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer ${keyConfig.key}',
+              'Content-Type': 'application/json',
+            },
+            receiveTimeout: Duration(milliseconds: commonOptions.timeout),
+            validateStatus: (status) => true,
+          ),
+        );
         
         if (response.statusCode == 429) {
           serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
@@ -61,7 +66,7 @@ class ExaSearchService extends SearchService<ExaOptions> {
           continue;
         }
         
-        final data = jsonDecode(response.body);
+        final data = response.data is String ? jsonDecode(response.data) : response.data;
         final results = (data['results'] as List).map((item) {
           return SearchResultItem(
             title: item['title'] ?? '',

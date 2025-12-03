@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../../../l10n/app_localizations.dart';
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class JinaSearchService extends SearchService<JinaOptions> {
   @override
@@ -36,21 +37,19 @@ class JinaSearchService extends SearchService<JinaOptions> {
           'q': query,
         });
 
-        final response = await http
-            .post(
-              Uri.parse('https://s.jina.ai/'),
-              headers: {
-                'Authorization': 'Bearer ${keyConfig.key}',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                // Speed up and reduce payload: omit page content in response
-                // 'X-Respond-With': 'no-content',
-                // Some gateways behave better with a standard UA
-                // 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              },
-              body: body,
-            )
-            .timeout(Duration(milliseconds: commonOptions.timeout < 15000 ? 15000 : commonOptions.timeout));
+        final response = await simpleDio.post(
+          'https://s.jina.ai/',
+          data: jsonDecode(body),
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer ${keyConfig.key}',
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            receiveTimeout: Duration(milliseconds: commonOptions.timeout < 15000 ? 15000 : commonOptions.timeout),
+            validateStatus: (status) => true,
+          ),
+        );
 
         if (response.statusCode == 429) {
           serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
@@ -64,7 +63,7 @@ class JinaSearchService extends SearchService<JinaOptions> {
           continue;
         }
 
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final data = (response.data is String ? jsonDecode(response.data) : response.data) as Map<String, dynamic>;
         // Jina typically returns { data: [...] }. Be permissive in case of variant shapes.
         final listRaw = (data['data'] ?? data['results'] ?? const <dynamic>[]) as List;
         final list = listRaw;

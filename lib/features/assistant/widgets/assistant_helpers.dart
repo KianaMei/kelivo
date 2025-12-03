@@ -7,8 +7,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../core/services/http/dio_client.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -453,8 +454,15 @@ Future<void> inputQQAvatarForAssistant(BuildContext context, Assistant a) async 
                     final qq = randomQQ();
                     final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=$qq&spec=100';
                     try {
-                      final resp = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-                      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+                      final resp = await simpleDio.get<List<int>>(
+                        url,
+                        options: Options(
+                          responseType: ResponseType.bytes,
+                          receiveTimeout: const Duration(seconds: 5),
+                        ),
+                      );
+                      final bytes = resp.data ?? [];
+                      if (resp.statusCode == 200 && bytes.isNotEmpty) {
                         await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: url));
                         applied = true;
                         break;

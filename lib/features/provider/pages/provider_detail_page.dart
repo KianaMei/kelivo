@@ -13,8 +13,9 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../../../icons/lucide_adapter.dart';
+import '../../../core/services/http/dio_client.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../model/widgets/model_detail_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
@@ -1222,12 +1223,15 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         );
 
         // Download image from URL
-        final response = await http.get(Uri.parse(url));
+        final response = await simpleDio.get<List<int>>(
+          url,
+          options: Options(responseType: ResponseType.bytes),
+        );
         if (response.statusCode != 200) {
           throw Exception('下载失败: HTTP ${response.statusCode}');
         }
 
-        final bytes = response.bodyBytes;
+        final bytes = Uint8List.fromList(response.data ?? []);
         final avatarPath = await ProviderAvatarManager.saveAvatar(widget.keyName, bytes);
 
         if (!mounted) return;

@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:jose/jose.dart';
+import '../http/dio_client.dart';
 
 /// Minimal Service Account credentials parsed from a JSON string.
 class GoogleServiceAccountCredentials {
@@ -86,18 +87,18 @@ class GoogleServiceAccountAuth {
     final jws = builder.build();
     final assertion = jws.toCompactSerialization();
 
-    final res = await http.post(
-      Uri.parse(creds.tokenUri),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {
-        'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        'assertion': assertion,
-      },
+    final res = await simpleDio.post(
+      creds.tokenUri,
+      data: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=$assertion',
+      options: Options(
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        validateStatus: (status) => true,
+      ),
     );
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      throw StateError('Token endpoint ${res.statusCode}: ${res.body}');
+    if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
+      throw StateError('Token endpoint ${res.statusCode}: ${res.data}');
     }
-    final obj = json.decode(res.body) as Map<String, dynamic>;
+    final obj = (res.data is String ? json.decode(res.data) : res.data) as Map<String, dynamic>;
     final token = (obj['access_token'] ?? '').toString();
     final expiresIn = (obj['expires_in'] is int)
         ? obj['expires_in'] as int

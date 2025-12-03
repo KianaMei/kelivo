@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../../providers/settings_provider.dart';
 import '../../models/tool_call_mode.dart';
 import 'google_service_account_auth.dart';
@@ -53,7 +53,7 @@ class ChatApiService {
     }
 
     final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
-    final client = ChatApiHelper.clientFor(config);
+    final dio = ChatApiHelper.dioFor(config);
 
     // Track selected key for multi-key management
     String? selectedKeyId;
@@ -73,7 +73,7 @@ class ChatApiService {
       Stream<ChatStreamChunk> stream;
       if (kind == ProviderKind.openai) {
         stream = OpenAIAdapter.sendStream(
-          client,
+          dio,
           config,
           modelId,
           messages,
@@ -90,7 +90,7 @@ class ChatApiService {
         );
       } else if (kind == ProviderKind.claude) {
         stream = ClaudeAdapter.sendStream(
-          client,
+          dio,
           config,
           modelId,
           messages,
@@ -107,7 +107,7 @@ class ChatApiService {
         );
       } else if (kind == ProviderKind.google) {
         stream = GoogleAdapter.sendStream(
-          client,
+          dio,
           config,
           modelId,
           messages,
@@ -135,7 +135,7 @@ class ChatApiService {
       streamError = e.toString();
       rethrow;
     } finally {
-      client.close();
+      // Dio instances don't need manual close
 
       // Update key status after stream completes or fails
       if (selectedKeyId != null) {
@@ -164,7 +164,7 @@ class ChatApiService {
   }) async {
     final upstreamModelId = ChatApiHelper.apiModelId(config, modelId);
     final kind = ProviderConfig.classify(config.id, explicitType: config.providerType);
-    final client = ChatApiHelper.clientFor(config);
+    final dio = ChatApiHelper.dioFor(config);
 
     // Track selected key for multi-key management
     String? selectedKeyId;
@@ -247,11 +247,15 @@ class ChatApiService {
             (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
           });
         }
-        final resp = await client.post(url, headers: headers, body: jsonEncode(body));
-        if (resp.statusCode < 200 || resp.statusCode >= 300) {
-          throw HttpException('HTTP ${resp.statusCode}: ${resp.body}');
+        final resp = await dio.post(
+          url.toString(),
+          data: body,
+          options: Options(headers: headers),
+        );
+        if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
+          throw HttpException('HTTP ${resp.statusCode}: ${resp.data}');
         }
-        final data = jsonDecode(resp.body);
+        final data = resp.data is String ? jsonDecode(resp.data) : resp.data;
         if (config.useResponseApi == true) {
           // Prefer SDK-style convenience when present
           final ot = data['output_text'];
@@ -310,11 +314,15 @@ class ChatApiService {
             (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
           });
         }
-        final resp = await client.post(url, headers: headers, body: jsonEncode(body));
-        if (resp.statusCode < 200 || resp.statusCode >= 300) {
-          throw HttpException('HTTP ${resp.statusCode}: ${resp.body}');
+        final resp = await dio.post(
+          url.toString(),
+          data: body,
+          options: Options(headers: headers),
+        );
+        if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
+          throw HttpException('HTTP ${resp.statusCode}: ${resp.data}');
         }
-        final data = jsonDecode(resp.body);
+        final data = resp.data is String ? jsonDecode(resp.data) : resp.data;
         final content = data['content'] as List?;
         if (content != null && content.isNotEmpty) {
           final text = content.first['text'];
@@ -380,11 +388,15 @@ class ChatApiService {
             (body as Map<String, dynamic>)[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
           });
         }
-        final resp = await client.post(Uri.parse(url), headers: headers, body: jsonEncode(body));
-        if (resp.statusCode < 200 || resp.statusCode >= 300) {
-          throw HttpException('HTTP ${resp.statusCode}: ${resp.body}');
+        final resp = await dio.post(
+          url,
+          data: body,
+          options: Options(headers: headers),
+        );
+        if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
+          throw HttpException('HTTP ${resp.statusCode}: ${resp.data}');
         }
-        final data = jsonDecode(resp.body);
+        final data = resp.data is String ? jsonDecode(resp.data) : resp.data;
         final candidates = data['candidates'] as List?;
         if (candidates != null && candidates.isNotEmpty) {
           final parts = candidates.first['content']?['parts'] as List?;
@@ -398,7 +410,7 @@ class ChatApiService {
       requestError = e.toString();
       rethrow;
     } finally {
-      client.close();
+      // Dio instances don't need manual close
 
       // Update key status after request completes or fails
       if (selectedKeyId != null) {

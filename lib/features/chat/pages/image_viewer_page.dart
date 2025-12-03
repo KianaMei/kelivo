@@ -8,8 +8,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 import 'package:share_plus/share_plus.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:open_filex/open_filex.dart';
+import '../../../core/services/http/dio_client.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../l10n/app_localizations.dart';
@@ -195,12 +196,16 @@ class _ImageViewerPageState extends State<ImageViewerPage> with TickerProviderSt
         }
       } else if (src.startsWith('http')) {
         // Try download and share
-        final resp = await http.get(Uri.parse(src));
-        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        final resp = await simpleDio.get<List<int>>(
+          src,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        if (resp.statusCode != null && resp.statusCode! >= 200 && resp.statusCode! < 300) {
+          final bytes = resp.data ?? [];
           final tmp = await getTemporaryDirectory();
           final ext = p.extension(Uri.parse(src).path);
           temp = await File(p.join(tmp.path, 'kelivo_${DateTime.now().millisecondsSinceEpoch}${ext.isNotEmpty ? ext : '.jpg'}')).create(recursive: true);
-          await temp.writeAsBytes(resp.bodyBytes);
+          await temp.writeAsBytes(bytes);
           pathToSave = temp.path;
         } else {
           if (!mounted) return;

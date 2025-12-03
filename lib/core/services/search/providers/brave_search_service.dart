@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../../../l10n/app_localizations.dart';
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class BraveSearchService extends SearchService<BraveOptions> {
   @override
@@ -35,13 +36,17 @@ class BraveSearchService extends SearchService<BraveOptions> {
         final encodedQuery = Uri.encodeComponent(query);
         final url = 'https://api.search.brave.com/res/v1/web/search?q=$encodedQuery&count=${commonOptions.resultSize}';
         
-        final response = await http.get(
-          Uri.parse(url),
-          headers: {
-            'Accept': 'application/json',
-            'X-Subscription-Token': keyConfig.key,
-          },
-        ).timeout(Duration(milliseconds: commonOptions.timeout));
+        final response = await simpleDio.get(
+          url,
+          options: Options(
+            headers: {
+              'Accept': 'application/json',
+              'X-Subscription-Token': keyConfig.key,
+            },
+            receiveTimeout: Duration(milliseconds: commonOptions.timeout),
+            validateStatus: (status) => true,
+          ),
+        );
         
         if (response.statusCode == 429) {
           serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
@@ -55,7 +60,7 @@ class BraveSearchService extends SearchService<BraveOptions> {
           continue;
         }
         
-        final data = jsonDecode(response.body);
+        final data = response.data is String ? jsonDecode(response.data) : response.data;
         final webResults = data['web']?['results'] as List? ?? [];
         final results = webResults.map((item) {
           return SearchResultItem(

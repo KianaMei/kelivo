@@ -3,7 +3,7 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/model_provider.dart';
 import '../../../models/token_usage.dart';
@@ -17,7 +17,7 @@ class GoogleAdapter {
 
   /// Send streaming request to Google API.
   static Stream<ChatStreamChunk> sendStream(
-    http.Client client,
+    Dio dio,
     ProviderConfig config,
     String modelId,
     List<Map<String, dynamic>> messages, {
@@ -182,7 +182,6 @@ class GoogleAdapter {
         if (builtInToolEntries.isEmpty && geminiTools != null && geminiTools.isNotEmpty) 'tools': geminiTools,
       };
 
-      final request = http.Request('POST', uri);
       final headers = <String, String>{
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
@@ -197,7 +196,6 @@ class GoogleAdapter {
       }
       headers.addAll(ChatApiHelper.customHeaders(config, modelId));
       if (extraHeaders != null && extraHeaders.isNotEmpty) headers.addAll(extraHeaders);
-      request.headers.addAll(headers);
       
       final extra = ChatApiHelper.customBody(config, modelId);
       if (extra.isNotEmpty) body.addAll(extra);
@@ -206,15 +204,29 @@ class GoogleAdapter {
           body[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
         });
       }
-      request.body = jsonEncode(body);
 
-      final resp = await client.send(request);
-      if (resp.statusCode < 200 || resp.statusCode >= 300) {
-        final errorBody = await resp.stream.bytesToString();
+      final Response<ResponseBody> resp;
+      try {
+        resp = await dio.post<ResponseBody>(
+          uri.toString(),
+          data: body,
+          options: Options(
+            headers: headers,
+            responseType: ResponseType.stream,
+            validateStatus: (status) => true,
+          ),
+        );
+      } on DioException catch (e) {
+        throw HttpException('Dio error: ${e.message}');
+      }
+
+      if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
+        final errorBytes = await resp.data?.stream.toList() ?? [];
+        final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
         throw HttpException('HTTP ${resp.statusCode}: $errorBody');
       }
 
-      final stream = resp.stream.transform(utf8.decoder);
+      final stream = resp.data!.stream.cast<List<int>>().transform(utf8.decoder);
       String buffer = '';
       final List<Map<String, dynamic>> calls = [];
       bool imageOpen = false;
@@ -293,7 +305,7 @@ class GoogleAdapter {
                     final fileUri = (fileData['fileUri'] ?? fileData['file_uri'] ?? fileData['uri'] ?? '').toString();
                     if (fileUri.startsWith('http')) {
                       try {
-                        final b64 = await _downloadRemoteAsBase64(client, config, fileUri);
+                        final b64 = await _downloadRemoteAsBase64(dio, config, fileUri);
                         imageMime = mime.isNotEmpty ? mime : 'image/png';
                         if (!imageOpen) {
                           textDelta += '\n\n![image](data:$imageMime;base64,';
@@ -453,23 +465,35 @@ class GoogleAdapter {
     return out;
   }
 
-  static Future<String> _downloadRemoteAsBase64(http.Client client, ProviderConfig config, String url) async {
-    final req = http.Request('GET', Uri.parse(url));
+  static Future<String> _downloadRemoteAsBase64(Dio dio, ProviderConfig config, String url) async {
+    final headers = <String, String>{};
     if (config.vertexAI == true) {
       try {
         final token = await _maybeVertexAccessToken(config);
-        if (token != null && token.isNotEmpty) req.headers['Authorization'] = 'Bearer $token';
+        if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
       } catch (_) {}
       final proj = (config.projectId ?? '').trim();
-      if (proj.isNotEmpty) req.headers['X-Goog-User-Project'] = proj;
+      if (proj.isNotEmpty) headers['X-Goog-User-Project'] = proj;
     }
-    final resp = await client.send(req);
-    if (resp.statusCode < 200 || resp.statusCode >= 300) {
-      final err = await resp.stream.bytesToString();
-      throw HttpException('HTTP ${resp.statusCode}: $err');
+    
+    final Response<List<int>> resp;
+    try {
+      resp = await dio.get<List<int>>(
+        url,
+        options: Options(
+          headers: headers,
+          responseType: ResponseType.bytes,
+          validateStatus: (status) => true,
+        ),
+      );
+    } on DioException catch (e) {
+      throw HttpException('Dio error: ${e.message}');
     }
-    final bytes = await resp.stream.fold<List<int>>(<int>[], (acc, b) { acc.addAll(b); return acc; });
-    return base64Encode(bytes);
+    
+    if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
+      throw HttpException('HTTP ${resp.statusCode}: Failed to download');
+    }
+    return base64Encode(resp.data ?? []);
   }
 
   static Future<String?> _maybeVertexAccessToken(ProviderConfig cfg) async {

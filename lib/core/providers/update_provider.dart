@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import '../services/http/dio_client.dart';
 
 class UpdateInfo {
   final String app;
@@ -65,12 +65,12 @@ class UpdateProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
-      final url = Uri.parse('https://kelivo.psycheas.top/update.json?kelivo=$ts');
-      final resp = await http.get(url);
+      final url = 'https://kelivo.psycheas.top/update.json?kelivo=$ts';
+      final resp = await simpleDio.get(url);
       if (resp.statusCode != 200) {
         throw Exception('HTTP ${resp.statusCode}');
       }
-      final data = jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+      final data = (resp.data is String ? jsonDecode(resp.data) : resp.data) as Map<String, dynamic>;
       final info = UpdateInfo.fromJson(data);
 
       final pkg = await PackageInfo.fromPlatform();

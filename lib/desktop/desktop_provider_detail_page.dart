@@ -8,8 +8,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/services/http/dio_client.dart';
 
 import '../utils/brand_assets.dart';
 import '../utils/provider_avatar_manager.dart';
@@ -874,9 +875,15 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
 
     if (url != null && url.trim().isNotEmpty && mounted) {
       try {
-        final response = await http.get(Uri.parse(url.trim())).timeout(const Duration(seconds: 10));
+        final response = await simpleDio.get<List<int>>(
+          url.trim(),
+          options: Options(
+            responseType: ResponseType.bytes,
+            receiveTimeout: const Duration(seconds: 10),
+          ),
+        );
         if (response.statusCode == 200 && mounted) {
-          final bytes = response.bodyBytes;
+          final bytes = Uint8List.fromList(response.data ?? []);
           final relativePath = await ProviderAvatarManager.saveAvatar(widget.keyName, bytes);
 
           if (mounted) {
@@ -908,10 +915,16 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
     if (qq != null && qq.trim().isNotEmpty && mounted) {
       try {
         final url = 'https://q2.qlogo.cn/headimg_dl?dst_uin=${qq.trim()}&spec=100';
-        final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
-        
-        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty && mounted) {
-          final bytes = response.bodyBytes;
+        final response = await simpleDio.get<List<int>>(
+          url,
+          options: Options(
+            responseType: ResponseType.bytes,
+            receiveTimeout: const Duration(seconds: 10),
+          ),
+        );
+        final bytesRaw = response.data ?? [];
+        if (response.statusCode == 200 && bytesRaw.isNotEmpty && mounted) {
+          final bytes = Uint8List.fromList(bytesRaw);
           final relativePath = await ProviderAvatarManager.saveAvatar(widget.keyName, bytes);
 
           if (mounted) {

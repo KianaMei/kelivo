@@ -3,7 +3,7 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/model_provider.dart';
 import '../../../models/token_usage.dart';
@@ -16,7 +16,7 @@ class ClaudeAdapter {
 
   /// Send streaming request to Claude API.
   static Stream<ChatStreamChunk> sendStream(
-    http.Client client,
+    Dio dio,
     ProviderConfig config,
     String modelId,
     List<Map<String, dynamic>> messages, {
@@ -158,7 +158,6 @@ class ClaudeAdapter {
         },
     };
 
-    final request = http.Request('POST', url);
     final headers = <String, String>{
       'x-api-key': ChatApiHelper.effectiveApiKey(config),
       'anthropic-version': '2023-06-01',
@@ -167,7 +166,6 @@ class ClaudeAdapter {
     };
     headers.addAll(ChatApiHelper.customHeaders(config, modelId));
     if (extraHeaders != null && extraHeaders.isNotEmpty) headers.addAll(extraHeaders);
-    request.headers.addAll(headers);
     
     final extraClaude = ChatApiHelper.customBody(config, modelId);
     if (extraClaude.isNotEmpty) body.addAll(extraClaude);
@@ -176,15 +174,29 @@ class ClaudeAdapter {
         body[k] = (v is String) ? ChatApiHelper.parseOverrideValue(v) : v;
       });
     }
-    request.body = jsonEncode(body);
 
-    final response = await client.send(request);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final errorBody = await response.stream.bytesToString();
+    final Response<ResponseBody> response;
+    try {
+      response = await dio.post<ResponseBody>(
+        url.toString(),
+        data: body,
+        options: Options(
+          headers: headers,
+          responseType: ResponseType.stream,
+          validateStatus: (status) => true,
+        ),
+      );
+    } on DioException catch (e) {
+      throw HttpException('Dio error: ${e.message}');
+    }
+
+    if (response.statusCode == null || response.statusCode! < 200 || response.statusCode! >= 300) {
+      final errorBytes = await response.data?.stream.toList() ?? [];
+      final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
       throw HttpException('HTTP ${response.statusCode}: $errorBody');
     }
 
-    final stream = response.stream.transform(utf8.decoder);
+    final stream = response.data!.stream.cast<List<int>>().transform(utf8.decoder);
     String buffer = '';
     int totalTokens = 0;
     TokenUsage? usage;

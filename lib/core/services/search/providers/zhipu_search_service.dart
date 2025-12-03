@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../../../l10n/app_localizations.dart';
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class ZhipuSearchService extends SearchService<ZhipuOptions> {
   @override
@@ -38,14 +39,18 @@ class ZhipuSearchService extends SearchService<ZhipuOptions> {
           'count': commonOptions.resultSize,
         });
         
-        final response = await http.post(
-          Uri.parse('https://open.bigmodel.cn/api/paas/v4/web_search'),
-          headers: {
-            'Authorization': 'Bearer ${keyConfig.key}',
-            'Content-Type': 'application/json',
-          },
-          body: body,
-        ).timeout(Duration(milliseconds: commonOptions.timeout));
+        final response = await simpleDio.post(
+          'https://open.bigmodel.cn/api/paas/v4/web_search',
+          data: jsonDecode(body),
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer ${keyConfig.key}',
+              'Content-Type': 'application/json',
+            },
+            receiveTimeout: Duration(milliseconds: commonOptions.timeout),
+            validateStatus: (status) => true,
+          ),
+        );
         
         if (response.statusCode == 429) {
           serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
@@ -59,7 +64,7 @@ class ZhipuSearchService extends SearchService<ZhipuOptions> {
           continue;
         }
         
-        final data = jsonDecode(response.body);
+        final data = response.data is String ? jsonDecode(response.data) : response.data;
         final searchResult = data['search_result'] ?? [];
         final results = (searchResult as List).map((item) {
           return SearchResultItem(

@@ -3,16 +3,14 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
+import 'package:dio/dio.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/model_provider.dart';
-import '../../../models/token_usage.dart';
-import '../../../../utils/sandbox_path_resolver.dart';
-import '../../api_key_manager.dart';
-import 'package:kelivo/secrets/fallback.dart';
 import '../models/chat_stream_chunk.dart';
-import '../../../utils/http_logger.dart';
+import '../../http/dio_client.dart';
+import '../../api_key_manager.dart';
+import '../../../../utils/sandbox_path_resolver.dart';
+import 'package:kelivo/secrets/fallback.dart';
 
 export '../models/chat_stream_chunk.dart';
 
@@ -314,39 +312,10 @@ class ChatApiHelper {
 
   // ========== HTTP Client ==========
 
-  /// Create HTTP client with proxy and SSL settings.
-  static http.Client clientFor(ProviderConfig cfg) {
-    final enabled = cfg.proxyEnabled == true;
-    final host = (cfg.proxyHost ?? '').trim();
-    final portStr = (cfg.proxyPort ?? '').trim();
-    final user = (cfg.proxyUsername ?? '').trim();
-    final pass = (cfg.proxyPassword ?? '').trim();
-    final allowInsecure = cfg.allowInsecureConnection == true;
-
-    if (enabled || allowInsecure) {
-      final io = HttpClient();
-
-      if (allowInsecure) {
-        io.badCertificateCallback = (cert, host, port) => true;
-      }
-
-      if (enabled && host.isNotEmpty && portStr.isNotEmpty) {
-        final port = int.tryParse(portStr) ?? 0;
-        if (port > 0) {
-          io.findProxy = (uri) => 'PROXY $host:$port';
-          if (user.isNotEmpty && pass.isNotEmpty) {
-            io.addProxyCredentials(
-              host,
-              port,
-              'Basic',
-              HttpClientBasicCredentials(user, pass),
-            );
-          }
-        }
-      }
-      return TalkerHttpClient(IOClient(io));
-    }
-    return TalkerHttpClient(http.Client());
+  /// Create Dio instance with proxy and SSL settings.
+  /// This is the preferred method for new code.
+  static Dio dioFor(ProviderConfig cfg, {String? baseUrl}) {
+    return createDioForProvider(cfg, baseUrl: baseUrl);
   }
 
   // ========== Timestamp ==========

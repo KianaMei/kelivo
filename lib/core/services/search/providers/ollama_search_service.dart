@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import '../../../../l10n/app_localizations.dart';
 import '../search_service.dart';
+import '../../http/dio_client.dart';
 
 class OllamaSearchService extends SearchService<OllamaOptions> {
   @override
@@ -37,16 +38,18 @@ class OllamaSearchService extends SearchService<OllamaOptions> {
           'max_results': commonOptions.resultSize.clamp(1, 10),
         });
 
-        final response = await http
-            .post(
-              Uri.parse('https://ollama.com/api/web_search'),
-              headers: {
-                'Authorization': 'Bearer ${keyConfig.key}',
-                'Content-Type': 'application/json',
-              },
-              body: body,
-            )
-            .timeout(Duration(milliseconds: commonOptions.timeout));
+        final response = await simpleDio.post(
+          'https://ollama.com/api/web_search',
+          data: jsonDecode(body),
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer ${keyConfig.key}',
+              'Content-Type': 'application/json',
+            },
+            receiveTimeout: Duration(milliseconds: commonOptions.timeout),
+            validateStatus: (status) => true,
+          ),
+        );
 
         if (response.statusCode == 429) {
           serviceOptions.markKeyRateLimited(keyConfig.id, error: 'http_429');
@@ -60,7 +63,7 @@ class OllamaSearchService extends SearchService<OllamaOptions> {
           continue;
         }
 
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final data = (response.data is String ? jsonDecode(response.data) : response.data) as Map<String, dynamic>;
         final list = (data['results'] as List? ?? const []);
         final results = list.map((item) {
           final map = item as Map<String, dynamic>;

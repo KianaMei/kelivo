@@ -7,8 +7,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:dio/dio.dart';
+import '../../../core/services/http/dio_client.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
@@ -2525,11 +2526,15 @@ extension _AssistantAvatarActions on BasicSettingsTabState {
                           qq +
                           '&spec=100';
                       try {
-                        final resp = await http
-                            .get(Uri.parse(url))
-                            .timeout(const Duration(seconds: 5));
-                        if (resp.statusCode == 200 &&
-                            resp.bodyBytes.isNotEmpty) {
+                        final resp = await simpleDio.get<List<int>>(
+                          url,
+                          options: Options(
+                            responseType: ResponseType.bytes,
+                            receiveTimeout: const Duration(seconds: 5),
+                          ),
+                        );
+                        final bytes = resp.data ?? [];
+                        if (resp.statusCode == 200 && bytes.isNotEmpty) {
                           await context
                               .read<AssistantProvider>()
                               .updateAssistant(a.copyWith(avatar: url));
