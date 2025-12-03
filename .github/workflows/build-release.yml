@@ -18,6 +18,7 @@ jobs:
     outputs:
       new_version: ${{ steps.bump.outputs.new_version }}
       new_build: ${{ steps.bump.outputs.new_build }}
+      tag_name: ${{ steps.bump.outputs.tag_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,6 +52,7 @@ jobs:
           echo "New version: $full_version"
           echo "new_version=$new_version" >> $GITHUB_OUTPUT
           echo "new_build=$new_build" >> $GITHUB_OUTPUT
+          echo "tag_name=v${new_version}" >> $GITHUB_OUTPUT
           
           # Update pubspec.yaml
           sed -i "s/^version: .*/version: $full_version/" pubspec.yaml
@@ -62,14 +64,20 @@ jobs:
           echo "Updated pubspec.yaml:"
           grep -E '^version:|msix_version:' pubspec.yaml
 
-      - name: Commit version bump
+      - name: Commit version bump and create tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pubspec.yaml
           git commit -m "chore: bump version to $(grep -E '^version:' pubspec.yaml | sed 's/version: //') [skip ci]" || echo "No changes to commit"
-          # Skip pushing version bump for non-default branch builds
-          # git push origin ${{ github.event.repository.default_branch }}
+          
+          # Create and push tag for release (only if triggered by branch push)
+          if [[ "${{ github.ref_type }}" != "tag" ]]; then
+            new_version="${{ steps.bump.outputs.new_version }}"
+            git tag "v${new_version}"
+            git push origin "v${new_version}"
+            echo "Created and pushed tag: v${new_version}"
+          fi
 
   create-release:
     needs: bump-version
@@ -82,6 +90,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.bump-version.outputs.tag_name }}
           draft: false
           prerelease: false
           generate_release_notes: true
