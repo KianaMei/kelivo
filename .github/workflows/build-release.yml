@@ -76,14 +76,14 @@ jobs:
             new_version="${{ steps.bump.outputs.new_version }}"
             tag_name="v${new_version}"
             
-            # Check if tag already exists
-            if git ls-remote --tags origin | grep -q "refs/tags/${tag_name}$"; then
-              echo "Tag ${tag_name} already exists, skipping tag creation"
-            else
-              git tag "${tag_name}"
-              git push origin "${tag_name}"
-              echo "Created and pushed tag: ${tag_name}"
-            fi
+            # Delete existing tag if any (both local and remote)
+            git tag -d "${tag_name}" 2>/dev/null || true
+            git push origin ":refs/tags/${tag_name}" 2>/dev/null || true
+            
+            # Create and push new tag
+            git tag "${tag_name}"
+            git push origin "${tag_name}"
+            echo "Created and pushed tag: ${tag_name}"
           fi
 
   create-release:
@@ -223,6 +223,7 @@ jobs:
       - name: Upload APKs to Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.bump-version.outputs.tag_name }}
           files: |
             build/app/outputs/flutter-apk/kelivo-*.apk
             build/app/outputs/bundle/release/kelivo-release.aab
@@ -480,6 +481,7 @@ jobs:
       - name: Upload Windows build to Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.bump-version.outputs.tag_name }}
           files: |
             kelivo-windows-x64.zip
             kelivo-windows-*-setup.exe
