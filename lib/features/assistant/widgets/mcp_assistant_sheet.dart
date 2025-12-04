@@ -137,7 +137,7 @@ class _AssistantMcpSheetState extends State<_AssistantMcpSheet> {
             // Sticker tool toggle
             Expanded(
               child: _CompactToggleButton(
-                icon: Lucide.Smile,
+                icon: settings.stickerEnabled ? Lucide.Smile : Lucide.Frown,
                 label: '表情包',
                 enabled: settings.stickerEnabled,
                 onTap: () {
@@ -364,10 +364,17 @@ class _CompactToggleButton extends StatelessWidget {
     final Color iconColor;
     final Color textColor;
     
-    // Tool mode button no longer changes color when enabled - always use default style
-    bg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
-    iconColor = cs.onSurface.withOpacity(0.7);
-    textColor = cs.onSurface.withOpacity(0.8);
+    if (enabled) {
+      // Enabled state: use primary color
+      bg = cs.primary.withOpacity(isDark ? 0.15 : 0.12);
+      iconColor = cs.primary;
+      textColor = cs.primary;
+    } else {
+      // Disabled state: default muted style
+      bg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
+      iconColor = cs.onSurface.withOpacity(0.7);
+      textColor = cs.onSurface.withOpacity(0.8);
+    }
 
     return GestureDetector(
       onTap: onTap,

@@ -1097,6 +1097,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reasoningBudgetSheetCustomHint => 'e.g. 2048 (-1 auto, 0 off)';
 
   @override
+  String get reasoningBudgetSliderTitle => 'Thinking Token Budget';
+
+  @override
+  String get reasoningBudgetSheetValue => 'Value:';
+
+  @override
   String get maxTokensSheetTitle => 'Max Output Length';
 
   @override
@@ -2213,6 +2219,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get miniMapTooltip => 'Minimap';
+
+  @override
+  String get miniRailSenderUser => 'You';
+
+  @override
+  String get miniRailSenderAssistant => 'Assistant';
+
+  @override
+  String get miniRailPreviousMessage => 'Previous Message';
+
+  @override
+  String get miniRailNextMessage => 'Next Message';
 
   @override
   String get searchServicesPageApiKeyRequiredStatus => 'API Key Required';

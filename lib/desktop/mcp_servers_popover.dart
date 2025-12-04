@@ -161,7 +161,7 @@ class _McpServersContentState extends State<_McpServersContent> {
               // Sticker tool toggle
               Expanded(
                 child: _CompactToggleButton(
-                  icon: Lucide.Smile,
+                  icon: settings.stickerEnabled ? Lucide.Smile : Lucide.Frown,
                   label: '表情包',
                   enabled: settings.stickerEnabled,
                   onTap: () => context.read<SettingsProvider>().setStickerEnabled(!settings.stickerEnabled),
@@ -440,11 +440,19 @@ class _CompactToggleButtonState extends State<_CompactToggleButton> {
     final Color iconColor;
     final Color textColor;
     
-    // Tool mode button no longer changes color when enabled - always use default style
-    baseBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
-    hoverBg = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
-    iconColor = cs.onSurface.withOpacity(0.7);
-    textColor = cs.onSurface.withOpacity(0.8);
+    if (widget.enabled) {
+      // Enabled state: use primary color
+      baseBg = cs.primary.withOpacity(isDark ? 0.15 : 0.12);
+      hoverBg = cs.primary.withOpacity(isDark ? 0.25 : 0.18);
+      iconColor = cs.primary;
+      textColor = cs.primary;
+    } else {
+      // Disabled state: default muted style
+      baseBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
+      hoverBg = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
+      iconColor = cs.onSurface.withOpacity(0.7);
+      textColor = cs.onSurface.withOpacity(0.8);
+    }
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,

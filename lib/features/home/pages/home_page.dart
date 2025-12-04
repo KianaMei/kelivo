@@ -48,6 +48,7 @@ import '../../camera/pages/camera_capture_page.dart';
 import '../../chat/widgets/tool_loop_sheet.dart';
 import '../../search/widgets/search_settings_sheet.dart';
 import '../widgets/mini_map_sheet.dart';
+import '../widgets/chat_mini_rail.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -147,6 +148,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   McpProvider? _mcpProvider;
   Set<String> _connectedMcpIds = <String>{};
   bool _showJumpToBottom = false;
+  String? _visibleMessageId; // For mini rail active indicator
   bool _isUserScrolling = false;
   Timer? _userScrollTimer;
   // OCR service with LRU cache
@@ -1586,6 +1588,47 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       final shouldShow = !atBottom;
       if (_showJumpToBottom != shouldShow) {
         setState(() => _showJumpToBottom = shouldShow);
+      }
+      
+      // Update visible message for mini rail indicator
+      _updateVisibleMessageId();
+    } catch (_) {}
+  }
+
+  /// Detect which message is currently most visible and update _visibleMessageId
+  void _updateVisibleMessageId() {
+    if (!mounted || _messages.isEmpty) return;
+    try {
+      final media = MediaQuery.of(context);
+      final listTop = kToolbarHeight + media.padding.top;
+      final listBottom = media.size.height - media.padding.bottom - _inputBarHeight;
+      final centerY = (listTop + listBottom) / 2;
+
+      final collapsed = _collapseVersions(_messages);
+      String? bestId;
+      double bestDistance = double.infinity;
+
+      for (final m in collapsed) {
+        final key = _messageKeys[m.id];
+        final ctx = key?.currentContext;
+        if (ctx == null) continue;
+        final box = ctx.findRenderObject() as RenderBox?;
+        if (box == null || !box.attached) continue;
+        final top = box.localToGlobal(Offset.zero).dy;
+        final bottom = top + box.size.height;
+        // Check if visible
+        if (bottom < listTop || top > listBottom) continue;
+        // Distance from center
+        final msgCenter = (top + bottom) / 2;
+        final dist = (msgCenter - centerY).abs();
+        if (dist < bestDistance) {
+          bestDistance = dist;
+          bestId = m.id;
+        }
+      }
+
+      if (bestId != null && bestId != _visibleMessageId) {
+        setState(() => _visibleMessageId = bestId);
       }
     } catch (_) {}
   }
@@ -4342,6 +4385,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ),
             );
           }),
+
+          // LobeChat-style mini rail navigation (right side)
+          Builder(builder: (context) {
+            final showSetting = context.watch<SettingsProvider>().showMessageNavButtons;
+            if (!showSetting) return const SizedBox.shrink();
+            final collapsed = _collapseVersions(_messages);
+            return ChatMiniRail(
+              messages: collapsed,
+              activeMessageId: _visibleMessageId,
+              onJumpToMessage: (id) => _scrollToMessageId(id),
+            );
+          }),
         ],
         ),
       ),
@@ -4565,6 +4620,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
                 // Scroll-to-previous-question button
                 _buildScrollToPreviousButton(context),
+
+                // LobeChat-style mini rail navigation (right side)
+                Builder(builder: (context) {
+                  final showSetting = context.watch<SettingsProvider>().showMessageNavButtons;
+                  if (!showSetting) return const SizedBox.shrink();
+                  final collapsed = _collapseVersions(_messages);
+                  return ChatMiniRail(
+                    messages: collapsed,
+                    activeMessageId: _visibleMessageId,
+                    onJumpToMessage: (id) => _scrollToMessageId(id),
+                  );
+                }),
               ],
             ),
           ),

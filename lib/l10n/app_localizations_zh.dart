@@ -1068,6 +1068,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reasoningBudgetSheetCustomHint => '例如：2048 (-1 自动，0 关闭)';
 
   @override
+  String get reasoningBudgetSliderTitle => '思考消耗 Token';
+
+  @override
+  String get reasoningBudgetSheetValue => '数值：';
+
+  @override
   String get maxTokensSheetTitle => '最大输出长度';
 
   @override
@@ -2154,6 +2160,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get miniMapTooltip => '迷你地图';
+
+  @override
+  String get miniRailSenderUser => '你';
+
+  @override
+  String get miniRailSenderAssistant => '助手';
+
+  @override
+  String get miniRailPreviousMessage => '上一条消息';
+
+  @override
+  String get miniRailNextMessage => '下一条消息';
 
   @override
   String get searchServicesPageApiKeyRequiredStatus => '需要 API Key';
@@ -3844,6 +3862,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get reasoningBudgetSheetCustomHint => '例如：2048 (-1 自动，0 关闭)';
+
+  @override
+  String get reasoningBudgetSliderTitle => '思考消耗 Token';
+
+  @override
+  String get reasoningBudgetSheetValue => '数值：';
 
   @override
   String chatMessageWidgetFileNotFound(String fileName) {
@@ -6441,6 +6465,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get reasoningBudgetSheetCustomHint => '例如：2048 (-1 自動，0 關閉)';
+
+  @override
+  String get reasoningBudgetSliderTitle => '思考消耗 Token';
+
+  @override
+  String get reasoningBudgetSheetValue => '數值：';
 
   @override
   String chatMessageWidgetFileNotFound(String fileName) {

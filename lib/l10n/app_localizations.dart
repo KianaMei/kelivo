@@ -2177,6 +2177,18 @@ abstract class AppLocalizations {
   /// **'e.g. 2048 (-1 auto, 0 off)'**
   String get reasoningBudgetSheetCustomHint;
 
+  /// No description provided for @reasoningBudgetSliderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking Token Budget'**
+  String get reasoningBudgetSliderTitle;
+
+  /// No description provided for @reasoningBudgetSheetValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Value:'**
+  String get reasoningBudgetSheetValue;
+
   /// No description provided for @maxTokensSheetTitle.
   ///
   /// In en, this message translates to:
@@ -4234,6 +4246,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Minimap'**
   String get miniMapTooltip;
+
+  /// No description provided for @miniRailSenderUser.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get miniRailSenderUser;
+
+  /// No description provided for @miniRailSenderAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistant'**
+  String get miniRailSenderAssistant;
+
+  /// No description provided for @miniRailPreviousMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous Message'**
+  String get miniRailPreviousMessage;
+
+  /// No description provided for @miniRailNextMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Next Message'**
+  String get miniRailNextMessage;
 
   /// No description provided for @searchServicesPageApiKeyRequiredStatus.
   ///

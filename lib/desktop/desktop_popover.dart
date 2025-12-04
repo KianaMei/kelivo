@@ -11,6 +11,7 @@ Future<VoidCallback> showDesktopPopover(
   required GlobalKey anchorKey,
   required Widget child,
   double? width,
+  double? minWidth,
   double? maxHeight,
   BorderRadius? borderRadius,
 }) async {
@@ -32,6 +33,7 @@ Future<VoidCallback> showDesktopPopover(
     builder: (ctx) => _PopoverOverlay(
       anchorKey: anchorKey,
       width: width,
+      minWidth: minWidth,
       maxHeight: maxHeight,
       borderRadius: borderRadius,
       onClose: closePopover,
@@ -49,6 +51,7 @@ class _PopoverOverlay extends StatefulWidget {
     required this.onClose,
     required this.child,
     this.width,
+    this.minWidth,
     this.maxHeight,
     this.borderRadius,
   });
@@ -57,6 +60,7 @@ class _PopoverOverlay extends StatefulWidget {
   final VoidCallback onClose;
   final Widget child;
   final double? width;
+  final double? minWidth;
   final double? maxHeight;
   final BorderRadius? borderRadius;
 
@@ -160,7 +164,8 @@ class _PopoverOverlayState extends State<_PopoverOverlay>
     final anchorRect = Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height);
 
     // Calculate width: slightly narrower than anchor (like remote does)
-    final width = widget.width ?? (size.width - 16).clamp(260.0, 720.0);
+    final minW = widget.minWidth ?? 260.0;
+    final width = widget.width ?? (size.width - 16).clamp(minW, 720.0);
     final left = (anchorRect.left + (anchorRect.width - width) / 2)
         .clamp(8.0, screen.width - width - 8.0);
     final clipHeight = anchorRect.top.clamp(0.0, screen.height);

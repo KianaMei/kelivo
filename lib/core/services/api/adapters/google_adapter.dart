@@ -15,6 +15,72 @@ import '../google_service_account_auth.dart';
 class GoogleAdapter {
   GoogleAdapter._();
 
+  // ========== Thinking Budget Constants (from LobeChat) ==========
+  static const int _proThinkingMin = 128;
+  static const int _proThinkingMax = 32768;
+  static const int _flashThinkingMax = 24576;
+  static const int _flashLiteThinkingMin = 512;
+  static const int _flashLiteThinkingMax = 24576;
+
+  /// Get thinking model category based on model ID.
+  /// Returns: 'pro' | 'flash' | 'flashLite' | 'robotics' | 'other'
+  static String _getThinkingModelCategory(String model) {
+    final normalized = model.toLowerCase();
+    if (normalized.contains('robotics-er-1.5-preview')) return 'robotics';
+    if (normalized.contains('-2.5-flash-lite') || normalized.contains('flash-lite-latest')) return 'flashLite';
+    if (normalized.contains('-2.5-flash') || normalized.contains('flash-latest')) return 'flash';
+    if (normalized.contains('-2.5-pro') || normalized.contains('pro-latest')) return 'pro';
+    return 'other';
+  }
+
+  /// Check if model is Gemini 3.x (uses thinkingLevel instead of thinkingBudget).
+  static bool _isGemini3Model(String model) {
+    return model.toLowerCase().contains('-3-');
+  }
+
+  /// Convert budget value to thinkingLevel for Gemini 3.x models.
+  /// Based on Kelivo's UI effort mapping: 'high' if budget >= 16384, otherwise 'low'.
+  static String _budgetToThinkingLevel(int? budget) {
+    if (budget != null && budget >= 16384) return 'high';
+    return 'low';
+  }
+
+  /// Resolve thinking budget for Gemini models.
+  /// Returns: null (don't send), -1 (auto), 0 (off), or clamped positive value.
+  ///
+  /// Logic from LobeChat:
+  /// - pro: default -1 (auto), cannot disable, range 128~32768
+  /// - flash: default -1 (auto), can disable (0), range 0~24576
+  /// - flashLite/robotics: default 0 (off), range 512~24576
+  /// - other: default null, max 24576
+  static int? _resolveThinkingBudget(String model, int? userBudget) {
+    final category = _getThinkingModelCategory(model);
+    final hasBudget = userBudget != null;
+
+    switch (category) {
+      case 'pro':
+        if (!hasBudget) return -1;
+        if (userBudget == -1) return -1;
+        // Pro cannot be disabled, clamp to valid range
+        return userBudget.clamp(_proThinkingMin, _proThinkingMax);
+
+      case 'flash':
+        if (!hasBudget) return -1;
+        if (userBudget == -1 || userBudget == 0) return userBudget;
+        return userBudget.clamp(0, _flashThinkingMax);
+
+      case 'flashLite':
+      case 'robotics':
+        if (!hasBudget) return 0;
+        if (userBudget == -1 || userBudget == 0) return userBudget;
+        return userBudget.clamp(_flashLiteThinkingMin, _flashLiteThinkingMax);
+
+      default:
+        if (!hasBudget) return null;
+        return userBudget.clamp(0, _flashThinkingMax);
+    }
+  }
+
   /// Send streaming request to Google API.
   static Stream<ChatStreamChunk> sendStream(
     Dio dio,
@@ -121,7 +187,11 @@ class GoogleAdapter {
     final wantsImageOutput = effective.output.contains(Modality.image);
     bool expectImage = wantsImageOutput;
     bool receivedImage = false;
-    final off = ChatApiHelper.isReasoningOff(thinkingBudget);
+    
+    // Resolve thinking budget based on model category
+    final resolvedBudget = _resolveThinkingBudget(upstreamModelId, thinkingBudget);
+    final off = resolvedBudget == 0;
+    final isGemini3 = _isGemini3Model(upstreamModelId);
 
     // Built-in Gemini tools
     final builtIns = ChatApiHelper.builtInTools(config, modelId);
@@ -170,9 +240,13 @@ class GoogleAdapter {
         if (wantsImageOutput) 'responseModalities': ['TEXT', 'IMAGE'],
         if (isReasoning)
           'thinkingConfig': {
-            'includeThoughts': off ? false : true,
-            if (!off && thinkingBudget != null && thinkingBudget >= 0)
-              'thinkingBudget': thinkingBudget,
+            'includeThoughts': !off,
+            // Gemini 3.x uses thinkingLevel, Gemini 2.5 uses thinkingBudget
+            if (isGemini3 && !off)
+              'thinkingLevel': _budgetToThinkingLevel(thinkingBudget)
+            else if (!off && resolvedBudget != null && resolvedBudget != 0)
+              // -1 = dynamic/auto (let model decide), positive = specific budget
+              'thinkingBudget': resolvedBudget,
           },
       };
       final body = <String, dynamic>{

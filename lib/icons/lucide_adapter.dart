@@ -114,6 +114,7 @@ class Lucide {
   static const IconData Sun = lucide.LucideIcons.sun;
   static const IconData Moon = lucide.LucideIcons.moon;
   static const IconData Smile = lucide.LucideIcons.smile;
+  static const IconData Frown = lucide.LucideIcons.frown;
   static const IconData MessageCircleMore = lucide.LucideIcons.messageCircleMore;
   static const IconData CaseSensitive = lucide.LucideIcons.caseSensitive;
   static const IconData TextInitial = lucide.LucideIcons.textInitial;
