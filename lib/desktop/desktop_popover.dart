@@ -1,5 +1,4 @@
 import 'dart:ui' as ui;
-import 'dart:async';
 import 'package:flutter/material.dart';
 
 /// Show a desktop-only floating popover above a widget.
@@ -69,13 +68,11 @@ class _PopoverOverlay extends StatefulWidget {
 }
 
 class _PopoverOverlayState extends State<_PopoverOverlay>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller;
   late final Animation<double> _fadeIn;
   bool _closing = false;
   Offset _offset = const Offset(0, 0.12); // Start slightly below
-  Rect? _lastAnchorRect;
-  Timer? _monitorTimer;
 
   @override
   void initState() {
@@ -94,38 +91,21 @@ class _PopoverOverlayState extends State<_PopoverOverlay>
       } catch (_) {}
     });
 
-    // Start monitoring anchor position/size changes
-    _startMonitoring();
+    // Listen for window size changes instead of 60fps polling
+    WidgetsBinding.instance.addObserver(this);
   }
 
-  void _startMonitoring() {
-    // Check anchor position/size every frame (60fps)
-    _monitorTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
-      if (!mounted || _closing) return;
-
-      final keyContext = widget.anchorKey.currentContext;
-      if (keyContext == null) return;
-
-      final box = keyContext.findRenderObject() as RenderBox?;
-      if (box == null) return;
-
-      final offset = box.localToGlobal(Offset.zero);
-      final size = box.size;
-      final currentRect = Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height);
-
-      // Check if anchor moved or resized
-      if (_lastAnchorRect != currentRect) {
-        _lastAnchorRect = currentRect;
-        if (mounted) {
-          setState(() {}); // Trigger rebuild with new position
-        }
-      }
-    });
+  @override
+  void didChangeMetrics() {
+    // Window size changed, trigger rebuild to update position
+    if (mounted && !_closing) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
-    _monitorTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }

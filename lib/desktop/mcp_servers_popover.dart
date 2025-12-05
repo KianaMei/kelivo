@@ -42,6 +42,7 @@ class _McpServersContent extends StatefulWidget {
 
 class _McpServersContentState extends State<_McpServersContent> {
   ToolCallMode _toolCallMode = ToolCallMode.native;
+  bool _stickerSettingsExpanded = false;
 
   @override
   void initState() {
@@ -61,6 +62,10 @@ class _McpServersContentState extends State<_McpServersContent> {
       // 实时通知父组件模式已更改
       widget.onToolModeChanged?.call(newMode);
     }
+  }
+
+  void _toggleStickerSettings() {
+    setState(() => _stickerSettingsExpanded = !_stickerSettingsExpanded);
   }
 
   @override
@@ -136,11 +141,12 @@ class _McpServersContentState extends State<_McpServersContent> {
             ],
           ),
           const SizedBox(height: 8),
-          // Second row: Tool call mode toggle + Sticker toggle
+          // Second row: Tool call mode toggle + Sticker toggle + Settings
           Row(
             children: [
               // Tool call mode toggle (native/prompt)
               Expanded(
+                flex: 5,
                 child: Tooltip(
                   message: _toolCallMode == ToolCallMode.prompt
                       ? l10n.toolModePromptDescription
@@ -160,6 +166,7 @@ class _McpServersContentState extends State<_McpServersContent> {
               const SizedBox(width: 8),
               // Sticker tool toggle
               Expanded(
+                flex: 3,
                 child: _CompactToggleButton(
                   icon: settings.stickerEnabled ? Lucide.Smile : Lucide.Frown,
                   label: '表情包',
@@ -167,7 +174,43 @@ class _McpServersContentState extends State<_McpServersContent> {
                   onTap: () => context.read<SettingsProvider>().setStickerEnabled(!settings.stickerEnabled),
                 ),
               ),
+              const SizedBox(width: 6),
+              // Sticker settings button
+              _CompactIconButton(
+                icon: _stickerSettingsExpanded ? Lucide.ChevronUp : Lucide.Settings,
+                tooltip: '表情包设置',
+                onTap: _toggleStickerSettings,
+              ),
             ],
+          ),
+          // Expandable sticker settings section
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: _stickerSettingsExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: cs.primary.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 显示工具调用卡片
+                    _StickerSettingRow(
+                      icon: Lucide.Eye,
+                      label: '显示工具调用卡片',
+                      value: settings.showStickerToolUI,
+                      onChanged: (v) => context.read<SettingsProvider>().setShowStickerToolUI(v),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           if (servers.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -488,6 +531,108 @@ class _CompactToggleButtonState extends State<_CompactToggleButton> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Compact icon-only button (e.g., Settings)
+class _CompactIconButton extends StatefulWidget {
+  const _CompactIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  State<_CompactIconButton> createState() => _CompactIconButtonState();
+}
+
+class _CompactIconButtonState extends State<_CompactIconButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final baseBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
+    final hoverBg = isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.08);
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _hovered ? hoverBg : baseBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Icon(widget.icon, size: 16, color: cs.onSurface.withOpacity(0.7)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact setting row with icon, label and switch
+class _StickerSettingRow extends StatelessWidget {
+  const _StickerSettingRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: cs.onSurface.withOpacity(0.6)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.onSurface.withOpacity(0.85),
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ),
+          Transform.scale(
+            scale: 0.75,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
       ),
     );
   }
