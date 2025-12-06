@@ -2030,7 +2030,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
     // Inject sticker tool usage guide (when sticker is enabled)
     if (settings.stickerEnabled && supportsTools) {
-      final prompt = StickerToolService.getSystemPrompt();
+      final prompt = StickerToolService.getSystemPrompt(frequency: settings.stickerFrequency);
       if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
         apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + prompt;
       } else {
@@ -2644,7 +2644,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
     // Inject sticker tool usage guide when enabled
     if (settings.stickerEnabled) {
-      final prompt = StickerToolService.getSystemPrompt();
+      final prompt = StickerToolService.getSystemPrompt(frequency: settings.stickerFrequency);
       if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
         apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + prompt;
       } else {

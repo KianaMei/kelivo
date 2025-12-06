@@ -45,6 +45,7 @@ class _AssistantMcpSheet extends StatefulWidget {
 
 class _AssistantMcpSheetState extends State<_AssistantMcpSheet> {
   ToolCallMode _toolCallMode = ToolCallMode.native;
+  bool _stickerSettingsExpanded = false;
 
   @override
   void initState() {
@@ -146,7 +147,72 @@ class _AssistantMcpSheetState extends State<_AssistantMcpSheet> {
                 },
               ),
             ),
+            const SizedBox(width: 6),
+            // Sticker settings button
+            _CompactIconButton(
+              icon: _stickerSettingsExpanded ? Lucide.ChevronUp : Lucide.Settings,
+              onTap: () {
+                Haptics.light();
+                setState(() => _stickerSettingsExpanded = !_stickerSettingsExpanded);
+              },
+            ),
           ],
+        ),
+        // Expandable sticker settings section
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 200),
+          crossFadeState: _stickerSettingsExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: const SizedBox.shrink(),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: cs.primary.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 显示工具调用卡片
+                  _StickerSettingRow(
+                    icon: Lucide.Eye,
+                    label: '显示工具调用卡片',
+                    value: settings.showStickerToolUI,
+                    onChanged: (v) {
+                      Haptics.light();
+                      context.read<SettingsProvider>().setShowStickerToolUI(v);
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  // 表情包大小
+                  _StickerSegmentRow(
+                    icon: Lucide.Maximize2,
+                    label: '表情包大小',
+                    options: const ['小', '中', '大'],
+                    selectedIndex: settings.stickerSize,
+                    onChanged: (v) {
+                      Haptics.light();
+                      context.read<SettingsProvider>().setStickerSize(v);
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  // 表情包频率
+                  _StickerSegmentRow(
+                    icon: Lucide.Activity,
+                    label: '使用频率',
+                    options: const ['低', '中', '高'],
+                    selectedIndex: settings.stickerFrequency,
+                    onChanged: (v) {
+                      Haptics.light();
+                      context.read<SettingsProvider>().setStickerFrequency(v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
         if (servers.isNotEmpty) ...[
           const SizedBox(height: 10),
@@ -401,6 +467,160 @@ class _CompactToggleButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Compact icon-only button for mobile
+class _CompactIconButton extends StatelessWidget {
+  const _CompactIconButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: Icon(icon, size: 18, color: cs.onSurface.withOpacity(0.7)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact setting row with icon, label and switch for mobile
+class _StickerSettingRow extends StatelessWidget {
+  const _StickerSettingRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: cs.onSurface.withOpacity(0.6)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: cs.onSurface.withOpacity(0.85),
+              ),
+            ),
+          ),
+          IosSwitch(
+            value: value,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact setting row with icon, label and segmented buttons for mobile
+class _StickerSegmentRow extends StatelessWidget {
+  const _StickerSegmentRow({
+    required this.icon,
+    required this.label,
+    required this.options,
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final List<String> options;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: cs.onSurface.withOpacity(0.6)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: cs.onSurface.withOpacity(0.85),
+              ),
+            ),
+          ),
+          // Segmented buttons
+          Container(
+            height: 30,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(options.length, (i) {
+                final isSelected = i == selectedIndex;
+                return GestureDetector(
+                  onTap: () => onChanged(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? cs.primary.withOpacity(isDark ? 0.25 : 0.15)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      options[i],
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
       ),
     );
   }

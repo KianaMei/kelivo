@@ -86,6 +86,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _searchEnabledKey = 'search_enabled_v1';
   static const String _stickerEnabledKey = 'sticker_enabled_v1';
   static const String _showStickerToolUIKey = 'show_sticker_tool_ui_v1';
+  static const String _stickerSizeKey = 'sticker_size_v1';
+  static const String _stickerFrequencyKey = 'sticker_frequency_v1';
   static const String _webDavConfigKey = 'webdav_config_v1';
   static const String _lastSelectedProviderTabKey = 'last_selected_provider_tab_v1';
   // Desktop UI
@@ -188,6 +190,12 @@ class SettingsProvider extends ChangeNotifier {
   bool get stickerEnabled => _stickerEnabled;
   bool _showStickerToolUI = false;
   bool get showStickerToolUI => _showStickerToolUI;
+  // Sticker size: 0=small, 1=medium, 2=large (default: medium)
+  int _stickerSize = 1;
+  int get stickerSize => _stickerSize;
+  // Sticker frequency: 0=low, 1=medium, 2=high (default: medium)
+  int _stickerFrequency = 1;
+  int get stickerFrequency => _stickerFrequency;
   // Ephemeral connection test results: serviceId -> connected (true), failed (false), or null (not tested)
   final Map<String, bool?> _searchConnection = <String, bool?>{};
   Map<String, bool?> get searchConnection => Map.unmodifiable(_searchConnection);
@@ -417,6 +425,8 @@ class SettingsProvider extends ChangeNotifier {
     _searchEnabled = prefs.getBool(_searchEnabledKey) ?? false;
     _stickerEnabled = prefs.getBool(_stickerEnabledKey) ?? false;
     _showStickerToolUI = prefs.getBool(_showStickerToolUIKey) ?? false;
+    _stickerSize = prefs.getInt(_stickerSizeKey) ?? 1;
+    _stickerFrequency = prefs.getInt(_stickerFrequencyKey) ?? 1;
 
     // Android background chat mode (Android only; default OFF on first run)
     try {
@@ -1533,6 +1543,20 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_showStickerToolUIKey, show);
+  }
+
+  Future<void> setStickerSize(int size) async {
+    _stickerSize = size.clamp(0, 2);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_stickerSizeKey, _stickerSize);
+  }
+
+  Future<void> setStickerFrequency(int frequency) async {
+    _stickerFrequency = frequency.clamp(0, 2);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_stickerFrequencyKey, _stickerFrequency);
   }
 
   // Combined update for settings

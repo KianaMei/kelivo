@@ -207,6 +207,24 @@ class _McpServersContentState extends State<_McpServersContent> {
                       value: settings.showStickerToolUI,
                       onChanged: (v) => context.read<SettingsProvider>().setShowStickerToolUI(v),
                     ),
+                    const SizedBox(height: 4),
+                    // 表情包大小
+                    _StickerSegmentRow(
+                      icon: Lucide.Maximize2,
+                      label: '表情包大小',
+                      options: const ['小', '中', '大'],
+                      selectedIndex: settings.stickerSize,
+                      onChanged: (v) => context.read<SettingsProvider>().setStickerSize(v),
+                    ),
+                    const SizedBox(height: 4),
+                    // 表情包频率
+                    _StickerSegmentRow(
+                      icon: Lucide.Activity,
+                      label: '使用频率',
+                      options: const ['低', '中', '高'],
+                      selectedIndex: settings.stickerFrequency,
+                      onChanged: (v) => context.read<SettingsProvider>().setStickerFrequency(v),
+                    ),
                   ],
                 ),
               ),
@@ -630,6 +648,86 @@ class _StickerSettingRow extends StatelessWidget {
               value: value,
               onChanged: onChanged,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact setting row with icon, label and segmented buttons
+class _StickerSegmentRow extends StatelessWidget {
+  const _StickerSegmentRow({
+    required this.icon,
+    required this.label,
+    required this.options,
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final List<String> options;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: cs.onSurface.withOpacity(0.6)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.onSurface.withOpacity(0.85),
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ),
+          // Segmented buttons
+          Container(
+            height: 26,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(options.length, (i) {
+                final isSelected = i == selectedIndex;
+                return GestureDetector(
+                  onTap: () => onChanged(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? cs.primary.withOpacity(isDark ? 0.25 : 0.15)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      options[i],
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.7),
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+                );
+              }),
             ),
           ),
         ],

@@ -101,17 +101,48 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         final initial = idx >= 0 ? idx : 0;
         final provider = _imageProviderFor(url);
 
-        // For stickers, render with fixed size and no click handler
+        // For stickers, render with size based on settings
         if (isSticker) {
-          return (provider == null)
-              ? const SizedBox.shrink()
-              : Image(
-                  image: provider,
-                  width: 85,
-                  height: 85,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stack) => const Icon(Icons.broken_image, size: 85),
-                );
+          // Get sticker size from settings: 0=small(48), 1=medium(85), 2=large(120)
+          final stickerSize = ctx.read<SettingsProvider>().stickerSize;
+          final double size = switch (stickerSize) {
+            0 => 48.0,
+            2 => 120.0,
+            _ => 85.0, // default medium
+          };
+          if (provider == null) return const SizedBox.shrink();
+          
+          // Wrap in GestureDetector for tap to view large
+          return GestureDetector(
+            onTap: () {
+              Navigator.of(ctx).push(PageRouteBuilder(
+                pageBuilder: (_, __, ___) => ImageViewerPage(images: [url], initialIndex: 0),
+                transitionDuration: const Duration(milliseconds: 360),
+                reverseTransitionDuration: const Duration(milliseconds: 280),
+                transitionsBuilder: (context, anim, sec, child) {
+                  final curved = CurvedAnimation(
+                    parent: anim,
+                    curve: Curves.easeOutCubic,
+                    reverseCurve: Curves.easeInCubic,
+                  );
+                  return FadeTransition(
+                    opacity: curved,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.9, end: 1.0).animate(curved),
+                      child: child,
+                    ),
+                  );
+                },
+              ));
+            },
+            child: Image(
+              image: provider,
+              width: size,
+              height: size,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stack) => Icon(Icons.broken_image, size: size),
+            ),
+          );
         }
 
         // For regular images, use the original logic with viewer
