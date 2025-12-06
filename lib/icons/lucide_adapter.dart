@@ -157,4 +157,5 @@ class Lucide {
   static const IconData GitBranch = lucide.LucideIcons.gitBranch;
   static const IconData Regex = lucide.LucideIcons.regex;
   static const IconData Maximize2 = lucide.LucideIcons.maximize2;
+  static const IconData Circle = lucide.LucideIcons.circle;
 }

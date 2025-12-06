@@ -2906,6 +2906,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get toolModePromptDescription => '通过提示词模拟工具调用';
+
+  @override
+  String get codeCardPreview => '预览';
+
+  @override
+  String get codeCardView => '查看';
+
+  @override
+  String get codeCardCopy => '复制';
+
+  @override
+  String get codeCardDownload => '下载';
+
+  @override
+  String get codeCardOpen => '打开';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).

@@ -998,5 +998,10 @@
   "toolModePrompt": "提示词工具模式",
   "toolModeSwitchHint": "切换工具调用模式",
   "toolModeNativeDescription": "使用 API 原生 Function Calling",
-  "toolModePromptDescription": "通过提示词模拟工具调用"
+  "toolModePromptDescription": "通过提示词模拟工具调用",
+  "codeCardPreview": "预览",
+  "codeCardView": "查看",
+  "codeCardCopy": "复制",
+  "codeCardDownload": "下载",
+  "codeCardOpen": "打开"
 }

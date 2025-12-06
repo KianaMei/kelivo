@@ -3009,4 +3009,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get toolModePromptDescription => 'Simulate tool calls via prompts';
+
+  @override
+  String get codeCardPreview => 'Preview';
+
+  @override
+  String get codeCardView => 'View';
+
+  @override
+  String get codeCardCopy => 'Copy';
+
+  @override
+  String get codeCardDownload => 'Download';
+
+  @override
+  String get codeCardOpen => 'Open';
 }

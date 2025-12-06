@@ -1228,5 +1228,10 @@
   "toolModePrompt": "Prompt Tool Mode",
   "toolModeSwitchHint": "Switch tool call mode",
   "toolModeNativeDescription": "Use API native Function Calling",
-  "toolModePromptDescription": "Simulate tool calls via prompts"
+  "toolModePromptDescription": "Simulate tool calls via prompts",
+  "codeCardPreview": "Preview",
+  "codeCardView": "View",
+  "codeCardCopy": "Copy",
+  "codeCardDownload": "Download",
+  "codeCardOpen": "Open"
 }

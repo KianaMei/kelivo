@@ -5686,6 +5686,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Simulate tool calls via prompts'**
   String get toolModePromptDescription;
+
+  /// No description provided for @codeCardPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get codeCardPreview;
+
+  /// No description provided for @codeCardView.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get codeCardView;
+
+  /// No description provided for @codeCardCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get codeCardCopy;
+
+  /// No description provided for @codeCardDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get codeCardDownload;
+
+  /// No description provided for @codeCardOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get codeCardOpen;
 }
 
 class _AppLocalizationsDelegate

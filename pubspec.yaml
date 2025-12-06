@@ -45,6 +45,7 @@ dependencies:
   provider: ^6.0.5
   dynamic_color: ^1.8.1
   lucide_icons_flutter: ^3.1.4
+  simple_icons: ^14.6.1  # 编程语言/品牌图标
   shared_preferences: ^2.2.3
   image_picker: ^1.1.2
   flutter_svg: ^2.2.1

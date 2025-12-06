@@ -24,7 +24,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'html_artifacts_card.dart';
 import 'html_preview_dialog.dart';
 import 'code_artifacts_card.dart';
-import 'code_view_dialog.dart';
+import 'code_runtime_templates.dart';
 
 /// gpt_markdown with custom code block highlight and inline code styling.
 class MarkdownWithCodeHighlight extends StatelessWidget {
@@ -1221,26 +1221,42 @@ class FencedCodeBlockMd extends BlockMd {
     if (m == null) return const SizedBox.shrink();
     final lang = (m.group(1) ?? '').trim();
     final code = (m.group(2) ?? '');
+    final langLower = lang.toLowerCase();
     
     // Special handling for Mermaid diagrams
-    if (lang.toLowerCase() == 'mermaid') {
+    if (langLower == 'mermaid') {
       return _MermaidBlock(code: code);
     }
     
-    // All code blocks use CodeArtifactsCard
-    final isHtml = lang.toLowerCase() == 'html';
+    // Check if this is a previewable frontend code (HTML, JSX, TSX, Vue, React)
+    final isHtml = langLower == 'html';
+    final runtimeType = CodeRuntimeTemplates.detectType(langLower);
+    final canPreview = isHtml || runtimeType != null;
+    
     return CodeArtifactsCard(
       code: code,
       language: lang,
-      isStreaming: _detectStreamingState(lang.toLowerCase()),
-      canRenderPreview: isHtml,
-      onPreview: () {
+      isStreaming: _detectStreamingState(langLower),
+      canRenderPreview: canPreview,
+      onPreview: canPreview ? () async {
         if (isHtml) {
+          // Plain HTML - direct preview
           showHtmlPreviewDialog(context, code);
-        } else {
-          showCodeViewDialog(context, code: code, language: lang);
+        } else if (runtimeType != null) {
+          // Frontend code - generate HTML with runtime and preview
+          // Use async version to support local cache
+          final html = await CodeRuntimeTemplates.generateHtmlAsync(
+            code: code,
+            type: runtimeType,
+            useTailwind: true,
+            useLucide: false,
+            preferLocalCache: true,
+          );
+          if (context.mounted) {
+            showHtmlPreviewDialog(context, html);
+          }
         }
-      },
+      } : null,
     );
   }
 }
