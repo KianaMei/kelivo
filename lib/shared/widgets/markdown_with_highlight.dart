@@ -23,6 +23,8 @@ import '../../core/providers/settings_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'html_artifacts_card.dart';
 import 'html_preview_dialog.dart';
+import 'code_artifacts_card.dart';
+import 'code_view_dialog.dart';
 
 /// gpt_markdown with custom code block highlight and inline code styling.
 class MarkdownWithCodeHighlight extends StatelessWidget {
@@ -112,29 +114,9 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
           };
           if (provider == null) return const SizedBox.shrink();
           
-          // Wrap in GestureDetector for tap to view large
+          // Wrap in GestureDetector for tap to view large in a popup
           return GestureDetector(
-            onTap: () {
-              Navigator.of(ctx).push(PageRouteBuilder(
-                pageBuilder: (_, __, ___) => ImageViewerPage(images: [url], initialIndex: 0),
-                transitionDuration: const Duration(milliseconds: 360),
-                reverseTransitionDuration: const Duration(milliseconds: 280),
-                transitionsBuilder: (context, anim, sec, child) {
-                  final curved = CurvedAnimation(
-                    parent: anim,
-                    curve: Curves.easeOutCubic,
-                    reverseCurve: Curves.easeInCubic,
-                  );
-                  return FadeTransition(
-                    opacity: curved,
-                    child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.9, end: 1.0).animate(curved),
-                      child: child,
-                    ),
-                  );
-                },
-              ));
-            },
+            onTap: () => _showStickerPopup(ctx, provider),
             child: Image(
               image: provider,
               width: size,
@@ -521,6 +503,82 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
   static String _displayLanguage(BuildContext ctx, String lang) {
     final n = _normalizeLanguage(lang) ?? 'text';
     return n;
+  }
+
+  /// Show sticker in a simple popup dialog
+  static void _showStickerPopup(BuildContext context, ImageProvider provider) {
+    final isDesktop = Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+    
+    if (isDesktop) {
+      // Desktop: Simple centered dialog
+      showDialog(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (ctx) => GestureDetector(
+          onTap: () => Navigator.pop(ctx),
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 280, maxHeight: 280),
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Image(
+                  image: provider,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 120),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      // Mobile: Bottom sheet style popup
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => Container(
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(ctx).colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).colorScheme.onSurface.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Image(
+                image: provider,
+                width: 200,
+                height: 200,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 120),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   static ImageProvider? _imageProviderFor(String src) {
@@ -1164,19 +1222,26 @@ class FencedCodeBlockMd extends BlockMd {
     final lang = (m.group(1) ?? '').trim();
     final code = (m.group(2) ?? '');
     
-    // Special handling for HTML: render as artifacts card
-    if (lang.toLowerCase() == 'html') {
-      return HtmlArtifactsCard(
-        html: code,
-        isStreaming: _detectStreamingState(lang.toLowerCase()),
-        onPreview: () => showHtmlPreviewDialog(context, code),
-      );
-    }
-    
+    // Special handling for Mermaid diagrams
     if (lang.toLowerCase() == 'mermaid') {
       return _MermaidBlock(code: code);
     }
-    return _CollapsibleCodeBlock(language: lang, code: code);
+    
+    // All code blocks use CodeArtifactsCard
+    final isHtml = lang.toLowerCase() == 'html';
+    return CodeArtifactsCard(
+      code: code,
+      language: lang,
+      isStreaming: _detectStreamingState(lang.toLowerCase()),
+      canRenderPreview: isHtml,
+      onPreview: () {
+        if (isHtml) {
+          showHtmlPreviewDialog(context, code);
+        } else {
+          showCodeViewDialog(context, code: code, language: lang);
+        }
+      },
+    );
   }
 }
 
