@@ -150,4 +150,11 @@ class Lucide {
   static const IconData Play = lucide.LucideIcons.play;
   static const IconData ChevronsUpDown = lucide.LucideIcons.chevronsUpDown;
   static const IconData ChevronsDownUp = lucide.LucideIcons.chevronsDownUp;
+  static const IconData AtSign = lucide.LucideIcons.atSign;
+  static const IconData FileCode = lucide.LucideIcons.fileCode;
+  static const IconData Braces = lucide.LucideIcons.braces;
+  static const IconData Container = lucide.LucideIcons.container;
+  static const IconData GitBranch = lucide.LucideIcons.gitBranch;
+  static const IconData Regex = lucide.LucideIcons.regex;
+  static const IconData Maximize2 = lucide.LucideIcons.maximize2;
 }
