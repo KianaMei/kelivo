@@ -62,6 +62,10 @@ dependencies:
   url_launcher: ^6.3.2
   package_info_plus: ^8.3.1
   gpt_markdown: ^1.1.2
+  # Rich text editor for chat input
+  flutter_quill: ^11.5.0
+  flutter_quill_extensions: ^11.0.0
+  markdown_quill: ^4.3.0
   uuid: ^4.5.0
   intl: ^0.20.2
   path_provider: ^2.1.4

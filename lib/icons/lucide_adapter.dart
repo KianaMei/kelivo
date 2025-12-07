@@ -158,4 +158,20 @@ class Lucide {
   static const IconData Regex = lucide.LucideIcons.regex;
   static const IconData Maximize2 = lucide.LucideIcons.maximize2;
   static const IconData Circle = lucide.LucideIcons.circle;
+  static const IconData FileEdit = lucide.LucideIcons.filePenLine;
+  // Type is already defined above at line 52
+  static const IconData ALargeSmall = lucide.LucideIcons.aLargeSmall;
+  // Rich text toolbar icons
+  static const IconData Bold = lucide.LucideIcons.bold;
+  static const IconData Italic = lucide.LucideIcons.italic;
+  static const IconData Quote = lucide.LucideIcons.quote;
+  static const IconData List = lucide.LucideIcons.list;
+  // ListOrdered is already defined above at line 122
+  static const IconData Underline = lucide.LucideIcons.underline;
+  static const IconData Strikethrough = lucide.LucideIcons.strikethrough;
+  static const IconData Heading1 = lucide.LucideIcons.heading1;
+  static const IconData Heading2 = lucide.LucideIcons.heading2;
+  static const IconData Heading3 = lucide.LucideIcons.heading3;
+  static const IconData ListTodo = lucide.LucideIcons.listTodo;
+  static const IconData RemoveFormatting = lucide.LucideIcons.removeFormatting;
 }

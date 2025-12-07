@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import '../../../theme/design_tokens.dart';
 import '../../../icons/lucide_adapter.dart';
+import 'rich_chat_input.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -150,6 +151,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
   bool _extraActionsCollapsed = true;
   // Expand/collapse for input field
   bool _isExpanded = false;
+  // Rich text input mode
+  bool _useRichInput = false;
+  final GlobalKey<RichChatInputState> _richInputKey = GlobalKey<RichChatInputState>();
   
   /// Show expand button when text has 3+ lines
   bool get _showExpandButton {
@@ -216,10 +220,20 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   void _handleSend() {
-    final text = _controller.text.trim();
+    String text;
+    if (_useRichInput) {
+      // 使用 markdown 格式保留富文本格式
+      text = _richInputKey.currentState?.markdown ?? '';
+    } else {
+      text = _controller.text.trim();
+    }
     if (text.isEmpty && _images.isEmpty && _docs.isEmpty) return;
     widget.onSend?.call(ChatInputData(text: text, imagePaths: List.of(_images), documents: List.of(_docs)));
-    _controller.clear();
+    if (_useRichInput) {
+      _richInputKey.currentState?.clear();
+    } else {
+      _controller.clear();
+    }
     _images.clear();
     _docs.clear();
     setState(() {});
@@ -435,7 +449,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
     final isDark = theme.brightness == Brightness.dark;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isMobile = screenWidth < 600;
-    final hasText = _controller.text.trim().isNotEmpty;
+    final hasText = _useRichInput 
+        ? (_richInputKey.currentState?.plainText.isNotEmpty ?? false)
+        : _controller.text.trim().isNotEmpty;
     final hasImages = _images.isNotEmpty;
     final hasDocs = _docs.isNotEmpty;
 
@@ -585,10 +601,20 @@ class _ChatInputBarState extends State<ChatInputBar> {
                   ),
                   child: Column(
                     children: [
-                  // Input field
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xxs, AppSpacing.md, AppSpacing.xs),
-                    child: Stack(
+                  // Input field - supports both plain text and rich text modes
+                  if (_useRichInput)
+                    RichChatInput(
+                      key: _richInputKey,
+                      focusNode: widget.focusNode,
+                      hintText: _hint(context),
+                      minLines: 1,
+                      maxLines: _isExpanded ? 25 : 8,
+                      onSend: (_) => _handleSend(),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xxs, AppSpacing.md, AppSpacing.xs),
+                      child: Stack(
                       children: [
                         Focus(
                           onKey: (node, event) => _handleKeyEvent(node, event),
@@ -813,20 +839,14 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 ),
                               ),
                             ],
-                            //闂備焦瀵х粙鎴︽偋閸℃稑绀勯柨娑樺鐎氼剟鏌涢幇銊︽珕婵炲牆顭烽弻娑㈠箳閺傛鏆┑鐐存尭閻栫厧鐣烽敐鍛殾闁搞儲婀圭槐鎾绘⒑绾懎鐓愰柨姘辨喐閻楀牊顥堢€规洜濞€閹喚鈧潧鎽滈ˇ?
-                            // Tool mode toggle button (native/prompt)
-                            if (widget.showToolModeButton) ...[
-                              const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: widget.toolModeIsPrompt
-                                    ? AppLocalizations.of(context)!.toolModePrompt
-                                    : AppLocalizations.of(context)!.toolModeNative,
-                                icon: widget.toolModeIsPrompt ? Lucide.MessageSquareCode : Lucide.Wrench,
-                                active: widget.toolModeIsPrompt,
-                                onTap: widget.onToggleToolMode,
-                              ),
-                            ],
-                            // Quick Phrase button moved to bottom tools sheet (mobile) and overflow menu (desktop)
+                            // Rich text mode toggle (all platforms)
+                            const SizedBox(width: 8),
+                            _CompactIconButton(
+                              tooltip: _useRichInput ? '切换到普通输入' : '切换到富文本输入',
+                              icon: Lucide.CaseSensitive,
+                              active: _useRichInput,
+                              onTap: () => setState(() => _useRichInput = !_useRichInput),
+                            ),
                             if (widget.onPickPhotos != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -843,7 +863,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onUploadFiles,
                               ),
                             ],
-                            //闂備焦瀵х粙鎴︽偋閸℃稑绀勯柨娑樺鐎氼剟鏌涢幇銊︽珕婵炲牆顭烽弻娑㈠箳閺傛鏆┑鐐存尭閻栫厧鐣烽敐鍛殾闁搞儲婀圭槐鎾绘⒑绾懎鐓愰柨姘辨喐閻楀牊顥堢€规洜濞€閹喚鈧潧鎽滈ˇ?
                             if (widget.onClearContext != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -852,9 +871,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: widget.onClearContext,
                               ),
                             ],
-                            //闂備焦瀵х粙鎴︽偋閸℃稑绀勯柨娑樺鐎氼剟鏌涢幇銊︽珕婵炲牆顭烽弻娑㈠箳閺傛鏆┑鐐存尭閻栫厧鐣烽敐鍛殾闁搞儲婀圭槐鎾绘⒑绾懎鐓愰柨姘辨喐閻楀牊顥堢€规洜濞€閹喚鈧潧鎽滈ˇ?
-                            // Collapse toggle 闂備浇銆€閸嬫捇鏌熼鍡楀閸氼偊姊洪幖鐐插姢闁稿鎹囬幃銉╂晲婢跺﹦顦遍梺鍛婄箓鐎氼噣宕㈤悽鍛婄厽闁靛鍎遍顏呯箾閹惧磭鍩ｇ€规洩缍佸畷妤呭川椤旂晫褰块梻浣瑰缁嬫帞绮欓幋锔藉創鐎广儱鎷嬮崵鏇㈡煃瑜滈崜鐔奉嚕椤旂偓宕夐柣鎴烆焾閸氼偊姊虹粙璺ㄧ婵炲绋栭妵鎰板川婵犲啰绉堕梺鑽ゅ枑濠㈡顤勯梻浣筋嚃閸忔稑霉閸ヮ剙绠柣鎴ｆ缁€澶愭煟濡搫鏆辨い顐ｅ灴閺屾稑鈻庨幋婢儳绱掗鑲┬х€规洖鐖奸幃娆擃敆閸屾氨浼?
-                            // 闂備礁缍婂褔顢栭崱妞绘敠闁逞屽墰缁辨帡寮幋婵堜桓濠电偛鐗炵紞渚€骞愭繝鍛杸闁哄倹顑欏娆撴⒑閸涘﹦鎳呭┑顔肩摠閹便劌鈽夐姀鈥虫畱?
+                            // Desktop extra actions (collapse button and more)
                             if (!isMobile) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
