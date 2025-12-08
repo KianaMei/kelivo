@@ -69,7 +69,6 @@ Do not interpret or translate—only transcribe and describe what is visually pr
         name: l10n.assistantProviderDefaultAssistantName,
         systemPrompt: '',
         deletable: false,
-        thinkingBudget: null,
         temperature: 0.6,
         topP: 1.0,
       );

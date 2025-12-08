@@ -22,6 +22,7 @@ import '../../../../utils/sandbox_path_resolver.dart';
 import '../../pages/image_viewer_page.dart';
 import 'message_models.dart';
 import 'message_parts.dart';
+import '../../../../shared/widgets/markdown_with_highlight.dart';
 
 /// Renders user messages with avatar, content, and action buttons.
 class UserMessageRenderer extends StatefulWidget {
@@ -261,15 +262,13 @@ class _UserMessageRendererState extends State<UserMessageRenderer> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 if (parsed.text.isNotEmpty)
-                  SelectionArea(
+                  MarkdownWithCodeHighlight(
                     key: ValueKey('user_${widget.message.id}'),
-                    child: Text(
-                      parsed.text,
-                      style: TextStyle(
-                        fontSize: 15.5,
-                        height: 1.4,
-                        color: cs.onSurface,
-                      ),
+                    text: parsed.text,
+                    baseStyle: TextStyle(
+                      fontSize: 15.5,
+                      height: 1.4,
+                      color: cs.onSurface,
                     ),
                   ),
                 if (parsed.images.isNotEmpty) ...[

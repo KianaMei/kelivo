@@ -119,9 +119,8 @@ class ApiKeyManager {
     String? error,
     int? maxFailuresBeforeDisable,
   }) async {
-    if (!_initialized) {
-      throw StateError('ApiKeyManager not initialized. Call init() first.');
-    }
+    // Silently return if not initialized (will be initialized when ChatService.init() runs)
+    if (!_initialized) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final old = _getOrCreateState(keyId);

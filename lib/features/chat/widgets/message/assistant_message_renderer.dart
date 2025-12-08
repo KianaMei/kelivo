@@ -57,6 +57,7 @@ class AssistantMessageRenderer extends StatefulWidget {
   final VoidCallback? onSpeak;
   final VoidCallback? onDelete;
   final VoidCallback? onMore;
+  final VoidCallback? onMentionReAnswer;
   final int? versionIndex;
   final int? versionCount;
   final VoidCallback? onPrevVersion;
@@ -96,6 +97,7 @@ class AssistantMessageRenderer extends StatefulWidget {
     this.onSpeak,
     this.onDelete,
     this.onMore,
+    this.onMentionReAnswer,
     this.versionIndex,
     this.versionCount,
     this.onPrevVersion,
@@ -624,6 +626,13 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
             icon: Icon(Lucide.RefreshCw, size: 16),
             onPressed: widget.onRegenerate,
             tooltip: safeTooltipMessage(l10n.chatMessageWidgetRegenerateTooltip),
+            visualDensity: VisualDensity.compact,
+            iconSize: 16,
+          ),
+          IconButton(
+            icon: Icon(Lucide.AtSign, size: 16),
+            onPressed: widget.onMentionReAnswer,
+            tooltip: safeTooltipMessage('@'),
             visualDensity: VisualDensity.compact,
             iconSize: 16,
           ),

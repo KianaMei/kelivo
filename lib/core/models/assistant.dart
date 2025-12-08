@@ -13,7 +13,6 @@ class Assistant {
   final int contextMessageSize; // number of previous messages to include
   final bool limitContextMessages; // whether to enforce contextMessageSize
   final bool streamOutput; // streaming responses
-  final int? thinkingBudget; // null = use global/default; 0=off; >0 tokens budget
   final int? maxTokens; // null = unlimited
   final int maxToolLoopIterations; // max tool calling loop iterations (default: 10)
   final String systemPrompt;
@@ -42,7 +41,6 @@ class Assistant {
     this.contextMessageSize = 64,
     this.limitContextMessages = true,
     this.streamOutput = true,
-    this.thinkingBudget,
     this.maxTokens,
     this.maxToolLoopIterations = 10,
     this.systemPrompt = '',
@@ -69,7 +67,6 @@ class Assistant {
     int? contextMessageSize,
     bool? limitContextMessages,
     bool? streamOutput,
-    int? thinkingBudget,
     int? maxTokens,
     int? maxToolLoopIterations,
     String? systemPrompt,
@@ -86,7 +83,6 @@ class Assistant {
     bool clearAvatar = false,
     bool clearTemperature = false,
     bool clearTopP = false,
-    bool clearThinkingBudget = false,
     bool clearMaxTokens = false,
     bool clearBackground = false,
   }) {
@@ -102,7 +98,6 @@ class Assistant {
       contextMessageSize: contextMessageSize ?? this.contextMessageSize,
       limitContextMessages: limitContextMessages ?? this.limitContextMessages,
       streamOutput: streamOutput ?? this.streamOutput,
-      thinkingBudget: clearThinkingBudget ? null : (thinkingBudget ?? this.thinkingBudget),
       maxTokens: clearMaxTokens ? null : (maxTokens ?? this.maxTokens),
       maxToolLoopIterations: maxToolLoopIterations ?? this.maxToolLoopIterations,
       systemPrompt: systemPrompt ?? this.systemPrompt,
@@ -131,7 +126,6 @@ class Assistant {
         'contextMessageSize': contextMessageSize,
         'limitContextMessages': limitContextMessages,
         'streamOutput': streamOutput,
-        'thinkingBudget': thinkingBudget,
         'maxTokens': maxTokens,
         'maxToolLoopIterations': maxToolLoopIterations,
         'systemPrompt': systemPrompt,
@@ -158,7 +152,6 @@ class Assistant {
         contextMessageSize: (json['contextMessageSize'] as num?)?.toInt() ?? 64,
         limitContextMessages: json['limitContextMessages'] as bool? ?? true,
         streamOutput: json['streamOutput'] as bool? ?? true,
-        thinkingBudget: (json['thinkingBudget'] as num?)?.toInt(),
         maxTokens: (json['maxTokens'] as num?)?.toInt(),
         maxToolLoopIterations: (json['maxToolLoopIterations'] as num?)?.toInt() ?? 10,
         systemPrompt: (json['systemPrompt'] as String?) ?? '',

@@ -32,6 +32,7 @@ class ChatMessageWidget extends StatefulWidget {
   final VoidCallback? onMore;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
+  final VoidCallback? onMentionReAnswer;
   final int? versionIndex;
   final int? versionCount;
   final VoidCallback? onPrevVersion;
@@ -67,6 +68,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.onMore,
     this.onEdit,
     this.onDelete,
+    this.onMentionReAnswer,
     this.versionIndex,
     this.versionCount,
     this.onPrevVersion,
@@ -455,6 +457,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       onSpeak: widget.onSpeak,
       onDelete: widget.onDelete,
       onMore: widget.onMore,
+      onMentionReAnswer: widget.onMentionReAnswer,
       versionIndex: widget.versionIndex,
       versionCount: widget.versionCount,
       onPrevVersion: widget.onPrevVersion,

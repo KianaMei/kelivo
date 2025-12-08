@@ -84,6 +84,8 @@ class ChatInputBar extends StatefulWidget {
     this.onToggleToolMode,
     this.toolModeIsPrompt = false,
     this.showToolModeButton = false,
+    this.onMentionTap,
+    this.onAtTrigger,
   });
 
   final ValueChanged<ChatInputData>? onSend;
@@ -133,6 +135,11 @@ class ChatInputBar extends StatefulWidget {
   final bool toolModeIsPrompt;
   /// Whether to show the tool mode toggle button
   final bool showToolModeButton;
+  /// Callback when @ button is tapped to mention models
+  final VoidCallback? onMentionTap;
+  /// Callback when "@" character is typed in input field
+  /// The parameter is the text before the "@" character
+  final ValueChanged<String>? onAtTrigger;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -237,6 +244,19 @@ class _ChatInputBarState extends State<ChatInputBar> {
     _images.clear();
     _docs.clear();
     setState(() {});
+  }
+
+  void _handleTextChange(String text) {
+    setState(() {});
+    // Detect "@" character and trigger model selector
+    if (text.endsWith('@') && widget.onAtTrigger != null) {
+      final textBeforeAt = text.substring(0, text.length - 1);
+      // Remove the "@" from input
+      _controller.text = textBeforeAt;
+      _controller.selection = TextSelection.collapsed(offset: textBeforeAt.length);
+      // Trigger the callback
+      widget.onAtTrigger!(textBeforeAt);
+    }
   }
 
   void _insertNewlineAtCursor() {
@@ -621,7 +641,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                           child: TextField(
                             controller: _controller,
                             focusNode: widget.focusNode,
-                            onChanged: (_) => setState(() {}),
+                            onChanged: (text) => _handleTextChange(text),
                             minLines: 1,
                             maxLines: _isExpanded ? 25 : 5,
                             // On iOS, show "Send" on the return key and submit on tap.
@@ -695,6 +715,14 @@ class _ChatInputBarState extends State<ChatInputBar> {
                               onTap: widget.onSelectModel,
                               onLongPress: widget.onLongPressSelectModel,
                             ),
+                            if (widget.onMentionTap != null) ...[
+                              const SizedBox(width: 8),
+                              _CompactIconButton(
+                                tooltip: '@',
+                                icon: Lucide.AtSign,
+                                onTap: widget.onMentionTap,
+                              ),
+                            ],
                             const SizedBox(width: 8),
                             Container(
                               key: widget.searchAnchorKey,

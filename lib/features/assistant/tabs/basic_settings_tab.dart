@@ -41,7 +41,6 @@ class BasicSettingsTab extends StatefulWidget {
 
 class BasicSettingsTabState extends State<BasicSettingsTab> {
   late final TextEditingController _nameCtrl;
-  late final TextEditingController _thinkingCtrl;
   late final TextEditingController _backgroundCtrl;
 
   @override
@@ -50,9 +49,6 @@ class BasicSettingsTabState extends State<BasicSettingsTab> {
     final ap = context.read<AssistantProvider>();
     final a = ap.getById(widget.assistantId)!;
     _nameCtrl = TextEditingController(text: a.name);
-    _thinkingCtrl = TextEditingController(
-      text: a.thinkingBudget?.toString() ?? '',
-    );
     _backgroundCtrl = TextEditingController(text: a.background ?? '');
   }
 
@@ -63,7 +59,6 @@ class BasicSettingsTabState extends State<BasicSettingsTab> {
       final ap = context.read<AssistantProvider>();
       final a = ap.getById(widget.assistantId)!;
       _nameCtrl.text = a.name;
-      _thinkingCtrl.text = a.thinkingBudget?.toString() ?? '';
       _backgroundCtrl.text = a.background ?? '';
     }
   }
@@ -71,7 +66,6 @@ class BasicSettingsTabState extends State<BasicSettingsTab> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _thinkingCtrl.dispose();
     _backgroundCtrl.dispose();
     super.dispose();
   }
