@@ -3024,4 +3024,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get codeCardOpen => 'Open';
+
+  @override
+  String get desktopNavApiTestTooltip => 'API Test';
+
+  @override
+  String get apiTestPageTitle => 'API Test';
+
+  @override
+  String get apiTestProviderLabel => 'Provider';
+
+  @override
+  String get apiTestApiKeyLabel => 'API Key';
+
+  @override
+  String get apiTestApiKeyHint => 'Enter API Key…';
+
+  @override
+  String get apiTestBaseUrlLabel => 'Base URL';
+
+  @override
+  String get apiTestBaseUrlHint => 'Enter Base URL…';
+
+  @override
+  String get apiTestFetchModels => 'Fetch Models';
+
+  @override
+  String get apiTestModelLabel => 'Model';
+
+  @override
+  String get apiTestClearChat => 'Clear Chat';
+
+  @override
+  String get apiTestEmptyHint => 'Configure API to start testing';
+
+  @override
+  String get apiTestInputHint => 'Enter message…';
+
+  @override
+  String get apiTestSend => 'Send';
+
+  @override
+  String get apiTestStop => 'Stop';
 }

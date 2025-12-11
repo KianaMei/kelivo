@@ -1217,6 +1217,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
               );
             },
+            onToolLoop: () async {
+              Navigator.of(ctx).maybePop();
+              await showToolLoopSheet(context);
+            },
             clearLabel: _clearContextLabel(),
           ),
         );

@@ -5,6 +5,7 @@ import 'package:talker_flutter/talker_flutter.dart';
 import 'desktop_nav_rail.dart';
 import 'desktop_chat_page.dart';
 import 'desktop_translate_page.dart';
+import 'desktop_api_test_page.dart';
 import 'window_title_bar.dart';
 import 'desktop_settings_page.dart';
 import '../core/utils/http_logger.dart';
@@ -19,7 +20,7 @@ class DesktopHomePage extends StatefulWidget {
 }
 
 class _DesktopHomePageState extends State<DesktopHomePage> {
-  int _tabIndex = 0; // 0=Chat, 1=Translate, 2=Settings
+  int _tabIndex = 0; // 0=Chat, 1=Translate, 2=ApiTest, 3=Settings
 
   void _openDevTools() {
     if (!kDebugMode) return;
@@ -64,8 +65,9 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
                   activeIndex: _tabIndex,
                   onTapChat: () => setState(() => _tabIndex = 0),
                   onTapTranslate: () => setState(() => _tabIndex = 1),
+                  onTapApiTest: () => setState(() => _tabIndex = 2),
                   onTapSettings: () {
-                    setState(() => _tabIndex = 2);
+                    setState(() => _tabIndex = 3);
                   },
                 ),
                 Expanded(
@@ -78,6 +80,8 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
                       DesktopChatPage(),
                       // Translate page remains mounted
                       DesktopTranslatePage(key: ValueKey('translate_page')),
+                      // API Test page remains mounted
+                      DesktopApiTestPage(key: ValueKey('api_test_page')),
                       // Settings page remains mounted
                       DesktopSettingsPage(key: ValueKey('settings_page')),
                     ],

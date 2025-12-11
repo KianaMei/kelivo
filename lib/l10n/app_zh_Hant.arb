@@ -877,5 +877,19 @@
   "toolModePrompt": "提示詞工具模式",
   "toolModeSwitchHint": "切換工具調用模式",
   "toolModeNativeDescription": "使用 API 原生 Function Calling",
-  "toolModePromptDescription": "透過提示詞模擬工具調用"
+  "toolModePromptDescription": "透過提示詞模擬工具調用",
+  "desktopNavApiTestTooltip": "API 測試",
+  "apiTestPageTitle": "API 測試",
+  "apiTestProviderLabel": "供應商",
+  "apiTestApiKeyLabel": "API Key",
+  "apiTestApiKeyHint": "輸入 API Key…",
+  "apiTestBaseUrlLabel": "Base URL",
+  "apiTestBaseUrlHint": "輸入 Base URL…",
+  "apiTestFetchModels": "取得模型列表",
+  "apiTestModelLabel": "模型",
+  "apiTestClearChat": "清空對話",
+  "apiTestEmptyHint": "設定 API 後開始測試對話",
+  "apiTestInputHint": "輸入訊息…",
+  "apiTestSend": "發送",
+  "apiTestStop": "停止"
 }

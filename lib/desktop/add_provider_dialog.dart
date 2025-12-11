@@ -31,20 +31,85 @@ Future<String?> showDesktopAddProviderDialog(BuildContext context) async {
   );
 }
 
+Future<String?> showDesktopAddProviderDialogWithPrefill(
+  BuildContext context, {
+  required ProviderKind providerKind,
+  String? apiKey,
+  String? baseUrl,
+}) async {
+  return showGeneralDialog<String?>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'add-provider-dialog',
+    barrierColor: Colors.black.withOpacity(0.25),
+    pageBuilder: (ctx, _, __) => _AddProviderDialogBody(
+      initialProviderKind: providerKind,
+      initialApiKey: apiKey,
+      initialBaseUrl: baseUrl,
+    ),
+    transitionBuilder: (ctx, anim, _, child) {
+      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 class _AddProviderDialogBody extends StatefulWidget {
-  const _AddProviderDialogBody();
+  final ProviderKind? initialProviderKind;
+  final String? initialApiKey;
+  final String? initialBaseUrl;
+
+  const _AddProviderDialogBody({
+    this.initialProviderKind,
+    this.initialApiKey,
+    this.initialBaseUrl,
+  });
   @override
   State<_AddProviderDialogBody> createState() => _AddProviderDialogBodyState();
 }
 
 class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
     with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 3, vsync: this);
+  late final TabController _tab;
 
   @override
   void initState() {
     super.initState();
+    // Set initial tab based on provider kind
+    int initialIndex = 0;
+    if (widget.initialProviderKind != null) {
+      switch (widget.initialProviderKind!) {
+        case ProviderKind.openai:
+          initialIndex = 0;
+          break;
+        case ProviderKind.google:
+          initialIndex = 1;
+          break;
+        case ProviderKind.claude:
+          initialIndex = 2;
+          break;
+      }
+    }
+    _tab = TabController(length: 3, vsync: this, initialIndex: initialIndex);
     _tab.addListener(_onTabChanged);
+
+    // Prefill values
+    if (widget.initialApiKey != null) {
+      _openaiKey.text = widget.initialApiKey!;
+      _googleKey.text = widget.initialApiKey!;
+      _claudeKey.text = widget.initialApiKey!;
+    }
+    if (widget.initialBaseUrl != null && widget.initialBaseUrl!.isNotEmpty) {
+      _openaiBase.text = widget.initialBaseUrl!;
+      _googleBase.text = widget.initialBaseUrl!;
+      _claudeBase.text = widget.initialBaseUrl!;
+    }
   }
 
   void _onTabChanged() {

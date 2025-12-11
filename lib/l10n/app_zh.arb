@@ -1003,5 +1003,19 @@
   "codeCardView": "查看",
   "codeCardCopy": "复制",
   "codeCardDownload": "下载",
-  "codeCardOpen": "打开"
+  "codeCardOpen": "打开",
+  "desktopNavApiTestTooltip": "API 测试",
+  "apiTestPageTitle": "API 测试",
+  "apiTestProviderLabel": "供应商",
+  "apiTestApiKeyLabel": "API Key",
+  "apiTestApiKeyHint": "输入 API Key…",
+  "apiTestBaseUrlLabel": "Base URL",
+  "apiTestBaseUrlHint": "输入 Base URL…",
+  "apiTestFetchModels": "获取模型列表",
+  "apiTestModelLabel": "模型",
+  "apiTestClearChat": "清空对话",
+  "apiTestEmptyHint": "配置 API 后开始测试对话",
+  "apiTestInputHint": "输入消息…",
+  "apiTestSend": "发送",
+  "apiTestStop": "停止"
 }

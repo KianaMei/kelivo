@@ -1233,5 +1233,19 @@
   "codeCardView": "View",
   "codeCardCopy": "Copy",
   "codeCardDownload": "Download",
-  "codeCardOpen": "Open"
+  "codeCardOpen": "Open",
+  "desktopNavApiTestTooltip": "API Test",
+  "apiTestPageTitle": "API Test",
+  "apiTestProviderLabel": "Provider",
+  "apiTestApiKeyLabel": "API Key",
+  "apiTestApiKeyHint": "Enter API Key…",
+  "apiTestBaseUrlLabel": "Base URL",
+  "apiTestBaseUrlHint": "Enter Base URL…",
+  "apiTestFetchModels": "Fetch Models",
+  "apiTestModelLabel": "Model",
+  "apiTestClearChat": "Clear Chat",
+  "apiTestEmptyHint": "Configure API to start testing",
+  "apiTestInputHint": "Enter message…",
+  "apiTestSend": "Send",
+  "apiTestStop": "Stop"
 }

@@ -875,22 +875,6 @@ class _ChatInputBarState extends State<ChatInputBar> {
                               active: _useRichInput,
                               onTap: () => setState(() => _useRichInput = !_useRichInput),
                             ),
-                            if (widget.onPickPhotos != null) ...[
-                              const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.bottomToolsSheetPhotos,
-                                icon: Lucide.Image,
-                                onTap: widget.onPickPhotos,
-                              ),
-                            ],
-                            if (widget.onUploadFiles != null) ...[
-                              const SizedBox(width: 8),
-                              _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.bottomToolsSheetUpload,
-                                icon: Lucide.Paperclip,
-                                onTap: widget.onUploadFiles,
-                              ),
-                            ],
                             if (widget.onClearContext != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
@@ -908,6 +892,22 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 onTap: () => setState(() => _extraActionsCollapsed = !_extraActionsCollapsed),
                               ),
                               if (!_extraActionsCollapsed) ...[
+                                if (widget.onPickPhotos != null) ...[
+                                  const SizedBox(width: 8),
+                                  _CompactIconButton(
+                                    tooltip: AppLocalizations.of(context)!.bottomToolsSheetPhotos,
+                                    icon: Lucide.Image,
+                                    onTap: widget.onPickPhotos,
+                                  ),
+                                ],
+                                if (widget.onUploadFiles != null) ...[
+                                  const SizedBox(width: 8),
+                                  _CompactIconButton(
+                                    tooltip: AppLocalizations.of(context)!.bottomToolsSheetUpload,
+                                    icon: Lucide.Paperclip,
+                                    onTap: widget.onUploadFiles,
+                                  ),
+                                ],
                                 if (widget.onConfigureMaxTokens != null) ...[
                                   const SizedBox(width: 8),
                                   _CompactIconButton(

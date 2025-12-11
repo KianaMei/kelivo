@@ -5716,6 +5716,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open'**
   String get codeCardOpen;
+
+  /// No description provided for @desktopNavApiTestTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'API Test'**
+  String get desktopNavApiTestTooltip;
+
+  /// No description provided for @apiTestPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'API Test'**
+  String get apiTestPageTitle;
+
+  /// No description provided for @apiTestProviderLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Provider'**
+  String get apiTestProviderLabel;
+
+  /// No description provided for @apiTestApiKeyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key'**
+  String get apiTestApiKeyLabel;
+
+  /// No description provided for @apiTestApiKeyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter API Key…'**
+  String get apiTestApiKeyHint;
+
+  /// No description provided for @apiTestBaseUrlLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Base URL'**
+  String get apiTestBaseUrlLabel;
+
+  /// No description provided for @apiTestBaseUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter Base URL…'**
+  String get apiTestBaseUrlHint;
+
+  /// No description provided for @apiTestFetchModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch Models'**
+  String get apiTestFetchModels;
+
+  /// No description provided for @apiTestModelLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get apiTestModelLabel;
+
+  /// No description provided for @apiTestClearChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Chat'**
+  String get apiTestClearChat;
+
+  /// No description provided for @apiTestEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure API to start testing'**
+  String get apiTestEmptyHint;
+
+  /// No description provided for @apiTestInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter message…'**
+  String get apiTestInputHint;
+
+  /// No description provided for @apiTestSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get apiTestSend;
+
+  /// No description provided for @apiTestStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get apiTestStop;
 }
 
 class _AppLocalizationsDelegate

@@ -174,4 +174,8 @@ class Lucide {
   static const IconData Heading3 = lucide.LucideIcons.heading3;
   static const IconData ListTodo = lucide.LucideIcons.listTodo;
   static const IconData RemoveFormatting = lucide.LucideIcons.removeFormatting;
+  static const IconData FlaskConical = lucide.LucideIcons.flaskConical;
+  static const IconData Send = lucide.LucideIcons.send;
+  static const IconData AlertCircle = lucide.LucideIcons.circleAlert;
+  static const IconData FolderPlus = lucide.LucideIcons.folderPlus;
 }

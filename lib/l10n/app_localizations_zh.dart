@@ -2921,6 +2921,48 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get codeCardOpen => '打开';
+
+  @override
+  String get desktopNavApiTestTooltip => 'API 测试';
+
+  @override
+  String get apiTestPageTitle => 'API 测试';
+
+  @override
+  String get apiTestProviderLabel => '供应商';
+
+  @override
+  String get apiTestApiKeyLabel => 'API Key';
+
+  @override
+  String get apiTestApiKeyHint => '输入 API Key…';
+
+  @override
+  String get apiTestBaseUrlLabel => 'Base URL';
+
+  @override
+  String get apiTestBaseUrlHint => '输入 Base URL…';
+
+  @override
+  String get apiTestFetchModels => '获取模型列表';
+
+  @override
+  String get apiTestModelLabel => '模型';
+
+  @override
+  String get apiTestClearChat => '清空对话';
+
+  @override
+  String get apiTestEmptyHint => '配置 API 后开始测试对话';
+
+  @override
+  String get apiTestInputHint => '输入消息…';
+
+  @override
+  String get apiTestSend => '发送';
+
+  @override
+  String get apiTestStop => '停止';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -5524,6 +5566,48 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get toolModePromptDescription => '通过提示词模拟工具调用';
+
+  @override
+  String get desktopNavApiTestTooltip => 'API 测试';
+
+  @override
+  String get apiTestPageTitle => 'API 测试';
+
+  @override
+  String get apiTestProviderLabel => '供应商';
+
+  @override
+  String get apiTestApiKeyLabel => 'API Key';
+
+  @override
+  String get apiTestApiKeyHint => '输入 API Key…';
+
+  @override
+  String get apiTestBaseUrlLabel => 'Base URL';
+
+  @override
+  String get apiTestBaseUrlHint => '输入 Base URL…';
+
+  @override
+  String get apiTestFetchModels => '获取模型列表';
+
+  @override
+  String get apiTestModelLabel => '模型';
+
+  @override
+  String get apiTestClearChat => '清空对话';
+
+  @override
+  String get apiTestEmptyHint => '配置 API 后开始测试对话';
+
+  @override
+  String get apiTestInputHint => '输入消息…';
+
+  @override
+  String get apiTestSend => '发送';
+
+  @override
+  String get apiTestStop => '停止';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -8115,4 +8199,46 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get toolModePromptDescription => '透過提示詞模擬工具調用';
+
+  @override
+  String get desktopNavApiTestTooltip => 'API 測試';
+
+  @override
+  String get apiTestPageTitle => 'API 測試';
+
+  @override
+  String get apiTestProviderLabel => '供應商';
+
+  @override
+  String get apiTestApiKeyLabel => 'API Key';
+
+  @override
+  String get apiTestApiKeyHint => '輸入 API Key…';
+
+  @override
+  String get apiTestBaseUrlLabel => 'Base URL';
+
+  @override
+  String get apiTestBaseUrlHint => '輸入 Base URL…';
+
+  @override
+  String get apiTestFetchModels => '取得模型列表';
+
+  @override
+  String get apiTestModelLabel => '模型';
+
+  @override
+  String get apiTestClearChat => '清空對話';
+
+  @override
+  String get apiTestEmptyHint => '設定 API 後開始測試對話';
+
+  @override
+  String get apiTestInputHint => '輸入訊息…';
+
+  @override
+  String get apiTestSend => '發送';
+
+  @override
+  String get apiTestStop => '停止';
 }

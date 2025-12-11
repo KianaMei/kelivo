@@ -15,6 +15,7 @@ class BottomToolsSheet extends StatelessWidget {
     this.onClear,
     this.clearLabel,
     this.onMaxTokens,
+    this.onToolLoop,
     this.onQuickPhrase,
     this.onLongPressQuickPhrase,
   });
@@ -25,6 +26,7 @@ class BottomToolsSheet extends StatelessWidget {
   final VoidCallback? onClear;
   final String? clearLabel;
   final VoidCallback? onMaxTokens;
+  final VoidCallback? onToolLoop;
   final VoidCallback? onQuickPhrase;
   final VoidCallback? onLongPressQuickPhrase;
 
@@ -127,7 +129,7 @@ class BottomToolsSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _LearningAndClearSection(clearLabel: clearLabel, onClear: onClear, onMaxTokens: onMaxTokens),
+          _LearningAndClearSection(clearLabel: clearLabel, onClear: onClear, onMaxTokens: onMaxTokens, onToolLoop: onToolLoop),
         ],
       ),
     ),
@@ -136,10 +138,11 @@ class BottomToolsSheet extends StatelessWidget {
 }
 
 class _LearningAndClearSection extends StatefulWidget {
-  const _LearningAndClearSection({this.onClear, this.clearLabel, this.onMaxTokens});
+  const _LearningAndClearSection({this.onClear, this.clearLabel, this.onMaxTokens, this.onToolLoop});
   final VoidCallback? onClear;
   final String? clearLabel;
   final VoidCallback? onMaxTokens;
+  final VoidCallback? onToolLoop;
 
   @override
   State<_LearningAndClearSection> createState() => _LearningAndClearSectionState();
@@ -202,6 +205,17 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
             onTap: () {
               Haptics.light();
               widget.onMaxTokens?.call();
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (widget.onToolLoop != null) ...[
+          _row(
+            icon: Lucide.RefreshCw,
+            label: 'Tool Loop',
+            onTap: () {
+              Haptics.light();
+              widget.onToolLoop?.call();
             },
           ),
           const SizedBox(height: 8),
