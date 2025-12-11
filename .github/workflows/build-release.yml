@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     branches:
-      - refactor/migrate-to-dio
+      - master
     tags:
       - 'v*'
   workflow_dispatch:
