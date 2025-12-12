@@ -423,186 +423,183 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
 
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Row(
-          children: [
-            // Left panel: API configuration (glass morphism)
-            _buildGlassPanel(
-              cs: cs,
-              isDark: isDark,
-              width: 280,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Title header at top
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: isDark ? Colors.white.withOpacity(0.06) : cs.outlineVariant.withOpacity(0.2),
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: cs.primary.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(lucide.Lucide.FlaskConical, size: 16, color: cs.primary),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          l10n.apiTestPageTitle,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Scrollable config form
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Provider selector (list)
-                          _buildCompactLabel(l10n.apiTestProviderLabel, cs),
-                          const SizedBox(height: 6),
-                          _buildProviderList(cs, isDark),
-                          const SizedBox(height: 12),
-                          // API Key
-                          _buildCompactLabel(l10n.apiTestApiKeyLabel, cs),
-                          const SizedBox(height: 6),
-                          _buildCompactTextField(
-                            controller: _apiKeyController,
-                            hintText: l10n.apiTestApiKeyHint,
-                            obscureText: false,
-                            cs: cs,
-                            isDark: isDark,
-                            onChanged: (_) => _onApiKeyChanged(),
-                          ),
-                          const SizedBox(height: 12),
-                          // Base URL
-                          _buildCompactLabel(l10n.apiTestBaseUrlLabel, cs),
-                          const SizedBox(height: 6),
-                          _buildCompactTextField(
-                            controller: _baseUrlController,
-                            hintText: l10n.apiTestBaseUrlHint,
-                            cs: cs,
-                            isDark: isDark,
-                            onChanged: (_) => _onBaseUrlChanged(),
-                          ),
-                          const SizedBox(height: 14),
-                          // Fetch models + Convert to provider buttons
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildCompactButton(
-                                  onPressed: _loadingModels ? null : _fetchModels,
-                                  icon: _loadingModels ? null : lucide.Lucide.RefreshCw,
-                                  label: l10n.apiTestFetchModels,
-                                  isLoading: _loadingModels,
-                                  cs: cs,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Tooltip(
-                                message: '转为供应商',
-                                child: Material(
-                                  color: cs.primaryContainer.withOpacity(0.5),
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(8),
-                                    onTap: _convertToProvider,
-                                    child: Container(
-                                      width: 34,
-                                      height: 34,
-                                      alignment: Alignment.center,
-                                      child: Icon(lucide.Lucide.FolderPlus, size: 16, color: cs.primary),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_modelError != null) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: cs.errorContainer.withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(_modelError!, style: TextStyle(fontSize: 11, color: cs.error)),
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          // Model list
-                          _buildModelListCompact(cs, isDark),
-                          if (_availableModels.isNotEmpty && _messages.isNotEmpty) const SizedBox(height: 12),
-                          // Clear chat button
-                          if (_messages.isNotEmpty)
-                            _buildCompactButton(
-                              onPressed: _clearChat,
-                              icon: lucide.Lucide.Trash2,
-                              label: l10n.apiTestClearChat,
-                              cs: cs,
-                              isPrimary: false,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 20),
-            // Right panel: Chat interface (glass morphism)
-            Expanded(
-              child: _buildGlassPanel(
-                cs: cs,
-                isDark: isDark,
-                child: Column(
-                  children: [
-                    // Chat messages
-                    Expanded(
-                      child: _messages.isEmpty && _streamingContent.isEmpty
-                          ? _buildEmptyState(l10n, cs)
-                          : ListView.builder(
-                              controller: _chatScrollController,
-                              padding: const EdgeInsets.all(20),
-                              itemCount: _messages.length + (_streamingContent.isNotEmpty ? 1 : 0),
-                              itemBuilder: (context, index) {
-                                if (index < _messages.length) {
-                                  return _buildMessageBubble(_messages[index], cs, isDark: isDark);
-                                } else {
-                                  return _buildMessageBubble(
-                                    _TestMessage(role: 'assistant', content: _streamingContent),
-                                    cs,
-                                    isDark: isDark,
-                                    isStreaming: true,
-                                  );
-                                }
-                              },
-                            ),
-                    ),
-                    // Input bar
-                    _buildInputBar(l10n, cs, isDark),
-                  ],
+      child: Row(
+        children: [
+          // Left panel: API configuration (glass morphism)
+          Container(
+            width: 280,
+            decoration: BoxDecoration(
+              border: Border(
+                right: BorderSide(
+                  color: isDark ? Colors.white.withOpacity(0.06) : cs.outlineVariant.withOpacity(0.25),
                 ),
               ),
             ),
-          ],
-        ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Title header at top
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: isDark ? Colors.white.withOpacity(0.06) : cs.outlineVariant.withOpacity(0.2),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: cs.primary.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(lucide.Lucide.FlaskConical, size: 16, color: cs.primary),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        l10n.apiTestPageTitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Scrollable config form
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Provider selector (list)
+                        _buildCompactLabel(l10n.apiTestProviderLabel, cs),
+                        const SizedBox(height: 6),
+                        _buildProviderList(cs, isDark),
+                        const SizedBox(height: 12),
+                        // API Key
+                        _buildCompactLabel(l10n.apiTestApiKeyLabel, cs),
+                        const SizedBox(height: 6),
+                        _buildCompactTextField(
+                          controller: _apiKeyController,
+                          hintText: l10n.apiTestApiKeyHint,
+                          obscureText: false,
+                          cs: cs,
+                          isDark: isDark,
+                          onChanged: (_) => _onApiKeyChanged(),
+                        ),
+                        const SizedBox(height: 12),
+                        // Base URL
+                        _buildCompactLabel(l10n.apiTestBaseUrlLabel, cs),
+                        const SizedBox(height: 6),
+                        _buildCompactTextField(
+                          controller: _baseUrlController,
+                          hintText: l10n.apiTestBaseUrlHint,
+                          cs: cs,
+                          isDark: isDark,
+                          onChanged: (_) => _onBaseUrlChanged(),
+                        ),
+                        const SizedBox(height: 14),
+                        // Fetch models + Convert to provider buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildCompactButton(
+                                onPressed: _loadingModels ? null : _fetchModels,
+                                icon: _loadingModels ? null : lucide.Lucide.RefreshCw,
+                                label: l10n.apiTestFetchModels,
+                                isLoading: _loadingModels,
+                                cs: cs,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Tooltip(
+                              message: '转为供应商',
+                              child: Material(
+                                color: cs.primaryContainer.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(8),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: _convertToProvider,
+                                  child: Container(
+                                    width: 34,
+                                    height: 34,
+                                    alignment: Alignment.center,
+                                    child: Icon(lucide.Lucide.FolderPlus, size: 16, color: cs.primary),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_modelError != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: cs.errorContainer.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(_modelError!, style: TextStyle(fontSize: 11, color: cs.error)),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        // Model list
+                        _buildModelListCompact(cs, isDark),
+                        if (_availableModels.isNotEmpty && _messages.isNotEmpty) const SizedBox(height: 12),
+                        // Clear chat button
+                        if (_messages.isNotEmpty)
+                          _buildCompactButton(
+                            onPressed: _clearChat,
+                            icon: lucide.Lucide.Trash2,
+                            label: l10n.apiTestClearChat,
+                            cs: cs,
+                            isPrimary: false,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Right panel: Chat interface (glass morphism)
+          Expanded(
+            child: Column(
+              children: [
+                // Chat messages
+                Expanded(
+                  child: _messages.isEmpty && _streamingContent.isEmpty
+                      ? _buildEmptyState(l10n, cs)
+                      : ListView.builder(
+                          controller: _chatScrollController,
+                          padding: const EdgeInsets.all(20),
+                          itemCount: _messages.length + (_streamingContent.isNotEmpty ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (index < _messages.length) {
+                              return _buildMessageBubble(_messages[index], cs, isDark: isDark);
+                            } else {
+                              return _buildMessageBubble(
+                                _TestMessage(role: 'assistant', content: _streamingContent),
+                                cs,
+                                isDark: isDark,
+                                isStreaming: true,
+                              );
+                            }
+                          },
+                        ),
+                ),
+                // Input bar
+                _buildInputBar(l10n, cs, isDark),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
