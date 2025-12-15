@@ -301,8 +301,11 @@ class ChatApiService {
           ],
         };
         final headers = <String, String>{
+          'Authorization': 'Bearer ${ChatApiHelper.apiKeyForRequest(config, modelId)}',  // 代理服务需要的认证
           'x-api-key': ChatApiHelper.apiKeyForRequest(config, modelId),
           'anthropic-version': '2023-06-01',
+          // Cherry Studio格式: 启用web-fetch、交错思考、大上下文
+          'anthropic-beta': 'web-fetch-2025-09-10,interleaved-thinking-2025-05-14,context-1m-2025-08-07',
           'Content-Type': 'application/json',
         };
         headers.addAll(ChatApiHelper.customHeaders(config, modelId));

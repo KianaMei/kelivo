@@ -1353,6 +1353,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
       },
       reasoningActive: ReasoningStateManager.isReasoningEnabled((_currentConversation?.thinkingBudget) ?? settings.thinkingBudget),
+      thinkingBudget: (_currentConversation?.thinkingBudget) ?? settings.thinkingBudget,
       supportsReasoning: (pk != null && mid != null) ? _isReasoningModel(pk, mid) : false,
       onConfigureMaxTokens: () async {
         final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||

@@ -209,8 +209,12 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
       };
       
       if (_selectedProvider == 'anthropic') {
+        headers['Authorization'] = 'Bearer $apiKey';  // 代理服务需要的认证
         headers['x-api-key'] = apiKey;
         headers['anthropic-version'] = '2023-06-01';
+        // Cherry Studio格式: 启用web-fetch、交错思考、大上下文
+        headers['anthropic-beta'] = 'web-fetch-2025-09-10,interleaved-thinking-2025-05-14,context-1m-2025-08-07';
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';  // 浏览器访问许可
       } else if (_selectedProvider == 'google') {
         // Google uses query param for API key
       } else {
@@ -287,13 +291,22 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
       Map<String, dynamic> body;
 
       if (_selectedProvider == 'anthropic') {
+        headers['Authorization'] = 'Bearer $apiKey';  // 代理服务需要的认证
         headers['x-api-key'] = apiKey;
         headers['anthropic-version'] = '2023-06-01';
+        // Cherry Studio格式: 启用web-fetch、交错思考、大上下文
+        headers['anthropic-beta'] = 'web-fetch-2025-09-10,interleaved-thinking-2025-05-14,context-1m-2025-08-07';
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';  // 浏览器访问许可
         body = {
           'model': _selectedModel,
           'max_tokens': 4096,
           'stream': true,
-          'messages': _messages.map((m) => {'role': m.role, 'content': m.content}).toList(),
+          'messages': _messages.map((m) => <String, dynamic>{
+            'role': m.role,
+            'content': <Map<String, dynamic>>[
+              <String, dynamic>{'type': 'text', 'text': m.content}
+            ]
+          }).toList(),
         };
       } else if (_selectedProvider == 'google') {
         body = {

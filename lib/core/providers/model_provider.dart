@@ -119,8 +119,10 @@ class ClaudeProvider extends BaseProvider {
     final res = await dio.get(
       url,
       options: Options(headers: {
+        'Authorization': 'Bearer $key',  // 代理服务需要的认证
         'x-api-key': key,
         'anthropic-version': anthropicVersion,
+        'anthropic-dangerous-direct-browser-access': 'true',  // 浏览器访问许可
       }),
     );
     if (res.statusCode != null && res.statusCode! >= 200 && res.statusCode! < 300) {

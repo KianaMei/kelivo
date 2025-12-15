@@ -59,6 +59,7 @@ class ChatInputBar extends StatefulWidget {
     this.mediaController,
     this.loading = false,
     this.reasoningActive = false,
+    this.thinkingBudget,
     this.supportsReasoning = true,
     this.maxTokensConfigured = false,
     this.showMcpButton = false,
@@ -107,6 +108,7 @@ class ChatInputBar extends StatefulWidget {
   final ChatInputBarController? mediaController;
   final bool loading;
   final bool reasoningActive;
+  final int? thinkingBudget;
   final bool supportsReasoning;
   final bool maxTokensConfigured;
   final bool showMcpButton;
@@ -820,17 +822,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
                               const SizedBox(width: 8),
                               Container(
                                 key: widget.reasoningAnchorKey,
-                                child: _CompactIconButton(
-                                  tooltip: AppLocalizations.of(context)!.chatInputBarReasoningStrengthTooltip,
-                                  icon: Lucide.Brain,
+                                child: _ReasoningButton(
+                                  thinkingBudget: widget.thinkingBudget,
                                   active: widget.reasoningActive,
                                   onTap: widget.onConfigureReasoning,
-                                  childBuilder: (c) => SvgPicture.asset(
-                                    'assets/icons/deepthink.svg',
-                                    width: 20,
-                                    height: 20,
-                                    colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
-                                  ),
                                 ),
                               ),
                             ],
@@ -1030,8 +1025,10 @@ class _CompactIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    // Tool mode button no longer changes color when active - always use default color
-    final fgColor = isDark ? Colors.white70 : Colors.black54;
+    // Active state shows primary color, inactive shows default muted color
+    final fgColor = active
+        ? theme.colorScheme.primary
+        : (isDark ? Colors.white70 : Colors.black54);
 
     // Keep overall button size constant. For model icon with child, enlarge child slightly
     // and reduce padding so (2*padding + childSize) stays unchanged.
@@ -1233,5 +1230,99 @@ bool _isGrokModel(ProviderConfig cfg, String modelId) {
   }
 
   return false;
+}
+
+/// Reasoning button with color-coded effort level indicator
+class _ReasoningButton extends StatelessWidget {
+  const _ReasoningButton({
+    required this.thinkingBudget,
+    required this.active,
+    this.onTap,
+  });
+
+  final int? thinkingBudget;
+  final bool active;
+  final VoidCallback? onTap;
+
+  /// Get effort level from budget value (matching reasoning_budget_sheet.dart UI)
+  /// Slider stops: auto(-1), off(0), 128, 512, 1K, 2K, 4K, 8K, 16K, 24K, 32K
+  /// Effort zones: auto, off, minimal(128), low(512-2048), medium(4K-8K), high(16K+)
+  /// For simplicity: minimal is grouped with low for display
+  String _effortForBudget(int? budget) {
+    if (budget == null || budget == -1) return 'auto';
+    if (budget == 0) return 'off';
+    if (budget < 4096) return 'low';      // 1-4095: minimal + low -> L
+    if (budget < 16384) return 'medium';  // 4096-16383: medium -> M
+    return 'high';                         // 16384+: high -> H
+  }
+
+  /// Get color for effort level (matching reasoning_budget_sheet.dart colors)
+  Color _colorForEffort(String effort) {
+    switch (effort) {
+      case 'auto': return Colors.blue;
+      case 'off': return Colors.grey;
+      case 'low': return Colors.green;
+      case 'medium': return Colors.orange;
+      case 'high': return Colors.red;
+      default: return Colors.grey;
+    }
+  }
+
+  /// Get short label for effort level
+  String _labelForEffort(String effort) {
+    switch (effort) {
+      case 'auto': return 'A';
+      case 'off': return '';
+      case 'low': return 'L';
+      case 'medium': return 'M';
+      case 'high': return 'H';
+      default: return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final effort = _effortForBudget(thinkingBudget);
+    final effortColor = _colorForEffort(effort);
+    final label = _labelForEffort(effort);
+
+    // Inactive (off) uses default muted color, active uses effort-specific color
+    final fgColor = active ? effortColor : (isDark ? Colors.white38 : Colors.black26);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SvgPicture.asset(
+            'assets/icons/deepthink.svg',
+            width: 20,
+            height: 20,
+            colorFilter: ColorFilter.mode(fgColor, BlendMode.srcIn),
+          ),
+          if (active && label.isNotEmpty) ...[
+            const SizedBox(width: 2),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: effortColor.withOpacity(isDark ? 0.25 : 0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: effortColor,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 

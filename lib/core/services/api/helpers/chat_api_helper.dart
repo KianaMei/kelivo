@@ -335,15 +335,19 @@ class ChatApiHelper {
   // ========== Reasoning Budget ==========
 
   /// Check if reasoning is disabled based on budget.
-  static bool isReasoningOff(int? budget) => (budget != null && budget != -1 && budget < 1024);
+  static bool isReasoningOff(int? budget) => (budget != null && budget == 0);
 
-  /// Get OpenRouter effort level for budget.
+  /// Get reasoning effort level for budget.
+  /// Matches UI slider mapping:
+  /// - Slider stops: auto(-1), off(0), 128, 512, 1K, 2K, 4K, 8K, 16K, 24K, 32K
+  /// - Effort zones: auto, off, minimal+low(1-4095), medium(4K-16K), high(16K+)
+  /// Note: 'minimal' is merged into 'low' for API compatibility (OpenAI only supports low/medium/high)
   static String effortForBudget(int? budget) {
     if (budget == null || budget == -1) return 'auto';
-    if (isReasoningOff(budget)) return 'off';
-    if (budget <= 2000) return 'low';
-    if (budget <= 20000) return 'medium';
-    return 'high';
+    if (budget == 0) return 'off';
+    if (budget < 4096) return 'low';      // 1-4095: minimal + low -> low
+    if (budget < 16384) return 'medium';  // 4096-16383 -> medium
+    return 'high';                         // 16384+ -> high
   }
 
   // ========== Schema Cleaning ==========

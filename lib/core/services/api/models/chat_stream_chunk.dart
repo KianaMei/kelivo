@@ -8,6 +8,8 @@ class ChatStreamChunk {
   final String content;
   /// Optional reasoning delta (when model supports reasoning)
   final String? reasoning;
+  /// Optional reasoning/thinking signature for Claude (used in multi-turn tool calls)
+  final String? reasoningSignature;
   final bool isDone;
   final int totalTokens;
   final TokenUsage? usage;
@@ -17,6 +19,7 @@ class ChatStreamChunk {
   ChatStreamChunk({
     required this.content,
     this.reasoning,
+    this.reasoningSignature,
     required this.isDone,
     required this.totalTokens,
     this.usage,
