@@ -14,6 +14,8 @@ import '../core/services/backup/cherry_importer.dart';
 import '../shared/widgets/ios_switch.dart';
 import '../shared/widgets/snackbar.dart';
 import '../utils/restart_widget.dart';
+import 'package:talker_flutter/talker_flutter.dart';
+import '../core/utils/http_logger.dart';
 
 class DesktopBackupPane extends StatefulWidget {
   const DesktopBackupPane({super.key});
@@ -399,6 +401,36 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       }
                     }),
                   ]),
+                ]),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+              // Request logging section
+              SliverToBoxAdapter(
+                child: _sectionCard(children: [
+                  Row(children: [
+                    Expanded(child: Text(l10n.requestLoggingTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+                  ]),
+                  const SizedBox(height: 6),
+                  _ItemRow(
+                    label: l10n.requestLoggingSubtitle,
+                    vpad: 2,
+                    trailing: IosSwitch(
+                      value: context.watch<SettingsProvider>().requestLoggingEnabled,
+                      onChanged: (v) => context.read<SettingsProvider>().setRequestLoggingEnabled(v),
+                    ),
+                  ),
+                  _rowDivider(context),
+                  _ItemRow(
+                    label: l10n.requestLoggingViewLogs,
+                    trailing: _DeskIosButton(
+                      label: l10n.requestLoggingViewLogs,
+                      filled: false,
+                      dense: true,
+                      onTap: () => _showDesktopLogViewer(context),
+                    ),
+                  ),
                 ]),
               ),
             ],
@@ -1054,5 +1086,308 @@ class _DeleteProgressDialog extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+void _showDesktopLogViewer(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (_) => const _DesktopLogViewerDialog(),
+  );
+}
+
+class _DesktopLogViewerDialog extends StatefulWidget {
+  const _DesktopLogViewerDialog();
+  @override
+  State<_DesktopLogViewerDialog> createState() => _DesktopLogViewerDialogState();
+}
+
+class _DesktopLogViewerDialogState extends State<_DesktopLogViewerDialog> {
+  final ScrollController _scrollController = ScrollController();
+  late List<TalkerData> _logs;
+  final Set<int> _expandedIndices = {};
+  final Set<int> _selectedIndices = {};
+  bool _multiSelectMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _logs = talker.history.reversed.toList();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _deleteLog(int index) {
+    setState(() {
+      _logs.removeAt(index);
+      _expandedIndices.remove(index);
+      // Adjust indices after removal
+      final newExpanded = <int>{};
+      for (final i in _expandedIndices) {
+        if (i > index) {
+          newExpanded.add(i - 1);
+        } else {
+          newExpanded.add(i);
+        }
+      }
+      _expandedIndices.clear();
+      _expandedIndices.addAll(newExpanded);
+    });
+  }
+
+  void _deleteSelected() {
+    setState(() {
+      final toDelete = _selectedIndices.toList()..sort((a, b) => b.compareTo(a));
+      for (final index in toDelete) {
+        _logs.removeAt(index);
+      }
+      _selectedIndices.clear();
+      _expandedIndices.clear();
+      _multiSelectMode = false;
+    });
+  }
+
+  void _clearAll() {
+    talker.cleanHistory();
+    setState(() {
+      _logs.clear();
+      _expandedIndices.clear();
+      _selectedIndices.clear();
+      _multiSelectMode = false;
+    });
+  }
+
+  void _toggleSelect(int index) {
+    setState(() {
+      if (_selectedIndices.contains(index)) {
+        _selectedIndices.remove(index);
+      } else {
+        _selectedIndices.add(index);
+      }
+    });
+  }
+
+  String _getFirstLine(String? message) {
+    if (message == null || message.isEmpty) return '';
+    final lines = message.split('\n');
+    return lines.first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
+
+    return Dialog(
+      backgroundColor: cs.surface,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100, maxHeight: 750),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+              child: Row(
+                children: [
+                  Icon(lucide.Lucide.ScrollText, size: 20, color: cs.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      l10n.requestLoggingTitle,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: cs.onSurface),
+                    ),
+                  ),
+                  Text(
+                    '${_logs.length} items',
+                    style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6)),
+                  ),
+                  const SizedBox(width: 12),
+                  // Multi-select toggle
+                  if (_logs.isNotEmpty)
+                    _SmallIconBtn(
+                      icon: _multiSelectMode ? lucide.Lucide.CheckSquare : lucide.Lucide.Square,
+                      onTap: () {
+                        setState(() {
+                          _multiSelectMode = !_multiSelectMode;
+                          if (!_multiSelectMode) _selectedIndices.clear();
+                        });
+                      },
+                    ),
+                  if (_multiSelectMode && _selectedIndices.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    _DeskIosButton(
+                      label: '删除选中 (${_selectedIndices.length})',
+                      filled: true,
+                      dense: true,
+                      onTap: _deleteSelected,
+                    ),
+                  ],
+                  const SizedBox(width: 6),
+                  _SmallIconBtn(icon: lucide.Lucide.Trash2, onTap: _logs.isEmpty ? () {} : _clearAll),
+                  const SizedBox(width: 6),
+                  _SmallIconBtn(icon: lucide.Lucide.X, onTap: () => Navigator.of(context).pop()),
+                ],
+              ),
+            ),
+            Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withOpacity(0.15)),
+            // Log list
+            Expanded(
+              child: _logs.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(lucide.Lucide.FileText, size: 48, color: cs.onSurface.withOpacity(0.3)),
+                          const SizedBox(height: 16),
+                          Text(
+                            l10n.logViewerEmpty,
+                            style: TextStyle(color: cs.onSurface.withOpacity(0.6)),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Scrollbar(
+                      controller: _scrollController,
+                      child: ListView.separated(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _logs.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 6),
+                        itemBuilder: (ctx, i) {
+                          final log = _logs[i];
+                          final isExpanded = _expandedIndices.contains(i);
+                          final isSelected = _selectedIndices.contains(i);
+                          final isError = log.title?.contains('ERR') == true || log.logLevel == LogLevel.error;
+                          final isRequest = log.title?.contains('REQ') == true;
+                          final bgColor = isSelected
+                              ? cs.primary.withOpacity(0.15)
+                              : isError
+                                  ? cs.errorContainer.withOpacity(0.15)
+                                  : isRequest
+                                      ? cs.primaryContainer.withOpacity(0.1)
+                                      : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02));
+                          final iconColor = isError ? cs.error : (isRequest ? cs.primary : cs.onSurface.withOpacity(0.7));
+                          final icon = isError ? lucide.Lucide.CircleX : (isRequest ? lucide.Lucide.ArrowUpRight : lucide.Lucide.ArrowDownLeft);
+
+                          return GestureDetector(
+                            onTap: () {
+                              if (_multiSelectMode) {
+                                _toggleSelect(i);
+                              } else {
+                                setState(() {
+                                  if (isExpanded) {
+                                    _expandedIndices.remove(i);
+                                  } else {
+                                    _expandedIndices.add(i);
+                                  }
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: bgColor,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected ? cs.primary.withOpacity(0.5) : cs.outlineVariant.withOpacity(0.08),
+                                  width: isSelected ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      if (_multiSelectMode) ...[
+                                        Icon(
+                                          isSelected ? lucide.Lucide.CheckSquare : lucide.Lucide.Square,
+                                          size: 16,
+                                          color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.5),
+                                        ),
+                                        const SizedBox(width: 8),
+                                      ],
+                                      Icon(icon, size: 16, color: iconColor),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        log.title ?? 'LOG',
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: iconColor),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        _formatTime(log.time),
+                                        style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+                                      ),
+                                      const Spacer(),
+                                      Icon(
+                                        isExpanded ? lucide.Lucide.ChevronUp : lucide.Lucide.ChevronDown,
+                                        size: 16,
+                                        color: cs.onSurface.withOpacity(0.5),
+                                      ),
+                                      if (!_multiSelectMode) ...[
+                                        const SizedBox(width: 8),
+                                        GestureDetector(
+                                          onTap: () => _deleteLog(i),
+                                          child: Icon(lucide.Lucide.Trash2, size: 14, color: cs.error.withOpacity(0.7)),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  // First line (always shown)
+                                  Text(
+                                    _getFirstLine(log.message),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontFamily: 'monospace',
+                                      color: cs.onSurface.withOpacity(0.75),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  // Full content (when expanded)
+                                  if (isExpanded) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? Colors.black.withOpacity(0.2) : Colors.white.withOpacity(0.7),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: SelectableText(
+                                        log.message ?? '',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontFamily: 'monospace',
+                                          color: cs.onSurface.withOpacity(0.85),
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
   }
 }

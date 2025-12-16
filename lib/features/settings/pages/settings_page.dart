@@ -18,7 +18,10 @@ import '../../backup/pages/backup_page.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/haptics.dart';
+import '../../../shared/widgets/ios_switch.dart';
 import 'runtime_cache_page.dart';
+import 'package:talker_flutter/talker_flutter.dart';
+import '../../../core/utils/http_logger.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -255,6 +258,22 @@ class SettingsPage extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const RuntimeCachePage()),
+                );
+              },
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.ScrollText,
+              label: l10n.requestLoggingTitle,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(title: Text(l10n.requestLoggingTitle)),
+                      body: TalkerScreen(talker: talker),
+                    ),
+                  ),
                 );
               },
             ),
@@ -616,4 +635,30 @@ Widget _sheetOption(
 Widget _sheetDivider(BuildContext context) {
   final cs = Theme.of(context).colorScheme;
   return Divider(height: 1, thickness: 0.6, indent: 52, endIndent: 16, color: cs.outlineVariant.withOpacity(0.18));
+}
+
+Widget _iosSwitchRow(BuildContext context, {IconData? icon, required String label, required bool value, required ValueChanged<bool> onChanged}) {
+  final cs = Theme.of(context).colorScheme;
+  return _TactileRow(
+    onTap: () => onChanged(!value),
+    builder: (pressed) {
+      final baseColor = cs.onSurface.withOpacity(0.9);
+      return _AnimatedPressColor(
+        pressed: pressed, base: baseColor,
+        builder: (c) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            child: Row(children: [
+              if (icon != null) ...[
+                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
+                const SizedBox(width: 12),
+              ],
+              Expanded(child: Text(label, style: TextStyle(fontSize: 15, color: c, fontWeight: FontWeight.w500))),
+              IosSwitch(value: value, onChanged: onChanged),
+            ]),
+          );
+        },
+      );
+    },
+  );
 }

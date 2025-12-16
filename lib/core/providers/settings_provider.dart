@@ -5,6 +5,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import '../services/search/search_service.dart';
+import '../services/network/request_logger.dart';
+import '../utils/http_logger.dart';
 // Re-export ProviderKind from tool_schema_sanitizer for downstream consumers
 export '../utils/tool_schema_sanitizer.dart' show ProviderKind;
 // Re-export ProviderConfig for downstream consumers
@@ -103,6 +105,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _androidBackgroundChatModeKey = 'android_background_chat_mode_v1';
   // Desktop: close window behavior (minimize to tray or exit)
   static const String _desktopCloseToTrayKey = 'desktop_close_to_tray_v1';
+  // Request logging (write HTTP requests/responses to file)
+  static const String _requestLoggingEnabledKey = 'request_logging_enabled_v1';
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
@@ -154,6 +158,10 @@ class SettingsProvider extends ChangeNotifier {
   // Desktop: close window behavior (true: minimize to tray, false: exit app)
   bool _desktopCloseToTray = false;
   bool get desktopCloseToTray => _desktopCloseToTray;
+
+  // Request logging (write HTTP requests/responses to file)
+  bool _requestLoggingEnabled = false;
+  bool get requestLoggingEnabled => _requestLoggingEnabled;
 
   Map<String, ProviderConfig> _providerConfigs = {};
   Map<String, ProviderConfig> get providerConfigs => Map.unmodifiable(_providerConfigs);
@@ -399,6 +407,12 @@ class SettingsProvider extends ChangeNotifier {
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux)) {
       DesktopWindowController.instance.updateCloseToTraySetting(_desktopCloseToTray);
+    }
+    // Request logging
+    _requestLoggingEnabled = prefs.getBool(_requestLoggingEnabledKey) ?? false;
+    if (_requestLoggingEnabled) {
+      RequestLogger.setEnabled(true);
+      TalkerLogger.setEnabled(true);
     }
     // Load app locale; default to follow system on first launch
     _appLocaleTag = prefs.getString(_appLocaleKey);
@@ -661,6 +675,17 @@ class SettingsProvider extends ChangeNotifier {
         }
       }
     }
+  }
+
+  // Request logging (write HTTP requests/responses to file)
+  Future<void> setRequestLoggingEnabled(bool value) async {
+    if (_requestLoggingEnabled == value) return;
+    _requestLoggingEnabled = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_requestLoggingEnabledKey, value);
+    await RequestLogger.setEnabled(value);
+    TalkerLogger.setEnabled(value);
   }
 
   Future<void> setDesktopAutoSwitchTopics(bool v) async {

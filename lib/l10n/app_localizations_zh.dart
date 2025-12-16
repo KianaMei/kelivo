@@ -72,7 +72,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPageDataSection => '数据设置';
 
   @override
-  String get settingsPageBackup => '数据备份';
+  String get settingsPageBackup => '数据设置';
 
   @override
   String get settingsPageChatStorage => '聊天记录存储';
@@ -2963,6 +2963,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get apiTestStop => '停止';
+
+  @override
+  String get logViewerTitle => '请求日志';
+
+  @override
+  String get logViewerEmpty => '暂无日志';
+
+  @override
+  String get logViewerCurrentLog => '当前日志';
+
+  @override
+  String get logViewerExport => '导出';
+
+  @override
+  String get requestLoggingTitle => '请求日志';
+
+  @override
+  String get requestLoggingSubtitle => '记录 HTTP 请求/响应到文件';
+
+  @override
+  String get requestLoggingViewLogs => '查看日志';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3033,7 +3054,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get settingsPageDataSection => '数据设置';
 
   @override
-  String get settingsPageBackup => '数据备份';
+  String get settingsPageBackup => '数据设置';
 
   @override
   String get settingsPageChatStorage => '聊天记录存储';
@@ -5678,7 +5699,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsPageDataSection => '資料設定';
 
   @override
-  String get settingsPageBackup => '資料備份';
+  String get settingsPageBackup => '資料設定';
 
   @override
   String get settingsPageChatStorage => '聊天記錄儲存';

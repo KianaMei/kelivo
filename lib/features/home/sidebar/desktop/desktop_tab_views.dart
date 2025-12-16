@@ -36,7 +36,7 @@ class DesktopTabViews extends StatelessWidget {
             Expanded(
               child: ListView(
                 controller: listController,
-                padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                padding: const EdgeInsets.fromLTRB(0, 2, 0, 16),
                 children: [buildAssistants()],
               ),
             ),
@@ -46,7 +46,7 @@ class DesktopTabViews extends StatelessWidget {
         // Topics (conversations)
         ListView(
           controller: listController,
-          padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
+          padding: EdgeInsets.fromLTRB(0, topPad, 0, 16),
           children: [buildConversations()],
         ),
       ],
@@ -75,7 +75,7 @@ class LegacyListArea extends StatelessWidget {
     final double topPadding = showDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
     return ListView(
       controller: listController,
-      padding: EdgeInsets.fromLTRB(10, topPadding, 10, 16),
+      padding: EdgeInsets.fromLTRB(0, topPadding, 0, 16),
       children: [
         buildAssistants(),
         const SizedBox(height: 12),

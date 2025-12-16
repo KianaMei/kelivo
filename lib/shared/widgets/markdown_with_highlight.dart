@@ -25,6 +25,7 @@ import 'html_artifacts_card.dart';
 import 'html_preview_dialog.dart';
 import 'code_artifacts_card.dart';
 import 'code_runtime_templates.dart';
+import 'code_view_dialog.dart';
 
 /// gpt_markdown with custom code block highlight and inline code styling.
 class MarkdownWithCodeHighlight extends StatelessWidget {
@@ -1238,7 +1239,7 @@ class FencedCodeBlockMd extends BlockMd {
       language: lang,
       isStreaming: _detectStreamingState(langLower),
       canRenderPreview: canPreview,
-      onPreview: canPreview ? () async {
+      onPreview: () async {
         if (isHtml) {
           // Plain HTML - direct preview
           showHtmlPreviewDialog(context, code);
@@ -1255,8 +1256,11 @@ class FencedCodeBlockMd extends BlockMd {
           if (context.mounted) {
             showHtmlPreviewDialog(context, html);
           }
+        } else {
+          // Non-previewable code - show source code viewer
+          showCodeViewDialog(context, code: code, language: lang);
         }
-      } : null,
+      },
     );
   }
 }

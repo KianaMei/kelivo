@@ -20,7 +20,7 @@
   "settingsPageMcp": "MCP",
   "settingsPageQuickPhrase": "Quick Phrase",
   "settingsPageDataSection": "Data",
-  "settingsPageBackup": "Backup",
+  "settingsPageBackup": "Data Settings",
   "settingsPageChatStorage": "Chat Storage",
   "settingsPageCalculating": "Calculating…",
   "settingsPageFilesCount": "{count} files · {size}",
@@ -1247,5 +1247,12 @@
   "apiTestEmptyHint": "Configure API to start testing",
   "apiTestInputHint": "Enter message…",
   "apiTestSend": "Send",
-  "apiTestStop": "Stop"
+  "apiTestStop": "Stop",
+  "logViewerTitle": "Request Logs",
+  "logViewerEmpty": "No logs yet",
+  "logViewerCurrentLog": "Current Log",
+  "logViewerExport": "Export",
+  "requestLoggingTitle": "Request Logging",
+  "requestLoggingSubtitle": "Log HTTP requests/responses to file",
+  "requestLoggingViewLogs": "View Logs"
 }

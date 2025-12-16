@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '../../../core/services/api/models/chat_stream_chunk.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/models/token_usage.dart';
 import '../../../core/models/chat_message.dart';
 import '../../chat/widgets/message/message_models.dart';
 import '../state/reasoning_state.dart';
+import 'streaming_content_notifier.dart';
+
+export 'streaming_content_notifier.dart';
 
 /// 流处理上下文 - 封装流处理所需的状态和回调
 class StreamContext {
@@ -28,6 +33,10 @@ class StreamContext {
   final void Function() scrollToBottom;
   final bool Function() isMounted;
   final bool Function() isCurrentConversation;
+
+  // 流式性能优化: StreamingContentNotifier (可选)
+  // 当提供时，使用轻量级 ValueNotifier 替代全局 setState()
+  final StreamingContentNotifier? streamingNotifier;
 
   // 可变状态
   String fullContent = '';
@@ -54,9 +63,42 @@ class StreamContext {
     required this.scrollToBottom,
     required this.isMounted,
     required this.isCurrentConversation,
+    this.streamingNotifier,
   });
 
   String get messageId => assistantMessage.id;
+
+  /// 使用轻量级通知（如果可用）或回退到全局 setState
+  void notifyStreamingUpdate() {
+    if (streamingNotifier != null && isMounted() && isCurrentConversation()) {
+      // 使用 ValueNotifier 只重建流式消息 widget
+      final tokenUsageJson = ChatStreamHandler.buildTokenUsageJson(this);
+      streamingNotifier!.updateContent(messageId, fullContent, totalTokens, tokenUsageJson: tokenUsageJson);
+    }
+    // 注意: 不再调用 notifyUI() 因为会触发全局重建
+  }
+
+  /// 通知推理内容更新
+  void notifyReasoningUpdate() {
+    if (streamingNotifier != null && isMounted() && isCurrentConversation()) {
+      final r = reasoning[messageId];
+      streamingNotifier!.updateReasoning(
+        messageId,
+        reasoningText: r?.text,
+        reasoningStartAt: r?.startAt,
+        reasoningFinishedAt: r?.finishedAt,
+      );
+    }
+  }
+
+  /// 通知工具部件更新
+  void notifyToolPartsUpdate() {
+    if (streamingNotifier != null && isMounted() && isCurrentConversation()) {
+      streamingNotifier!.notifyToolPartsUpdated(messageId);
+    } else if (isMounted() && isCurrentConversation()) {
+      notifyUI();  // 回退到全局更新
+    }
+  }
 }
 
 /// 流处理结果
@@ -155,7 +197,8 @@ class ChatStreamHandler {
         reasoningSegmentsJson: ReasoningStateManager.serializeSegments(segments),
       );
 
-      if (ctx.isMounted() && ctx.isCurrentConversation()) ctx.notifyUI();
+      // 使用轻量级通知（优化性能）
+      ctx.notifyReasoningUpdate();
     } else {
       ctx.reasoningStartAt ??= DateTime.now();
       ctx.bufferedReasoning += reasoningText;
@@ -203,7 +246,8 @@ class ChatStreamHandler {
       existing.add(ToolUIPart(id: c.id, toolName: c.name, arguments: c.arguments, loading: true));
     }
     ctx.toolParts[ctx.messageId] = dedupeToolPartsList(existing);
-    if (ctx.isMounted() && ctx.isCurrentConversation()) ctx.notifyUI();
+    // 使用轻量级通知（优化性能）
+    ctx.notifyToolPartsUpdate();
 
     // 完成当前 reasoning segment
     final segments = ctx.reasoningSegments[ctx.messageId] ?? <ReasoningSegmentData>[];
@@ -282,7 +326,8 @@ class ChatStreamHandler {
     }
 
     ctx.toolParts[ctx.messageId] = dedupeToolPartsList(parts);
-    if (ctx.isMounted() && ctx.isCurrentConversation()) ctx.notifyUI();
+    // 使用轻量级通知（优化性能）
+    ctx.notifyToolPartsUpdate();
     ctx.scrollToBottom();
   }
 
@@ -350,7 +395,8 @@ class ChatStreamHandler {
         reasoningText: r.text,
         reasoningFinishedAt: r.finishedAt,
       );
-      if (ctx.isMounted()) ctx.notifyUI();
+      // 使用轻量级通知（优化性能）
+      ctx.notifyReasoningUpdate();
     }
 
     // 完成 reasoning segments
@@ -365,7 +411,8 @@ class ChatStreamHandler {
         ctx.messageId,
         reasoningSegmentsJson: ReasoningStateManager.serializeSegments(segments),
       );
-      if (ctx.isMounted()) ctx.notifyUI();
+      // 使用轻量级通知（优化性能）
+      ctx.notifyReasoningUpdate();
     }
   }
 
@@ -394,7 +441,8 @@ class ChatStreamHandler {
         ..startAt = startAt
         ..finishedAt = now
         ..expanded = !ctx.autoCollapseThinking;
-      if (ctx.isMounted() && ctx.isCurrentConversation()) ctx.notifyUI();
+      // 使用轻量级通知（优化性能）
+      ctx.notifyReasoningUpdate();
     }
 
     // 完成推理
@@ -466,5 +514,89 @@ class ChatStreamHandler {
 
     await persistMessage(ctx.fullContent, tokenUsageJson);
     scheduleScroll();
+  }
+}
+
+/// 流式内容节流管理器
+///
+/// 用于限制流式 UI 更新频率，从而提升性能
+/// 默认节流间隔为 60ms（约 16 FPS），足够流畅且不会过度消耗资源
+class StreamingThrottleManager {
+  StreamingThrottleManager({
+    this.throttleInterval = const Duration(milliseconds: 60),
+  });
+
+  /// 节流间隔
+  final Duration throttleInterval;
+
+  /// 每条消息的节流定时器
+  final Map<String, Timer?> _throttleTimers = {};
+
+  /// 待处理的内容
+  final Map<String, String> _pendingContent = {};
+
+  /// 待处理的 token 数量
+  final Map<String, int> _pendingTokens = {};
+
+  /// 待处理的 token usage JSON（可能随着流式更新变化）
+  final Map<String, String?> _pendingTokenUsageJson = {};
+
+  /// 调度节流更新
+  ///
+  /// 每次调用会更新待处理内容，但实际 UI 更新按节流间隔执行
+  void scheduleUpdate(
+    String messageId,
+    String content,
+    int totalTokens,
+    StreamingContentNotifier notifier, {
+    String? tokenUsageJson,
+    VoidCallback? onTick,
+  }) {
+    _pendingContent[messageId] = content;
+    _pendingTokens[messageId] = totalTokens;
+    _pendingTokenUsageJson[messageId] = tokenUsageJson;
+
+    // 如果定时器已存在，等待下次触发
+    if (_throttleTimers[messageId] != null) return;
+
+    // 立即执行一次
+    notifier.updateContent(messageId, content, totalTokens, tokenUsageJson: tokenUsageJson);
+    onTick?.call();
+
+    // 创建周期性定时器
+    _throttleTimers[messageId] = Timer.periodic(throttleInterval, (_) {
+      final pending = _pendingContent[messageId];
+      final tokens = _pendingTokens[messageId] ?? 0;
+      final pendingTokenUsageJson = _pendingTokenUsageJson[messageId];
+      if (pending != null) {
+        notifier.updateContent(messageId, pending, tokens, tokenUsageJson: pendingTokenUsageJson);
+        onTick?.call();
+      }
+    });
+  }
+
+  /// 清理指定消息的节流状态
+  void cleanup(String messageId) {
+    _throttleTimers[messageId]?.cancel();
+    _throttleTimers.remove(messageId);
+    _pendingContent.remove(messageId);
+    _pendingTokens.remove(messageId);
+    _pendingTokenUsageJson.remove(messageId);
+  }
+
+  /// 清理所有节流状态
+  void clear() {
+    for (final timer in _throttleTimers.values) {
+      timer?.cancel();
+    }
+    _throttleTimers.clear();
+    _pendingContent.clear();
+    _pendingTokens.clear();
+    _pendingTokenUsageJson.clear();
+  }
+
+  /// 释放资源
+  void dispose() {
+    clear();
   }
 }

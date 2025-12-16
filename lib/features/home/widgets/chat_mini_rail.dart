@@ -34,8 +34,6 @@ class ChatMiniRail extends StatefulWidget {
 }
 
 class _ChatMiniRailState extends State<ChatMiniRail> {
-  bool _isHovered = false;
-
   static const double _minIndicatorWidth = 14;
   static const double _maxIndicatorWidth = 28;
   static const int _maxContentLength = 320;
@@ -62,26 +60,6 @@ class _ChatMiniRailState extends State<ChatMiniRail> {
     return text;
   }
 
-  void _handleStepUp() {
-    if (widget.messages.isEmpty) return;
-    final currentIdx = widget.messages.indexWhere((m) => m.id == widget.activeMessageId);
-    if (currentIdx > 0) {
-      widget.onJumpToMessage(widget.messages[currentIdx - 1].id);
-    } else if (currentIdx == -1 && widget.messages.isNotEmpty) {
-      widget.onJumpToMessage(widget.messages.first.id);
-    }
-  }
-
-  void _handleStepDown() {
-    if (widget.messages.isEmpty) return;
-    final currentIdx = widget.messages.indexWhere((m) => m.id == widget.activeMessageId);
-    if (currentIdx >= 0 && currentIdx < widget.messages.length - 1) {
-      widget.onJumpToMessage(widget.messages[currentIdx + 1].id);
-    } else if (currentIdx == -1 && widget.messages.isNotEmpty) {
-      widget.onJumpToMessage(widget.messages.last.id);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // Only show if we have enough messages
@@ -98,15 +76,11 @@ class _ChatMiniRailState extends State<ChatMiniRail> {
       return const SizedBox.shrink();
     }
 
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
 
     // Calculate max height for indicators (limit to ~60% of screen)
     final screenHeight = MediaQuery.of(context).size.height;
     final maxIndicatorHeight = screenHeight * 0.5;
-    final indicatorTotalHeight = indicators.length * 12.0; // 10 height + 2 padding
-    final needsScroll = indicatorTotalHeight > maxIndicatorHeight;
 
     return Positioned(
       right: 6,
@@ -115,100 +89,31 @@ class _ChatMiniRailState extends State<ChatMiniRail> {
       child: Center(
         child: SizedBox(
           width: 32,
-          child: MouseRegion(
-            onEnter: (_) => setState(() => _isHovered = true),
-            onExit: (_) => setState(() => _isHovered = false),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Up arrow
-                AnimatedOpacity(
-                  opacity: _isHovered ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: _ArrowButton(
-                    icon: Icons.keyboard_arrow_up_rounded,
-                    onTap: _handleStepUp,
-                    tooltip: l10n.miniRailPreviousMessage,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Indicators
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: maxIndicatorHeight),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (final msg in indicators)
-                          _IndicatorBar(
-                            key: ValueKey(msg.id),
-                            width: _getIndicatorWidth(msg.content),
-                            isActive: msg.id == widget.activeMessageId,
-                            isUser: msg.role == 'user',
-                            preview: _getPreviewText(msg.content),
-                            roleLabel: msg.role == 'user' ? l10n.miniRailSenderUser : l10n.miniRailSenderAssistant,
-                            onTap: () => widget.onJumpToMessage(msg.id),
-                          ),
-                      ],
+          // Only indicators, no arrow buttons (navigation handled by ScrollNavButtonsPanel)
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxIndicatorHeight),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final msg in indicators)
+                    _IndicatorBar(
+                      key: ValueKey(msg.id),
+                      width: _getIndicatorWidth(msg.content),
+                      isActive: msg.id == widget.activeMessageId,
+                      isUser: msg.role == 'user',
+                      preview: _getPreviewText(msg.content),
+                      roleLabel: msg.role == 'user' ? l10n.miniRailSenderUser : l10n.miniRailSenderAssistant,
+                      onTap: () => widget.onJumpToMessage(msg.id),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Down arrow
-                AnimatedOpacity(
-                  opacity: _isHovered ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: _ArrowButton(
-                    icon: Icons.keyboard_arrow_down_rounded,
-                    onTap: _handleStepDown,
-                    tooltip: l10n.miniRailNextMessage,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
-  }
-}
-
-class _ArrowButton extends StatelessWidget {
-  const _ArrowButton({
-    required this.icon,
-    required this.onTap,
-    this.tooltip,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final String? tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    Widget button = Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: Container(
-          width: 24,
-          height: 24,
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            size: 18,
-            color: cs.onSurface.withOpacity(0.5),
-          ),
-        ),
-      ),
-    );
-    if (tooltip != null) {
-      button = Tooltip(message: tooltip!, child: button);
-    }
-    return button;
   }
 }
 

@@ -34,7 +34,7 @@ class _SidebarResizeHandleState extends State<SidebarResizeHandle> {
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: Container(
-          width: 6,
+          width: 4,
           height: double.infinity,
           color: Colors.transparent,
           alignment: Alignment.center,

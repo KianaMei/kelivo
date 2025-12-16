@@ -20,7 +20,7 @@
   "settingsPageMcp": "MCP",
   "settingsPageQuickPhrase": "快捷短语",
   "settingsPageDataSection": "数据设置",
-  "settingsPageBackup": "数据备份",
+  "settingsPageBackup": "数据设置",
   "settingsPageChatStorage": "聊天记录存储",
   "settingsPageCalculating": "统计中…",
   "settingsPageFilesCount": "共 {count} 个文件 · {size}",
@@ -1017,5 +1017,12 @@
   "apiTestEmptyHint": "配置 API 后开始测试对话",
   "apiTestInputHint": "输入消息…",
   "apiTestSend": "发送",
-  "apiTestStop": "停止"
+  "apiTestStop": "停止",
+  "logViewerTitle": "请求日志",
+  "logViewerEmpty": "暂无日志",
+  "logViewerCurrentLog": "当前日志",
+  "logViewerExport": "导出",
+  "requestLoggingTitle": "请求日志",
+  "requestLoggingSubtitle": "记录 HTTP 请求/响应到文件",
+  "requestLoggingViewLogs": "查看日志"
 }

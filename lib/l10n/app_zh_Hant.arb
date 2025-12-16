@@ -20,7 +20,7 @@
   "settingsPageMcp": "MCP",
   "settingsPageQuickPhrase": "快捷短语",
   "settingsPageDataSection": "資料設定",
-  "settingsPageBackup": "資料備份",
+  "settingsPageBackup": "資料設定",
   "settingsPageChatStorage": "聊天記錄儲存",
   "settingsPageCalculating": "統計中…",
   "settingsPageFilesCount": "共 {count} 個檔案 · {size}",

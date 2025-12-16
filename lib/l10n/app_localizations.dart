@@ -229,7 +229,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsPageBackup.
   ///
   /// In en, this message translates to:
-  /// **'Backup'**
+  /// **'Data Settings'**
   String get settingsPageBackup;
 
   /// No description provided for @settingsPageChatStorage.
@@ -5800,6 +5800,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stop'**
   String get apiTestStop;
+
+  /// No description provided for @logViewerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Request Logs'**
+  String get logViewerTitle;
+
+  /// No description provided for @logViewerEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No logs yet'**
+  String get logViewerEmpty;
+
+  /// No description provided for @logViewerCurrentLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Log'**
+  String get logViewerCurrentLog;
+
+  /// No description provided for @logViewerExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get logViewerExport;
+
+  /// No description provided for @requestLoggingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Request Logging'**
+  String get requestLoggingTitle;
+
+  /// No description provided for @requestLoggingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Log HTTP requests/responses to file'**
+  String get requestLoggingSubtitle;
+
+  /// No description provided for @requestLoggingViewLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'View Logs'**
+  String get requestLoggingViewLogs;
 }
 
 class _AppLocalizationsDelegate

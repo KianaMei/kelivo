@@ -101,7 +101,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           builder: (ctx, snap) {
             final p = snap.data;
             if (p != null && File(p).existsSync()) {
-              return ClipOval(
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(6),
                 child: Image(
                   image: FileImage(File(p)),
                   width: size,
@@ -110,7 +111,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 ),
               );
             }
-            return ClipOval(
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(6),
               child: Image.network(
                 av,
                 width: size,
@@ -129,7 +131,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             if (resolved.isNotEmpty) {
               final f = File(resolved);
               if (f.existsSync()) {
-                return ClipOval(
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
                   child: Image(
                     image: FileImage(f),
                     width: size,
@@ -152,12 +155,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isDark ? Colors.white24 : Colors.black12,
           width: 0.5,
         ),
       ),
+      clipBehavior: Clip.antiAlias,
       child: avatar,
     );
 
@@ -165,7 +169,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
     return InkWell(
       onTap: onTap,
-      customBorder: const CircleBorder(),
+      borderRadius: BorderRadius.circular(6),
       child: child,
     );
   }
@@ -177,7 +181,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       height: size,
       decoration: BoxDecoration(
         color: cs.primary.withOpacity(0.15),
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(6),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -708,7 +712,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               children: [
             // Fixed header + search
             Padding(
-              padding: EdgeInsets.fromLTRB(16, _isDesktop ? 10 : 4, 16, 0),
+              padding: EdgeInsets.fromLTRB(_isDesktop ? 12 : 16, _isDesktop ? 10 : 4, _isDesktop ? 12 : 16, 0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -915,7 +919,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                               Expanded(
                                 child: ListView(
                                   controller: _assistantListController,
-                                  padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                                  padding: const EdgeInsets.fromLTRB(0, 2, 0, 16),
                                   children: [
                                     _buildAssistantsList(context, inlineMode: true),
                                   ],
@@ -929,7 +933,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       Expanded(
                         child: ListView(
                           controller: _listController,
-                          padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
+                          padding: EdgeInsets.fromLTRB(0, topPad, 0, 16),
                           children: [
                             _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
                           ],
@@ -944,7 +948,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       Expanded(
                         child: ListView(
                           controller: _listController,
-                          padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                          padding: const EdgeInsets.fromLTRB(0, 2, 0, 16),
                           children: [
                             _buildAssistantsList(context, inlineMode: true),
                           ],
@@ -959,7 +963,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                   final topPad = context.watch<SettingsProvider>().showChatListDate ? (isDesktop ? 2.0 : 4.0) : 10.0;
                   return ListView(
                     controller: _listController,
-                    padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
+                    padding: EdgeInsets.fromLTRB(0, topPad, 0, 16),
                     children: [
                       _buildConversationsList(context, cs, textBase, chatService, pinnedList, groups, includeUpdateBanner: true),
                     ],
@@ -1896,9 +1900,9 @@ extension on _SideDrawerState {
 
     Widget buildTile(Assistant a) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 2),
         child: AssistantInlineTile(
-          avatar: _assistantAvatar(context, a, size: _isDesktop ? 28 : 32),
+          avatar: _assistantAvatar(context, a, size: _isDesktop ? 36 : 40),
           name: a.name,
           textColor: textBase2,
           embedded: widget.embedded,
@@ -1964,7 +1968,7 @@ extension on _SideDrawerState {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 8),
+      padding: const EdgeInsets.fromLTRB(0, 6, 0, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1996,21 +2000,22 @@ extension on _SideDrawerState {
   }
 
   Widget _buildNewAssistantButton(BuildContext context) {
+    final size = _isDesktop ? 36.0 : 40.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
       child: AssistantInlineTile(
         avatar: Container(
-          width: _isDesktop ? 28 : 32,
-          height: _isDesktop ? 28 : 32,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
               width: 1,
             ),
           ),
           alignment: Alignment.center,
-          child: Icon(Lucide.Plus, size: 16, color: Theme.of(context).colorScheme.primary),
+          child: Icon(Lucide.Plus, size: 18, color: Theme.of(context).colorScheme.primary),
         ),
         name: AppLocalizations.of(context)!.assistantProviderNewAssistantName,
         textColor: Theme.of(context).colorScheme.primary,

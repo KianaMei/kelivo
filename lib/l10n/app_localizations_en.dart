@@ -73,7 +73,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageDataSection => 'Data';
 
   @override
-  String get settingsPageBackup => 'Backup';
+  String get settingsPageBackup => 'Data Settings';
 
   @override
   String get settingsPageChatStorage => 'Chat Storage';
@@ -3066,4 +3066,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get apiTestStop => 'Stop';
+
+  @override
+  String get logViewerTitle => 'Request Logs';
+
+  @override
+  String get logViewerEmpty => 'No logs yet';
+
+  @override
+  String get logViewerCurrentLog => 'Current Log';
+
+  @override
+  String get logViewerExport => 'Export';
+
+  @override
+  String get requestLoggingTitle => 'Request Logging';
+
+  @override
+  String get requestLoggingSubtitle => 'Log HTTP requests/responses to file';
+
+  @override
+  String get requestLoggingViewLogs => 'View Logs';
 }

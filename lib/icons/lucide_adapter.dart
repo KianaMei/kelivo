@@ -178,4 +178,12 @@ class Lucide {
   static const IconData Send = lucide.LucideIcons.send;
   static const IconData AlertCircle = lucide.LucideIcons.circleAlert;
   static const IconData FolderPlus = lucide.LucideIcons.folderPlus;
+  // Scroll navigation icons
+  static const IconData ChevronsUp = lucide.LucideIcons.chevronsUp;
+  static const IconData ChevronsDown = lucide.LucideIcons.chevronsDown;
+  // Log viewer icons
+  static const IconData FileClock = lucide.LucideIcons.fileClock;
+  static const IconData ScrollText = lucide.LucideIcons.scrollText;
+  static const IconData ArrowUpRight = lucide.LucideIcons.arrowUpRight;
+  static const IconData ArrowDownLeft = lucide.LucideIcons.arrowDownLeft;
 }

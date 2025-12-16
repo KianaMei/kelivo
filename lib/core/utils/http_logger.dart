@@ -5,11 +5,23 @@ import 'package:talker/talker.dart';
 /// 全局 Talker 实例，用于记录所有日志
 final talker = Talker(
   settings: TalkerSettings(
-    enabled: kDebugMode,
-    useConsoleLogs: true,
-    maxHistoryItems: 500,
+    enabled: true,  // 始终启用，通过 maxHistoryItems 控制内存
+    useConsoleLogs: kDebugMode,  // 只在 debug 模式打印到控制台
+    maxHistoryItems: 200,
   ),
 );
+
+/// Talker 日志开关（用于控制是否记录到 Talker）
+class TalkerLogger {
+  TalkerLogger._();
+
+  static bool _enabled = false;
+  static bool get enabled => _enabled;
+
+  static void setEnabled(bool v) {
+    _enabled = v;
+  }
+}
 
 /// HTTP 日志客户端，使用 Talker 记录请求/响应
 class TalkerHttpClient extends http.BaseClient {
@@ -22,7 +34,7 @@ class TalkerHttpClient extends http.BaseClient {
 
   TalkerHttpClient(
     this._inner, {
-    this.enabled = kDebugMode,
+    this.enabled = true,  // 默认启用
     this.printRequestHeaders = false,
     this.printResponseHeaders = false,
     this.printRequestBody = true,
@@ -63,12 +75,8 @@ class TalkerHttpClient extends http.BaseClient {
     if (printRequestHeaders && request.headers.isNotEmpty) {
       sb.writeln('Headers:');
       request.headers.forEach((key, value) {
-        // 隐藏敏感信息
-        if (_isSensitiveHeader(key)) {
-          sb.writeln('  $key: ***');
-        } else {
-          sb.writeln('  $key: $value');
-        }
+        // 直接显示所有 header，包括 API key
+        sb.writeln('  $key: $value');
       });
     }
 
@@ -114,14 +122,6 @@ class TalkerHttpClient extends http.BaseClient {
       stackTrace,
       '${request.method} ${request.url} (${durationMs}ms)',
     );
-  }
-
-  bool _isSensitiveHeader(String key) {
-    final lower = key.toLowerCase();
-    return lower.contains('authorization') ||
-        lower.contains('api-key') ||
-        lower.contains('x-api-key') ||
-        lower.contains('token');
   }
 
   String _truncate(String text, int maxLength) {

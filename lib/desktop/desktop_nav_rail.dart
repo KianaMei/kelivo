@@ -38,10 +38,14 @@ class DesktopNavRail extends StatelessWidget {
     final isChatActive = activeIndex == 0;
     final isTranslateActive = activeIndex == 1;
     final isApiTestActive = activeIndex == 2;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       width: width,
-      color: Theme.of(context).scaffoldBackgroundColor,
+      // 使用略微不同的背景色来区分 NavRail 和 Sidebar（无需分割线）
+      color: isDark
+          ? cs.surface.withOpacity(0.4)
+          : cs.surfaceContainerLowest,
       child: Column(
         children: [
           SizedBox(height: topGap),
