@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -25,8 +24,12 @@ class UpdateInfo {
   });
 
   String? bestDownloadUrl() {
-    if (Platform.isIOS) return downloads['ios'] ?? downloads['iosAppStore'] ?? downloads['universal'];
-    if (Platform.isAndroid) return downloads['android'] ?? downloads['universal'];
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      return downloads['ios'] ?? downloads['iosAppStore'] ?? downloads['universal'];
+    }
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return downloads['android'] ?? downloads['universal'];
+    }
     return downloads['universal'] ?? downloads['android'] ?? downloads['ios'];
   }
 
@@ -108,4 +111,3 @@ class UpdateProvider extends ChangeNotifier {
     return false;
   }
 }
-

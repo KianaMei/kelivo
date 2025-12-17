@@ -8,8 +8,7 @@ import 'package:flutter_highlight/themes/atom-one-dark-reasonable.dart';
 import 'package:highlight/highlight.dart' show highlight, Node;
 import '../../icons/lucide_adapter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'dart:convert';
 import '../../features/chat/pages/image_viewer_page.dart';
 import 'snackbar.dart';
@@ -25,7 +24,25 @@ import 'html_artifacts_card.dart';
 import 'html_preview_dialog.dart';
 import 'code_artifacts_card.dart';
 import 'code_runtime_templates.dart';
-import 'code_view_dialog.dart';
+import '../../utils/local_image_provider.dart';
+import '../../utils/platform_utils.dart';
+
+bool _isDesktopPlatform() {
+  if (kIsWeb) return false;
+  return defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.linux;
+}
+
+bool _isWindowsPlatform() {
+  if (kIsWeb) return false;
+  return defaultTargetPlatform == TargetPlatform.windows;
+}
+
+bool _isIosPlatform() {
+  if (kIsWeb) return false;
+  return defaultTargetPlatform == TargetPlatform.iOS;
+}
 
 /// gpt_markdown with custom code block highlight and inline code styling.
 class MarkdownWithCodeHighlight extends StatelessWidget {
@@ -261,7 +278,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
           if (r.fields.length > maxCol) maxCol = r.fields.length;
         }
 
-        final bool isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+        final bool isDesktop = _isDesktopPlatform();
 
         Widget cell(String text, TextAlign align, {bool header = false, bool lastCol = false, bool lastRow = false}) {
           final innerCfg = cfg.copyWith(style: header ? headerStyle : cellStyle);
@@ -508,7 +525,7 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
 
   /// Show sticker in a simple popup dialog
   static void _showStickerPopup(BuildContext context, ImageProvider provider) {
-    final isDesktop = Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+    final isDesktop = _isDesktopPlatform();
     
     if (isDesktop) {
       // Desktop: Simple centered dialog
@@ -589,7 +606,8 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
         return NetworkImage(src);
       }
       if (uri.scheme == 'file') {
-        return FileImage(File(uri.toFilePath()));
+        if (kIsWeb) return null;
+        return localFileImage(uri.toFilePath());
       }
       if (uri.scheme == 'sticker') {
         final pack = uri.host;
@@ -607,8 +625,9 @@ class MarkdownWithCodeHighlight extends StatelessWidget {
       }
     } catch (_) {
     }
-    if (Platform.isWindows && RegExp(r'^[a-zA-Z]:\\').hasMatch(src)) {
-      return FileImage(File(src));
+    if (_isWindowsPlatform() && RegExp(r'^[a-zA-Z]:\\').hasMatch(src)) {
+      if (kIsWeb) return null;
+      return localFileImage(src);
     }
     return null;
   }
@@ -697,10 +716,10 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
             surfaceTintColor: Colors.transparent,
             child: InkWell(
               onTap: () => setState(() => _expanded = !_expanded),
-              splashColor: Platform.isIOS ? Colors.transparent : null,
-              highlightColor: Platform.isIOS ? Colors.transparent : null,
-              hoverColor: Platform.isIOS ? Colors.transparent : null,
-              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+              splashColor: _isIosPlatform() ? Colors.transparent : null,
+              highlightColor: _isIosPlatform() ? Colors.transparent : null,
+              hoverColor: _isIosPlatform() ? Colors.transparent : null,
+              overlayColor: _isIosPlatform() ? const MaterialStatePropertyAll(Colors.transparent) : null,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
@@ -736,10 +755,10 @@ class _CollapsibleCodeBlockState extends State<_CollapsibleCodeBlock> {
                           );
                         }
                       },
-                      splashColor: Platform.isIOS ? Colors.transparent : null,
-                      highlightColor: Platform.isIOS ? Colors.transparent : null,
-                      hoverColor: Platform.isIOS ? Colors.transparent : null,
-                      overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                      splashColor: _isIosPlatform() ? Colors.transparent : null,
+                      highlightColor: _isIosPlatform() ? Colors.transparent : null,
+                      hoverColor: _isIosPlatform() ? Colors.transparent : null,
+                      overlayColor: _isIosPlatform() ? const MaterialStatePropertyAll(Colors.transparent) : null,
                       borderRadius: BorderRadius.circular(6),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
@@ -929,10 +948,10 @@ class _MermaidBlockState extends State<_MermaidBlock> {
             surfaceTintColor: Colors.transparent,
             child: InkWell(
               onTap: () => setState(() => _expanded = !_expanded),
-              splashColor: Platform.isIOS ? Colors.transparent : null,
-              highlightColor: Platform.isIOS ? Colors.transparent : null,
-              hoverColor: Platform.isIOS ? Colors.transparent : null,
-              overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+              splashColor: _isIosPlatform() ? Colors.transparent : null,
+              highlightColor: _isIosPlatform() ? Colors.transparent : null,
+              hoverColor: _isIosPlatform() ? Colors.transparent : null,
+              overlayColor: _isIosPlatform() ? const MaterialStatePropertyAll(Colors.transparent) : null,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
@@ -969,10 +988,10 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                             );
                           }
                         },
-                        splashColor: Platform.isIOS ? Colors.transparent : null,
-                        highlightColor: Platform.isIOS ? Colors.transparent : null,
-                        hoverColor: Platform.isIOS ? Colors.transparent : null,
-                        overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                        splashColor: _isIosPlatform() ? Colors.transparent : null,
+                        highlightColor: _isIosPlatform() ? Colors.transparent : null,
+                        hoverColor: _isIosPlatform() ? Colors.transparent : null,
+                        overlayColor: _isIosPlatform() ? const MaterialStatePropertyAll(Colors.transparent) : null,
                         borderRadius: BorderRadius.circular(6),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
@@ -1011,10 +1030,10 @@ class _MermaidBlockState extends State<_MermaidBlock> {
                               );
                             }
                           },
-                          splashColor: Platform.isIOS ? Colors.transparent : null,
-                          highlightColor: Platform.isIOS ? Colors.transparent : null,
-                          hoverColor: Platform.isIOS ? Colors.transparent : null,
-                          overlayColor: Platform.isIOS ? const MaterialStatePropertyAll(Colors.transparent) : null,
+                          splashColor: _isIosPlatform() ? Colors.transparent : null,
+                          highlightColor: _isIosPlatform() ? Colors.transparent : null,
+                          hoverColor: _isIosPlatform() ? Colors.transparent : null,
+                          overlayColor: _isIosPlatform() ? const MaterialStatePropertyAll(Colors.transparent) : null,
                           borderRadius: BorderRadius.circular(6),
                           child: Padding(
                             padding: const EdgeInsets.all(6),
@@ -1239,7 +1258,7 @@ class FencedCodeBlockMd extends BlockMd {
       language: lang,
       isStreaming: _detectStreamingState(langLower),
       canRenderPreview: canPreview,
-      onPreview: () async {
+      onPreview: canPreview ? () async {
         if (isHtml) {
           // Plain HTML - direct preview
           showHtmlPreviewDialog(context, code);
@@ -1256,11 +1275,8 @@ class FencedCodeBlockMd extends BlockMd {
           if (context.mounted) {
             showHtmlPreviewDialog(context, html);
           }
-        } else {
-          // Non-previewable code - show source code viewer
-          showCodeViewDialog(context, code: code, language: lang);
         }
-      },
+      } : null,
     );
   }
 }
@@ -1825,7 +1841,7 @@ class _SelectableMarkdownBodyState extends State<_SelectableMarkdownBody> {
   @override
   Widget build(BuildContext context) {
     final span = TextSpan(style: widget.config.style, children: _spans);
-    final bool isDesktop = !kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+    final bool isDesktop = _isDesktopPlatform();
     
     // Desktop: Use SelectionArea + Text.rich for proper text and WidgetSpan selection
     // Wrap in ExcludeSemantics to avoid Windows accessibility crashes

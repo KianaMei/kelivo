@@ -39,53 +39,48 @@ class _AssistantInlineTileState extends State<AssistantInlineTile> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    // 背景色：选中时有颜色，否则透明
-    final Color bg = widget.selected
-        ? cs.primary.withOpacity(isDark ? 0.18 : 0.1)
-        : (_hovered && _isDesktop
-            ? cs.primary.withOpacity(isDark ? 0.08 : 0.05)
-            : Colors.transparent);
-    
+    final embedded = widget.embedded;
+    final Color tileColor = _isDesktop
+        ? (embedded
+            ? (widget.selected ? cs.primary.withOpacity(0.16) : Colors.transparent)
+            : (widget.selected ? cs.primary.withOpacity(0.12) : cs.surface))
+        : (embedded ? Colors.transparent : cs.surface);
+    final Color bg = _isDesktop && !widget.selected && _hovered
+        ? (embedded ? cs.primary.withOpacity(0.08) : cs.surface.withOpacity(0.9))
+        : tileColor;
     final content = MouseRegion(
       onEnter: (_) { if (_isDesktop) setState(() => _hovered = true); },
       onExit: (_) { if (_isDesktop) setState(() => _hovered = false); },
       cursor: _isDesktop ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: SizedBox(
+        width: double.infinity,
+        child: IosCardPress(
+          baseColor: bg,
+          borderRadius: BorderRadius.circular(16),
+          haptics: false,
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
+          padding: EdgeInsets.fromLTRB(_isDesktop ? 12 : 4, 6, 12, 6),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               widget.avatar,
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   widget.name,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: widget.textColor,
-                    height: 1.3,
-                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: _isDesktop ? 14 : 15, fontWeight: FontWeight.w600, color: widget.textColor),
                 ),
               ),
               if (!_isDesktop) ...[
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 IosIconButton(
                   icon: Lucide.Pencil,
-                  size: 16,
-                  color: cs.onSurface.withOpacity(0.5),
-                  padding: const EdgeInsets.all(6),
-                  minSize: 32,
+                  size: 18,
+                  color: cs.onSurface.withOpacity(0.7),
+                  padding: const EdgeInsets.all(8),
+                  minSize: 36,
                   onTap: widget.onEditTap,
                   semanticLabel: 'Edit assistant',
                 ),

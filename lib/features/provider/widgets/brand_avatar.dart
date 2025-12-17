@@ -1,8 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../utils/brand_assets.dart';
+import '../../../utils/local_image_provider.dart';
+import '../../../utils/platform_utils.dart';
 
 /// Provider brand avatar widget
 /// Supports custom avatar (URL, file path, emoji), brand assets, or initials
@@ -58,24 +60,25 @@ class BrandAvatar extends StatelessWidget {
           key: ValueKey(av),
           future: AssistantProvider.resolveToAbsolutePath(av),
           builder: (context, snapshot) {
-            if (snapshot.hasData && snapshot.data != null) {
-              final file = File(snapshot.data!);
-              if (file.existsSync()) {
-                return CircleAvatar(
-                  radius: size / 2,
-                  backgroundColor: bg,
-                  child: ClipOval(
-                    child: Image.file(
-                      file,
-                      key: ValueKey(file.path),
-                      width: size,
-                      height: size,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
-                    ),
+            final resolved = snapshot.data?.trim();
+            if (!kIsWeb &&
+                resolved != null &&
+                resolved.isNotEmpty &&
+                PlatformUtils.fileExistsSync(resolved)) {
+              return CircleAvatar(
+                radius: size / 2,
+                backgroundColor: bg,
+                child: ClipOval(
+                  child: Image(
+                    image: localFileImage(resolved),
+                    key: ValueKey(resolved),
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
                   ),
-                );
-              }
+                ),
+              );
             }
             return _buildBrandAvatar(cs, isDark);
           },

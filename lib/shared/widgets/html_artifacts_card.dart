@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../icons/lucide_adapter.dart';
 import 'snackbar.dart';
 import '../../l10n/app_localizations.dart';
+import '../../utils/text_file_exporter.dart';
 
 /// HTML Artifacts Card - Cherry Studio 风格的 HTML 代码块卡片
 /// 
@@ -54,14 +53,12 @@ class _HtmlArtifactsCardState extends State<HtmlArtifactsCard> {
   Future<void> _handleDownload() async {
     try {
       final fileName = '${_getFileName()}.html';
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsString(widget.html);
+      final saved = await saveTextToDocuments(fileName: fileName, content: widget.html);
       
       if (mounted) {
         showAppSnackBar(
           context,
-          message: 'Saved to ${file.path}',
+          message: kIsWeb ? 'Downloaded $fileName' : 'Saved to $saved',
           type: NotificationType.success,
         );
       }
@@ -79,13 +76,7 @@ class _HtmlArtifactsCardState extends State<HtmlArtifactsCard> {
   /// 在外部浏览器中打开
   Future<void> _handleOpenExternal() async {
     try {
-      final dir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${dir.path}/html_preview_$timestamp.html');
-      await file.writeAsString(widget.html);
-      
-      final uri = Uri.file(file.path);
-      await launchUrl(uri);
+      await openHtmlExternally(htmlContent: widget.html);
     } catch (e) {
       if (mounted) {
         showAppSnackBar(

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show HttpException;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -1532,9 +1531,9 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       return (true, null);
     } on TimeoutException {
       return (false, 'Timeout: API response exceeded 60 seconds');
-    } on HttpException catch (e) {
-      // Parse HTTP error for meaningful messages
-      final msg = e.message;
+    } on Exception catch (e) {
+      // Parse error string for meaningful messages
+      final msg = e.toString();
       if (msg.contains('401')) {
         return (false, 'Unauthorized: Invalid API key');
       } else if (msg.contains('403')) {

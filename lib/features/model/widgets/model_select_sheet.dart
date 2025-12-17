@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
-import 'dart:io';
 import 'dart:ui' show ImageFilter;
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
@@ -13,6 +12,8 @@ import 'model_detail_sheet.dart';
 import '../../provider/pages/provider_detail_page.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/brand_assets.dart';
+import '../../../utils/local_image_provider.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 
 class ModelSelection {
@@ -832,7 +833,9 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
         child: Listener(
         onPointerSignal: (event) {
           // Windows 滚轮支持 - 切换到下一个/上一个tab
-          if (event is PointerScrollEvent && Platform.isWindows) {
+          if (event is PointerScrollEvent &&
+              !kIsWeb &&
+              defaultTargetPlatform == TargetPlatform.windows) {
             // Debounce: ignore events that come too quickly
             final now = DateTime.now();
             if (_lastWheelEvent != null &&
@@ -867,7 +870,7 @@ class _ModelSelectDialogState extends State<_ModelSelectDialog> {
             scrollDirection: Axis.horizontal,
             // Windows: use ClampingScrollPhysics for responsive drag without excessive bounce
             // Mobile: use BouncingScrollPhysics for native feel
-            physics: Platform.isWindows
+            physics: (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
                 ? const ClampingScrollPhysics()
                 : const BouncingScrollPhysics(),
             child: Row(children: providerTabs),
@@ -1296,24 +1299,25 @@ class _BrandAvatar extends StatelessWidget {
           key: ValueKey(av),
           future: AssistantProvider.resolveToAbsolutePath(av),
           builder: (context, snapshot) {
-            if (snapshot.hasData && snapshot.data != null) {
-              final file = File(snapshot.data!);
-              if (file.existsSync()) {
-                return CircleAvatar(
-                  radius: size / 2,
-                  backgroundColor: bg,
-                  child: ClipOval(
-                    child: Image.file(
-                      file,
-                      key: ValueKey(file.path),
-                      width: size,
-                      height: size,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
-                    ),
+            final resolved = snapshot.data?.trim();
+            if (!kIsWeb &&
+                resolved != null &&
+                resolved.isNotEmpty &&
+                PlatformUtils.fileExistsSync(resolved)) {
+              return CircleAvatar(
+                radius: size / 2,
+                backgroundColor: bg,
+                child: ClipOval(
+                  child: Image(
+                    image: localFileImage(resolved),
+                    key: ValueKey(resolved),
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
                   ),
-                );
-              }
+                ),
+              );
             }
             return _buildBrandAvatar(cs, isDark);
           },

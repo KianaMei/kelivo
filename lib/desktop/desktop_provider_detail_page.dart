@@ -1,8 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/gestures.dart';
@@ -11,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/services/http/dio_client.dart';
+import 'file_image_helper.dart' if (dart.library.html) 'file_image_helper_stub.dart';
 
 import '../utils/brand_assets.dart';
 import '../utils/provider_avatar_manager.dart';
@@ -838,11 +838,13 @@ class _DesktopProviderDetailPageState extends State<DesktopProviderDetailPage> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
+        withData: true, // Required to get bytes on all platforms
       );
 
       if (result != null && result.files.isNotEmpty && mounted) {
         final file = result.files.first;
-        final bytes = file.bytes ?? await File(file.path!).readAsBytes();
+        final bytes = file.bytes;
+        if (bytes == null) return;
 
         final relativePath = await ProviderAvatarManager.saveAvatar(widget.keyName, bytes);
 
@@ -1336,16 +1338,15 @@ class _BrandAvatar extends StatelessWidget {
         future: ProviderAvatarManager.getAvatarPath(customAvatarPath!),
         builder: (context, snapshot) {
           if (snapshot.hasData && snapshot.data != null) {
-            final file = File(snapshot.data!);
-            final exists = file.existsSync();
-            if (exists) {
+            final path = snapshot.data!;
+            if (fileExists(path)) {
               return Container(
                 width: size,
                 height: size,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   image: DecorationImage(
-                    image: FileImage(file),
+                    image: createFileImage(path),
                     fit: BoxFit.cover,
                   ),
                 ),

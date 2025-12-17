@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:restart_app/restart_app.dart';
+import 'restart_process.dart';
 
 /// A widget that can restart the entire app.
 ///
@@ -45,7 +45,7 @@ class _RestartWidgetState extends State<RestartWidget> {
       setState(() {
         _key = UniqueKey();
       });
-    } else if (Platform.isAndroid || Platform.isIOS) {
+    } else if (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
       // Mobile: use restart_app package
       await Restart.restartApp();
     } else {
@@ -56,18 +56,12 @@ class _RestartWidgetState extends State<RestartWidget> {
 
   Future<void> _restartProcess() async {
     try {
-      // Get the path to the current executable
-      final executable = Platform.resolvedExecutable;
-
-      // Start a new instance of the app
-      await Process.start(
-        executable,
-        [],
-        mode: ProcessStartMode.detached,
-      );
-
-      // Exit the current process
-      exit(0);
+      final ok = await restartProcess();
+      if (!ok) {
+        setState(() {
+          _key = UniqueKey();
+        });
+      }
     } catch (e) {
       debugPrint('Failed to restart app process: $e');
       // Fallback to widget rebuild if process restart fails

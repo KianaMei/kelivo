@@ -1,10 +1,27 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import '../../models/assistant.dart';
 import '../../providers/settings_provider.dart';
 
 class PromptTransformer {
+  static String _osName() {
+    if (kIsWeb) return 'web';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.macOS:
+        return 'macos';
+      case TargetPlatform.windows:
+        return 'windows';
+      case TargetPlatform.linux:
+        return 'linux';
+      case TargetPlatform.fuchsia:
+        return 'fuchsia';
+    }
+  }
+
   static Map<String, String> buildPlaceholders({
     required BuildContext context,
     required Assistant assistant,
@@ -18,8 +35,8 @@ class PromptTransformer {
     final date = '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final time = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     final dt = '$date $time';
-    final os = kIsWeb ? 'web' : Platform.operatingSystem;
-    final osv = kIsWeb ? 'unknown' : Platform.operatingSystemVersion;
+    final os = _osName();
+    final osv = 'unknown';
     final device = os; // Simple fallback; can be extended with device_info plugins
     final battery = 'unknown';
 
@@ -62,4 +79,3 @@ class PromptTransformer {
         .replaceAll('{{ date }}', date);
   }
 }
-

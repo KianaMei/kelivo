@@ -1,7 +1,6 @@
 // Desktop Assistants Pane
 // Extracted from desktop_settings_page.dart
 
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,12 +8,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
-import 'package:path_provider/path_provider.dart';
+import '../file_image_helper.dart' if (dart.library.html) '../file_image_helper_stub.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/models/assistant.dart';
 import '../../core/providers/assistant_provider.dart';
 import '../../shared/widgets/snackbar.dart';
-import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/avatar_cache.dart';
 import '../../icons/lucide_adapter.dart' as lucide;
 import '../../features/assistant/pages/assistant_settings_edit_page.dart' show showAssistantDesktopDialog;
@@ -593,19 +591,14 @@ class _AssistantAvatarDesktop extends StatelessWidget {
           future: AvatarCache.getPath(av),
           builder: (ctx, snap) {
             final p = snap.data;
-            if (p != null && !kIsWeb && File(p).existsSync()) {
+            if (p != null && fileExists(p)) {
               return ClipOval(
                 child: Image(
-                  image: FileImage(File(p)),
+                  image: createFileImage(p),
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
                 ),
-              );
-            }
-            if (p != null && kIsWeb && p.startsWith('data:')) {
-              return ClipOval(
-                child: Image.network(p, width: size, height: size, fit: BoxFit.cover),
               );
             }
             return ClipOval(
@@ -619,22 +612,25 @@ class _AssistantAvatarDesktop extends StatelessWidget {
             );
           },
         );
-      } else if (!kIsWeb && (av.startsWith('/') || av.contains(':') || av.contains('/'))) {
+      } else if (av.startsWith('/') || av.contains(':') || av.contains('/')) {
         // Local file path (absolute or relative)
         return FutureBuilder<String?>(
           future: AssistantProvider.resolveToAbsolutePath(av),
           builder: (ctx, snap) {
             if (!snap.hasData || snap.data == null) return _initial(cs);
             final absPath = snap.data!;
-            return ClipOval(
-              child: Image(
-                image: FileImage(File(absPath)),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => _initial(cs),
-              ),
-            );
+            if (fileExists(absPath)) {
+              return ClipOval(
+                child: Image(
+                  image: createFileImage(absPath),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) => _initial(cs),
+                ),
+              );
+            }
+            return _initial(cs);
           },
         );
       } else {

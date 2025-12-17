@@ -2,7 +2,6 @@
 /// Extracted from ChatApiService for Phase 2A modularization.
 
 import 'dart:convert';
-import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/model_provider.dart';
@@ -10,6 +9,7 @@ import '../models/chat_stream_chunk.dart';
 import '../../http/dio_client.dart';
 import '../../api_key_manager.dart';
 import '../../../../utils/sandbox_path_resolver.dart';
+import '../../../../utils/platform_utils.dart';
 import 'package:kelivo/secrets/fallback.dart';
 
 export '../models/chat_stream_chunk.dart';
@@ -261,8 +261,10 @@ class ChatApiHelper {
   /// Encode file to base64.
   static Future<String> encodeBase64File(String path, {bool withPrefix = false}) async {
     final fixed = SandboxPathResolver.fix(path);
-    final file = File(fixed);
-    final bytes = await file.readAsBytes();
+    final bytes = await PlatformUtils.readFileBytes(fixed);
+    if (bytes == null) {
+      throw UnsupportedError('Cannot read file bytes on this platform');
+    }
     final b64 = base64Encode(bytes);
     if (withPrefix) {
       final mime = mimeFromPath(fixed);

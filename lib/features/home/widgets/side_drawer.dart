@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/services/http/dio_client.dart';
@@ -19,7 +20,6 @@ import '../../assistant/pages/assistant_settings_edit_page.dart';
 import '../../chat/pages/chat_history_page.dart';
 import '../../../desktop/chat_history_dialog.dart';
 import 'package:flutter/services.dart';
-import 'dart:io' show File;
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
@@ -29,6 +29,9 @@ import '../../../shared/widgets/snackbar.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animations/animations.dart';
 import '../../../utils/avatar_cache.dart';
+import '../../../utils/platform_utils.dart';
+import '../../../utils/local_image_provider.dart';
+import '../../../core/services/upload/upload_service.dart';
 import 'dart:ui' as ui;
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
@@ -100,21 +103,19 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           future: AvatarCache.getPath(av),
           builder: (ctx, snap) {
             final p = snap.data;
-            if (p != null && File(p).existsSync()) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(6),
+            if (!kIsWeb && p != null && PlatformUtils.fileExistsSync(p)) {
+              return ClipOval(
                 child: Image(
-                  image: FileImage(File(p)),
+                  image: localFileImage(p),
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
                 ),
               );
             }
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+            return ClipOval(
               child: Image.network(
-                av,
+                (kIsWeb && p != null) ? p : av,
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
@@ -129,12 +130,21 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           builder: (ctx, snap) {
             final resolved = snap.data ?? av;
             if (resolved.isNotEmpty) {
-              final f = File(resolved);
-              if (f.existsSync()) {
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+              if (resolved.startsWith('http') || resolved.startsWith('data:')) {
+                return ClipOval(
+                  child: Image.network(
+                    resolved,
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (c, e, s) => _assistantInitialAvatar(cs, name, size),
+                  ),
+                );
+              }
+              if (!kIsWeb && PlatformUtils.fileExistsSync(resolved)) {
+                return ClipOval(
                   child: Image(
-                    image: FileImage(f),
+                    image: localFileImage(resolved),
                     width: size,
                     height: size,
                     fit: BoxFit.cover,
@@ -155,13 +165,12 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
+        shape: BoxShape.circle,
         border: Border.all(
           color: isDark ? Colors.white24 : Colors.black12,
           width: 0.5,
         ),
       ),
-      clipBehavior: Clip.antiAlias,
       child: avatar,
     );
 
@@ -169,7 +178,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      customBorder: const CircleBorder(),
       child: child,
     );
   }
@@ -181,7 +190,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       height: size,
       decoration: BoxDecoration(
         color: cs.primary.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(6),
+        shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
       child: Text(
@@ -604,10 +613,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           future: AvatarCache.getPath(value),
           builder: (ctx, snap) {
             final p = snap.data;
-            if (p != null && File(p).existsSync()) {
+            if (!kIsWeb && p != null && PlatformUtils.fileExistsSync(p)) {
               return ClipOval(
                 child: Image(
-                  image: FileImage(File(p)),
+                  image: localFileImage(p),
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
@@ -616,7 +625,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             }
             return ClipOval(
               child: Image.network(
-                value,
+                (kIsWeb && p != null) ? p : value,
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
@@ -641,11 +650,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           builder: (ctx, snap) {
             final path = snap.data;
             if (path != null && path.isNotEmpty) {
-              final f = File(path);
-              if (f.existsSync()) {
+              if (PlatformUtils.fileExistsSync(path)) {
                 return ClipOval(
                   child: Image(
-                    image: FileImage(f),
+                    image: localFileImage(path),
                     width: size,
                     height: size,
                     fit: BoxFit.cover,
@@ -712,7 +720,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               children: [
             // Fixed header + search
             Padding(
-              padding: EdgeInsets.fromLTRB(_isDesktop ? 12 : 16, _isDesktop ? 10 : 4, _isDesktop ? 12 : 16, 0),
+              padding: EdgeInsets.fromLTRB(16, _isDesktop ? 10 : 4, 16, 0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -978,7 +986,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               }(),
             ),
 
-            if (widget.showBottomBar && (!widget.embedded || !_isDesktop)) Container(
+            if (widget.showBottomBar && (!widget.embedded || !_isDesktop || kIsWeb)) Container(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
               decoration: BoxDecoration(
                 color: widget.embedded ? Colors.transparent : cs.surface,
@@ -1743,8 +1751,35 @@ extension on _SideDrawerState {
 
   Future<void> _pickLocalImage(BuildContext context) async {
     if (kIsWeb) {
-      await _inputAvatarUrl(context);
-      return;
+      try {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          withData: true,
+        );
+        if (!mounted) return;
+        if (result == null || result.files.isEmpty) return;
+        final f = result.files.first;
+        final bytes = f.bytes;
+        if (bytes == null || bytes.isEmpty) {
+          await _inputAvatarUrl(context);
+          return;
+        }
+
+        final settings = context.read<SettingsProvider>();
+        final key = settings.currentModelProvider;
+        final accessCode = (key == null) ? null : settings.getProviderConfig(key).apiKey;
+
+        final url = await UploadService.uploadBytes(
+          filename: f.name.isNotEmpty ? f.name : 'avatar.png',
+          bytes: bytes,
+          accessCode: accessCode,
+        );
+        await context.read<UserProvider>().setAvatarUrl(url);
+        return;
+      } catch (_) {
+        await _inputAvatarUrl(context);
+        return;
+      }
     }
     try {
       final picker = ImagePicker();
@@ -1900,9 +1935,9 @@ extension on _SideDrawerState {
 
     Widget buildTile(Assistant a) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: AssistantInlineTile(
-          avatar: _assistantAvatar(context, a, size: _isDesktop ? 36 : 40),
+          avatar: _assistantAvatar(context, a, size: _isDesktop ? 28 : 32),
           name: a.name,
           textColor: textBase2,
           embedded: widget.embedded,
@@ -2000,22 +2035,21 @@ extension on _SideDrawerState {
   }
 
   Widget _buildNewAssistantButton(BuildContext context) {
-    final size = _isDesktop ? 36.0 : 40.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
       child: AssistantInlineTile(
         avatar: Container(
-          width: size,
-          height: size,
+          width: _isDesktop ? 28 : 32,
+          height: _isDesktop ? 28 : 32,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
+            shape: BoxShape.circle,
             border: Border.all(
               color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
               width: 1,
             ),
           ),
           alignment: Alignment.center,
-          child: Icon(Lucide.Plus, size: 18, color: Theme.of(context).colorScheme.primary),
+          child: Icon(Lucide.Plus, size: 16, color: Theme.of(context).colorScheme.primary),
         ),
         name: AppLocalizations.of(context)!.assistantProviderNewAssistantName,
         textColor: Theme.of(context).colorScheme.primary,

@@ -7,24 +7,21 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
-import '../../../utils/app_dirs.dart';
 import '../../../shared/responsive/breakpoints.dart';
 import 'dart:async';
-
-import 'dart:io' show File, Directory, Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/models/chat_input_data.dart';
 import '../../../utils/clipboard_images.dart';
+import '../../../utils/platform_utils.dart';
+import '../../../utils/local_image_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../desktop/desktop_context_menu.dart';
+import 'clipboard_image_persister.dart';
 
 class ChatInputBarController {
   _ChatInputBarState? _state;
@@ -192,8 +189,11 @@ class _ChatInputBarState extends State<ChatInputBar> {
   void _removeImageAt(int index) async {
     final path = _images[index];
     setState(() => _images.removeAt(index));
-    // best-effort delete
-    try { final f = File(path); if (await f.exists()) { await f.delete(); } } catch (_) {}
+    // best-effort delete (IO only; web is no-op)
+    try {
+      // ignore: unawaited_futures
+      PlatformUtils.deleteFile(path);
+    } catch (_) {}
   }
 
   @override
@@ -285,7 +285,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     // Enhance hardware keyboard behavior
     final w = MediaQuery.sizeOf(node.context!).width;
     final isTabletOrDesktop = w >= AppBreakpoints.tablet;
-    final isIosTablet = (!kIsWeb) && Platform.isIOS && isTabletOrDesktop;
+    final isIosTablet = (!kIsWeb) && defaultTargetPlatform == TargetPlatform.iOS && isTabletOrDesktop;
 
     final isDown = event is RawKeyDownEvent;
     final key = event.logicalKey;
@@ -391,41 +391,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   Future<List<String>> _persistClipboardImages(List<String> srcPaths) async {
-    try {
-      final root = await AppDirs.dataRoot();
-      final dir = Directory(p.join(root.path, 'upload'));
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      final out = <String>[];
-      int i = 0;
-      for (var raw in srcPaths) {
-        try {
-          // Normalize path (strip file:// if present)
-          final src = raw.startsWith('file://') ? raw.substring(7) : raw;
-          // If already under Documents/upload, just keep it
-          if (src.contains('/Documents/upload/')) {
-            out.add(src);
-            continue;
-          }
-          final ext = p.extension(src).isNotEmpty ? p.extension(src) : '.png';
-          final name = 'paste_${DateTime.now().millisecondsSinceEpoch}_${i++}$ext';
-          final destPath = p.join(dir.path, name);
-          final from = File(src);
-          if (await from.exists()) {
-            await File(destPath).writeAsBytes(await from.readAsBytes());
-            // Best-effort cleanup of the temporary source
-            try { await from.delete(); } catch (_) {}
-            out.add(destPath);
-          }
-        } catch (_) {
-          // skip single file errors
-        }
-      }
-      return out;
-    } catch (_) {
-      return const [];
-    }
+    return persistClipboardImages(srcPaths);
   }
 
   void _moveCaret(int dir, {bool extend = false, bool byWord = false}) {
@@ -521,7 +487,9 @@ class _ChatInputBarState extends State<ChatInputBar> {
                             onTap: () {
                               setState(() => _docs.removeAt(idx));
                               // best-effort delete persisted attachment
-                              try { final f = File(d.path); if (f.existsSync()) { f.deleteSync(); } } catch (_) {}
+                              try {
+                                PlatformUtils.deleteFileSync(d.path);
+                              } catch (_) {}
                             },
                             child: const Icon(Icons.close, size: 16),
                           ),
@@ -552,32 +520,52 @@ class _ChatInputBarState extends State<ChatInputBar> {
                           child: SizedBox(
                             width: 64,
                             height: 64,
-                            child: kIsWeb && path.startsWith('data:')
-                                ? Image.memory(
-                                    base64Decode(path.substring(path.indexOf('base64,') + 7)),
+                            child: (() {
+                              if (path.startsWith('data:')) {
+                                return Image.memory(
+                                  base64Decode(path.substring(path.indexOf('base64,') + 7)),
+                                  width: 64,
+                                  height: 64,
+                                  fit: BoxFit.cover,
+                                );
+                              }
+                              final lower = path.toLowerCase();
+                              final isUrl = lower.startsWith('http://') || lower.startsWith('https://');
+                              if (isUrl) {
+                                return Image.network(
+                                  path,
+                                  width: 64,
+                                  height: 64,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
                                     width: 64,
                                     height: 64,
-                                    fit: BoxFit.cover,
-                                  )
-                                : (kIsWeb
-                                    ? Container(
-                                        width: 64,
-                                        height: 64,
-                                        color: Colors.grey.shade300,
-                                        child: const Icon(Icons.image_not_supported),
-                                      )
-                                    : Image.file(
-                                        File(path),
-                                        width: 64,
-                                        height: 64,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Container(
-                                          width: 64,
-                                          height: 64,
-                                          color: Colors.black12,
-                                          child: const Icon(Icons.broken_image),
-                                        ),
-                                      )),
+                                    color: Colors.black12,
+                                    child: const Icon(Icons.broken_image),
+                                  ),
+                                );
+                              }
+                              if (kIsWeb) {
+                                return Container(
+                                  width: 64,
+                                  height: 64,
+                                  color: Colors.grey.shade300,
+                                  child: const Icon(Icons.image_not_supported),
+                                );
+                              }
+                              return Image(
+                                image: localFileImage(path),
+                                width: 64,
+                                height: 64,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 64,
+                                  height: 64,
+                                  color: Colors.black12,
+                                  child: const Icon(Icons.broken_image),
+                                ),
+                              );
+                            })(),
                           ),
                         ),
                         Positioned(
@@ -649,9 +637,13 @@ class _ChatInputBarState extends State<ChatInputBar> {
                             // On iOS, show "Send" on the return key and submit on tap.
                             // Still keep multiline so pasted text preserves line breaks.
                             keyboardType: TextInputType.multiline,
-                            textInputAction: (!kIsWeb && Platform.isIOS) ? TextInputAction.send : TextInputAction.newline,
-                            onSubmitted: (!kIsWeb && Platform.isIOS) ? (_) => _handleSend() : null,
-                            contextMenuBuilder: (!kIsWeb && Platform.isIOS)
+                            textInputAction: (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
+                                ? TextInputAction.send
+                                : TextInputAction.newline,
+                            onSubmitted: (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
+                                ? (_) => _handleSend()
+                                : null,
+                            contextMenuBuilder: (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
                                 ? (BuildContext context, EditableTextState state) {
                                     final l10n = AppLocalizations.of(context)!;
                                     return AdaptiveTextSelectionToolbar.buttonItems(
@@ -1325,4 +1317,3 @@ class _ReasoningButton extends StatelessWidget {
     );
   }
 }
-

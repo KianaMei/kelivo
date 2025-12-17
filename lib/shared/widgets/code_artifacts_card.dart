@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:simple_icons/simple_icons.dart';
 import '../../icons/lucide_adapter.dart';
 import '../../l10n/app_localizations.dart';
 import 'snackbar.dart';
+import '../../utils/text_file_exporter.dart';
 
 /// 语言配置：图标和显示名
 class LanguageConfig {
@@ -491,14 +490,12 @@ class _CodeArtifactsCardState extends State<CodeArtifactsCard> {
       final ext = _getFileExtension();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'code_$timestamp.$ext';
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsString(widget.code);
+      final saved = await saveTextToDocuments(fileName: fileName, content: widget.code);
       
       if (mounted) {
         showAppSnackBar(
           context,
-          message: 'Saved to ${file.path}',
+          message: kIsWeb ? 'Downloaded $fileName' : 'Saved to $saved',
           type: NotificationType.success,
         );
       }
@@ -530,13 +527,7 @@ class _CodeArtifactsCardState extends State<CodeArtifactsCard> {
     if (widget.language.toLowerCase() != 'html') return;
     
     try {
-      final dir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${dir.path}/preview_$timestamp.html');
-      await file.writeAsString(widget.code);
-      
-      final uri = Uri.file(file.path);
-      await launchUrl(uri);
+      await openHtmlExternally(htmlContent: widget.code);
     } catch (e) {
       if (mounted) {
         showAppSnackBar(

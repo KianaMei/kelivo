@@ -1,22 +1,23 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:characters/characters.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../../core/services/http/dio_client.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../utils/brand_assets.dart';
+import '../../../core/services/upload/upload_service.dart';
 
 /// Input row widget for forms.
 class InputRow extends StatelessWidget {
@@ -508,20 +509,34 @@ Future<void> pickLocalImageForAssistant(BuildContext context, Assistant a) async
     final res = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
     if (res == null || res.files.isEmpty) return;
     final f = res.files.first;
-    Uint8List? bytes = f.bytes;
-    String? path = f.path;
-    if (bytes == null && (path == null || path.isEmpty)) return;
-    if (bytes == null && path != null) {
-      try {
-        bytes = await File(path).readAsBytes();
-      } catch (_) {}
+    final bytes = f.bytes;
+    final path = f.path;
+
+    if (kIsWeb) {
+      if (bytes == null) {
+        showAppSnackBar(context, message: 'Unable to read image', type: NotificationType.error);
+        return;
+      }
+      final sp = context.read<SettingsProvider>();
+      final providerKey = sp.currentModelProvider;
+      final accessCode = providerKey != null ? sp.getProviderConfig(providerKey).apiKey : null;
+      final url = await UploadService.uploadBytes(
+        bytes: Uint8List.fromList(bytes),
+        fileName: 'assistant_avatar_${a.id}_${DateTime.now().millisecondsSinceEpoch}.${extFromName(f.name)}',
+        contentType: mimeFromName(f.name),
+        accessCode: accessCode,
+      );
+      await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: url));
+      return;
     }
-    if (bytes == null) return;
-    final tmp = await getTemporaryDirectory();
-    final ext = extFromName(f.name);
-    final tmpFile = File('${tmp.path}/assistant_avatar_${a.id}_${DateTime.now().millisecondsSinceEpoch}.$ext');
-    await tmpFile.writeAsBytes(bytes);
-    await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: tmpFile.path));
+
+    if (path == null || path.isEmpty) {
+      final l10n = AppLocalizations.of(context)!;
+      showAppSnackBar(context, message: l10n.assistantEditGeneralErrorMessage, type: NotificationType.error);
+      await inputAvatarUrlForAssistant(context, a);
+      return;
+    }
+    await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: path));
     return;
   } on PlatformException catch (e) {
     final l10n = AppLocalizations.of(context)!;
@@ -544,6 +559,16 @@ String extFromName(String name) {
   if (lower.endsWith('.webp')) return 'webp';
   if (lower.endsWith('.gif')) return 'gif';
   return 'jpg';
+}
+
+/// Get MIME type from file name.
+String mimeFromName(String name) {
+  final lower = name.toLowerCase();
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  return 'image/*';
 }
 
 /// Glass morphism context menu for assistant avatar.

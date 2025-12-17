@@ -7,14 +7,16 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/assistant.dart';
-import 'dart:io' show File, Platform;
 import 'package:characters/characters.dart';
 import 'assistant_settings_edit_page.dart';
 import '../../../utils/avatar_cache.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../utils/local_image_provider.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../core/services/haptics.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import '../../../desktop/window_title_bar.dart';
+import '../../../desktop/window_title_bar.dart'
+    if (dart.library.html) '../../../desktop/window_title_bar_stub.dart';
 
 class AssistantSettingsPage extends StatelessWidget {
   const AssistantSettingsPage({super.key, this.embedded = false});
@@ -130,7 +132,7 @@ class AssistantSettingsPage extends StatelessWidget {
               },
             ),
           ),
-          if (defaultTargetPlatform == TargetPlatform.windows)
+          if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
             const WindowCaptionActions(),
           const SizedBox(width: 8),
         ],
@@ -211,7 +213,10 @@ class _AssistantCard extends StatelessWidget {
     );
 
     // Wrap with right-click menu for desktop platforms
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.macOS)) {
       cardContent = GestureDetector(
         onSecondaryTapDown: (details) {
           _showContextMenu(context, details.globalPosition, l10n);
@@ -544,10 +549,10 @@ class _AssistantAvatar extends StatelessWidget {
           future: AvatarCache.getPath(av),
           builder: (ctx, snap) {
             final p = snap.data;
-              if (p != null && !kIsWeb && File(p).existsSync()) {
+              if (p != null && !kIsWeb && PlatformUtils.fileExistsSync(p)) {
               return ClipOval(
                 child: Image(
-                  image: FileImage(File(p)),
+                  image: localFileImage(p),
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
@@ -577,9 +582,10 @@ class _AssistantAvatar extends StatelessWidget {
           builder: (ctx, snap) {
             if (!snap.hasData || snap.data == null) return _initial(cs);
             final absPath = snap.data!;
+            if (!PlatformUtils.fileExistsSync(absPath)) return _initial(cs);
             return ClipOval(
               child: Image(
-                image: FileImage(File(absPath)),
+                image: localFileImage(absPath),
                 width: size,
                 height: size,
                 fit: BoxFit.cover,

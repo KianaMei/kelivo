@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'settings_provider.dart';
 import '../services/api_key_manager.dart';
@@ -339,7 +338,7 @@ class ProviderManager {
         print('[TEST API] Response Body: ${resBody.length > 500 ? resBody.substring(0, 500) + '...' : resBody}');
         
         if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
-          throw HttpException('HTTP ${res.statusCode}: $resBody');
+          throw Exception('HTTP ${res.statusCode}: $resBody');
         }
         return;
       } else if (kind == ProviderKind.claude) {
@@ -359,8 +358,10 @@ class ProviderManager {
         final extra = _customBody(cfg, modelId);
         if (extra.isNotEmpty) (body as Map<String, dynamic>).addAll(extra);
         final headers = <String, String>{
-          'x-api-key': cfg.apiKey,
+          'Authorization': 'Bearer ${_effectiveApiKey(cfg)}',  // 代理服务需要的认证
+          'x-api-key': _effectiveApiKey(cfg),
           'anthropic-version': ClaudeProvider.anthropicVersion,
+          'anthropic-dangerous-direct-browser-access': 'true',  // 浏览器访问许可
           'Content-Type': 'application/json',
         };
         headers.addAll(_customHeaders(cfg, modelId));
@@ -380,7 +381,7 @@ class ProviderManager {
         print('[TEST API] Response Body: ${resBody.length > 500 ? resBody.substring(0, 500) + '...' : resBody}');
         
         if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
-          throw HttpException('HTTP ${res.statusCode}: $resBody');
+          throw Exception('HTTP ${res.statusCode}: $resBody');
         }
         return;
       } else if (kind == ProviderKind.google) {
@@ -438,7 +439,7 @@ class ProviderManager {
         final res = await dio.post(url, data: body, options: Options(headers: headers));
         if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
           final resBody = res.data is String ? res.data : jsonEncode(res.data);
-          throw HttpException('HTTP ${res.statusCode}: $resBody');
+          throw Exception('HTTP ${res.statusCode}: $resBody');
         }
         return;
       }

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -19,6 +18,8 @@ import '../../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../../shared/widgets/snackbar.dart';
 import '../../../../shared/widgets/typing_indicator.dart';
 import '../../../../utils/avatar_cache.dart';
+import '../../../../utils/local_image_provider.dart';
+import '../../../../utils/platform_utils.dart';
 import '../../../../utils/safe_tooltip.dart';
 import 'message_models.dart';
 import 'message_parts.dart';
@@ -149,8 +150,8 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
           future: AvatarCache.getPath(av),
           builder: (ctx, snap) {
             final p = snap.data;
-            if (p != null && !kIsWeb && File(p).existsSync()) {
-              return ClipOval(child: Image.file(File(p), width: 32, height: 32, fit: BoxFit.cover));
+            if (p != null && !kIsWeb && PlatformUtils.fileExistsSync(p)) {
+              return ClipOval(child: Image(image: localFileImage(p), width: 32, height: 32, fit: BoxFit.cover));
             }
             if (p != null && kIsWeb && p.startsWith('data:')) {
               return ClipOval(child: Image.network(p, width: 32, height: 32, fit: BoxFit.cover));
@@ -166,8 +167,9 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
           future: AssistantProvider.resolveToAbsolutePath(av),
           builder: (ctx, snap) {
             if (!snap.hasData || snap.data == null) return _assistantInitial(cs);
+            if (!PlatformUtils.fileExistsSync(snap.data!)) return _assistantInitial(cs);
             return ClipOval(
-              child: Image.file(File(snap.data!), width: 32, height: 32, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _assistantInitial(cs)),
+              child: Image(image: localFileImage(snap.data!), width: 32, height: 32, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _assistantInitial(cs)),
             );
           },
         );

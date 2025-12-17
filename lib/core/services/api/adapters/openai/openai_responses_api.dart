@@ -2,13 +2,13 @@
 /// Handles streaming for OpenAI Responses API format.
 
 import 'dart:convert';
-import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../providers/model_provider.dart';
 import '../../../../models/token_usage.dart';
 import '../../helpers/chat_api_helper.dart';
 import '../../models/chat_stream_chunk.dart';
+import '../../../http/streaming_http_client.dart';
 
 /// Handler for OpenAI Responses API streaming.
 class OpenAIResponsesApi {
@@ -185,26 +185,18 @@ class OpenAIResponsesApi {
       });
     }
 
-    // Send request with Dio
-    final Response<ResponseBody> response;
-    try {
-      response = await dio.post<ResponseBody>(
-        url.toString(),
-        data: body,
-        options: Options(
-          headers: headers,
-          responseType: ResponseType.stream,
-          validateStatus: (status) => true,
-        ),
-      );
-    } on DioException catch (e) {
-      throw HttpException('Dio error: ${e.message}');
-    }
+    // Send request with streaming HTTP client (works on both IO and Web)
+    final response = await postJsonStream(
+      dio: dio,
+      url: url,
+      headers: headers,
+      body: body,
+    );
 
-    if (response.statusCode == null || response.statusCode! < 200 || response.statusCode! >= 300) {
-      final errorBytes = await response.data?.stream.toList() ?? [];
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final errorBytes = await response.stream.toList();
       final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
-      throw HttpException('HTTP ${response.statusCode}: $errorBody');
+      throw Exception('HTTP ${response.statusCode}: $errorBody');
     }
 
     // Process stream
@@ -213,7 +205,7 @@ class OpenAIResponsesApi {
       config: config,
       modelId: modelId,
       messages: messages,
-      responseStream: response.data!.stream,
+      responseStream: response.stream,
       url: url,
       headers: headers,
       toolList: toolList,
@@ -539,25 +531,17 @@ class OpenAIResponsesApi {
         if (toolList.isNotEmpty) 'tool_choice': 'auto',
       };
 
-      final Response<ResponseBody> followUpResp;
-      try {
-        followUpResp = await dio.post<ResponseBody>(
-          url.toString(),
-          data: followUpBody,
-          options: Options(
-            headers: headers,
-            responseType: ResponseType.stream,
-            validateStatus: (status) => true,
-          ),
-        );
-      } on DioException catch (e) {
-        throw HttpException('Dio error: ${e.message}');
-      }
+      final followUpResp = await postJsonStream(
+        dio: dio,
+        url: url,
+        headers: headers,
+        body: followUpBody,
+      );
 
-      if (followUpResp.statusCode == null || followUpResp.statusCode! < 200 || followUpResp.statusCode! >= 300) {
-        final errorBytes = await followUpResp.data?.stream.toList() ?? [];
+      if (followUpResp.statusCode < 200 || followUpResp.statusCode >= 300) {
+        final errorBytes = await followUpResp.stream.toList();
         final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
-        throw HttpException('HTTP ${followUpResp.statusCode}: $errorBody');
+        throw Exception('HTTP ${followUpResp.statusCode}: $errorBody');
       }
 
       // Clear accumulators
@@ -565,7 +549,7 @@ class OpenAIResponsesApi {
       itemIdToCallId.clear();
       String followUpContent = '';
 
-      final followUpChunks = followUpResp.data!.stream.cast<List<int>>().transform(utf8.decoder);
+      final followUpChunks = followUpResp.stream.cast<List<int>>().transform(utf8.decoder);
       String followUpBuffer = '';
 
       await for (final chunk in followUpChunks) {

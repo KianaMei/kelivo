@@ -6,7 +6,7 @@ import 'desktop_nav_rail.dart';
 import 'desktop_chat_page.dart';
 import 'desktop_translate_page.dart';
 import 'desktop_api_test_page.dart';
-import 'window_title_bar.dart';
+import 'window_title_bar.dart' if (dart.library.html) 'window_title_bar_stub.dart';
 import 'desktop_settings_page.dart';
 import '../core/utils/http_logger.dart';
 

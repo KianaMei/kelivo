@@ -5,9 +5,6 @@ import 'l10n/app_localizations.dart';
 import 'features/home/pages/home_page.dart';
 import 'desktop/desktop_home_page.dart';
 import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart';
-import 'desktop/desktop_window_controller.dart';
-import 'utils/platform_utils.dart';
 // import 'package:logging/logging.dart' as logging;
 // Theme is now managed in SettingsProvider
 import 'theme/theme_factory.dart';
@@ -27,13 +24,11 @@ import 'core/providers/memory_provider.dart';
 import 'core/providers/backup_provider.dart';
 import 'core/services/chat/chat_service.dart';
 import 'core/services/mcp/mcp_tool_service.dart';
-import 'utils/sandbox_path_resolver.dart';
-import 'utils/app_dirs.dart';
 import 'shared/widgets/snackbar.dart';
 import 'utils/restart_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:system_fonts/system_fonts.dart';
 import 'core/services/http/dio_client.dart';
+import 'bootstrap/platform_bootstrap.dart';
 
 final RouteObserver<ModalRoute<dynamic>> routeObserver = RouteObserver<ModalRoute<dynamic>>();
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -45,57 +40,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize global Dio HTTP client
   initDio();
-  // Init app data directories and migrate legacy Windows data if needed
-  await AppDirs.init();
-  // Desktop (Windows) window setup: hide native title bar for custom Flutter bar
-  await _initDesktopWindow();
-  // Preload system fonts on desktop so saved font selections render on launch
-  await _preloadDesktopSystemFonts();
+  // Platform-specific bootstrap (IO: dirs/window/fonts/path fix, Web: minimal)
+  await platformBootstrap();
   // Debug logging and global error handlers were enabled previously for diagnosis.
   // They are commented out now per request to reduce log noise.
   // FlutterError.onError = (FlutterErrorDetails details) { ... };
   // WidgetsBinding.instance.platformDispatcher.onError = (Object error, StackTrace stack) { ... };
   // logging.Logger.root.level = logging.Level.ALL;
   // logging.Logger.root.onRecord.listen((rec) { ... });
-  // Cache current Documents directory to fix sandboxed absolute paths on iOS
-  await SandboxPathResolver.init();
-  // Enable edge-to-edge to allow content under system bars (Android)
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // Start app (no extra guarded zone logging)
   runApp(const RestartWidget(child: MyApp()));
-}
-
-Future<void> _initDesktopWindow() async {
-  if (kIsWeb || !PlatformUtils.isDesktop) return;
-
-  try {
-    if (PlatformUtils.isWindows) {
-      // Windows-specific initialization
-      await PlatformUtils.callPlatformMethod(() async {
-        await windowManager.ensureInitialized();
-        await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-      });
-    }
-    // Initialize and show desktop window with persisted size/position
-    await DesktopWindowController.instance.initializeAndShow(title: 'Kelivo');
-  } catch (e) {
-    debugPrint('Desktop window initialization failed: $e');
-  }
-}
-
-Future<void> _preloadDesktopSystemFonts() async {
-  if (kIsWeb) return;
-  final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
-      defaultTargetPlatform == TargetPlatform.windows ||
-      defaultTargetPlatform == TargetPlatform.linux;
-  if (!isDesktop) return;
-  try {
-    final sf = SystemFonts();
-    // Best-effort: ensure system font families are registered before first frame
-    await sf.loadAllFonts();
-  } catch (_) {
-    // Ignore failures; fallback fonts will still work
-  }
 }
 
 class BackIntent extends Intent {
@@ -334,8 +288,8 @@ class MyApp extends StatelessWidget {
 }
 
 Widget _selectHome() {
-  // Mobile remains the default platform. Desktop is an added platform.
-  if (kIsWeb) return const HomePage();
+  // Web runs in desktop browsers - use desktop layout
+  if (kIsWeb) return const DesktopHomePage();
   final isDesktop = defaultTargetPlatform == TargetPlatform.macOS ||
       defaultTargetPlatform == TargetPlatform.windows ||
       defaultTargetPlatform == TargetPlatform.linux;

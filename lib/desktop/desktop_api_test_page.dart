@@ -11,8 +11,6 @@ import '../icons/lucide_adapter.dart' as lucide;
 import '../core/providers/settings_provider.dart';
 import '../core/models/provider_config.dart';
 import '../core/utils/tool_schema_sanitizer.dart' show ProviderKind;
-import '../core/models/chat_message.dart';
-import '../features/chat/widgets/chat_message_widget.dart';
 import 'add_provider_dialog.dart';
 
 /// Desktop API Test Page: Left panel for API config, Right panel for chat testing.
@@ -23,17 +21,12 @@ class DesktopApiTestPage extends StatefulWidget {
   State<DesktopApiTestPage> createState() => _DesktopApiTestPageState();
 }
 
-class _DesktopApiTestPageState extends State<DesktopApiTestPage>
-    with TickerProviderStateMixin {
+class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
   final TextEditingController _apiKeyController = TextEditingController();
   final TextEditingController _baseUrlController = TextEditingController();
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
   final FocusNode _inputFocus = FocusNode();
-
-  // Thinking pulse animation
-  late AnimationController _thinkingPulseController;
-  late Animation<double> _thinkingPulseAnimation;
 
   String _selectedProvider = 'openai';
   String? _selectedModel;
@@ -45,7 +38,6 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
   bool _isGenerating = false;
   String _streamingContent = '';
   StreamSubscription? _streamSubscription;
-  bool _anthropicInThinking = false;
 
   static const _providers = <String, _ProviderConfig>{
     'openai': _ProviderConfig(
@@ -83,7 +75,6 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
   @override
   void initState() {
     super.initState();
-    _initThinkingAnimation();
     _loadSavedConfig();
   }
 
@@ -168,7 +159,6 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
 
   @override
   void dispose() {
-    _thinkingPulseController.dispose();
     _apiKeyController.dispose();
     _baseUrlController.dispose();
     _inputController.dispose();
@@ -176,86 +166,6 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
     _inputFocus.dispose();
     _streamSubscription?.cancel();
     super.dispose();
-  }
-
-  void _initThinkingAnimation() {
-    _thinkingPulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _thinkingPulseAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _thinkingPulseController,
-        curve: Curves.easeInOut,
-      ),
-    );
-    _thinkingPulseController.repeat();
-  }
-
-  /// 脉冲条 Widget：思考中动效
-  Widget _buildThinkingPulseBar(ColorScheme cs, bool isDark) {
-    return AnimatedBuilder(
-      animation: _thinkingPulseAnimation,
-      builder: (context, child) {
-        final progress = _thinkingPulseAnimation.value;
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: Container(
-            height: 4,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(2),
-              color: isDark
-                  ? Colors.white.withOpacity(0.1)
-                  : cs.primary.withOpacity(0.1),
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final barWidth = constraints.maxWidth * 0.3;
-                final translateX = (constraints.maxWidth + barWidth) * progress - barWidth;
-                return Stack(
-                  clipBehavior: Clip.hardEdge,
-                  children: [
-                    Positioned(
-                      left: translateX,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: barWidth,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(2),
-                          gradient: LinearGradient(
-                            colors: [
-                              cs.primary.withOpacity(0.0),
-                              cs.primary.withOpacity(0.8),
-                              cs.primary.withOpacity(0.0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// 加载指示器：正在等待响应时显示脉冲条
-  Widget _buildLoadingIndicator(ColorScheme cs, bool isDark) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        color: isDark
-            ? cs.surfaceContainerHighest.withOpacity(0.5)
-            : cs.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: _buildThinkingPulseBar(cs, isDark),
-    );
   }
 
   void _onProviderChanged(String? value) {
@@ -302,8 +212,6 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
         headers['Authorization'] = 'Bearer $apiKey';  // 代理服务需要的认证
         headers['x-api-key'] = apiKey;
         headers['anthropic-version'] = '2023-06-01';
-        // Cherry Studio格式: 启用web-fetch、交错思考、大上下文
-        headers['anthropic-beta'] = 'web-fetch-2025-09-10,interleaved-thinking-2025-05-14,context-1m-2025-08-07';
         headers['anthropic-dangerous-direct-browser-access'] = 'true';  // 浏览器访问许可
       } else if (_selectedProvider == 'google') {
         // Google uses query param for API key
@@ -384,17 +292,15 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
         headers['Authorization'] = 'Bearer $apiKey';  // 代理服务需要的认证
         headers['x-api-key'] = apiKey;
         headers['anthropic-version'] = '2023-06-01';
-        // Cherry Studio格式: 启用web-fetch、交错思考、大上下文
-        headers['anthropic-beta'] = 'web-fetch-2025-09-10,interleaved-thinking-2025-05-14,context-1m-2025-08-07';
         headers['anthropic-dangerous-direct-browser-access'] = 'true';  // 浏览器访问许可
         body = {
           'model': _selectedModel,
           'max_tokens': 4096,
           'stream': true,
-          'messages': _messages.map((m) => <String, dynamic>{
+          'messages': _messages.map((m) => {
             'role': m.role,
-            'content': <Map<String, dynamic>>[
-              <String, dynamic>{'type': 'text', 'text': m.content}
+            'content': [
+              {'type': 'text', 'text': m.content}
             ]
           }).toList(),
         };
@@ -444,28 +350,8 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
               String? delta;
               
               if (_selectedProvider == 'anthropic') {
-                final t = (json['type'] ?? '').toString();
-                if (t == 'content_block_start') {
-                  final cb = json['content_block'];
-                  final cbType = (cb is Map) ? (cb['type'] ?? '').toString() : '';
-                  if (cbType == 'thinking') {
-                    if (!_anthropicInThinking) {
-                      _anthropicInThinking = true;
-                      delta = '<think>';
-                    }
-                  }
-                } else if (t == 'content_block_stop') {
-                  if (_anthropicInThinking) {
-                    _anthropicInThinking = false;
-                    delta = '</think>';
-                  }
-                } else if (t == 'content_block_delta') {
-                  final d = json['delta'];
-                  if (d is Map) {
-                    final thinking = d['thinking'] as String?;
-                    final text = d['text'] as String?;
-                    delta = thinking ?? text;
-                  }
+                if (json['type'] == 'content_block_delta') {
+                  delta = json['delta']?['text'] as String?;
                 }
               } else if (_selectedProvider == 'google') {
                 delta = json['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
@@ -481,10 +367,6 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
           }
         },
         onDone: () {
-          if (_anthropicInThinking) {
-            _anthropicInThinking = false;
-            _streamingContent += '</think>';
-          }
           if (_streamingContent.isNotEmpty) {
             setState(() {
               _messages.add(_TestMessage(role: 'assistant', content: _streamingContent));
@@ -497,10 +379,6 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
         },
         onError: (e) {
           setState(() {
-            if (_anthropicInThinking) {
-              _anthropicInThinking = false;
-              _streamingContent += '</think>';
-            }
             _messages.add(_TestMessage(role: 'system', content: 'Error: $e'));
             _isGenerating = false;
             _streamingContent = '';
@@ -519,10 +397,6 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
   void _stopGeneration() {
     _streamSubscription?.cancel();
     if (_streamingContent.isNotEmpty) {
-      if (_anthropicInThinking) {
-        _anthropicInThinking = false;
-        _streamingContent += '</think>';
-      }
       _messages.add(_TestMessage(role: 'assistant', content: _streamingContent));
     }
     setState(() {
@@ -607,19 +481,95 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
                 ),
                 // Scrollable config form
                 Expanded(
-                  child: Padding(
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Config form: fixed, always visible
-                        _buildConfigForm(cs, isDark, l10n),
-
-                        // Model list: fills remaining space and scrolls
-                        if (_availableModels.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          Expanded(child: _buildModelListCompact(cs, isDark)),
+                        // Provider selector (list)
+                        _buildCompactLabel(l10n.apiTestProviderLabel, cs),
+                        const SizedBox(height: 6),
+                        _buildProviderList(cs, isDark),
+                        const SizedBox(height: 12),
+                        // API Key
+                        _buildCompactLabel(l10n.apiTestApiKeyLabel, cs),
+                        const SizedBox(height: 6),
+                        _buildCompactTextField(
+                          controller: _apiKeyController,
+                          hintText: l10n.apiTestApiKeyHint,
+                          obscureText: false,
+                          cs: cs,
+                          isDark: isDark,
+                          onChanged: (_) => _onApiKeyChanged(),
+                        ),
+                        const SizedBox(height: 12),
+                        // Base URL
+                        _buildCompactLabel(l10n.apiTestBaseUrlLabel, cs),
+                        const SizedBox(height: 6),
+                        _buildCompactTextField(
+                          controller: _baseUrlController,
+                          hintText: l10n.apiTestBaseUrlHint,
+                          cs: cs,
+                          isDark: isDark,
+                          onChanged: (_) => _onBaseUrlChanged(),
+                        ),
+                        const SizedBox(height: 14),
+                        // Fetch models + Convert to provider buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildCompactButton(
+                                onPressed: _loadingModels ? null : _fetchModels,
+                                icon: _loadingModels ? null : lucide.Lucide.RefreshCw,
+                                label: l10n.apiTestFetchModels,
+                                isLoading: _loadingModels,
+                                cs: cs,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Tooltip(
+                              message: '转为供应商',
+                              child: Material(
+                                color: cs.primaryContainer.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(8),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: _convertToProvider,
+                                  child: Container(
+                                    width: 34,
+                                    height: 34,
+                                    alignment: Alignment.center,
+                                    child: Icon(lucide.Lucide.FolderPlus, size: 16, color: cs.primary),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_modelError != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: cs.errorContainer.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(_modelError!, style: TextStyle(fontSize: 11, color: cs.error)),
+                          ),
                         ],
+                        const SizedBox(height: 12),
+                        // Model list
+                        _buildModelListCompact(cs, isDark),
+                        if (_availableModels.isNotEmpty && _messages.isNotEmpty) const SizedBox(height: 12),
+                        // Clear chat button
+                        if (_messages.isNotEmpty)
+                          _buildCompactButton(
+                            onPressed: _clearChat,
+                            icon: lucide.Lucide.Trash2,
+                            label: l10n.apiTestClearChat,
+                            cs: cs,
+                            isPrimary: false,
+                          ),
                       ],
                     ),
                   ),
@@ -633,31 +583,23 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
               children: [
                 // Chat messages
                 Expanded(
-                  child: _messages.isEmpty && !_isGenerating
+                  child: _messages.isEmpty && _streamingContent.isEmpty
                       ? _buildEmptyState(l10n, cs)
                       : ListView.builder(
                           controller: _chatScrollController,
                           padding: const EdgeInsets.all(20),
-                          itemCount: _messages.length +
-                              // Loading indicator: generating but no content yet
-                              ((_isGenerating && _streamingContent.isEmpty) ? 1 : 0) +
-                              // Streaming content
-                              (_streamingContent.isNotEmpty ? 1 : 0),
+                          itemCount: _messages.length + (_streamingContent.isNotEmpty ? 1 : 0),
                           itemBuilder: (context, index) {
                             if (index < _messages.length) {
                               return _buildMessageBubble(_messages[index], cs, isDark: isDark);
+                            } else {
+                              return _buildMessageBubble(
+                                _TestMessage(role: 'assistant', content: _streamingContent),
+                                cs,
+                                isDark: isDark,
+                                isStreaming: true,
+                              );
                             }
-                            // Loading pulse bar (waiting for response)
-                            if (_isGenerating && _streamingContent.isEmpty && index == _messages.length) {
-                              return _buildLoadingIndicator(cs, isDark);
-                            }
-                            // Streaming content
-                            return _buildMessageBubble(
-                              _TestMessage(role: 'assistant', content: _streamingContent),
-                              cs,
-                              isDark: isDark,
-                              isStreaming: true,
-                            );
                           },
                         ),
                 ),
@@ -862,70 +804,70 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
       children: [
         _buildCompactLabel(AppLocalizations.of(context)!.apiTestModelLabel, cs),
         const SizedBox(height: 6),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withOpacity(0.03)
-                  : cs.surfaceVariant.withOpacity(0.25),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isDark ? Colors.white.withOpacity(0.05) : cs.outlineVariant.withOpacity(0.2),
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: ListView.builder(
-                padding: EdgeInsets.zero,
-                itemCount: _availableModels.length,
-                itemBuilder: (context, index) {
-                  final model = _availableModels[index];
-                  final isSelected = model == _selectedModel;
-                  return Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        setState(() => _selectedModel = model);
-                        _saveModels();
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? cs.primary.withOpacity(isDark ? 0.2 : 0.1)
-                              : Colors.transparent,
-                          border: Border(
-                            left: BorderSide(
-                              color: isSelected ? cs.primary : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                model,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.8),
-                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (isSelected)
-                              Icon(lucide.Lucide.Check, size: 12, color: cs.primary),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+        Container(
+          constraints: const BoxConstraints(maxHeight: 180),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withOpacity(0.03)
+                : cs.surfaceVariant.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isDark ? Colors.white.withOpacity(0.05) : cs.outlineVariant.withOpacity(0.2),
             ),
           ),
-        )
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: _availableModels.length,
+              itemBuilder: (context, index) {
+                final model = _availableModels[index];
+                final isSelected = model == _selectedModel;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _selectedModel = model);
+                      _saveModels();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? cs.primary.withOpacity(isDark ? 0.2 : 0.1)
+                            : Colors.transparent,
+                        border: Border(
+                          left: BorderSide(
+                            color: isSelected ? cs.primary : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              model,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.8),
+                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(lucide.Lucide.Check, size: 12, color: cs.primary),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1039,151 +981,117 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage>
   }
 
   Widget _buildMessageBubble(_TestMessage message, ColorScheme cs, {bool isDark = false, bool isStreaming = false}) {
-    final normalizedRole = message.role == 'user' ? 'user' : 'assistant';
-    final content = message.content + (isStreaming ? ' ' : '');
-
-    final chatMessage = ChatMessage(
-      role: normalizedRole,
-      content: content,
-      conversationId: 'api_test',
-      isStreaming: isStreaming,
-      providerId: normalizedRole == 'assistant' ? _selectedProvider : null,
-      modelId: normalizedRole == 'assistant' ? _selectedModel : null,
-    );
-
-    // 找到这条消息在列表中的位置，用于重新生成
-    final messageIndex = _messages.indexOf(message);
-    final isAssistant = normalizedRole == 'assistant' && !isStreaming;
+    final isUser = message.role == 'user';
+    final isSystem = message.role == 'system';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: ChatMessageWidget(
-        message: chatMessage,
-        showModelIcon: false,
-        showTokenStats: false,
-        showUserAvatar: true,
-        onRegenerate: isAssistant && !_isGenerating
-            ? () => _regenerateFromMessage(messageIndex)
-            : null,
-      ),
-    );
-  }
-
-  /// 从指定位置重新生成
-  void _regenerateFromMessage(int assistantIndex) {
-    if (assistantIndex < 0 || assistantIndex >= _messages.length) return;
-    if (_isGenerating) return;
-
-    // 找到这条 assistant 消息对应的 user 消息
-    int userIndex = -1;
-    for (int i = assistantIndex - 1; i >= 0; i--) {
-      if (_messages[i].role == 'user') {
-        userIndex = i;
-        break;
-      }
-    }
-    if (userIndex < 0) return;
-
-    final userMessage = _messages[userIndex].content;
-
-    // 删除从 user 消息之后的所有消息（包括这条 assistant）
-    setState(() {
-      _messages.removeRange(userIndex, _messages.length);
-    });
-
-    // 重新发送
-    _inputController.text = userMessage;
-    _sendMessage();
-  }
-
-  Widget _buildConfigForm(ColorScheme cs, bool isDark, AppLocalizations l10n) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Provider selector (list)
-        _buildCompactLabel(l10n.apiTestProviderLabel, cs),
-        const SizedBox(height: 6),
-        _buildProviderList(cs, isDark),
-        const SizedBox(height: 12),
-        // API Key
-        _buildCompactLabel(l10n.apiTestApiKeyLabel, cs),
-        const SizedBox(height: 6),
-        _buildCompactTextField(
-          controller: _apiKeyController,
-          hintText: l10n.apiTestApiKeyHint,
-          obscureText: false,
-          cs: cs,
-          isDark: isDark,
-          onChanged: (_) => _onApiKeyChanged(),
-        ),
-        const SizedBox(height: 12),
-        // Base URL
-        _buildCompactLabel(l10n.apiTestBaseUrlLabel, cs),
-        const SizedBox(height: 6),
-        _buildCompactTextField(
-          controller: _baseUrlController,
-          hintText: l10n.apiTestBaseUrlHint,
-          cs: cs,
-          isDark: isDark,
-          onChanged: (_) => _onBaseUrlChanged(),
-        ),
-        const SizedBox(height: 14),
-        // Fetch models + Convert to provider buttons
-        Row(
-          children: [
-            Expanded(
-              child: _buildCompactButton(
-                onPressed: _loadingModels ? null : _fetchModels,
-                icon: _loadingModels ? null : lucide.Lucide.RefreshCw,
-                label: l10n.apiTestFetchModels,
-                isLoading: _loadingModels,
-                cs: cs,
+      child: Row(
+        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isUser) ...[
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: isSystem
+                    ? LinearGradient(
+                        colors: [cs.error.withOpacity(0.2), cs.errorContainer],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : LinearGradient(
+                        colors: [cs.primary.withOpacity(0.3), cs.primaryContainer],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isSystem ? cs.error : cs.primary).withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                isSystem ? lucide.Lucide.AlertCircle : lucide.Lucide.Bot,
+                size: 18,
+                color: isSystem ? cs.error : cs.primary,
               ),
             ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: '转为供应商',
-              child: Material(
-                color: cs.primaryContainer.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: _convertToProvider,
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    child: Icon(lucide.Lucide.FolderPlus, size: 16, color: cs.primary),
+            const SizedBox(width: 12),
+          ],
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? cs.primary.withOpacity(isDark ? 0.25 : 0.12)
+                    : isSystem
+                        ? cs.errorContainer.withOpacity(isDark ? 0.4 : 0.25)
+                        : isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : cs.surfaceVariant.withOpacity(0.5),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(isUser ? 18 : 4),
+                  topRight: Radius.circular(isUser ? 4 : 18),
+                  bottomLeft: const Radius.circular(18),
+                  bottomRight: const Radius.circular(18),
+                ),
+                border: Border.all(
+                  color: isUser
+                      ? cs.primary.withOpacity(0.2)
+                      : isSystem
+                          ? cs.error.withOpacity(0.2)
+                          : isDark
+                              ? Colors.white.withOpacity(0.06)
+                              : cs.outlineVariant.withOpacity(0.2),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.15 : 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
+                ],
+              ),
+              child: SelectableText(
+                message.content + (isStreaming ? ' ●' : ''),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: cs.onSurface,
+                  height: 1.6,
                 ),
               ),
             ),
-          ],
-        ),
-        if (_modelError != null) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: cs.errorContainer.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(6),
+          ),
+          if (isUser) ...[
+            const SizedBox(width: 12),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [cs.primary.withOpacity(0.3), cs.primary.withOpacity(0.15)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: cs.primary.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(lucide.Lucide.User, size: 18, color: cs.primary),
             ),
-            child: Text(_modelError!, style: TextStyle(fontSize: 11, color: cs.error)),
-          ),
+          ],
         ],
-
-        // Clear chat button (keep in form area so model list can reach bottom)
-        if (_messages.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _buildCompactButton(
-            onPressed: _clearChat,
-            icon: lucide.Lucide.Trash2,
-            label: l10n.apiTestClearChat,
-            cs: cs,
-            isPrimary: false,
-          ),
-        ],
-      ],
+      ),
     );
   }
 }

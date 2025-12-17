@@ -1,12 +1,12 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../utils/provider_avatar_manager.dart';
+import '../../../utils/platform_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
@@ -19,8 +19,10 @@ import '../../../core/services/http/dio_client.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../model/widgets/model_detail_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
-import '../../../desktop/model_fetch_dialog.dart';
-import '../../../desktop/model_edit_dialog.dart';
+import '../../../desktop/model_fetch_dialog.dart'
+    if (dart.library.html) '../../../desktop/model_fetch_dialog_stub.dart';
+import '../../../desktop/model_edit_dialog.dart'
+    if (dart.library.html) '../../../desktop/model_edit_dialog_stub.dart';
 import '../widgets/share_provider_sheet.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../l10n/app_localizations.dart';
@@ -30,7 +32,8 @@ import '../../../shared/widgets/ios_switch.dart';
 import 'multi_key_manager_page.dart';
 import 'provider_network_page.dart';
 import '../../../core/services/haptics.dart';
-import '../../../desktop/window_title_bar.dart';
+import '../../../desktop/window_title_bar.dart'
+    if (dart.library.html) '../../../desktop/window_title_bar_stub.dart';
 import '../widgets/bottom_tabs.dart';
 import '../widgets/tactile_widgets.dart';
 import '../widgets/brand_avatar.dart';
@@ -262,7 +265,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               },
             ),
           ),
-          if (defaultTargetPlatform == TargetPlatform.windows)
+          if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
             const WindowCaptionActions(),
           const SizedBox(width: 12),
         ],
@@ -1031,6 +1034,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
+        withData: true,
       );
 
       if (result == null || result.files.isEmpty) return;
@@ -1045,7 +1049,13 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       if (file.bytes != null) {
         bytes = file.bytes!;
       } else {
-        bytes = await File(file.path!).readAsBytes();
+        final raw = file.path;
+        final b = raw != null ? await PlatformUtils.readFileBytes(raw) : null;
+        if (b == null) {
+          showAppSnackBar(context, message: 'Unable to read image file', type: NotificationType.error);
+          return;
+        }
+        bytes = Uint8List.fromList(b);
       }
 
       if (!mounted) return;
@@ -1069,7 +1079,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         ),
       );
 
-      final avatarPath = await ProviderAvatarManager.saveAvatar(widget.keyName, bytes);
+      final settings = context.read<SettingsProvider>();
+      final accessCode = settings.getProviderConfig(settings.currentModelProvider ?? widget.keyName).apiKey;
+      final avatarPath = await ProviderAvatarManager.saveAvatar(widget.keyName, bytes, accessCode: accessCode);
 
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -1081,7 +1093,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       } catch (_) {}
 
       // ✅ Update Provider directly - no need for setState, notifyListeners will trigger rebuild
-      final settings = context.read<SettingsProvider>();
       final cfg = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
       await settings.setProviderConfig(
         widget.keyName,
@@ -1632,13 +1643,18 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         type: FileType.custom,
         allowedExtensions: const ['json'],
         allowMultiple: false,
+        withData: true,
       );
       if (result == null || result.files.isEmpty) return null;
       final file = result.files.single;
+      if (file.bytes != null) {
+        return utf8.decode(file.bytes!, allowMalformed: true);
+      }
       final path = file.path;
       if (path == null) return null;
-      final text = await File(path).readAsString();
-      return text;
+      final bytes = await PlatformUtils.readFileBytes(path);
+      if (bytes == null) return null;
+      return utf8.decode(bytes, allowMalformed: true);
     } catch (e) {
       return null;
     }
@@ -1779,9 +1795,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
   Future<void> _showModelPicker(BuildContext context) async {
     // Platform-specific UI: dialog for desktop, bottom sheet for mobile
-    if (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux) {
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux)) {
       // Desktop: use dialog
       await showDesktopModelFetchDialog(
         context,

@@ -5,27 +5,16 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../scan/pages/qr_scan_page.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
+import 'qr_image_analyzer.dart';
 
 class _ImportResult {
   final String key;
   final ProviderConfig cfg;
   _ImportResult(this.key, this.cfg);
-}
-
-String _extFromName(String name) {
-  final lower = name.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'jpg';
-  if (lower.endsWith('.png')) return 'png';
-  if (lower.endsWith('.webp')) return 'webp';
-  if (lower.endsWith('.gif')) return 'gif';
-  return 'jpg';
 }
 
 List<_ImportResult> _decodeChatBoxJson(BuildContext context, String s) {
@@ -371,34 +360,11 @@ Future<void> showImportProviderSheet(BuildContext context) async {
                               );
                               if (res == null || res.files.isEmpty) return;
                               final f = res.files.first;
-                              String? path = f.path;
-                              if (path == null || path.isEmpty) {
-                                // write bytes to a temp file for analyzer
-                                final tmp = await getTemporaryDirectory();
-                                final ext = _extFromName(f.name);
-                                final tempFile = File('${tmp.path}/qr_${DateTime.now().millisecondsSinceEpoch}.$ext');
-                                await tempFile.writeAsBytes(f.bytes!);
-                                path = tempFile.path;
-                              }
-                              final scanner = MobileScannerController();
-                              final result = await scanner.analyzeImage(path);
-                              String? code;
-                              if (result != null) {
-                                try {
-                                  // dynamic access to barcodes for compatibility
-                                  final bars = (result as dynamic).barcodes as List?;
-                                  if (bars != null) {
-                                    for (final b in bars) {
-                                      final v = (b as dynamic).rawValue as String?;
-                                      if (v != null && v.isNotEmpty) { code = v; break; }
-                                    }
-                                  }
-                                } catch (_) {}
-                              }
-                              if (code == null || code!.isEmpty) throw 'QR not detected';
+                              final code = await decodeQrFromImageFile(f);
+                              if (code == null || code.isEmpty) throw 'QR not detected';
                               final settings = ctx.read<SettingsProvider>();
                               final results = <_ImportResult>[];
-                              final parts = code!.split(RegExp(r'\r?\n+')).map((e)=>e.trim()).where((e)=>e.isNotEmpty).toList();
+                              final parts = code.split(RegExp(r'\r?\n+')).map((e)=>e.trim()).where((e)=>e.isNotEmpty).toList();
                               if (parts.length > 1) {
                                 for (final p in parts) {
                                   try {

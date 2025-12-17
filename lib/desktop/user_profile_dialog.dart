@@ -1,11 +1,13 @@
-import 'dart:io' show File;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:characters/characters.dart';
 import 'package:file_picker/file_picker.dart';
 
+import 'file_image_helper.dart' if (dart.library.html) 'file_image_helper_stub.dart';
 import '../core/providers/user_provider.dart';
 import '../core/providers/assistant_provider.dart';
+import '../core/services/upload/upload_service.dart';
 import '../desktop/desktop_context_menu.dart';
 import '../l10n/app_localizations.dart';
 import '../icons/lucide_adapter.dart' as lucide;
@@ -96,10 +98,10 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
         future: AssistantProvider.resolveToAbsolutePath(value),
         builder: (ctx, snap) {
           final path = snap.data;
-          if (path != null && File(path).existsSync()) {
+          if (path != null && fileExists(path)) {
             return ClipOval(
               child: Image(
-                image: FileImage(File(path)),
+                image: createFileImage(path),
                 width: 84,
                 height: 84,
                 fit: BoxFit.cover,
@@ -545,24 +547,46 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
+        withData: kIsWeb, // Get bytes on web since path is not available
       );
 
       if (result == null || result.files.isEmpty) return;
       final file = result.files.single;
-      final path = file.path;
 
-      if (path == null || path.isEmpty) {
-        if (!mounted) return;
-        final l10n = AppLocalizations.of(context)!;
-        showAppSnackBar(
-          context,
-          message: l10n.sideDrawerGalleryOpenError,
-          type: NotificationType.error,
+      if (kIsWeb) {
+        // On web: upload bytes to gateway and use returned URL
+        final bytes = file.bytes;
+        if (bytes == null || bytes.isEmpty) {
+          if (!mounted) return;
+          final l10n = AppLocalizations.of(context)!;
+          showAppSnackBar(
+            context,
+            message: l10n.sideDrawerGalleryOpenError,
+            type: NotificationType.error,
+          );
+          return;
+        }
+        final fileName = file.name.isNotEmpty ? file.name : 'avatar.png';
+        final url = await UploadService.uploadBytes(
+          bytes: bytes,
+          fileName: fileName,
         );
-        return;
+        await context.read<UserProvider>().setAvatarUrl(url);
+      } else {
+        // On desktop/mobile: use file path
+        final path = file.path;
+        if (path == null || path.isEmpty) {
+          if (!mounted) return;
+          final l10n = AppLocalizations.of(context)!;
+          showAppSnackBar(
+            context,
+            message: l10n.sideDrawerGalleryOpenError,
+            type: NotificationType.error,
+          );
+          return;
+        }
+        await context.read<UserProvider>().setAvatarFilePath(path);
       }
-
-      await context.read<UserProvider>().setAvatarFilePath(path);
     } catch (e) {
       if (!mounted) return;
       final l10n = AppLocalizations.of(context)!;
