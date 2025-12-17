@@ -478,6 +478,14 @@ class ChatApiHelper {
         body.remove('reasoning_content');
         body.remove('reasoning_budget');
       }
+    } else if (modelId.toLowerCase().contains('mimo')) {
+      // Xiaomi MiMo models: thinking: {type: 'enabled'/'disabled'}
+      if (isReasoning) {
+        body['thinking'] = {'type': off ? 'disabled' : 'enabled'};
+      } else {
+        body.remove('thinking');
+      }
+      body.remove('reasoning_effort');
     } else if (host.contains('opencode')) {
       body.remove('reasoning_effort');
     } else if (isGrokModel) {
