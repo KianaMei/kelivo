@@ -1,7 +1,8 @@
-import 'dart:io' show File, Platform;
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:characters/characters.dart';
+import 'file_image_helper.dart' if (dart.library.html) 'file_image_helper_stub.dart';
 import '../l10n/app_localizations.dart';
 import '../core/providers/user_provider.dart';
 import '../core/providers/assistant_provider.dart';
@@ -33,7 +34,7 @@ class DesktopNavRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final isMac = Platform.isMacOS;
+    final isMac = !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
     final double topGap = isMac ? 36.0 : 8.0;
     final isChatActive = activeIndex == 0;
     final isTranslateActive = activeIndex == 1;
@@ -134,14 +135,15 @@ class _UserAvatarButtonState extends State<_UserAvatarButton> {
         ),
       );
     } else if (type == 'file' && value != null && value.isNotEmpty) {
+      // Local file avatars: use conditional import helper (stub on web)
       avatar = FutureBuilder<String?>(
         future: AssistantProvider.resolveToAbsolutePath(value),
         builder: (ctx, snap) {
           final path = snap.data;
-          if (path != null && File(path).existsSync()) {
+          if (path != null && fileExists(path)) {
             return ClipOval(
               child: Image(
-                image: FileImage(File(path)),
+                image: createFileImage(path),
                 width: 36,
                 height: 36,
                 fit: BoxFit.cover,

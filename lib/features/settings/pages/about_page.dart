@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -43,18 +42,21 @@ class _AboutPageState extends State<AboutPage> {
     String sys;
     if (kIsWeb) {
       sys = 'Web';
-    } else if (Platform.isAndroid) {
-      sys = 'Android';
-    } else if (Platform.isIOS) {
-      sys = 'iOS';
-    } else if (Platform.isMacOS) {
-      sys = 'macOS';
-    } else if (Platform.isWindows) {
-      sys = 'Windows';
-    } else if (Platform.isLinux) {
-      sys = 'Linux';
     } else {
-      sys = Platform.operatingSystem;
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.android:
+          sys = 'Android';
+        case TargetPlatform.iOS:
+          sys = 'iOS';
+        case TargetPlatform.macOS:
+          sys = 'macOS';
+        case TargetPlatform.windows:
+          sys = 'Windows';
+        case TargetPlatform.linux:
+          sys = 'Linux';
+        case TargetPlatform.fuchsia:
+          sys = 'Fuchsia';
+      }
     }
     setState(() {
       _version = pkg.version;

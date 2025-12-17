@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:provider/provider.dart';
 import '../../../core/services/search/search_service.dart';
 import '../services/search_service_factory.dart';
@@ -48,7 +48,11 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
   }
 
   void _addService() {
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    final isDesktop = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
+    if (isDesktop) {
       // 桌面端：使用Dialog
       showDialog(
         context: context,
@@ -87,7 +91,11 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     final isMultiKey = SearchServiceFactory.supportsMultiKey(service);
     final serviceName = SearchService.getService(service).name;
     
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    final isDesktop = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
+    if (isDesktop) {
       // 桌面端：使用 Dialog
       if (isMultiKey) {
         // 多Key服务使用 KeyManagementDialog（和 Provider 一致）
@@ -242,7 +250,11 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
 
-    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    final isDesktop = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
+    if (isDesktop) {
       // 桌面端：使用AlertDialog
       return showDialog<bool>(
         context: context,

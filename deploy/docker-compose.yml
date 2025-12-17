@@ -1,0 +1,33 @@
+services:
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
+    environment:
+      LISTEN_ADDR: ":8080"
+      # OpenAI-compatible upstream base URL, include the /v1 suffix.
+      UPSTREAM_BASE_URL: "${UPSTREAM_BASE_URL}"
+      UPSTREAM_API_KEY: "${UPSTREAM_API_KEY}"
+      # Client access code(s). Put the same value into Kelivo's Provider apiKey field.
+      # Multiple codes supported: "code1,code2"
+      ACCESS_CODE: "${ACCESS_CODE}"
+      # Optional: if you deploy with a separate API domain (no reverse proxy), set CORS.
+      # Prefer same-origin behind nginx and leave this empty.
+      CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS}"
+      UPLOAD_DIR: "/data/uploads"
+      MAX_UPLOAD_MB: "${MAX_UPLOAD_MB}"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  web:
+    image: nginx:1.27-alpine
+    depends_on:
+      - gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Put your built Flutter web assets here (copy build/web/* into deploy/webroot/)
+      - ./webroot:/usr/share/nginx/html:ro
+    restart: unless-stopped

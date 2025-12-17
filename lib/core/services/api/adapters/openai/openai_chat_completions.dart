@@ -2,13 +2,13 @@
 /// Handles streaming chat completions for OpenAI-compatible APIs.
 
 import 'dart:convert';
-import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../providers/model_provider.dart';
 import '../../../../models/token_usage.dart';
 import '../../helpers/chat_api_helper.dart';
 import '../../models/chat_stream_chunk.dart';
+import '../../../http/streaming_http_client.dart';
 import 'package:kelivo/secrets/fallback.dart';
 
 /// Handler for OpenAI Chat Completions API streaming.
@@ -141,26 +141,18 @@ class OpenAIChatCompletions {
       });
     }
 
-    // Send request with Dio
-    final Response<ResponseBody> response;
-    try {
-      response = await dio.post<ResponseBody>(
-        url.toString(),
-        data: body,
-        options: Options(
-          headers: headers,
-          responseType: ResponseType.stream,
-          validateStatus: (status) => true, // Handle status manually
-        ),
-      );
-    } on DioException catch (e) {
-      throw HttpException('Dio error: ${e.message}');
-    }
+    // Send request with streaming HTTP client (works on both IO and Web)
+    final response = await postJsonStream(
+      dio: dio,
+      url: url,
+      headers: headers,
+      body: body,
+    );
 
-    if (response.statusCode == null || response.statusCode! < 200 || response.statusCode! >= 300) {
-      final errorBytes = await response.data?.stream.toList() ?? [];
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final errorBytes = await response.stream.toList();
       final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
-      throw HttpException('HTTP ${response.statusCode}: $errorBody');
+      throw Exception('HTTP ${response.statusCode}: $errorBody');
     }
 
     // Process stream
@@ -169,7 +161,7 @@ class OpenAIChatCompletions {
       config: config,
       modelId: modelId,
       messages: messages,
-      responseStream: response.data!.stream,
+      responseStream: response.stream,
       url: url,
       headers: headers,
       isReasoning: isReasoning,
@@ -547,28 +539,20 @@ class OpenAIChatCompletions {
       final headers2 = Map<String, String>.from(headers);
       if (extraHeaders != null && extraHeaders.isNotEmpty) headers2.addAll(extraHeaders);
 
-      final Response<ResponseBody> resp2;
-      try {
-        resp2 = await dio.post<ResponseBody>(
-          url.toString(),
-          data: body2,
-          options: Options(
-            headers: headers2,
-            responseType: ResponseType.stream,
-            validateStatus: (status) => true,
-          ),
-        );
-      } on DioException catch (e) {
-        throw HttpException('Dio error: ${e.message}');
-      }
+      final resp2 = await postJsonStream(
+        dio: dio,
+        url: url,
+        headers: headers2,
+        body: body2,
+      );
 
-      if (resp2.statusCode == null || resp2.statusCode! < 200 || resp2.statusCode! >= 300) {
-        final errorBytes = await resp2.data?.stream.toList() ?? [];
+      if (resp2.statusCode < 200 || resp2.statusCode >= 300) {
+        final errorBytes = await resp2.stream.toList();
         final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
-        throw HttpException('HTTP ${resp2.statusCode}: $errorBody');
+        throw Exception('HTTP ${resp2.statusCode}: $errorBody');
       }
 
-      final s2 = resp2.data!.stream.cast<List<int>>().transform(utf8.decoder);
+      final s2 = resp2.stream.cast<List<int>>().transform(utf8.decoder);
       String buf2 = '';
       final Map<int, Map<String, String>> toolAcc2 = {};
       String? finishReason2;

@@ -46,7 +46,6 @@ import '../../mcp/pages/mcp_page.dart';
 import '../../provider/pages/providers_page.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
 import '../../chat/widgets/max_tokens_sheet.dart';
-import '../../camera/pages/camera_capture_page.dart';
 import '../../chat/widgets/tool_loop_sheet.dart';
 import '../../search/widgets/search_settings_sheet.dart';
 import '../widgets/mini_map_sheet.dart';
@@ -66,8 +65,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'dart:ui' as ui;
 import 'package:cross_file/cross_file.dart';
-import 'dart:io' show File, Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
 import '../../../core/services/search/search_tool_service.dart';
 import '../../../core/services/sticker/sticker_tool_service.dart';
 import '../../../utils/markdown_media_sanitizer.dart';
@@ -75,6 +74,9 @@ import '../../../core/services/learning_mode_store.dart';
 import '../../../core/services/tool_call_mode_store.dart';
 import '../../../core/models/tool_call_mode.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../utils/platform_utils.dart';
+import '../../../utils/local_image_provider.dart';
+import '../../../core/services/upload/upload_service.dart';
 import '../../../shared/animations/widgets.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../core/services/haptics.dart';
@@ -237,17 +239,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final bgRaw = (assistant?.background ?? '').trim();
     Widget? bg;
     if (bgRaw.isNotEmpty) {
-      if (bgRaw.startsWith('http')) {
-            bg = Image.network(bgRaw, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink());
+      if (bgRaw.startsWith('http') || bgRaw.startsWith('data:')) {
+        bg = Image.network(bgRaw, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox.shrink());
       } else {
         try {
           final fixed = SandboxPathResolver.fix(bgRaw);
-              if (!kIsWeb) {
-                final f = File(fixed);
-                if (f.existsSync()) {
-                  bg = Image(image: FileImage(f), fit: BoxFit.cover);
-                }
-              }
+          if (!kIsWeb && PlatformUtils.fileExistsSync(fixed)) {
+            bg = Image(image: localFileImage(fixed), fit: BoxFit.cover);
+          }
         } catch (_) {}
       }
     }
@@ -1283,7 +1282,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final mid = a?.chatModelId ?? settings.currentModelId;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isMobile = screenWidth < 600;
-    final isWindowsDesktop = !kIsWeb && Platform.isWindows;
+    final isWindowsDesktop = !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
     final inputBar = ChatInputBar(
       key: _inputBarKey,
@@ -1887,9 +1886,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _onPickPhotos() async {
+    final settings = context.read<SettingsProvider>();
+    final providerKey = settings.currentModelProvider;
+    final accessCode = (providerKey == null) ? null : settings.getProviderConfig(providerKey).apiKey;
+
     final files = await MediaPickerService.pickImages();
     if (files.isEmpty) return;
-    final paths = await MediaPickerService.copyPickedFiles(files);
+    final paths = await MediaPickerService.copyPickedFiles(files, accessCode: accessCode);
     if (paths.isNotEmpty) {
       _mediaController.addImages(paths);
       if (!_isUserScrolling) _scrollToBottomSoon();
@@ -1897,13 +1900,29 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _onPickCamera() async {
+    final settings = context.read<SettingsProvider>();
+    final providerKey = settings.currentModelProvider;
+    final accessCode = (providerKey == null) ? null : settings.getProviderConfig(providerKey).apiKey;
+
     try {
-      final path = await Navigator.of(context).push<String>(
-        MaterialPageRoute(builder: (_) => const CameraCapturePage()),
-      );
-      if (path == null || path.isEmpty) return;
-      final files = <XFile>[XFile(path)];
-      final saved = await MediaPickerService.copyPickedFiles(files);
+      final picker = ImagePicker();
+      final f = await picker.pickImage(source: ImageSource.camera, imageQuality: 90, maxWidth: 1440);
+      if (!mounted || f == null) return;
+
+      if (kIsWeb) {
+        final bytes = await f.readAsBytes();
+        if (bytes.isEmpty) return;
+        final url = await UploadService.uploadBytes(
+          filename: f.name.isNotEmpty ? f.name : 'camera.jpg',
+          bytes: bytes,
+          accessCode: accessCode,
+        );
+        _mediaController.addImages([url]);
+        if (!_isUserScrolling) _scrollToBottomSoon();
+        return;
+      }
+
+      final saved = await MediaPickerService.copyPickedFiles([XFile(f.path)], accessCode: accessCode);
       if (saved.isNotEmpty) {
         _mediaController.addImages(saved);
         if (!_isUserScrolling) _scrollToBottomSoon();
@@ -5391,15 +5410,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               final bg = context.watch<AssistantProvider>().currentAssistant?.background;
               final maskStrength = context.watch<SettingsProvider>().chatBackgroundMaskStrength;
             if (bg == null || bg.trim().isEmpty) return const SizedBox.shrink();
-            ImageProvider provider;
+            ImageProvider? provider;
             if (bg.startsWith('http')) {
               provider = NetworkImage(bg);
             } else {
-              if (kIsWeb) return const SizedBox.shrink();
-              final file = File(SandboxPathResolver.fix(bg));
-              if (!file.existsSync()) return const SizedBox.shrink();
-              provider = FileImage(file);
+              provider = PlatformUtils.fileImageProvider(SandboxPathResolver.fix(bg));
             }
+            if (provider == null) return const SizedBox.shrink();
             return Positioned.fill(
               child: Stack(
                 children: [

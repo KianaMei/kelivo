@@ -1,5 +1,5 @@
-import 'dart:io';
-
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,12 +10,14 @@ import '../core/models/backup.dart';
 import '../core/providers/backup_provider.dart';
 import '../core/providers/settings_provider.dart';
 import '../core/services/chat/chat_service.dart';
-import '../core/services/backup/cherry_importer.dart';
+import '../core/services/backup/cherry_importer.dart' if (dart.library.html) '../core/services/backup/cherry_importer_stub.dart';
 import '../shared/widgets/ios_switch.dart';
 import '../shared/widgets/snackbar.dart';
 import '../utils/restart_widget.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 import '../core/utils/http_logger.dart';
+import '../utils/web_download_helper.dart' if (dart.library.io) '../utils/web_download_helper_stub.dart';
+import '../utils/file_io_helper.dart' if (dart.library.html) '../utils/file_io_helper_stub.dart';
 
 class DesktopBackupPane extends StatefulWidget {
   const DesktopBackupPane({super.key});
@@ -341,40 +343,50 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                   Wrap(spacing: 6, runSpacing: 6, children: [
                     _DeskIosButton(label: l10n.backupPageExportToFile, filled: false, dense: true, onTap: () async {
                       await _saveConfig();
-                      final file = await context.read<BackupProvider>().exportToFile();
-                      String? savePath = await FilePicker.platform.saveFile(
-                        dialogTitle: l10n.backupPageExportToFile,
-                        fileName: file.uri.pathSegments.last,
-                        type: FileType.custom,
-                        allowedExtensions: ['zip'],
-                      );
-                      if (savePath != null) {
-                        try {
-                          await File(savePath).parent.create(recursive: true);
-                          await file.copy(savePath);
-                        } catch (_) {}
+                      final bytes = await context.read<BackupProvider>().exportToBytes();
+                      final filename = 'kelivo_backup_${DateTime.now().millisecondsSinceEpoch}.zip';
+                      if (kIsWeb) {
+                        // Web: trigger browser download
+                        downloadBytes(bytes, filename);
+                      } else {
+                        // Desktop: use file picker save dialog
+                        String? savePath = await FilePicker.platform.saveFile(
+                          dialogTitle: l10n.backupPageExportToFile,
+                          fileName: filename,
+                          type: FileType.custom,
+                          allowedExtensions: ['zip'],
+                        );
+                        if (savePath != null) {
+                          try {
+                            await writeFile(savePath, bytes);
+                          } catch (_) {}
+                        }
                       }
                     }),
                     _DeskIosButton(label: l10n.backupPageImportBackupFile, filled: false, dense: true, onTap: () async {
-                      final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
-                      final path = result?.files.single.path;
-                      if (path == null) return;
-                      final f = File(path);
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.any,
+                        allowMultiple: false,
+                        withData: true, // Required to get bytes on all platforms
+                      );
+                      final bytes = result?.files.single.bytes;
+                      if (bytes == null) return;
                       await _chooseRestoreModeAndRun((mode) async {
-                        await context.read<BackupProvider>().restoreFromLocalFile(f, mode: mode);
+                        await context.read<BackupProvider>().restoreFromLocalBytes(bytes, mode: mode);
                       });
                     }),
-                    _DeskIosButton(label: l10n.backupPageImportFromCherryStudio, filled: false, dense: true, onTap: () async {
-                      final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
-                      final path = result?.files.single.path;
-                      if (path == null) return;
-                      final f = File(path);
-                      final mode = await showDialog<RestoreMode>(context: context, builder: (_) => _RestoreModeDialog());
-                      if (mode == null) return;
-                      final settings = context.read<SettingsProvider>();
-                      final chat = context.read<ChatService>();
-                      try {
-                        await CherryImporter.importFromCherryStudio(file: f, mode: mode, settings: settings, chatService: chat);
+                    // Cherry Studio import only available on desktop (requires File)
+                    if (!kIsWeb)
+                      _DeskIosButton(label: l10n.backupPageImportFromCherryStudio, filled: false, dense: true, onTap: () async {
+                        final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
+                        final path = result?.files.single.path;
+                        if (path == null) return;
+                        final mode = await showDialog<RestoreMode>(context: context, builder: (_) => _RestoreModeDialog());
+                        if (mode == null) return;
+                        final settings = context.read<SettingsProvider>();
+                        final chat = context.read<ChatService>();
+                        try {
+                          await CherryImporter.importFromCherryStudio(file: createFile(path), mode: mode, settings: settings, chatService: chat);
                         await showDialog(context: context, builder: (_) => AlertDialog(
                           backgroundColor: cs.surface,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

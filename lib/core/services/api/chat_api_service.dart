@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../providers/settings_provider.dart';
 import '../../models/tool_call_mode.dart';
@@ -253,7 +252,7 @@ class ChatApiService {
           options: Options(headers: headers),
         );
         if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
-          throw HttpException('HTTP ${resp.statusCode}: ${resp.data}');
+          throw Exception('HTTP ${resp.statusCode}: ${resp.data}');
         }
         final data = resp.data is String ? jsonDecode(resp.data) : resp.data;
         if (config.useResponseApi == true) {
@@ -323,7 +322,7 @@ class ChatApiService {
           options: Options(headers: headers),
         );
         if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
-          throw HttpException('HTTP ${resp.statusCode}: ${resp.data}');
+          throw Exception('HTTP ${resp.statusCode}: ${resp.data}');
         }
         final data = resp.data is String ? jsonDecode(resp.data) : resp.data;
         final content = data['content'] as List?;
@@ -397,7 +396,7 @@ class ChatApiService {
           options: Options(headers: headers),
         );
         if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
-          throw HttpException('HTTP ${resp.statusCode}: ${resp.data}');
+          throw Exception('HTTP ${resp.statusCode}: ${resp.data}');
         }
         final data = resp.data is String ? jsonDecode(resp.data) : resp.data;
         final candidates = data['candidates'] as List?;

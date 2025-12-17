@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
@@ -7,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import '../../../core/services/http/dio_client.dart';
 import 'package:provider/provider.dart';
@@ -25,7 +23,10 @@ import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../utils/avatar_cache.dart';
 import '../../../utils/brand_assets.dart';
+import '../../../utils/local_image_provider.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../core/services/upload/upload_service.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/assistant_helpers.dart';
@@ -118,10 +119,10 @@ class BasicSettingsTabState extends State<BasicSettingsTab> {
             future: AvatarCache.getPath(av),
             builder: (ctx, snap) {
               final p = snap.data;
-              if (p != null && !kIsWeb && File(p).existsSync()) {
+              if (p != null && !kIsWeb && PlatformUtils.fileExistsSync(p)) {
                 return ClipOval(
-                  child: Image.file(
-                    File(p),
+                  child: Image(
+                    image: localFileImage(p),
                     width: size,
                     height: size,
                     fit: BoxFit.cover,
@@ -154,10 +155,10 @@ class BasicSettingsTabState extends State<BasicSettingsTab> {
             future: AssistantProvider.resolveToAbsolutePath(av),
             builder: (ctx, snap) {
               final path = snap.data;
-              if (path != null && File(path).existsSync()) {
+              if (path != null && PlatformUtils.fileExistsSync(path)) {
                 return ClipOval(
-                  child: Image.file(
-                    File(path),
+                  child: Image(
+                    image: localFileImage(path),
                     width: size,
                     height: size,
                     fit: BoxFit.cover,
@@ -673,24 +674,25 @@ class BasicSettingsTabState extends State<BasicSettingsTab> {
       );
       if (res == null || res.files.isEmpty) return;
       final f = res.files.first;
-      Uint8List? bytes = f.bytes;
-      String? path = f.path;
-      if (bytes == null && (path == null || path.isEmpty)) return;
-      if (bytes == null && path != null) {
-        try {
-          bytes = await File(path).readAsBytes();
-        } catch (_) {}
+      if (kIsWeb) {
+        final bytes = f.bytes;
+        if (bytes == null) return;
+        final sp = context.read<SettingsProvider>();
+        final providerKey = sp.currentModelProvider;
+        final accessCode = providerKey != null ? sp.getProviderConfig(providerKey).apiKey : null;
+        final url = await UploadService.uploadBytes(
+          bytes: Uint8List.fromList(bytes),
+          fileName: 'assistant_bg_${a.id}_${DateTime.now().millisecondsSinceEpoch}.${_extFromName(f.name)}',
+          contentType: _mimeFromName(f.name),
+          accessCode: accessCode,
+        );
+        await context.read<AssistantProvider>().updateAssistant(a.copyWith(background: url));
+        return;
       }
-      if (bytes == null) return;
-      final tmp = await getTemporaryDirectory();
-      final ext = _extFromName(f.name);
-      final tmpFile = File(
-        '${tmp.path}/assistant_bg_${a.id}_${DateTime.now().millisecondsSinceEpoch}.$ext',
-      );
-      await tmpFile.writeAsBytes(bytes);
-      await context.read<AssistantProvider>().updateAssistant(
-        a.copyWith(background: tmpFile.path),
-      );
+
+      final path = f.path;
+      if (path == null || path.isEmpty) return;
+      await context.read<AssistantProvider>().updateAssistant(a.copyWith(background: path));
     } catch (_) {}
   }
 
@@ -1858,13 +1860,17 @@ class _BackgroundPreviewState extends State<_BackgroundPreview> {
         setState(() => _size = null);
         return;
       }
-      final file = File(SandboxPathResolver.fix(widget.path));
-      if (!await file.exists()) {
+      if (kIsWeb) {
         setState(() => _size = null);
         return;
       }
-      final bytes = await file.readAsBytes();
-      final img = await decodeImageFromList(bytes);
+      final fixed = SandboxPathResolver.fix(widget.path);
+      final bytes = await PlatformUtils.readFileBytes(fixed);
+      if (bytes == null || bytes.isEmpty) {
+        setState(() => _size = null);
+        return;
+      }
+      final img = await decodeImageFromList(Uint8List.fromList(bytes));
       final s = Size(img.width.toDouble(), img.height.toDouble());
       if (mounted) setState(() => _size = s);
     } catch (_) {
@@ -1880,8 +1886,8 @@ class _BackgroundPreviewState extends State<_BackgroundPreview> {
             ? Image.network(widget.path, fit: BoxFit.contain)
             : (kIsWeb
                 ? const SizedBox.shrink()
-                : Image.file(
-                  File(SandboxPathResolver.fix(widget.path)),
+                : Image(
+                  image: localFileImage(SandboxPathResolver.fix(widget.path)),
                   fit: BoxFit.contain,
                 ));
     // When size known, maintain aspect ratio; otherwise cap the height to avoid overflow
@@ -2603,24 +2609,28 @@ extension _AssistantAvatarActions on BasicSettingsTabState {
       if (!context.mounted) return;
       if (res == null || res.files.isEmpty) return;
       final f = res.files.first;
-      Uint8List? bytes = f.bytes;
-      String? path = f.path;
-      if (bytes == null && (path == null || path.isEmpty)) return;
-      if (bytes == null && path != null) {
-        try {
-          bytes = await File(path).readAsBytes();
-        } catch (_) {}
+      if (kIsWeb) {
+        final bytes = f.bytes;
+        if (bytes == null) return;
+        final sp = context.read<SettingsProvider>();
+        final providerKey = sp.currentModelProvider;
+        final accessCode = providerKey != null ? sp.getProviderConfig(providerKey).apiKey : null;
+        final url = await UploadService.uploadBytes(
+          bytes: Uint8List.fromList(bytes),
+          fileName: 'assistant_avatar_${a.id}_${DateTime.now().millisecondsSinceEpoch}.${_extFromName(f.name)}',
+          contentType: _mimeFromName(f.name),
+          accessCode: accessCode,
+        );
+        await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: url));
+        return;
       }
-      if (bytes == null) return;
-      final tmp = await getTemporaryDirectory();
-      final ext = _extFromName(f.name);
-      final tmpFile = File(
-        '${tmp.path}/assistant_avatar_${a.id}_${DateTime.now().millisecondsSinceEpoch}.$ext',
-      );
-      await tmpFile.writeAsBytes(bytes);
-      await context.read<AssistantProvider>().updateAssistant(
-        a.copyWith(avatar: tmpFile.path),
-      );
+
+      final path = f.path;
+      if (path == null || path.isEmpty) {
+        await _inputAvatarUrl(context, a);
+        return;
+      }
+      await context.read<AssistantProvider>().updateAssistant(a.copyWith(avatar: path));
       return;
     } on PlatformException catch (e) {
       if (!context.mounted) return;
@@ -2652,5 +2662,14 @@ extension _AssistantAvatarActions on BasicSettingsTabState {
     if (lower.endsWith('.webp')) return 'webp';
     if (lower.endsWith('.gif')) return 'gif';
     return 'jpg';
+  }
+
+  String _mimeFromName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/*';
   }
 }

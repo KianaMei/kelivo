@@ -1,14 +1,16 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:reorderable_grid_view/reorderable_grid_view.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'provider_detail_page.dart';
-import '../../../desktop/desktop_provider_detail_page.dart' show showDesktopProviderDetailDialog;
-import '../../../desktop/add_provider_dialog.dart' show showDesktopAddProviderDialog;
+import '../../../desktop/desktop_provider_detail_page.dart'
+    if (dart.library.html) '../../../desktop/desktop_provider_detail_page_stub.dart'
+    show showDesktopProviderDetailDialog;
+import '../../../desktop/add_provider_dialog.dart'
+    if (dart.library.html) '../../../desktop/add_provider_dialog_stub.dart'
+    show showDesktopAddProviderDialog;
 import '../widgets/import_provider_sheet.dart';
 import '../widgets/add_provider_sheet.dart';
 import 'package:provider/provider.dart';
@@ -24,6 +26,8 @@ import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'dart:ui' as ui show ImageFilter;
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
+import '../../../utils/local_image_provider.dart';
+import '../../../utils/platform_utils.dart';
 
 class ProvidersPage extends StatefulWidget {
   const ProvidersPage({super.key, this.embedded = false, this.onProviderTap});
@@ -71,9 +75,10 @@ class _ProvidersPageState extends State<ProvidersPage> {
   Future<void> _addProvider(AppLocalizations l10n) async {
     final String? createdKey;
     // Platform-specific UI: Dialog for desktop, Bottom Sheet for mobile
-    if (defaultTargetPlatform == TargetPlatform.windows ||
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux) {
+        defaultTargetPlatform == TargetPlatform.linux)) {
       // Desktop: use dialog
       createdKey = await showDesktopAddProviderDialog(context);
     } else {
@@ -505,9 +510,10 @@ class _ProvidersList extends StatelessWidget {
           final maxH = constraints.hasBoundedHeight ? constraints.maxHeight : double.infinity;
           // Responsive grid sizing
           final screenWidth = MediaQuery.of(context).size.width;
-          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-              defaultTargetPlatform == TargetPlatform.macOS ||
-              defaultTargetPlatform == TargetPlatform.linux;
+          final isDesktop = !kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.windows ||
+                  defaultTargetPlatform == TargetPlatform.macOS ||
+                  defaultTargetPlatform == TargetPlatform.linux);
 
           // Calculate optimal card size and aspect ratio based on screen width
           double cardSize;
@@ -641,9 +647,10 @@ class _ProviderCard extends StatelessWidget {
           }
 
           // Otherwise, use desktop detail dialog on Windows/macOS/Linux, mobile page on others
-          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-              defaultTargetPlatform == TargetPlatform.macOS ||
-              defaultTargetPlatform == TargetPlatform.linux;
+          final isDesktop = !kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.windows ||
+                  defaultTargetPlatform == TargetPlatform.macOS ||
+                  defaultTargetPlatform == TargetPlatform.linux);
 
           if (isDesktop) {
             await showDesktopProviderDetailDialog(
@@ -792,9 +799,10 @@ class _ProviderRow extends StatelessWidget {
     final cfg = settings.getProviderConfig(provider.keyName, defaultName: provider.name);
     final enabled = cfg.enabled;
     final l10n = AppLocalizations.of(context)!;
-    final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux;
+    final isDesktop = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
 
     final statusBg = enabled ? Colors.green.withOpacity(0.12) : Colors.orange.withOpacity(0.15);
     final statusFg = enabled ? Colors.green : Colors.orange;
@@ -809,9 +817,10 @@ class _ProviderRow extends StatelessWidget {
           onToggleSelect(provider.keyName);
         } else {
           // Use desktop detail dialog on Windows/macOS/Linux, mobile page on others
-          final isDesktop = defaultTargetPlatform == TargetPlatform.windows ||
-              defaultTargetPlatform == TargetPlatform.macOS ||
-              defaultTargetPlatform == TargetPlatform.linux;
+          final isDesktop = !kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.windows ||
+                  defaultTargetPlatform == TargetPlatform.macOS ||
+                  defaultTargetPlatform == TargetPlatform.linux);
 
           if (isDesktop) {
             await showDesktopProviderDetailDialog(
@@ -1360,28 +1369,29 @@ class _BrandAvatar extends StatelessWidget {
           key: ValueKey(av), // Force FutureBuilder to rebuild when path changes
           future: _resolveAvatarPath(av),
           builder: (context, snapshot) {
-            if (snapshot.hasData && (snapshot.data ?? '').isNotEmpty) {
-              final file = File(snapshot.data!);
-              if (file.existsSync()) {
-                return Container(
-                  width: size,
-                  height: size,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: bg,
+            final resolved = snapshot.data?.trim();
+            if (!kIsWeb &&
+                resolved != null &&
+                resolved.isNotEmpty &&
+                PlatformUtils.fileExistsSync(resolved)) {
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: bg,
+                ),
+                child: ClipOval(
+                  child: Image(
+                    image: localFileImage(resolved),
+                    key: ValueKey(resolved),
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
                   ),
-                  child: ClipOval(
-                    child: Image.file(
-                      file,
-                      key: ValueKey(file.path), // Force reload when file path changes
-                      width: size,
-                      height: size,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => _buildBrandAvatar(cs, isDark),
-                    ),
-                  ),
-                );
-              }
+                ),
+              );
             }
             // While loading or if invalid, show fallback
             return _buildBrandAvatar(cs, isDark);

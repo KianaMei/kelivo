@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import '../services/search/search_service.dart';
 import '../services/network/request_logger.dart';
 import '../utils/http_logger.dart';
@@ -338,7 +337,10 @@ class SettingsProvider extends ChangeNotifier {
     // display: pure background (desktop default true, mobile default false)
     final pureBgPref = prefs.getBool(_displayUsePureBackgroundKey);
     if (pureBgPref == null) {
-      final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+      final isDesktop = !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.windows ||
+              defaultTargetPlatform == TargetPlatform.linux);
       _usePureBackground = isDesktop;
       await prefs.setBool(_displayUsePureBackgroundKey, _usePureBackground);
     } else {
@@ -870,16 +872,7 @@ class SettingsProvider extends ChangeNotifier {
       AndroidBackgroundChatMode.off => 'off',
     };
     await prefs.setString(_androidBackgroundChatModeKey, v);
-    // Best-effort: update Android background execution state immediately
-    try {
-      if (Platform.isAndroid) {
-        // Direct call; file is present in project and guards by Platform
-        // ignore: depend_on_referenced_packages
-        // ignore_for_file: unnecessary_import
-        // ignore: avoid_print
-        // Defer import here is not possible; rely on main.dart sync. This is a no-op placeholder.
-      }
-    } catch (_) {}
+    // Web/desktop: no-op. Android background execution should be handled by platform code.
   }
 
   Future<void> toggleTheme() => setThemeMode(

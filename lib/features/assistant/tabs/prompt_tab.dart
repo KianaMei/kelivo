@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -10,6 +11,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
+import '../../../utils/platform_utils.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../widgets/tactile_widgets.dart';
 
@@ -425,10 +427,19 @@ class PromptTabState extends State<PromptTab> {
                         type: FileType.custom,
                         allowedExtensions: ['txt', 'md'],
                         allowMultiple: false,
+                        withData: true,
                       );
                       if (result == null || result.files.isEmpty) return;
-                      final file = File(result.files.first.path!);
-                      final content = await file.readAsString();
+                      final picked = result.files.first;
+                      String content = '';
+                      if (picked.bytes != null) {
+                        content = utf8.decode(picked.bytes!, allowMalformed: true);
+                      } else if ((picked.path ?? '').isNotEmpty) {
+                        final bytes = await PlatformUtils.readFileBytes(picked.path!);
+                        if (bytes != null) {
+                          content = utf8.decode(bytes, allowMalformed: true);
+                        }
+                      }
                       if (content.trim().isEmpty) {
                         if (mounted) {
                           showAppSnackBar(context, message: l10n.assistantEditSystemPromptImportEmpty, type: NotificationType.warning);
@@ -467,7 +478,7 @@ class PromptTabState extends State<PromptTab> {
                     final items = <ContextMenuButtonItem>[...state.contextMenuButtonItems];
 
                     // Add insert newline option for iOS
-                    if (Platform.isIOS) {
+                    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
                       items.add(
                         ContextMenuButtonItem(
                           onPressed: () {
@@ -558,16 +569,16 @@ class PromptTabState extends State<PromptTab> {
               maxLines: 4,
               keyboardType: TextInputType.multiline,
               textInputAction:
-                  Platform.isIOS
+                  (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
                       ? TextInputAction.done
                       : TextInputAction.newline,
               onSubmitted:
-                  Platform.isIOS
+                  (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
                       ? (_) => FocusScope.of(context).unfocus()
                       : null,
               enableInteractiveSelection: true,
               contextMenuBuilder:
-                  Platform.isIOS
+                  (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
                       ? (BuildContext context, EditableTextState state) {
                         return AdaptiveTextSelectionToolbar.buttonItems(
                           anchors: state.contextMenuAnchors,

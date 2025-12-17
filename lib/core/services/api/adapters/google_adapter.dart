@@ -2,7 +2,6 @@
 /// Handles streaming chat completions for Google Gemini and Vertex AI.
 
 import 'dart:convert';
-import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/model_provider.dart';
@@ -10,6 +9,7 @@ import '../../../models/token_usage.dart';
 import '../helpers/chat_api_helper.dart';
 import '../models/chat_stream_chunk.dart';
 import '../google_service_account_auth.dart';
+import '../../http/streaming_http_client.dart';
 
 /// Adapter for Google Gemini/Vertex AI streaming.
 class GoogleAdapter {
@@ -279,28 +279,21 @@ class GoogleAdapter {
         });
       }
 
-      final Response<ResponseBody> resp;
-      try {
-        resp = await dio.post<ResponseBody>(
-          uri.toString(),
-          data: body,
-          options: Options(
-            headers: headers,
-            responseType: ResponseType.stream,
-            validateStatus: (status) => true,
-          ),
-        );
-      } on DioException catch (e) {
-        throw HttpException('Dio error: ${e.message}');
-      }
+      // Send request with streaming HTTP client (works on both IO and Web)
+      final resp = await postJsonStream(
+        dio: dio,
+        url: uri,
+        headers: headers,
+        body: body,
+      );
 
-      if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
-        final errorBytes = await resp.data?.stream.toList() ?? [];
+      if (resp.statusCode < 200 || resp.statusCode >= 300) {
+        final errorBytes = await resp.stream.toList();
         final errorBody = utf8.decode(errorBytes.expand((x) => x).toList());
-        throw HttpException('HTTP ${resp.statusCode}: $errorBody');
+        throw Exception('HTTP ${resp.statusCode}: $errorBody');
       }
 
-      final stream = resp.data!.stream.cast<List<int>>().transform(utf8.decoder);
+      final stream = resp.stream.cast<List<int>>().transform(utf8.decoder);
       String buffer = '';
       final List<Map<String, dynamic>> calls = [];
       bool imageOpen = false;
@@ -561,11 +554,11 @@ class GoogleAdapter {
         ),
       );
     } on DioException catch (e) {
-      throw HttpException('Dio error: ${e.message}');
+      throw Exception('Dio error: ${e.message}');
     }
     
     if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
-      throw HttpException('HTTP ${resp.statusCode}: Failed to download');
+      throw Exception('HTTP ${resp.statusCode}: Failed to download');
     }
     return base64Encode(resp.data ?? []);
   }

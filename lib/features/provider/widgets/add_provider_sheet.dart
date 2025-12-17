@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/ios_switch.dart';
@@ -10,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
+import '../../../utils/platform_utils.dart';
 
 Future<String?> showAddProviderSheet(BuildContext context) async {
   final cs = Theme.of(context).colorScheme;
@@ -489,12 +489,20 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
         type: FileType.custom,
         allowedExtensions: const ['json'],
         allowMultiple: false,
+        withData: true,
       );
       if (result == null || result.files.isEmpty) return;
       final file = result.files.single;
-      final path = file.path;
-      if (path == null) return;
-      final text = await File(path).readAsString();
+      String text;
+      if (file.bytes != null) {
+        text = utf8.decode(file.bytes!, allowMalformed: true);
+      } else {
+        final path = file.path;
+        if (path == null) return;
+        final bytes = await PlatformUtils.readFileBytes(path);
+        if (bytes == null) return;
+        text = utf8.decode(bytes, allowMalformed: true);
+      }
       _googleSaJson.text = text;
       try {
         final obj = jsonDecode(text) as Map<String, dynamic>;

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../shared/widgets/ios_switch.dart';
@@ -540,12 +539,14 @@ class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
         type: FileType.custom,
         allowedExtensions: const ['json'],
         allowMultiple: false,
+        withData: true, // Required to get bytes on all platforms
       );
       if (result == null || result.files.isEmpty) return;
       final file = result.files.single;
-      final path = file.path;
-      if (path == null) return;
-      final text = await File(path).readAsString();
+      // Use bytes for web compatibility (path is null on web)
+      final bytes = file.bytes;
+      if (bytes == null) return;
+      final text = utf8.decode(bytes);
       _googleSaJson.text = text;
       try {
         final obj = jsonDecode(text) as Map<String, dynamic>;

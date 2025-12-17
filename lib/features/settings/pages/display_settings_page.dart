@@ -1,5 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
@@ -152,7 +152,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HapticsSettingsPage())),
             ),
             _iosDivider(context),
-            if (Platform.isAndroid) _iosNavRow(
+            if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) _iosNavRow(
               context,
               icon: Lucide.Monitor,
               label: l10n.displaySettingsPageAndroidBackgroundChatTitle,
@@ -187,7 +187,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               },
               onTap: () => _showAndroidBackgroundChatSheet(context),
             ),
-            if (Platform.isAndroid) _iosDivider(context),
+            if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) _iosDivider(context),
             _iosNavRow(
               context,
               icon: Lucide.CaseSensitive,

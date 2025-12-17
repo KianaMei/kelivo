@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 import '../../../../core/models/chat_message.dart';
 import '../../../../core/providers/assistant_provider.dart';
 import '../../../../core/providers/settings_provider.dart';
@@ -16,6 +17,7 @@ import '../../../../icons/lucide_adapter.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/widgets/snackbar.dart';
 import '../../../../utils/avatar_cache.dart';
+import '../../../../utils/local_image_provider.dart';
 import '../../../../utils/platform_utils.dart';
 import '../../../../utils/safe_tooltip.dart';
 import '../../../../utils/sandbox_path_resolver.dart';
@@ -113,13 +115,13 @@ class _UserMessageRendererState extends State<UserMessageRenderer> {
         future: AvatarCache.getPath(url),
         builder: (ctx, snap) {
           final p = snap.data;
-          if (p != null && !kIsWeb && File(p).existsSync()) {
+          if (p != null && !kIsWeb && PlatformUtils.fileExistsSync(p)) {
             return SizedBox(
               width: 32,
               height: 32,
               child: ClipOval(
-                child: Image.file(
-                  File(p),
+                child: Image(
+                  image: localFileImage(p),
                   width: 32,
                   height: 32,
                   fit: BoxFit.cover,
@@ -166,13 +168,13 @@ class _UserMessageRendererState extends State<UserMessageRenderer> {
         ),
         builder: (ctx, snap) {
           final path = snap.data;
-          if (path != null && File(path).existsSync()) {
+          if (path != null && PlatformUtils.fileExistsSync(path)) {
             return SizedBox(
               width: 32,
               height: 32,
               child: ClipOval(
-                child: Image.file(
-                  File(path),
+                child: Image(
+                  image: localFileImage(path),
                   width: 32,
                   height: 32,
                   fit: BoxFit.cover,
@@ -329,28 +331,58 @@ class _UserMessageRendererState extends State<UserMessageRenderer> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: Hero(
                                   tag: 'img:$p',
-                                  child: kIsWeb
-                                      ? Container(
+                                  child: (() {
+                                    if (p.startsWith('data:')) {
+                                      try {
+                                        final i = p.indexOf('base64,');
+                                        if (i != -1) {
+                                          return Image.memory(
+                                            base64Decode(p.substring(i + 7)),
+                                            width: 96,
+                                            height: 96,
+                                            fit: BoxFit.cover,
+                                          );
+                                        }
+                                      } catch (_) {}
+                                    }
+                                    final lower = p.toLowerCase();
+                                    final isUrl = lower.startsWith('http://') || lower.startsWith('https://');
+                                    if (isUrl) {
+                                      return Image.network(
+                                        p,
+                                        width: 96,
+                                        height: 96,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
                                           width: 96,
                                           height: 96,
                                           color: Colors.black12,
-                                          child: const Icon(
-                                            Icons.image_not_supported,
-                                          ),
-                                        )
-                                      : Image.file(
-                                          File(SandboxPathResolver.fix(p)),
-                                          width: 96,
-                                          height: 96,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              Container(
-                                            width: 96,
-                                            height: 96,
-                                            color: Colors.black12,
-                                            child: const Icon(Icons.broken_image),
-                                          ),
+                                          child: const Icon(Icons.broken_image),
                                         ),
+                                      );
+                                    }
+                                    if (kIsWeb) {
+                                      return Container(
+                                        width: 96,
+                                        height: 96,
+                                        color: Colors.black12,
+                                        child: const Icon(Icons.image_not_supported),
+                                      );
+                                    }
+                                    final fixed = SandboxPathResolver.fix(p);
+                                    return Image(
+                                      image: localFileImage(fixed),
+                                      width: 96,
+                                      height: 96,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        width: 96,
+                                        height: 96,
+                                        color: Colors.black12,
+                                        child: const Icon(Icons.broken_image),
+                                      ),
+                                    );
+                                  })(),
                                 ),
                               ),
                             ),
@@ -378,33 +410,44 @@ class _UserMessageRendererState extends State<UserMessageRenderer> {
                           splashColor: cs.primary.withOpacity(0.18),
                           onTap: () async {
                             try {
-                              final fixed = SandboxPathResolver.fix(d.path);
-                              final f = File(fixed);
-                              if (!(await f.exists())) {
+                              final raw = d.path.trim();
+                              final lower = raw.toLowerCase();
+                              final isUrl = lower.startsWith('http://') || lower.startsWith('https://');
+                              if (kIsWeb) {
+                                if (isUrl) {
+                                  await launchUrlString(raw, mode: LaunchMode.platformDefault);
+                                  return;
+                                }
                                 showAppSnackBar(
                                   context,
-                                  message: l10n.chatMessageWidgetFileNotFound(
-                                    d.fileName,
-                                  ),
+                                  message: l10n.chatMessageWidgetFileNotFound(d.fileName),
                                   type: NotificationType.error,
                                 );
                                 return;
                               }
+
+                              final fixed = SandboxPathResolver.fix(raw);
+                              if (!PlatformUtils.fileExistsSync(fixed)) {
+                                showAppSnackBar(
+                                  context,
+                                  message: l10n.chatMessageWidgetFileNotFound(d.fileName),
+                                  type: NotificationType.error,
+                                );
+                                return;
+                              }
+
                               final res = await PlatformUtils.callPlatformMethod(
                                 () => OpenFilex.open(fixed, type: d.mime),
                                 fallback: OpenResult(
                                   type: ResultType.error,
-                                  message:
-                                      'File opening not supported on this platform',
+                                  message: 'File opening not supported on this platform',
                                 ),
                               );
 
                               if (res != null && res.type != ResultType.done) {
                                 showAppSnackBar(
                                   context,
-                                  message: l10n.chatMessageWidgetCannotOpenFile(
-                                    res.message ?? res.type.toString(),
-                                  ),
+                                  message: l10n.chatMessageWidgetCannotOpenFile(res.message ?? res.type.toString()),
                                   type: NotificationType.error,
                                 );
                               }
