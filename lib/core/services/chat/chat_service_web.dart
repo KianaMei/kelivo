@@ -440,7 +440,7 @@ class ChatService extends ChangeNotifier {
     if (_draftConversations.containsKey(id)) {
       final draft = _draftConversations[id]!;
       draft.title = newTitle;
-      draft.updatedAt = DateTime.now();
+      // Don't update updatedAt - renaming shouldn't affect sort order
       notifyListeners();
       return;
     }
@@ -448,7 +448,7 @@ class ChatService extends ChangeNotifier {
     if (conversation == null) return;
 
     conversation.title = newTitle;
-    conversation.updatedAt = DateTime.now();
+    // Don't update updatedAt - renaming shouldn't affect sort order
     await conversation.save();
     notifyListeners();
   }

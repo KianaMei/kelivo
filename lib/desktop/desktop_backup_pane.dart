@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1344,6 +1345,19 @@ class _DesktopLogViewerDialogState extends State<_DesktopLogViewerDialog> {
                                         color: cs.onSurface.withOpacity(0.5),
                                       ),
                                       if (!_multiSelectMode) ...[
+                                        const SizedBox(width: 8),
+                                        GestureDetector(
+                                          onTap: () {
+                                            Clipboard.setData(ClipboardData(text: log.message ?? ''));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(l10n.chatMessageWidgetCopiedToClipboard),
+                                                duration: const Duration(seconds: 1),
+                                              ),
+                                            );
+                                          },
+                                          child: Icon(lucide.Lucide.Copy, size: 14, color: cs.primary.withOpacity(0.7)),
+                                        ),
                                         const SizedBox(width: 8),
                                         GestureDetector(
                                           onTap: () => _deleteLog(i),

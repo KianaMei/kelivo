@@ -490,10 +490,12 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       return;
     }
     final cfg = settings.getProviderConfig(provKey);
-    // Content
+    // Content - take last 4 messages (approximately 2 rounds) for title generation
     final msgs = chatService.getMessages(conversationId);
-    final joined = msgs.where((m) => m.content.isNotEmpty).map((m) => '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}').join('\n\n');
-    final content = joined.length > 3000 ? joined.substring(0, 3000) : joined;
+    final recentMsgs = msgs.length > 4 ? msgs.sublist(msgs.length - 4) : msgs;
+    final joined = recentMsgs.where((m) => m.content.isNotEmpty).map((m) => '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}').join('\n\n');
+    // No character limit - trust the model's context window
+    final content = joined;
     final locale = Localizations.localeOf(context).toLanguageTag();
     final prompt = settings.titlePrompt.replaceAll('{locale}', locale).replaceAll('{content}', content);
     try {

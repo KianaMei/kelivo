@@ -1351,11 +1351,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             defaultTargetPlatform == TargetPlatform.macOS ||
             defaultTargetPlatform == TargetPlatform.linux;
         if (isDesktop) {
+          final settings = context.read<SettingsProvider>();
           await showDesktopReasoningBudgetPopover(
             context,
             anchorKey: _inputBarKey,
-            initialValue: convo.thinkingBudget,
+            // Use conversation value, or fall back to global setting
+            initialValue: convo.thinkingBudget ?? settings.thinkingBudget,
             onValueChanged: (value) async {
+              // Update both conversation-level and global settings
+              // So new conversations will use the same value
+              await context.read<SettingsProvider>().setThinkingBudget(value);
               final updated = await _chatService.setConversationThinkingBudget(convo.id, value);
               if (updated != null && mounted) {
                 setState(() {
@@ -4261,16 +4266,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (provKey == null || mdlId == null) return;
     final cfg = settings.getProviderConfig(provKey);
 
-    // Build content from messages (truncate to reasonable length)
+    // Build content from messages - take last 4 messages (approximately 2 rounds)
     final msgs = _chatService.getMessages(convo.id);
     final tIndex = convo.truncateIndex;
     final List<ChatMessage> sourceAll = (tIndex >= 0 && tIndex <= msgs.length) ? msgs.sublist(tIndex) : msgs;
     final List<ChatMessage> source = _collapseVersions(sourceAll);
-    final joined = source
+    // Take last 4 messages for title generation, no character limit
+    final recentMsgs = source.length > 4 ? source.sublist(source.length - 4) : source;
+    final joined = recentMsgs
         .where((m) => m.content.isNotEmpty)
         .map((m) => '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}')
         .join('\n\n');
-    final content = joined.length > 3000 ? joined.substring(0, 3000) : joined;
+    final content = joined;
     final locale = Localizations.localeOf(context).toLanguageTag();
 
     String prompt = settings.titlePrompt
