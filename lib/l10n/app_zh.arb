@@ -1024,5 +1024,14 @@
   "logViewerExport": "导出",
   "requestLoggingTitle": "请求日志",
   "requestLoggingSubtitle": "记录 HTTP 请求/响应到文件",
-  "requestLoggingViewLogs": "查看日志"
+  "requestLoggingViewLogs": "查看日志",
+  "runtimeCacheTitle": "代码预览缓存",
+  "runtimeCacheStatus": "缓存状态",
+  "runtimeCacheDownloading": "正在下载",
+  "runtimeCacheActions": "操作",
+  "runtimeCacheDownloadAll": "下载全部",
+  "runtimeCacheAllDownloaded": "全部已下载",
+  "runtimeCacheClearButton": "清除缓存",
+  "runtimeCacheClearTitle": "清除缓存",
+  "runtimeCacheClearMessage": "确定要删除所有已下载的运行时库吗？"
 }

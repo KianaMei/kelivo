@@ -11,6 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../../utils/app_dirs.dart';
+import '../../../utils/backup_filename.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xml/xml.dart';
 
@@ -238,8 +239,7 @@ class DataSync {
 
   Future<File> prepareBackupFile(WebDavConfig cfg) async {
     final tmp = await getTemporaryDirectory();
-    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final outFile = File(p.join(tmp.path, 'kelivo_backup_$timestamp.zip'));
+    final outFile = File(p.join(tmp.path, kelivoBackupFileName()));
     if (await outFile.exists()) await outFile.delete();
 
     // Use Archive instead of ZipFileEncoder for better control
@@ -340,8 +340,9 @@ class DataSync {
     final bytes = await file.readAsBytes();
     final res = await simpleDio.put(
       target.toString(),
-      data: Stream.fromIterable([bytes]),
+      data: bytes,
       options: Options(
+        responseType: ResponseType.plain,
         headers: {
           'Content-Type': 'application/zip',
           'Content-Length': bytes.length.toString(),
@@ -417,20 +418,12 @@ class DataSync {
         size = int.tryParse(sizeStr.first) ?? 0;
       }
       
-      // If mtime is null, try to extract from filename (format: kelivo_backup_2025-01-19T12-34-56.123456.zip)
+      // If mtime is null, try to extract from filename (format: kelivo_backup_<platform>_2025-01-19T12-34-56.123456.zip)
       DateTime? mtime;
       if (mtimeStr.isNotEmpty) {
         try { mtime = DateTime.parse(mtimeStr.first); } catch (_) {}
-      } else {
-        final match = RegExp(r'kelivo_backup_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d+)\.zip').firstMatch(name);
-        if (match != null) {
-          try {
-            // Replace hyphens in time part back to colons
-            final timestamp = match.group(1)!.replaceAll(RegExp(r'T(\d{2})-(\d{2})-(\d{2})'), 'T\$1:\$2:\$3');
-            mtime = DateTime.parse(timestamp);
-          } catch (_) {}
-        }
       }
+      mtime ??= tryParseKelivoBackupTimestamp(name);
       
       // Skip directories
       if (abs.endsWith('/')) continue;

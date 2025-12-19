@@ -345,18 +345,25 @@ class McpProvider extends ChangeNotifier {
   }
 
   Future<void> disconnect(String id) async {
+    // Stop heartbeat FIRST to prevent new operations
+    _stopHeartbeat(id);
+
     final client = _clients.remove(id);
-    try {
-      // debugPrint('[MCP/Disconnect] id=$id ...');
-      client?.disconnect();
-      // debugPrint('[MCP/Disconnect] id=$id done');
-    } catch (e, st) {
-      // debugPrint('[MCP/Error] disconnect failed for id=$id');
-      // _logMcpException('disconnect', serverId: id, error: e, stack: st);
+    if (client != null) {
+      // Give in-flight operations a moment to complete
+      await Future.delayed(const Duration(milliseconds: 100));
+      try {
+        // debugPrint('[MCP/Disconnect] id=$id ...');
+        client.disconnect();
+        // debugPrint('[MCP/Disconnect] id=$id done');
+      } catch (e, st) {
+        // Ignore "Cannot add new events after calling close" errors
+        // This is a race condition in mcp_client package
+        // debugPrint('[MCP/Error] disconnect failed for id=$id: $e');
+      }
     }
     _status[id] = McpStatus.idle;
     _errors.remove(id);
-    _stopHeartbeat(id);
     notifyListeners();
   }
 

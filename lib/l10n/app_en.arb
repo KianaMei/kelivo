@@ -1254,5 +1254,14 @@
   "logViewerExport": "Export",
   "requestLoggingTitle": "Request Logging",
   "requestLoggingSubtitle": "Log HTTP requests/responses to file",
-  "requestLoggingViewLogs": "View Logs"
+  "requestLoggingViewLogs": "View Logs",
+  "runtimeCacheTitle": "Code Preview Cache",
+  "runtimeCacheStatus": "Cache Status",
+  "runtimeCacheDownloading": "Downloading",
+  "runtimeCacheActions": "Actions",
+  "runtimeCacheDownloadAll": "Download All",
+  "runtimeCacheAllDownloaded": "All Downloaded",
+  "runtimeCacheClearButton": "Clear Cache",
+  "runtimeCacheClearTitle": "Clear Cache",
+  "runtimeCacheClearMessage": "Are you sure you want to delete all downloaded runtime libraries?"
 }

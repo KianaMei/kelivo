@@ -26,6 +26,7 @@ import '../features/provider/pages/multi_key_manager_page.dart';
 import '../features/provider/pages/provider_network_page.dart';
 import '../l10n/app_localizations.dart';
 import '../shared/widgets/snackbar.dart';
+import '../shared/widgets/pop_confirm.dart';
 import '../shared/widgets/ios_switch.dart';
 import '../core/services/haptics.dart';
 import 'widgets/desktop_avatar_picker_dialog.dart' show showDesktopAvatarPickerDialog;
@@ -1573,40 +1574,35 @@ class _ModelRow extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           // Delete button
-          _IconBtn(
-            icon: Lucide.Trash2,
-            color: cs.error,
-            onTap: () async {
-              final l10n = AppLocalizations.of(context)!;
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (dctx) => AlertDialog(
-                  backgroundColor: cs.surface,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  title: Text(l10n.providerDetailPageConfirmDeleteTitle),
-                  content: Text(l10n.providerDetailPageConfirmDeleteContent),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(dctx).pop(false),
-                      child: Text(l10n.providerDetailPageCancelButton),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(dctx).pop(true),
-                      style: TextButton.styleFrom(foregroundColor: cs.error),
-                      child: Text(l10n.providerDetailPageDeleteButton),
-                    ),
-                  ],
-                ),
+          Builder(
+            builder: (btnContext) {
+              final deleteKey = GlobalKey();
+              return _IconBtn(
+                key: deleteKey,
+                icon: Lucide.Trash2,
+                color: cs.error,
+                onTap: () async {
+                  final l10n = AppLocalizations.of(context)!;
+                  final ok = await showPopConfirm(
+                    context,
+                    anchorKey: deleteKey,
+                    title: l10n.providerDetailPageConfirmDeleteTitle,
+                    subtitle: l10n.providerDetailPageConfirmDeleteContent,
+                    confirmText: l10n.providerDetailPageDeleteButton,
+                    cancelText: l10n.providerDetailPageCancelButton,
+                    icon: Lucide.Trash2,
+                  );
+                  if (!ok || !context.mounted) return;
+
+                  final settings = context.read<SettingsProvider>();
+                  final old = settings.getProviderConfig(providerKey);
+                  final prevList = List<String>.from(old.models);
+                  final prevOverrides = Map<String, dynamic>.from(old.modelOverrides);
+                  final newList = prevList.where((e) => e != modelId).toList();
+                  final newOverrides = Map<String, dynamic>.from(prevOverrides)..remove(modelId);
+                  await settings.setProviderConfig(providerKey, old.copyWith(models: newList, modelOverrides: newOverrides));
+                },
               );
-              if (ok != true || !context.mounted) return;
-              
-              final settings = context.read<SettingsProvider>();
-              final old = settings.getProviderConfig(providerKey);
-              final prevList = List<String>.from(old.models);
-              final prevOverrides = Map<String, dynamic>.from(old.modelOverrides);
-              final newList = prevList.where((e) => e != modelId).toList();
-              final newOverrides = Map<String, dynamic>.from(prevOverrides)..remove(modelId);
-              await settings.setProviderConfig(providerKey, old.copyWith(models: newList, modelOverrides: newOverrides));
             },
           ),
         ],

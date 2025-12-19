@@ -14,6 +14,7 @@ import '../../models/conversation.dart';
 import '../chat/chat_service.dart';
 import '../upload/upload_service.dart';
 import '../http/dio_client.dart';
+import '../../../utils/backup_filename.dart';
 
 class DataSync {
   final ChatService chatService;
@@ -643,8 +644,7 @@ class DataSync {
     await _ensureCollection(cfg);
 
     final bytes = await exportToBytes(cfg);
-    final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final filename = 'kelivo_backup_$timestamp.zip';
+    final filename = kelivoBackupFileName();
     final path = _collectionPath(cfg) + filename;
     final url = _webdavProxyUrl(path);
 

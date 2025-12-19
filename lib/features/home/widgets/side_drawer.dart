@@ -26,6 +26,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
+import '../../../shared/widgets/pop_confirm.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animations/animations.dart';
 import '../../../utils/avatar_cache.dart';
@@ -104,7 +105,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           builder: (ctx, snap) {
             final p = snap.data;
             if (!kIsWeb && p != null && PlatformUtils.fileExistsSync(p)) {
-              return ClipOval(
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(6),
                 child: Image(
                   image: localFileImage(p),
                   width: size,
@@ -113,7 +115,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 ),
               );
             }
-            return ClipOval(
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(6),
               child: Image.network(
                 (kIsWeb && p != null) ? p : av,
                 width: size,
@@ -131,7 +134,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             final resolved = snap.data ?? av;
             if (resolved.isNotEmpty) {
               if (resolved.startsWith('http') || resolved.startsWith('data:')) {
-                return ClipOval(
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
                   child: Image.network(
                     resolved,
                     width: size,
@@ -142,7 +146,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 );
               }
               if (!kIsWeb && PlatformUtils.fileExistsSync(resolved)) {
-                return ClipOval(
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
                   child: Image(
                     image: localFileImage(resolved),
                     width: size,
@@ -165,12 +170,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isDark ? Colors.white24 : Colors.black12,
           width: 0.5,
         ),
       ),
+      clipBehavior: Clip.antiAlias,
       child: avatar,
     );
 
@@ -178,7 +184,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
     return InkWell(
       onTap: onTap,
-      customBorder: const CircleBorder(),
+      borderRadius: BorderRadius.circular(6),
       child: child,
     );
   }
@@ -190,7 +196,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       height: size,
       decoration: BoxDecoration(
         color: cs.primary.withOpacity(0.15),
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(6),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -210,7 +216,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       height: size,
       decoration: BoxDecoration(
         color: cs.primary.withOpacity(0.15),
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(6),
       ),
       alignment: Alignment.center,
       child: EmojiText(
@@ -490,10 +496,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       return;
     }
     final cfg = settings.getProviderConfig(provKey);
-    // Content
-    final msgs = chatService.getMessages(conversationId);
-    final joined = msgs.where((m) => m.content.isNotEmpty).map((m) => '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}').join('\n\n');
-    final content = joined.length > 3000 ? joined.substring(0, 3000) : joined;
+    // Content - use getMessagesFresh to bypass cache and get latest data
+    // Take last 4 messages (approximately 2 rounds of conversation) for title generation
+    final msgs = chatService.getMessagesFresh(conversationId);
+    final recentMsgs = msgs.length > 4 ? msgs.sublist(msgs.length - 4) : msgs;
+    final joined = recentMsgs.where((m) => m.content.isNotEmpty).map((m) => '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}').join('\n\n');
+    // No character limit - trust the model's context window
+    final content = joined;
     final locale = Localizations.localeOf(context).toLanguageTag();
     final prompt = settings.titlePrompt.replaceAll('{locale}', locale).replaceAll('{content}', content);
     try {
@@ -598,7 +607,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           height: size,
           decoration: BoxDecoration(
             color: cs.primary.withOpacity(0.15),
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(6),
           ),
           alignment: Alignment.center,
           child: EmojiText(
@@ -614,7 +623,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           builder: (ctx, snap) {
             final p = snap.data;
             if (!kIsWeb && p != null && PlatformUtils.fileExistsSync(p)) {
-              return ClipOval(
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(6),
                 child: Image(
                   image: localFileImage(p),
                   width: size,
@@ -623,7 +633,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 ),
               );
             }
-            return ClipOval(
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(6),
               child: Image.network(
                 (kIsWeb && p != null) ? p : value,
                 width: size,
@@ -635,7 +646,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: cs.primary.withOpacity(0.15),
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text('?', style: TextStyle(color: cs.primary, fontSize: size * 0.42, fontWeight: FontWeight.w700)),
                 ),
@@ -651,7 +662,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             final path = snap.data;
             if (path != null && path.isNotEmpty) {
               if (PlatformUtils.fileExistsSync(path)) {
-                return ClipOval(
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
                   child: Image(
                     image: localFileImage(path),
                     width: size,
@@ -668,7 +680,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               height: size,
               decoration: BoxDecoration(
                 color: cs.primary.withOpacity(0.15),
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(6),
               ),
               alignment: Alignment.center,
               child: Text(
@@ -690,7 +702,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         height: size,
         decoration: BoxDecoration(
           color: cs.primary.withOpacity(0.15),
-          shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(6),
         ),
         alignment: Alignment.center,
         child: Text(
@@ -1214,18 +1226,6 @@ extension on _SideDrawerState {
           label: l10n.assistantTagsContextMenuDeleteAssistant,
           danger: true,
           onTap: () async {
-            final confirmed = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: Text(l10n.assistantSettingsDeleteDialogTitle),
-                content: Text(l10n.assistantSettingsDeleteDialogContent),
-                actions: [
-                  TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.assistantSettingsDeleteDialogCancel)),
-                  TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.assistantSettingsDeleteDialogConfirm)),
-                ],
-              ),
-            );
-            if (confirmed != true) return;
             if (a.deletable != true) {
               showAppSnackBar(context, message: l10n.assistantSettingsAtLeastOneAssistantRequired, type: NotificationType.warning);
               return;
@@ -1292,18 +1292,6 @@ extension on _SideDrawerState {
                   await Navigator.of(context).push(MaterialPageRoute(builder: (_) => TagsManagerPage(assistantId: a.id)));
                 }),
                 row(l10n.assistantTagsContextMenuDeleteAssistant, Lucide.Trash2, () async {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx2) => AlertDialog(
-                      title: Text(l10n.assistantSettingsDeleteDialogTitle),
-                      content: Text(l10n.assistantSettingsDeleteDialogContent),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.of(ctx2).pop(false), child: Text(l10n.assistantSettingsDeleteDialogCancel)),
-                        TextButton(onPressed: () => Navigator.of(ctx2).pop(true), child: Text(l10n.assistantSettingsDeleteDialogConfirm)),
-                      ],
-                    ),
-                  );
-                  if (confirmed != true) return;
                   if (a.deletable != true) {
                     showAppSnackBar(context, message: l10n.assistantSettingsAtLeastOneAssistantRequired, type: NotificationType.warning);
                     return;
@@ -1437,7 +1425,7 @@ extension on _SideDrawerState {
                     height: 72,
                     decoration: BoxDecoration(
                       color: cs.primary.withOpacity(0.08),
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
                     child: EmojiText(
@@ -1937,7 +1925,7 @@ extension on _SideDrawerState {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: AssistantInlineTile(
-          avatar: _assistantAvatar(context, a, size: _isDesktop ? 28 : 32),
+          avatar: _assistantAvatar(context, a, size: _isDesktop ? 36 : 40),
           name: a.name,
           textColor: textBase2,
           embedded: widget.embedded,
@@ -2035,14 +2023,15 @@ extension on _SideDrawerState {
   }
 
   Widget _buildNewAssistantButton(BuildContext context) {
+    final size = _isDesktop ? 36.0 : 40.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
       child: AssistantInlineTile(
         avatar: Container(
-          width: _isDesktop ? 28 : 32,
-          height: _isDesktop ? 28 : 32,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
               width: 1,

@@ -13,6 +13,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../core/services/haptics.dart';
+import 'sponsor_page.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key, this.embedded = false});
@@ -480,6 +481,37 @@ class _AboutPageState extends State<AboutPage> {
               svgAsset: 'assets/icons/discord.svg',
               label: l10n.aboutPageJoinDiscord,
               onTap: () => _openUrl('https://discord.gg/Tb8DyvvV5T'),
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.Heart,
+              label: l10n.settingsPageSponsor,
+              onTap: () {
+                if (widget.embedded) {
+                  // Desktop: show sponsor page in dialog
+                  showDialog(
+                    context: context,
+                    builder: (_) => Dialog(
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      insetPadding: const EdgeInsets.symmetric(horizontal: 60, vertical: 40),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 600),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: const SponsorPage(),
+                        ),
+                      ),
+                    ),
+                  );
+                } else {
+                  // Mobile: navigate to sponsor page
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SponsorPage()),
+                  );
+                }
+              },
             ),
           ]),
 

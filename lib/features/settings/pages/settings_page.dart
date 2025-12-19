@@ -262,10 +262,18 @@ class SettingsPage extends StatelessWidget {
               },
             ),
             _iosDivider(context),
-            _iosNavRow(
+            _iosSwitchRow(
               context,
               icon: Lucide.ScrollText,
-              label: l10n.requestLoggingTitle,
+              label: l10n.requestLoggingSubtitle,
+              value: settings.requestLoggingEnabled,
+              onChanged: (v) => context.read<SettingsProvider>().setRequestLoggingEnabled(v),
+            ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.FileText,
+              label: l10n.requestLoggingViewLogs,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(

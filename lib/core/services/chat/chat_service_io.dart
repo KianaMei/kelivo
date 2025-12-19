@@ -93,8 +93,8 @@ class ChatService extends ChangeNotifier {
       return _messagesCache[conversationId]!;
     }
 
-    // Load from storage
-    final conversation = _conversationsBox.get(conversationId);
+    // Load from storage - check both persisted and draft conversations
+    final conversation = _conversationsBox.get(conversationId) ?? _draftConversations[conversationId];
     if (conversation == null) return [];
 
     final messages = <ChatMessage>[];
@@ -106,6 +106,31 @@ class ChatService extends ChangeNotifier {
     }
 
     // Cache the result
+    _messagesCache[conversationId] = messages;
+    return messages;
+  }
+
+  /// Force refresh messages from database, bypassing cache AND conversation.messageIds.
+  /// This directly queries _messagesBox by conversationId to ensure ALL messages are returned,
+  /// even if conversation.messageIds is out of sync (which can happen due to Hive caching).
+  /// Use this when you need guaranteed fresh data (e.g., for title generation).
+  List<ChatMessage> getMessagesFresh(String conversationId) {
+    if (!_initialized) return [];
+
+    // Clear cache
+    _messagesCache.remove(conversationId);
+
+    // CRITICAL: Bypass conversation.messageIds entirely!
+    // Query _messagesBox directly by conversationId to ensure we get ALL messages.
+    // This fixes issues where Hive's in-memory conversation object has stale messageIds.
+    final messages = _messagesBox.values
+        .where((m) => m.conversationId == conversationId)
+        .toList();
+
+    // Sort by timestamp to maintain chronological order
+    messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    // Update cache with fresh data
     _messagesCache[conversationId] = messages;
     return messages;
   }
@@ -465,7 +490,7 @@ class ChatService extends ChangeNotifier {
     if (_draftConversations.containsKey(id)) {
       final draft = _draftConversations[id]!;
       draft.title = newTitle;
-      draft.updatedAt = DateTime.now();
+      // Don't update updatedAt - renaming shouldn't affect sort order
       notifyListeners();
       return;
     }
@@ -473,7 +498,7 @@ class ChatService extends ChangeNotifier {
     if (conversation == null) return;
 
     conversation.title = newTitle;
-    conversation.updatedAt = DateTime.now();
+    // Don't update updatedAt - renaming shouldn't affect sort order
     await conversation.save();
     notifyListeners();
   }

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,11 +14,13 @@ import '../core/services/chat/chat_service.dart';
 import '../core/services/backup/cherry_importer.dart' if (dart.library.html) '../core/services/backup/cherry_importer_stub.dart';
 import '../shared/widgets/ios_switch.dart';
 import '../shared/widgets/snackbar.dart';
+import '../utils/backup_filename.dart';
 import '../utils/restart_widget.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 import '../core/utils/http_logger.dart';
 import '../utils/web_download_helper.dart' if (dart.library.io) '../utils/web_download_helper_stub.dart';
 import '../utils/file_io_helper.dart' if (dart.library.html) '../utils/file_io_helper_stub.dart';
+import '../core/services/runtime_cache_service.dart';
 
 class DesktopBackupPane extends StatefulWidget {
   const DesktopBackupPane({super.key});
@@ -344,7 +347,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                     _DeskIosButton(label: l10n.backupPageExportToFile, filled: false, dense: true, onTap: () async {
                       await _saveConfig();
                       final bytes = await context.read<BackupProvider>().exportToBytes();
-                      final filename = 'kelivo_backup_${DateTime.now().millisecondsSinceEpoch}.zip';
+                      final filename = kelivoBackupFileNameEpoch();
                       if (kIsWeb) {
                         // Web: trigger browser download
                         downloadBytes(bytes, filename);
@@ -443,6 +446,32 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       onTap: () => _showDesktopLogViewer(context),
                     ),
                   ),
+                ]),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+              // Runtime cache section
+              SliverToBoxAdapter(
+                child: _sectionCard(children: [
+                  Row(children: [
+                    Expanded(child: Text(l10n.runtimeCacheTitle, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+                  ]),
+                  const SizedBox(height: 6),
+                  _RuntimeCacheRow(),
+                ]),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+              // Chat storage section
+              SliverToBoxAdapter(
+                child: _sectionCard(children: [
+                  Row(children: [
+                    Expanded(child: Text(l10n.settingsPageChatStorage, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+                  ]),
+                  const SizedBox(height: 6),
+                  _ChatStorageRow(),
                 ]),
               ),
             ],
@@ -1346,6 +1375,19 @@ class _DesktopLogViewerDialogState extends State<_DesktopLogViewerDialog> {
                                       if (!_multiSelectMode) ...[
                                         const SizedBox(width: 8),
                                         GestureDetector(
+                                          onTap: () {
+                                            Clipboard.setData(ClipboardData(text: log.message ?? ''));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(l10n.chatMessageWidgetCopiedToClipboard),
+                                                duration: const Duration(seconds: 1),
+                                              ),
+                                            );
+                                          },
+                                          child: Icon(lucide.Lucide.Copy, size: 14, color: cs.primary.withOpacity(0.7)),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        GestureDetector(
                                           onTap: () => _deleteLog(i),
                                           child: Icon(lucide.Lucide.Trash2, size: 14, color: cs.error.withOpacity(0.7)),
                                         ),
@@ -1401,5 +1443,283 @@ class _DesktopLogViewerDialogState extends State<_DesktopLogViewerDialog> {
 
   String _formatTime(DateTime time) {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Runtime cache row for desktop backup pane
+class _RuntimeCacheRow extends StatefulWidget {
+  @override
+  State<_RuntimeCacheRow> createState() => _RuntimeCacheRowState();
+}
+
+class _RuntimeCacheRowState extends State<_RuntimeCacheRow> {
+  Map<String, bool> _cacheStatus = {};
+  bool _isLoading = true;
+  bool _isDownloading = false;
+  String _downloadingFile = '';
+  int _downloadProgress = 0;
+  int _cacheSize = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    setState(() => _isLoading = true);
+    try {
+      final cache = RuntimeCacheService.instance;
+      await cache.init();
+      final status = await cache.getCacheStatus();
+      final size = await cache.getCacheSize();
+      if (mounted) {
+        setState(() {
+          _cacheStatus = status;
+          _cacheSize = size;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _downloadAll() async {
+    if (_isDownloading) return;
+    setState(() => _isDownloading = true);
+    try {
+      final cache = RuntimeCacheService.instance;
+      await cache.downloadAll(
+        onProgress: (fileName, progress) {
+          if (mounted) {
+            setState(() {
+              _downloadingFile = RuntimeCacheService.getLibraryName(fileName);
+              _downloadProgress = progress;
+            });
+          }
+        },
+      );
+      await _loadStatus();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+          _downloadingFile = '';
+          _downloadProgress = 0;
+        });
+      }
+    }
+  }
+
+  Future<void> _clearCache() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.runtimeCacheClearTitle),
+        content: Text(l10n.runtimeCacheClearMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.backupPageCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.runtimeCacheClearButton, style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      final cache = RuntimeCacheService.instance;
+      await cache.clearCache();
+      await _loadStatus();
+    }
+  }
+
+  String _formatBytes(int bytes) {
+    const kb = 1024;
+    const mb = kb * 1024;
+    if (bytes >= mb) return '${(bytes / mb).toStringAsFixed(2)} MB';
+    if (bytes >= kb) return '${(bytes / kb).toStringAsFixed(1)} KB';
+    return '$bytes B';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_isLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+          ),
+        ),
+      );
+    }
+
+    final cachedCount = _cacheStatus.values.where((v) => v).length;
+    final totalCount = _cacheStatus.length;
+    final allCached = cachedCount == totalCount;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ItemRow(
+          label: l10n.runtimeCacheStatus,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                allCached ? lucide.Lucide.CheckCircle : lucide.Lucide.Circle,
+                size: 16,
+                color: allCached ? Colors.green : cs.onSurface.withOpacity(0.5),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$cachedCount/$totalCount · ${_formatBytes(_cacheSize)}',
+                style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.7)),
+              ),
+            ],
+          ),
+        ),
+        if (_isDownloading) ...[
+          _rowDivider(context),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${l10n.runtimeCacheDownloading} $_downloadingFile...',
+                        style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.8)),
+                      ),
+                    ),
+                    Text(
+                      '$_downloadProgress%',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.primary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _downloadProgress / 100,
+                    backgroundColor: cs.primary.withOpacity(0.15),
+                    minHeight: 4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          _rowDivider(context),
+          _ItemRow(
+            label: l10n.runtimeCacheActions,
+            trailing: Wrap(spacing: 8, children: [
+              _DeskIosButton(
+                label: allCached ? l10n.runtimeCacheAllDownloaded : l10n.runtimeCacheDownloadAll,
+                filled: !allCached,
+                dense: true,
+                onTap: allCached ? () {} : _downloadAll,
+              ),
+              if (_cacheSize > 0)
+                _DeskIosButton(
+                  label: l10n.runtimeCacheClearButton,
+                  filled: false,
+                  dense: true,
+                  onTap: _clearCache,
+                ),
+            ]),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Chat storage row for desktop backup pane
+class _ChatStorageRow extends StatefulWidget {
+  @override
+  State<_ChatStorageRow> createState() => _ChatStorageRowState();
+}
+
+class _ChatStorageRowState extends State<_ChatStorageRow> {
+  UploadStats? _stats;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    setState(() => _isLoading = true);
+    try {
+      final svc = context.read<ChatService>();
+      final stats = await svc.getUploadStats();
+      if (mounted) {
+        setState(() {
+          _stats = stats;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatBytes(int bytes) {
+    const kb = 1024;
+    const mb = kb * 1024;
+    const gb = mb * 1024;
+    if (bytes >= gb) return '${(bytes / gb).toStringAsFixed(2)} GB';
+    if (bytes >= mb) return '${(bytes / mb).toStringAsFixed(2)} MB';
+    if (bytes >= kb) return '${(bytes / kb).toStringAsFixed(1)} KB';
+    return '$bytes B';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_isLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+          ),
+        ),
+      );
+    }
+
+    final count = _stats?.fileCount ?? 0;
+    final size = _formatBytes(_stats?.totalBytes ?? 0);
+
+    return _ItemRow(
+      label: l10n.settingsPageFilesCount(count, size),
+      trailing: Icon(lucide.Lucide.HardDrive, size: 18, color: cs.onSurface.withOpacity(0.5)),
+    );
   }
 }

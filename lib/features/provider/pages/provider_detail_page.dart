@@ -28,6 +28,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
+import '../../../shared/widgets/pop_confirm.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import 'multi_key_manager_page.dart';
 import 'provider_network_page.dart';
@@ -222,49 +223,53 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             ),
           ),
           if (_isUserAdded(widget.keyName))
-            Tooltip(
-              message: l10n.providerDetailPageDeleteProviderTooltip,
-              child: ProviderTactileIconButton(
-                icon: Lucide.Trash2,
-                color: cs.error,
-                semanticLabel: l10n.providerDetailPageDeleteProviderTooltip,
-                size: 22,
-                onTap: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: Text(l10n.providerDetailPageDeleteProviderTitle),
-                      content: Text(l10n.providerDetailPageDeleteProviderContent),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.providerDetailPageCancelButton)),
-                        TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.providerDetailPageDeleteButton, style: const TextStyle(color: Colors.red))),
-                      ],
-                    ),
-                  );
-                  if (confirm == true) {
-                    // Clear assistant-level model selections that reference this provider
-                    try {
-                      final ap = context.read<AssistantProvider>();
-                      for (final a in ap.assistants) {
-                        if (a.chatModelProvider == widget.keyName) {
-                          await ap.updateAssistant(a.copyWith(clearChatModel: true));
-                        }
-                      }
-                    } catch (_) {}
+            Builder(
+              builder: (btnContext) {
+                final deleteProviderKey = GlobalKey();
+                return Tooltip(
+                  message: l10n.providerDetailPageDeleteProviderTooltip,
+                  child: ProviderTactileIconButton(
+                    key: deleteProviderKey,
+                    icon: Lucide.Trash2,
+                    color: cs.error,
+                    semanticLabel: l10n.providerDetailPageDeleteProviderTooltip,
+                    size: 22,
+                    onTap: () async {
+                      final confirm = await showPopConfirm(
+                        context,
+                        anchorKey: deleteProviderKey,
+                        title: l10n.providerDetailPageDeleteProviderTitle,
+                        subtitle: l10n.providerDetailPageDeleteProviderContent,
+                        confirmText: l10n.providerDetailPageDeleteButton,
+                        cancelText: l10n.providerDetailPageCancelButton,
+                        icon: Lucide.Trash2,
+                      );
+                      if (confirm) {
+                        // Clear assistant-level model selections that reference this provider
+                        try {
+                          final ap = context.read<AssistantProvider>();
+                          for (final a in ap.assistants) {
+                            if (a.chatModelProvider == widget.keyName) {
+                              await ap.updateAssistant(a.copyWith(clearChatModel: true));
+                            }
+                          }
+                        } catch (_) {}
 
-                    // Remove provider config and related selections/pins
-                    await context.read<SettingsProvider>().removeProviderConfig(widget.keyName);
-                    if (!mounted) return;
-                    Navigator.of(context).maybePop();
-                    showAppSnackBar(
-                      context,
-                      message: l10n.providerDetailPageProviderDeletedSnackbar,
-                      type: NotificationType.success,
-                    );
-                }
+                        // Remove provider config and related selections/pins
+                        await context.read<SettingsProvider>().removeProviderConfig(widget.keyName);
+                        if (!mounted) return;
+                        Navigator.of(context).maybePop();
+                        showAppSnackBar(
+                          context,
+                          message: l10n.providerDetailPageProviderDeletedSnackbar,
+                          type: NotificationType.success,
+                        );
+                      }
+                    },
+                  ),
+                );
               },
             ),
-          ),
           if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows)
             const WindowCaptionActions(),
           const SizedBox(width: 12),
@@ -778,21 +783,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
   Future<void> _deleteModel(String modelId, ProviderConfig cfg) async {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        backgroundColor: cs.surface,
-        title: Text(l10n.providerDetailPageConfirmDeleteTitle),
-        content: Text(l10n.providerDetailPageConfirmDeleteContent),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(dctx).pop(false), child: Text(l10n.providerDetailPageCancelButton)),
-          TextButton(onPressed: () => Navigator.of(dctx).pop(true), child: Text(l10n.providerDetailPageDeleteButton)),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    
+
     final settings = context.read<SettingsProvider>();
     final old = settings.getProviderConfig(widget.keyName, defaultName: widget.displayName);
     final prevList = List<String>.from(old.models);

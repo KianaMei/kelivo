@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../core/models/backup.dart';
 import '../../../core/providers/backup_provider.dart';
 import '../../../shared/widgets/snackbar.dart';
+import '../../../utils/backup_filename.dart';
 
 class BackupPage extends StatefulWidget {
   const BackupPage({super.key});
@@ -32,10 +33,10 @@ class _BackupPageState extends State<BackupPage> {
   }
 
   Future<void> _export() async {
-    final vm = context.read<BackupProvider>();
+      final vm = context.read<BackupProvider>();
     try {
       final bytes = await vm.exportToBytes();
-      final name = 'kelivo_backup_${DateTime.now().millisecondsSinceEpoch}.zip';
+      final name = kelivoBackupFileNameEpoch();
       _downloadBytes(name, bytes);
       if (!mounted) return;
       showAppSnackBar(context, message: 'Backup downloaded', type: NotificationType.success);

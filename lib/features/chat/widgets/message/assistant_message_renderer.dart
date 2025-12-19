@@ -15,6 +15,7 @@ import '../../../../icons/lucide_adapter.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../shared/widgets/animated_loading_text.dart';
 import '../../../../shared/widgets/markdown_with_highlight.dart';
+import '../../../../shared/widgets/pop_confirm.dart';
 import '../../../../shared/widgets/snackbar.dart';
 import '../../../../shared/widgets/typing_indicator.dart';
 import '../../../../utils/avatar_cache.dart';
@@ -112,6 +113,7 @@ class AssistantMessageRenderer extends StatefulWidget {
 
 class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
   static final DateFormat _dateFormat = DateFormat('HH:mm');
+  final GlobalKey _deleteButtonKey = GlobalKey();
 
   String _resolveModelDisplayName(SettingsProvider settings) {
     final modelId = widget.message.modelId;
@@ -662,8 +664,21 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
             iconSize: 16,
           ),
           IconButton(
+            key: _deleteButtonKey,
             icon: Icon(Lucide.Trash2, size: 16),
-            onPressed: widget.onDelete,
+            onPressed: widget.onDelete == null
+                ? null
+                : () async {
+                    final confirmed = await showPopConfirm(
+                      context,
+                      anchorKey: _deleteButtonKey,
+                      title: l10n.homePageDeleteMessageConfirm,
+                      confirmText: l10n.homePageDelete,
+                      cancelText: l10n.homePageCancel,
+                      icon: Lucide.Trash2,
+                    );
+                    if (confirmed) widget.onDelete?.call();
+                  },
             tooltip: safeTooltipMessage(l10n.homePageDelete),
             visualDensity: VisualDensity.compact,
             iconSize: 16,

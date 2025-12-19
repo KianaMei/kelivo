@@ -466,31 +466,17 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   // ========== 消息列表回调方法 ==========
 
-  /// 删除消息确认对话框
-  Future<void> _confirmDeleteMessage(ChatMessage message) async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.homePageDeleteMessage),
-        content: Text(l10n.homePageDeleteMessageConfirm),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.homePageCancel)),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.homePageDelete, style: const TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
-    if (confirm == true) {
-      final id = message.id;
-      setState(() {
-        _messages.removeWhere((m) => m.id == id);
-        _reasoning.remove(id);
-        _translations.remove(id);
-        _toolParts.remove(id);
-        _reasoningSegments.remove(id);
-      });
-      await _chatService.deleteMessage(id);
-    }
+  /// 删除消息（确认逻辑已在 UI 层处理）
+  Future<void> _deleteMessage(ChatMessage message) async {
+    final id = message.id;
+    setState(() {
+      _messages.removeWhere((m) => m.id == id);
+      _reasoning.remove(id);
+      _translations.remove(id);
+      _toolParts.remove(id);
+      _reasoningSegments.remove(id);
+    });
+    await _chatService.deleteMessage(id);
   }
 
   /// 编辑消息
@@ -1351,11 +1337,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             defaultTargetPlatform == TargetPlatform.macOS ||
             defaultTargetPlatform == TargetPlatform.linux;
         if (isDesktop) {
+          final settings = context.read<SettingsProvider>();
           await showDesktopReasoningBudgetPopover(
             context,
             anchorKey: _inputBarKey,
-            initialValue: convo.thinkingBudget,
+            // Use conversation value, or fall back to global setting
+            initialValue: convo.thinkingBudget ?? settings.thinkingBudget,
             onValueChanged: (value) async {
+              // Update both conversation-level and global settings
+              // So new conversations will use the same value
+              await context.read<SettingsProvider>().setThinkingBudget(value);
               final updated = await _chatService.setConversationThinkingBudget(convo.id, value);
               if (updated != null && mounted) {
                 setState(() {
@@ -1609,13 +1600,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     } catch (_) {}
 
     // 鐩戝惉閿洏寮瑰嚭
+    // Input focus listener - no scroll on focus, scroll only happens on message send
     _inputFocus.addListener(() {
-      if (_inputFocus.hasFocus) {
-        // 寤惰繜涓€涓嬬瓑寰呴敭鐩樺畬鍏ㄥ脊鍑?
-        Future.delayed(const Duration(milliseconds: 300), () {
-          _scrollToBottom();
-        });
-      }
+      // No-op: focus should not trigger scroll
     });
 
     // Attach drawer value listener to catch swipe-open and close events
@@ -4261,16 +4248,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     if (provKey == null || mdlId == null) return;
     final cfg = settings.getProviderConfig(provKey);
 
-    // Build content from messages (truncate to reasonable length)
+    // Build content from messages - take last 4 messages (approximately 2 rounds)
     final msgs = _chatService.getMessages(convo.id);
     final tIndex = convo.truncateIndex;
     final List<ChatMessage> sourceAll = (tIndex >= 0 && tIndex <= msgs.length) ? msgs.sublist(tIndex) : msgs;
     final List<ChatMessage> source = _collapseVersions(sourceAll);
-    final joined = source
+    // Take last 4 messages for title generation, no character limit
+    final recentMsgs = source.length > 4 ? source.sublist(source.length - 4) : source;
+    final joined = recentMsgs
         .where((m) => m.content.isNotEmpty)
         .map((m) => '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}')
         .join('\n\n');
-    final content = joined.length > 3000 ? joined.substring(0, 3000) : joined;
+    final content = joined;
     final locale = Localizations.localeOf(context).toLanguageTag();
 
     String prompt = settings.titlePrompt
@@ -5269,12 +5258,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         }
                       : null,
                   onEdit: message.role == 'user' ? () => _editMessage(message) : null,
-                  onDelete: () => _confirmDeleteMessage(message),
+                  onDelete: () => _deleteMessage(message),
                   onMore: () async {
                     final action = await showMessageMoreSheet(context, message);
                     if (!mounted) return;
                     if (action == MessageMoreAction.delete) {
-                      await _confirmDeleteMessage(message);
+                      await _deleteMessage(message);
                     } else if (action == MessageMoreAction.edit) {
                       await _editMessage(message);
                     } else if (action == MessageMoreAction.fork) {
