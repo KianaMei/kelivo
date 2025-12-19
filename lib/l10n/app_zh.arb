@@ -396,7 +396,7 @@
   "reasoningBudgetSheetHeavySubtitle": "使用大量推理来回答问题，适合复杂问题",
   "reasoningBudgetSheetCustomLabel": "自定义推理预算 (tokens)",
   "reasoningBudgetSheetCustomHint": "例如：2048 (-1 自动，0 关闭)",
-  "reasoningBudgetSliderTitle": "思考消耗 Token",
+  "reasoningBudgetSliderTitle": "推理强度",
   "reasoningBudgetSheetValue": "数值：",
   "maxTokensSheetTitle": "最大输出长度",
   "maxTokensSheetCurrentValue": "当前值",

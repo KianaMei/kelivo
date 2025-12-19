@@ -754,7 +754,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 pressedScale: 0.97,
                 haptics: false,
                 onTap: () async {
-                  await showDesktopCreateModelDialog(context, providerKey: widget.keyName);
+                  if (PlatformUtils.isDesktop) {
+                    await showDesktopCreateModelDialog(context, providerKey: widget.keyName);
+                    return;
+                  }
+                  await showCreateModelSheet(context, providerKey: widget.keyName);
                 },
                 builder: (pressed) {
                   return Container(
@@ -2206,7 +2210,11 @@ class _ModelCard extends StatelessWidget {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(8),
                           onTap: () async {
-                            await showDesktopModelEditDialog(context, providerKey: providerKey, modelId: modelId);
+                            if (PlatformUtils.isDesktop) {
+                              await showDesktopModelEditDialog(context, providerKey: providerKey, modelId: modelId);
+                              return;
+                            }
+                            await showModelDetailSheet(context, providerKey: providerKey, modelId: modelId);
                           },
                           child: Center(
                             child: Icon(

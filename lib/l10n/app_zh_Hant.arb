@@ -326,7 +326,7 @@
   "reasoningBudgetSheetHeavySubtitle": "使用大量推理來回答問題，適合複雜問題",
   "reasoningBudgetSheetCustomLabel": "自訂推理預算 (tokens)",
   "reasoningBudgetSheetCustomHint": "例如：2048 (-1 自動，0 關閉)",
-  "reasoningBudgetSliderTitle": "思考消耗 Token",
+  "reasoningBudgetSliderTitle": "推理強度",
   "reasoningBudgetSheetValue": "數值：",
   "chatMessageWidgetFileNotFound": "檔案不存在: {fileName}",
   "chatMessageWidgetCannotOpenFile": "無法開啟檔案: {message}",

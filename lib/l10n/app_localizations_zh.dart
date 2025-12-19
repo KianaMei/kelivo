@@ -1068,7 +1068,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reasoningBudgetSheetCustomHint => '例如：2048 (-1 自动，0 关闭)';
 
   @override
-  String get reasoningBudgetSliderTitle => '思考消耗 Token';
+  String get reasoningBudgetSliderTitle => '推理强度';
 
   @override
   String get reasoningBudgetSheetValue => '数值：';
@@ -2984,6 +2984,33 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get requestLoggingViewLogs => '查看日志';
+
+  @override
+  String get runtimeCacheTitle => '代码预览缓存';
+
+  @override
+  String get runtimeCacheStatus => '缓存状态';
+
+  @override
+  String get runtimeCacheDownloading => '正在下载';
+
+  @override
+  String get runtimeCacheActions => '操作';
+
+  @override
+  String get runtimeCacheDownloadAll => '下载全部';
+
+  @override
+  String get runtimeCacheAllDownloaded => '全部已下载';
+
+  @override
+  String get runtimeCacheClearButton => '清除缓存';
+
+  @override
+  String get runtimeCacheClearTitle => '清除缓存';
+
+  @override
+  String get runtimeCacheClearMessage => '确定要删除所有已下载的运行时库吗？';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -3942,7 +3969,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get reasoningBudgetSheetCustomHint => '例如：2048 (-1 自动，0 关闭)';
 
   @override
-  String get reasoningBudgetSliderTitle => '思考消耗 Token';
+  String get reasoningBudgetSliderTitle => '推理强度';
 
   @override
   String get reasoningBudgetSheetValue => '数值：';
@@ -6587,7 +6614,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get reasoningBudgetSheetCustomHint => '例如：2048 (-1 自動，0 關閉)';
 
   @override
-  String get reasoningBudgetSliderTitle => '思考消耗 Token';
+  String get reasoningBudgetSliderTitle => '推理強度';
 
   @override
   String get reasoningBudgetSheetValue => '數值：';

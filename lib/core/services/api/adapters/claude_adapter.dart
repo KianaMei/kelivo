@@ -158,6 +158,9 @@ class ClaudeAdapter {
       allTools.add(entry);
     }
 
+    // Convert effort level to actual budget tokens for this model
+    final actualBudget = ChatApiHelper.effortToBudget(thinkingBudget, upstreamModelId);
+
     final body = <String, dynamic>{
       'model': upstreamModelId,
       'max_tokens': maxTokens ?? 4096,
@@ -172,9 +175,9 @@ class ClaudeAdapter {
       if (allTools.isNotEmpty) 'tool_choice': {'type': 'auto'},
       if (isReasoning)
         'thinking': {
-          'type': (thinkingBudget == 0) ? 'disabled' : 'enabled',
-          if (thinkingBudget != null && thinkingBudget > 0)
-            'budget_tokens': thinkingBudget,
+          'type': (actualBudget == 0) ? 'disabled' : 'enabled',
+          if (actualBudget > 0)
+            'budget_tokens': actualBudget,
         },
     };
 

@@ -1097,7 +1097,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reasoningBudgetSheetCustomHint => 'e.g. 2048 (-1 auto, 0 off)';
 
   @override
-  String get reasoningBudgetSliderTitle => 'Thinking Token Budget';
+  String get reasoningBudgetSliderTitle => 'Reasoning Effort';
 
   @override
   String get reasoningBudgetSheetValue => 'Value:';
@@ -3087,4 +3087,32 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get requestLoggingViewLogs => 'View Logs';
+
+  @override
+  String get runtimeCacheTitle => 'Code Preview Cache';
+
+  @override
+  String get runtimeCacheStatus => 'Cache Status';
+
+  @override
+  String get runtimeCacheDownloading => 'Downloading';
+
+  @override
+  String get runtimeCacheActions => 'Actions';
+
+  @override
+  String get runtimeCacheDownloadAll => 'Download All';
+
+  @override
+  String get runtimeCacheAllDownloaded => 'All Downloaded';
+
+  @override
+  String get runtimeCacheClearButton => 'Clear Cache';
+
+  @override
+  String get runtimeCacheClearTitle => 'Clear Cache';
+
+  @override
+  String get runtimeCacheClearMessage =>
+      'Are you sure you want to delete all downloaded runtime libraries?';
 }

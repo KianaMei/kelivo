@@ -1236,23 +1236,28 @@ class _ReasoningButton extends StatelessWidget {
   final bool active;
   final VoidCallback? onTap;
 
-  /// Get effort level from budget value (matching reasoning_budget_sheet.dart UI)
-  /// Slider stops: auto(-1), off(0), 128, 512, 1K, 2K, 4K, 8K, 16K, 24K, 32K
-  /// Effort zones: auto, off, minimal(128), low(512-2048), medium(4K-8K), high(16K+)
-  /// For simplicity: minimal is grouped with low for display
+  /// Get effort level from budget value
+  /// Supports both new effort level constants (-10, -20, -30, -40) and legacy positive values
   String _effortForBudget(int? budget) {
     if (budget == null || budget == -1) return 'auto';
     if (budget == 0) return 'off';
-    if (budget < 4096) return 'low';      // 1-4095: minimal + low -> L
-    if (budget < 16384) return 'medium';  // 4096-16383: medium -> M
-    return 'high';                         // 16384+: high -> H
+    // Handle effort level constants
+    if (budget == -10) return 'minimal';
+    if (budget == -20) return 'low';
+    if (budget == -30) return 'medium';
+    if (budget == -40) return 'high';
+    // Handle legacy positive values (backward compatibility)
+    if (budget < 4096) return 'low';
+    if (budget < 16384) return 'medium';
+    return 'high';
   }
 
-  /// Get color for effort level (matching reasoning_budget_sheet.dart colors)
+  /// Get color for effort level
   Color _colorForEffort(String effort) {
     switch (effort) {
       case 'auto': return Colors.blue;
       case 'off': return Colors.grey;
+      case 'minimal': return Colors.teal;
       case 'low': return Colors.green;
       case 'medium': return Colors.orange;
       case 'high': return Colors.red;
@@ -1265,6 +1270,7 @@ class _ReasoningButton extends StatelessWidget {
     switch (effort) {
       case 'auto': return 'A';
       case 'off': return '';
+      case 'minimal': return 'm';
       case 'low': return 'L';
       case 'medium': return 'M';
       case 'high': return 'H';

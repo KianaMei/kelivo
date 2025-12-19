@@ -39,10 +39,19 @@ class GoogleAdapter {
   }
 
   /// Convert budget value to thinkingLevel for Gemini 3.x models.
-  /// Based on Kelivo's UI effort mapping: 'high' if budget >= 16384, otherwise 'low'.
+  /// Handles both effort level constants and raw budget values.
   static String _budgetToThinkingLevel(int? budget) {
-    if (budget != null && budget >= 16384) return 'high';
-    return 'low';
+    if (budget == null || budget == -1) return 'high'; // auto = high (default)
+    if (budget == 0) return 'low'; // off -> low (Gemini 3 can't disable)
+    // Handle effort level constants
+    if (budget == ChatApiHelper.effortMinimal) return 'minimal';
+    if (budget == ChatApiHelper.effortLow) return 'low';
+    if (budget == ChatApiHelper.effortMedium) return 'medium';
+    if (budget == ChatApiHelper.effortHigh) return 'high';
+    // Handle raw budget values (backward compatibility)
+    if (budget < 4096) return 'low';
+    if (budget < 16384) return 'medium';
+    return 'high';
   }
 
   /// Resolve thinking budget for Gemini models.
@@ -187,11 +196,19 @@ class GoogleAdapter {
     final wantsImageOutput = effective.output.contains(Modality.image);
     bool expectImage = wantsImageOutput;
     bool receivedImage = false;
-    
-    // Resolve thinking budget based on model category
-    final resolvedBudget = _resolveThinkingBudget(upstreamModelId, thinkingBudget);
-    final off = resolvedBudget == 0;
+
+    // Check if Gemini 3 model (uses thinkingLevel directly)
     final isGemini3 = _isGemini3Model(upstreamModelId);
+
+    // For Gemini 2.5 models, convert effort level to actual budget tokens
+    // For Gemini 3 models, we pass thinkingBudget directly to _budgetToThinkingLevel
+    final actualBudget = isGemini3
+        ? thinkingBudget  // Gemini 3: will be converted to thinkingLevel
+        : ChatApiHelper.effortToBudget(thinkingBudget, upstreamModelId);
+
+    // Resolve thinking budget based on model category (for Gemini 2.5)
+    final resolvedBudget = _resolveThinkingBudget(upstreamModelId, actualBudget);
+    final off = resolvedBudget == 0;
 
     // Built-in Gemini tools
     final builtIns = ChatApiHelper.builtInTools(config, modelId);

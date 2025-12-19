@@ -43,7 +43,9 @@ class OpenAIChatCompletions {
     final effectiveInfo = ChatApiHelper.effectiveModelInfo(config, modelId);
     final isReasoning = effectiveInfo.abilities.contains(ModelAbility.reasoning);
     final wantsImageOutput = effectiveInfo.output.contains(Modality.image);
-    final effort = ChatApiHelper.effortForBudget(thinkingBudget);
+    // OpenAI only supports low/medium/high, map minimal to low
+    final rawEffort = ChatApiHelper.effortForBudget(thinkingBudget);
+    final effort = rawEffort == 'minimal' ? 'low' : rawEffort;
     final isGrok = ChatApiHelper.isGrokModel(config, modelId);
 
     // Build messages with images

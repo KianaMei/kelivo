@@ -2180,7 +2180,7 @@ abstract class AppLocalizations {
   /// No description provided for @reasoningBudgetSliderTitle.
   ///
   /// In en, this message translates to:
-  /// **'Thinking Token Budget'**
+  /// **'Reasoning Effort'**
   String get reasoningBudgetSliderTitle;
 
   /// No description provided for @reasoningBudgetSheetValue.
@@ -5842,6 +5842,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View Logs'**
   String get requestLoggingViewLogs;
+
+  /// No description provided for @runtimeCacheTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Code Preview Cache'**
+  String get runtimeCacheTitle;
+
+  /// No description provided for @runtimeCacheStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache Status'**
+  String get runtimeCacheStatus;
+
+  /// No description provided for @runtimeCacheDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading'**
+  String get runtimeCacheDownloading;
+
+  /// No description provided for @runtimeCacheActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions'**
+  String get runtimeCacheActions;
+
+  /// No description provided for @runtimeCacheDownloadAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Download All'**
+  String get runtimeCacheDownloadAll;
+
+  /// No description provided for @runtimeCacheAllDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'All Downloaded'**
+  String get runtimeCacheAllDownloaded;
+
+  /// No description provided for @runtimeCacheClearButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Cache'**
+  String get runtimeCacheClearButton;
+
+  /// No description provided for @runtimeCacheClearTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Cache'**
+  String get runtimeCacheClearTitle;
+
+  /// No description provided for @runtimeCacheClearMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete all downloaded runtime libraries?'**
+  String get runtimeCacheClearMessage;
 }
 
 class _AppLocalizationsDelegate

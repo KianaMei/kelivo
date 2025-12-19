@@ -339,6 +339,78 @@ class ChatApiHelper {
   /// Check if reasoning is disabled based on budget.
   static bool isReasoningOff(int? budget) => (budget != null && budget == 0);
 
+  // ========== Reasoning Effort Level Constants ==========
+  // These negative values represent effort levels stored in settings/conversation
+  // Positive values are raw token counts (backward compatibility)
+  static const int effortAuto = -1;
+  static const int effortOff = 0;
+  static const int effortMinimal = -10;
+  static const int effortLow = -20;
+  static const int effortMedium = -30;
+  static const int effortHigh = -40;
+
+  /// All effort levels for UI display (in order)
+  static const List<int> effortLevels = [effortAuto, effortOff, effortMinimal, effortLow, effortMedium, effortHigh];
+
+  /// Get effort level name for display
+  static String effortLevelName(int value) {
+    switch (value) {
+      case effortAuto: return 'auto';
+      case effortOff: return 'off';
+      case effortMinimal: return 'minimal';
+      case effortLow: return 'low';
+      case effortMedium: return 'medium';
+      case effortHigh: return 'high';
+      default: return 'auto'; // Positive values treated as auto for display
+    }
+  }
+
+  /// Check if value is an effort level (negative) vs raw budget (positive)
+  static bool isEffortLevel(int? value) {
+    return value != null && (value < 0 || value == 0);
+  }
+
+  /// Get max thinking budget for a model
+  static int getModelMaxThinkingBudget(String modelId) {
+    final m = modelId.toLowerCase();
+    // Claude models
+    if (m.contains('opus') || m.contains('sonnet')) return 64000;
+    if (m.contains('claude')) return 32000;
+    // Gemini 2.5 models
+    if (m.contains('gemini-2.5-pro') || m.contains('2.5-pro')) return 32768;
+    if (m.contains('gemini-2.5-flash') || m.contains('2.5-flash')) return 24576;
+    // Gemini 3 models (use thinkingLevel, but we need a fallback)
+    if (m.contains('gemini-3') || m.contains('gemini-3.0')) return 32768;
+    // DeepSeek
+    if (m.contains('deepseek')) return 32768;
+    // OpenAI o-series (uses reasoning_effort, not budget)
+    if (m.contains('o1') || m.contains('o3') || m.contains('o4')) return 100000;
+    // Default
+    return 32768;
+  }
+
+  /// Convert stored effort level to actual budget tokens for a specific model.
+  /// For Gemini 3 and OpenAI, returns -1 (they use effort strings directly).
+  /// For Claude/Gemini 2.5/DeepSeek, returns calculated token count.
+  static int effortToBudget(int? storedValue, String modelId) {
+    // Null or auto -> -1 (let model decide)
+    if (storedValue == null || storedValue == effortAuto) return -1;
+    // Off -> 0
+    if (storedValue == effortOff) return 0;
+    // Positive value = raw budget (backward compatibility)
+    if (storedValue > 0) return storedValue;
+
+    // Effort level -> calculate based on model max
+    final max = getModelMaxThinkingBudget(modelId);
+    switch (storedValue) {
+      case effortMinimal: return (max * 0.03).round().clamp(128, max);  // 3%
+      case effortLow: return (max * 0.10).round().clamp(128, max);      // 10%
+      case effortMedium: return (max * 0.33).round();                    // 33%
+      case effortHigh: return max;                                       // 100%
+      default: return -1;
+    }
+  }
+
   /// Get reasoning effort level for budget.
   /// Matches UI slider mapping:
   /// - Slider stops: auto(-1), off(0), 128, 512, 1K, 2K, 4K, 8K, 16K, 24K, 32K
@@ -347,6 +419,12 @@ class ChatApiHelper {
   static String effortForBudget(int? budget) {
     if (budget == null || budget == -1) return 'auto';
     if (budget == 0) return 'off';
+    // Handle effort level constants
+    if (budget == effortMinimal) return 'minimal';
+    if (budget == effortLow) return 'low';
+    if (budget == effortMedium) return 'medium';
+    if (budget == effortHigh) return 'high';
+    // Handle raw budget values (backward compatibility)
     if (budget < 4096) return 'low';      // 1-4095: minimal + low -> low
     if (budget < 16384) return 'medium';  // 4096-16383 -> medium
     return 'high';                         // 16384+ -> high

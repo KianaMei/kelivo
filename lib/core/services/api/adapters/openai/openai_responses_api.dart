@@ -39,7 +39,9 @@ class OpenAIResponsesApi {
 
     final effectiveInfo = ChatApiHelper.effectiveModelInfo(config, modelId);
     final isReasoning = effectiveInfo.abilities.contains(ModelAbility.reasoning);
-    final effort = ChatApiHelper.effortForBudget(thinkingBudget);
+    // OpenAI only supports low/medium/high, map minimal to low
+    final rawEffort = ChatApiHelper.effortForBudget(thinkingBudget);
+    final effort = rawEffort == 'minimal' ? 'low' : rawEffort;
 
     // Build input messages and extract system instructions
     final input = <Map<String, dynamic>>[];

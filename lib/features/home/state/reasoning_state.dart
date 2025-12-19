@@ -81,9 +81,14 @@ class ReasoningStateManager {
   }
 
   /// 检查是否启用推理功能
+  /// Supports both new effort level constants and legacy positive values
   static bool isReasoningEnabled(int? budget) {
     if (budget == null) return true; // treat null as default/auto -> enabled
     if (budget == -1) return true; // auto
+    if (budget == 0) return false;  // off
+    // New effort level constants: -10 (minimal), -20 (low), -30 (medium), -40 (high)
+    if (budget == -10 || budget == -20 || budget == -30 || budget == -40) return true;
+    // Legacy positive values
     return budget >= 1024;
   }
 
