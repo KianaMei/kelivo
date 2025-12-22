@@ -754,7 +754,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 pressedScale: 0.97,
                 haptics: false,
                 onTap: () async {
-                  if (PlatformUtils.isDesktop) {
+                  final isDesktop = !kIsWeb &&
+                      (defaultTargetPlatform == TargetPlatform.windows ||
+                          defaultTargetPlatform == TargetPlatform.macOS ||
+                          defaultTargetPlatform == TargetPlatform.linux);
+                  if (isDesktop) {
                     await showDesktopCreateModelDialog(context, providerKey: widget.keyName);
                     return;
                   }
@@ -2210,7 +2214,11 @@ class _ModelCard extends StatelessWidget {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(8),
                           onTap: () async {
-                            if (PlatformUtils.isDesktop) {
+                            final isDesktop = !kIsWeb &&
+                                (defaultTargetPlatform == TargetPlatform.windows ||
+                                    defaultTargetPlatform == TargetPlatform.macOS ||
+                                    defaultTargetPlatform == TargetPlatform.linux);
+                            if (isDesktop) {
                               await showDesktopModelEditDialog(context, providerKey: providerKey, modelId: modelId);
                               return;
                             }
