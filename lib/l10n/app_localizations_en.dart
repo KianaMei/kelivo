@@ -3080,6 +3080,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get logViewerExport => 'Export';
 
   @override
+  String get logViewerRefresh => 'Refresh';
+
+  @override
+  String get logViewerClearAll => 'Clear All';
+
+  @override
+  String get logViewerClearConfirm =>
+      'Are you sure you want to clear all logs? This action cannot be undone.';
+
+  @override
+  String get logViewerCopied => 'Log copied to clipboard';
+
+  @override
+  String get logViewerDeleteConfirmInline => 'Delete?';
+
+  @override
   String get requestLoggingTitle => 'Request Logging';
 
   @override

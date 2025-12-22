@@ -2977,6 +2977,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get logViewerExport => '导出';
 
   @override
+  String get logViewerRefresh => '刷新';
+
+  @override
+  String get logViewerClearAll => '清除全部';
+
+  @override
+  String get logViewerClearConfirm => '确定要清除所有日志吗？此操作不可撤销。';
+
+  @override
+  String get logViewerCopied => '日志已复制到剪贴板';
+
+  @override
+  String get logViewerDeleteConfirmInline => '确认删除？';
+
+  @override
   String get requestLoggingTitle => '请求日志';
 
   @override

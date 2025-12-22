@@ -5825,6 +5825,36 @@ abstract class AppLocalizations {
   /// **'Export'**
   String get logViewerExport;
 
+  /// No description provided for @logViewerRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get logViewerRefresh;
+
+  /// No description provided for @logViewerClearAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear All'**
+  String get logViewerClearAll;
+
+  /// No description provided for @logViewerClearConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to clear all logs? This action cannot be undone.'**
+  String get logViewerClearConfirm;
+
+  /// No description provided for @logViewerCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Log copied to clipboard'**
+  String get logViewerCopied;
+
+  /// No description provided for @logViewerDeleteConfirmInline.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete?'**
+  String get logViewerDeleteConfirmInline;
+
   /// No description provided for @requestLoggingTitle.
   ///
   /// In en, this message translates to:

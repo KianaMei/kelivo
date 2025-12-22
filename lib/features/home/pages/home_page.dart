@@ -5503,10 +5503,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       final isAndroid = Theme.of(context).platform == TargetPlatform.android;
                       Widget w = __content;
                       if (!isAndroid) {
-                        w = w
-                            .animate(key: ValueKey('mob_body_'+(_currentConversation?.id ?? 'none')))
-                            .fadeIn(duration: 200.ms, curve: Curves.easeOutCubic);
-                            // .slideY(begin: 0.02, end: 0, duration: 240.ms, curve: Curves.easeOutCubic);
                         w = FadeTransition(opacity: _convoFade, child: w);
                       }
                       return w;
@@ -5806,9 +5802,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                     },
                                   );
                                 })(),
-                              ).animate(key: ValueKey('tab_body_'+(_currentConversation?.id ?? 'none')))
-                               .fadeIn(duration: 200.ms, curve: Curves.easeOutCubic),
-                               // .slideY(begin: 0.02, end: 0, duration: 240.ms, curve: Curves.easeOutCubic),
+                              ),
                             ),
                           ),
 

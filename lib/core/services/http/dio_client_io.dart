@@ -153,7 +153,7 @@ class RequestLoggerInterceptor extends Interceptor {
           bodyStr = RequestLogger.safeDecodeUtf8(response.data as Uint8List);
         }
         if (bodyStr.isNotEmpty) {
-          RequestLogger.logLine('[RES $reqId] body=${RequestLogger.escape(bodyStr)}');
+          RequestLogger.logResponseBody(reqId, bodyStr);
         }
       }
       RequestLogger.logResponseDone(reqId);

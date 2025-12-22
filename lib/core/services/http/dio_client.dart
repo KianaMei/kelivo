@@ -26,6 +26,9 @@ void initDio() {
     sendTimeout: const Duration(seconds: 30),
   ));
 
+  // 添加请求日志拦截器（文件日志）- 覆盖所有 HTTP 请求
+  dio.interceptors.add(RequestLoggerInterceptor());
+
   // 添加条件 Talker 日志拦截器（受开关控制）
   dio.interceptors.add(ConditionalTalkerInterceptor());
 }
@@ -153,7 +156,7 @@ class RequestLoggerInterceptor extends Interceptor {
           bodyStr = RequestLogger.safeDecodeUtf8(response.data as Uint8List);
         }
         if (bodyStr.isNotEmpty) {
-          RequestLogger.logLine('[RES $reqId] body=${RequestLogger.escape(bodyStr)}');
+          RequestLogger.logResponseBody(reqId, bodyStr);
         }
       }
       RequestLogger.logResponseDone(reqId);

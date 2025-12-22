@@ -213,6 +213,14 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Request logging - 必须在最开始加载，避免竞态条件导致日志丢失
+    _requestLoggingEnabled = prefs.getBool(_requestLoggingEnabledKey) ?? false;
+    if (_requestLoggingEnabled) {
+      await RequestLogger.setEnabled(true);
+      TalkerLogger.setEnabled(true);
+    }
+
     _providersOrder = prefs.getStringList(_providersOrderKey) ?? [];
     final m = prefs.getString(_themeModeKey);
     switch (m) {
@@ -409,12 +417,6 @@ class SettingsProvider extends ChangeNotifier {
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux)) {
       DesktopWindowController.instance.updateCloseToTraySetting(_desktopCloseToTray);
-    }
-    // Request logging
-    _requestLoggingEnabled = prefs.getBool(_requestLoggingEnabledKey) ?? false;
-    if (_requestLoggingEnabled) {
-      RequestLogger.setEnabled(true);
-      TalkerLogger.setEnabled(true);
     }
     // Load app locale; default to follow system on first launch
     _appLocaleTag = prefs.getString(_appLocaleKey);
@@ -681,13 +683,15 @@ class SettingsProvider extends ChangeNotifier {
 
   // Request logging (write HTTP requests/responses to file)
   Future<void> setRequestLoggingEnabled(bool value) async {
+    // 始终同步 RequestLogger 状态，防止内存状态和日志记录器状态不一致
+    await RequestLogger.setEnabled(value);
+    TalkerLogger.setEnabled(value);
+
     if (_requestLoggingEnabled == value) return;
     _requestLoggingEnabled = value;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_requestLoggingEnabledKey, value);
-    await RequestLogger.setEnabled(value);
-    TalkerLogger.setEnabled(value);
   }
 
   Future<void> setDesktopAutoSwitchTopics(bool v) async {

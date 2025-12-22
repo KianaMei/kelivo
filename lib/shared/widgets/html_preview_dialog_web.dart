@@ -46,10 +46,10 @@ class _HtmlPreviewWebPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HTML Preview'),
+        title: const Text('HTML 预览'),
         actions: [
           IconButton(
-            tooltip: 'Open preview',
+            tooltip: '打开预览',
             onPressed: _openPreview,
             icon: const Icon(Lucide.ExternalLink),
           ),

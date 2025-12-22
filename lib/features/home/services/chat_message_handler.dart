@@ -161,13 +161,19 @@ class ChatMessageHandler {
     final List<ChatMessage> source = collapseVersions(sourceAll, versionSelections);
 
     // 转换为 API 格式
-    return source
-        .where((m) => m.content.isNotEmpty)
-        .map((m) => <String, dynamic>{
-              'role': m.role == 'assistant' ? 'assistant' : 'user',
-              'content': m.content,
-            })
-        .toList();
+    final result = <Map<String, dynamic>>[];
+
+    for (final m in source) {
+      if (m.content.isEmpty) continue;
+
+      final role = m.role == 'assistant' ? 'assistant' : 'user';
+      result.add({
+        'role': role,
+        'content': m.content,
+      });
+    }
+
+    return result;
   }
 
   /// 读取文档内容 (带缓存)

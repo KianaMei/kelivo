@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:talker/talker.dart';
@@ -56,11 +57,70 @@ class TalkerHttpClient extends http.BaseClient {
       final response = await _inner.send(request);
       stopwatch.stop();
 
-      // 对于流式响应，不读取 body（会破坏流）
-      // 只记录基本信息
-      _logResponse(request, response, stopwatch.elapsedMilliseconds);
+      // 检查是否是 SSE 流式响应
+      final contentType = response.headers['content-type'] ?? '';
+      final isSSE = contentType.contains('text/event-stream');
 
-      return response;
+      if (isSSE && printResponseBody) {
+        // SSE 流式响应：边转发边记录，流结束后输出完整日志
+        final bodyBuffer = StringBuffer();
+        final controller = StreamController<List<int>>();
+
+        response.stream.listen(
+          (chunk) {
+            controller.add(chunk);
+            try {
+              bodyBuffer.write(String.fromCharCodes(chunk));
+            } catch (_) {}
+          },
+          onError: (e, st) {
+            controller.addError(e, st);
+          },
+          onDone: () {
+            // 流结束，记录完整响应
+            _logResponse(
+              request,
+              response,
+              stopwatch.elapsedMilliseconds,
+              bodyBuffer.toString(),
+            );
+            controller.close();
+          },
+          cancelOnError: false,
+        );
+
+        return http.StreamedResponse(
+          controller.stream,
+          response.statusCode,
+          contentLength: response.contentLength,
+          request: response.request,
+          headers: response.headers,
+          isRedirect: response.isRedirect,
+          persistentConnection: response.persistentConnection,
+          reasonPhrase: response.reasonPhrase,
+        );
+      } else {
+        // 非流式响应：读取完整 body 后记录
+        final responseBody = await response.stream.toBytes();
+        String bodyText = '';
+        try {
+          bodyText = String.fromCharCodes(responseBody);
+        } catch (_) {
+          bodyText = '[Binary data, ${responseBody.length} bytes]';
+        }
+        _logResponse(request, response, stopwatch.elapsedMilliseconds, bodyText);
+
+        return http.StreamedResponse(
+          Stream.value(responseBody),
+          response.statusCode,
+          contentLength: responseBody.length,
+          request: response.request,
+          headers: response.headers,
+          isRedirect: response.isRedirect,
+          persistentConnection: response.persistentConnection,
+          reasonPhrase: response.reasonPhrase,
+        );
+      }
     } catch (e, stackTrace) {
       stopwatch.stop();
       _logError(request, e, stackTrace, stopwatch.elapsedMilliseconds);
@@ -92,6 +152,7 @@ class TalkerHttpClient extends http.BaseClient {
     http.BaseRequest request,
     http.StreamedResponse response,
     int durationMs,
+    String responseBody,
   ) {
     final sb = StringBuffer();
     sb.writeln('← ${response.statusCode} ${request.method} ${request.url}');
@@ -102,6 +163,12 @@ class TalkerHttpClient extends http.BaseClient {
       response.headers.forEach((key, value) {
         sb.writeln('  $key: $value');
       });
+    }
+
+    // 记录响应 body
+    if (printResponseBody && responseBody.isNotEmpty) {
+      final truncatedBody = _truncate(responseBody, 2000);
+      sb.writeln('Body: $truncatedBody');
     }
 
     if (response.statusCode >= 400) {

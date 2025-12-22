@@ -97,17 +97,15 @@ class AnimatedTextSwap extends StatelessWidget {
   }
 }
 
-// Handy appear animation using flutter_animate (fade + slight Y move)
+// Handy appear animation using flutter_animate (fade only, no vertical movement)
 extension Appear on Widget {
   Widget appear({
     Duration duration = kAnim,
-    double dy = 0.02,
     double begin = 0,
-    Curve curve = kDesktopCurve,  // 新增：可自定义曲线
+    Curve curve = kDesktopCurve,
   }) {
     return animate()
-        .fadeIn(duration: duration, begin: begin, curve: curve)
-        .moveY(begin: dy, end: 0, duration: duration, curve: curve);
+        .fadeIn(duration: duration, begin: begin, curve: curve);
   }
 }
 
@@ -197,7 +195,7 @@ class _DesktopHoverEffectState extends State<DesktopHoverEffect> {
   }
 }
 
-/// Windows 桌面端列表项动画 - 延迟渐显效果
+/// Windows 桌面端列表项动画 - 延迟渐显效果（仅淡入，无位移）
 extension DesktopListAnimation on Widget {
   Widget staggeredAppear(int index, {
     Duration baseDelay = const Duration(milliseconds: 30),
@@ -206,13 +204,6 @@ extension DesktopListAnimation on Widget {
     final delay = baseDelay * index;
     return animate()
         .fadeIn(
-          duration: animDuration,
-          delay: delay,
-          curve: kDesktopCurve,
-        )
-        .moveY(
-          begin: 0.02,
-          end: 0,
           duration: animDuration,
           delay: delay,
           curve: kDesktopCurve,

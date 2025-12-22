@@ -186,12 +186,12 @@ class _ImageViewerPageState extends State<ImageViewerPage> with TickerProviderSt
         title: Text('${_index + 1}/${widget.images.length}'),
         actions: [
           IconButton(
-            tooltip: 'Copy',
+            tooltip: '复制',
             onPressed: _copyCurrent,
             icon: const Icon(Icons.copy),
           ),
           IconButton(
-            tooltip: 'Open',
+            tooltip: '打开',
             onPressed: _openCurrent,
             icon: const Icon(Icons.open_in_new),
           ),

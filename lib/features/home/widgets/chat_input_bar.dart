@@ -874,7 +874,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                             if (!isMobile) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
-                                tooltip: _extraActionsCollapsed ? 'Expand' : 'Collapse',
+                                tooltip: _extraActionsCollapsed ? '展开' : '收起',
                                 icon: _extraActionsCollapsed ? Lucide.ChevronRight : Lucide.ChevronLeft,
                                 onTap: () => setState(() => _extraActionsCollapsed = !_extraActionsCollapsed),
                               ),
@@ -907,7 +907,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                                 if (widget.onConfigureToolLoop != null) ...[
                                   const SizedBox(width: 8),
                                   _CompactIconButton(
-                                    tooltip: 'Tool Loop',
+                                    tooltip: '工具循环',
                                     icon: Lucide.RefreshCw,
                                     active: false,
                                     onTap: widget.onConfigureToolLoop,

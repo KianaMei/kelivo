@@ -10,6 +10,7 @@ import '../../../utils/app_dirs.dart';
 /// - 按天轮转日志文件
 /// - 异步串行化写入
 /// - 流式数据 chunk 记录
+/// - 美化格式输出，提高可读性
 class RequestLogger {
   RequestLogger._();
 
@@ -43,6 +44,9 @@ class RequestLogger {
   static String _formatDate(DateTime dt) => '${dt.year}-${_two(dt.month)}-${_two(dt.day)}';
   static String _formatTs(DateTime dt) {
     return '${_formatDate(dt)} ${_two(dt.hour)}:${_two(dt.minute)}:${_two(dt.second)}.${dt.millisecond.toString().padLeft(3, '0')}';
+  }
+  static String _formatTime(DateTime dt) {
+    return '${_two(dt.hour)}:${_two(dt.minute)}:${_two(dt.second)}';
   }
 
   static Future<IOSink> _ensureSink() async {
@@ -89,62 +93,144 @@ class RequestLogger {
     return _sink!;
   }
 
-  /// 记录一行日志
-  static void logLine(String line) {
+  /// 写入原始内容（不添加时间戳）
+  static void _writeRaw(String content) {
     if (!_enabled) return;
-    final now = DateTime.now();
-    final text = '[${_formatTs(now)}] $line\n';
     _writeQueue = _writeQueue.then((_) async {
       final sink = await _ensureSink();
-      sink.write(text);
+      sink.write(content);
       await sink.flush();
     });
   }
 
-  /// 记录请求
+  // ═══════════════════════════════════════════════════════════════════
+  // 分隔符常量
+  // ═══════════════════════════════════════════════════════════════════
+  static const _separator = '═══════════════════════════════════════════════════════════════════════════════';
+  static const _subSeparator = '───────────────────────────────────────────────────────────────────────────────';
+
+  /// 记录请求开始
   static void logRequest(int reqId, String method, Uri uri, Map<String, String> headers, List<int> bodyBytes) {
-    logLine('[REQ $reqId] $method $uri');
+    final now = DateTime.now();
+    final sb = StringBuffer();
+
+    // 请求头部
+    sb.writeln();
+    sb.writeln(_separator);
+    sb.writeln('[$reqId] $method  ${_formatTs(now)}');
+    sb.writeln(_separator);
+    sb.writeln();
+    sb.writeln('▶ REQUEST');
+    sb.writeln('  $uri');
+
+    // Headers
     if (headers.isNotEmpty) {
-      logLine('[REQ $reqId] headers=${encodeObject(headers)}');
+      sb.writeln();
+      sb.writeln('  ── Headers ${'─' * 60}');
+      for (final entry in headers.entries) {
+        // 隐藏敏感信息
+        final value = _maskSensitive(entry.key, entry.value);
+        sb.writeln('  ${entry.key}: $value');
+      }
     }
+
+    // Body
     if (bodyBytes.isNotEmpty) {
       final decoded = safeDecodeUtf8(bodyBytes);
-      final bodyText = decoded.isNotEmpty ? decoded : 'base64:${base64Encode(bodyBytes)}';
-      logLine('[REQ $reqId] body=${escape(bodyText)}');
+      if (decoded.isNotEmpty) {
+        sb.writeln();
+        sb.writeln('  ── Body ${'─' * 63}');
+        final formatted = tryFormatJson(decoded);
+        if (formatted != null) {
+          // 缩进每一行
+          for (final line in formatted.split('\n')) {
+            sb.writeln('  $line');
+          }
+        } else {
+          sb.writeln('  $decoded');
+        }
+      }
     }
+
+    sb.writeln();
+    _writeRaw(sb.toString());
   }
 
   /// 记录响应头
   static void logResponseHeaders(int reqId, int statusCode, Map<String, String> headers) {
-    logLine('[RES $reqId] status=$statusCode');
+    final now = DateTime.now();
+    final sb = StringBuffer();
+
+    sb.writeln(_subSeparator);
+    sb.writeln('◀ RESPONSE [$statusCode]  ${_formatTime(now)}');
+
+    // Headers
     if (headers.isNotEmpty) {
-      logLine('[RES $reqId] headers=${encodeObject(headers)}');
+      sb.writeln();
+      sb.writeln('  ── Headers ${'─' * 60}');
+      for (final entry in headers.entries) {
+        sb.writeln('  ${entry.key}: ${entry.value}');
+      }
     }
+
+    _writeRaw(sb.toString());
   }
 
-  /// 记录响应 chunk
+  /// 记录响应体（非流式）
+  static void logResponseBody(int reqId, String body) {
+    if (body.isEmpty) return;
+    final sb = StringBuffer();
+
+    sb.writeln();
+    sb.writeln('  ── Body ${'─' * 63}');
+    final formatted = tryFormatJson(body);
+    if (formatted != null) {
+      for (final line in formatted.split('\n')) {
+        sb.writeln('  $line');
+      }
+    } else {
+      sb.writeln('  $body');
+    }
+
+    _writeRaw(sb.toString());
+  }
+
+  /// 记录响应 chunk（流式）
   static void logResponseChunk(int reqId, List<int> chunk) {
     final s = safeDecodeUtf8(chunk);
     if (s.isNotEmpty) {
-      logLine('[RES $reqId] chunk=${escape(s)}');
+      _writeRaw('  │ ${escape(s)}\n');
     }
   }
 
   /// 记录响应完成
   static void logResponseDone(int reqId) {
-    logLine('[RES $reqId] done');
+    _writeRaw('\n  ✓ Done\n\n');
   }
 
   /// 记录错误
   static void logError(int reqId, String error) {
-    logLine('[RES $reqId] error=${escape(error)}');
+    final sb = StringBuffer();
+    sb.writeln();
+    sb.writeln('  ✗ ERROR');
+    sb.writeln('  $error');
+    sb.writeln();
+    _writeRaw(sb.toString());
   }
 
-  static String encodeObject(Object? obj) {
+  /// 返回完整的 header 值（不隐藏任何信息）
+  static String _maskSensitive(String key, String value) {
+    // 不再隐藏任何信息，直接返回完整值
+    return value;
+  }
+
+  /// 尝试格式化 JSON 字符串
+  static String? tryFormatJson(String input) {
     try {
-      return const JsonEncoder.withIndent('  ').convert(obj);
+      final decoded = jsonDecode(input);
+      return const JsonEncoder.withIndent('  ').convert(decoded);
     } catch (_) {
-      return obj?.toString() ?? '';
+      return null;
     }
   }
 

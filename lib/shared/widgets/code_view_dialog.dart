@@ -175,14 +175,14 @@ class _CodeViewDialogState extends State<_CodeViewDialog> {
           IconButton(
             onPressed: _handleCopy,
             icon: const Icon(Lucide.Copy, size: 18),
-            tooltip: 'Copy code',
+            tooltip: '复制代码',
           ),
-          
+
           // 关闭按钮
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Lucide.X, size: 20),
-            tooltip: 'Close',
+            tooltip: '关闭',
           ),
         ],
       ),
@@ -203,22 +203,22 @@ class _CodeViewDialogState extends State<_CodeViewDialog> {
           // 行号开关
           _ToolbarToggle(
             icon: Lucide.Hash,
-            label: 'Lines',
+            label: '行号',
             isActive: _showLineNumbers,
             onToggle: () => setState(() => _showLineNumbers = !_showLineNumbers),
           ),
           const SizedBox(width: 8),
-          
+
           // 自动换行开关
           _ToolbarToggle(
             icon: Lucide.Type,
-            label: 'Wrap',
+            label: '换行',
             isActive: _wordWrap,
             onToggle: () => setState(() => _wordWrap = !_wordWrap),
           ),
-          
+
           const Spacer(),
-          
+
           // 字体大小调节
           IconButton(
             onPressed: _fontSize > 10 ? () => setState(() => _fontSize -= 1) : null,
@@ -226,7 +226,7 @@ class _CodeViewDialogState extends State<_CodeViewDialog> {
             iconSize: 14,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
             padding: EdgeInsets.zero,
-            tooltip: 'Decrease font size',
+            tooltip: '缩小字体',
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -245,7 +245,7 @@ class _CodeViewDialogState extends State<_CodeViewDialog> {
             iconSize: 14,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
             padding: EdgeInsets.zero,
-            tooltip: 'Increase font size',
+            tooltip: '放大字体',
           ),
         ],
       ),

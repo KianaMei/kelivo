@@ -10,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import '../icons/lucide_adapter.dart' as lucide;
 import '../core/providers/settings_provider.dart';
 import '../core/models/provider_config.dart';
+import '../core/utils/inline_think_extractor.dart';
 import '../core/utils/tool_schema_sanitizer.dart' show ProviderKind;
 import 'add_provider_dialog.dart';
 
@@ -37,6 +38,7 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
   final List<_TestMessage> _messages = [];
   bool _isGenerating = false;
   String _streamingContent = '';
+  String _streamingReasoning = '';
   StreamSubscription? _streamSubscription;
 
   static const _providers = <String, _ProviderConfig>{
@@ -252,7 +254,19 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
         setState(() => _modelError = 'Error ${response.statusCode}: ${response.body.take(200)}');
       }
     } catch (e) {
-      setState(() => _modelError = e.toString().take(200));
+      // 检测 Cloudflare/TLS 握手错误并提供友好提示
+      final errStr = e.toString();
+      String friendlyError;
+      if (errStr.contains('HandshakeException') ||
+          errStr.contains('Connection terminated during handshake') ||
+          errStr.contains('CERTIFICATE_VERIFY_FAILED')) {
+        friendlyError = '连接被拒绝 (可能是 Cloudflare 防护)\n建议在浏览器中访问该站点完成验证';
+      } else if (errStr.contains('SocketException') || errStr.contains('Connection refused')) {
+        friendlyError = '无法连接到服务器，请检查网络连接';
+      } else {
+        friendlyError = errStr.take(200);
+      }
+      setState(() => _modelError = friendlyError);
     } finally {
       setState(() => _loadingModels = false);
     }
@@ -271,6 +285,7 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
       _inputController.clear();
       _isGenerating = true;
       _streamingContent = '';
+      _streamingReasoning = '';
     });
     _scrollToBottom();
 
@@ -297,26 +312,37 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
           'model': _selectedModel,
           'max_tokens': 4096,
           'stream': true,
-          'messages': _messages.map((m) => {
-            'role': m.role,
-            'content': [
-              {'type': 'text', 'text': m.content}
-            ]
-          }).toList(),
+          'messages': _messages
+              .where((m) => m.role == 'user' || m.role == 'assistant')
+              .map((m) => {
+                    'role': m.role,
+                    'content': [
+                      {'type': 'text', 'text': m.content}
+                    ]
+                  })
+              .toList(),
         };
       } else if (_selectedProvider == 'google') {
         body = {
-          'contents': _messages.map((m) => {
-            'role': m.role == 'user' ? 'user' : 'model',
-            'parts': [{'text': m.content}],
-          }).toList(),
+          'contents': _messages
+              .where((m) => m.role == 'user' || m.role == 'assistant')
+              .map((m) => {
+                    'role': m.role == 'user' ? 'user' : 'model',
+                    'parts': [
+                      {'text': m.content}
+                    ],
+                  })
+              .toList(),
         };
       } else {
         headers['Authorization'] = 'Bearer $apiKey';
         body = {
           'model': _selectedModel,
           'stream': true,
-          'messages': _messages.map((m) => {'role': m.role, 'content': m.content}).toList(),
+          'messages': _messages
+              .where((m) => m.role == 'user' || m.role == 'assistant')
+              .map((m) => {'role': m.role, 'content': m.content})
+              .toList(),
         };
       }
 
@@ -347,41 +373,66 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
             
             try {
               final json = jsonDecode(data);
-              String? delta;
+              String textDelta = '';
+              String reasoningDelta = '';
               
               if (_selectedProvider == 'anthropic') {
                 if (json['type'] == 'content_block_delta') {
-                  delta = json['delta']?['text'] as String?;
+                  final delta = json['delta'];
+                  final deltaType = delta?['type'];
+                  if (deltaType == 'text_delta') {
+                    textDelta = (delta?['text'] ?? '').toString();
+                  } else if (deltaType == 'thinking_delta') {
+                    reasoningDelta = (delta?['thinking'] ?? delta?['text'] ?? '').toString();
+                  }
                 }
               } else if (_selectedProvider == 'google') {
-                delta = json['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+                final candidates = json['candidates'];
+                if (candidates is List) {
+                  for (final cand in candidates) {
+                    if (cand is! Map) continue;
+                    final content = cand['content'];
+                    if (content is! Map) continue;
+                    final parts = content['parts'];
+                    if (parts is! List) continue;
+                    for (final p in parts) {
+                      if (p is! Map) continue;
+                      final t = (p['text'] ?? '').toString();
+                      final thought = p['thought'] == true;
+                      if (t.isEmpty) continue;
+                      if (thought) {
+                        reasoningDelta += t;
+                      } else {
+                        textDelta += t;
+                      }
+                    }
+                  }
+                }
               } else {
-                delta = json['choices']?[0]?['delta']?['content'] as String?;
+                final delta = json['choices']?[0]?['delta'];
+                final c = delta?['content'];
+                if (c is String) textDelta = c;
+                final rc = delta?['reasoning_content'] ?? delta?['reasoning'];
+                if (rc is String) reasoningDelta = rc;
               }
               
-              if (delta != null && delta.isNotEmpty) {
-                setState(() => _streamingContent += delta!);
+              if (textDelta.isNotEmpty || reasoningDelta.isNotEmpty) {
+                setState(() {
+                  if (textDelta.isNotEmpty) _streamingContent += textDelta;
+                  if (reasoningDelta.isNotEmpty) _streamingReasoning += reasoningDelta;
+                });
                 _scrollToBottom();
               }
             } catch (_) {}
           }
         },
-        onDone: () {
-          if (_streamingContent.isNotEmpty) {
-            setState(() {
-              _messages.add(_TestMessage(role: 'assistant', content: _streamingContent));
-              _streamingContent = '';
-              _isGenerating = false;
-            });
-          } else {
-            setState(() => _isGenerating = false);
-          }
-        },
+        onDone: _finalizeStreamingAssistantMessage,
         onError: (e) {
           setState(() {
             _messages.add(_TestMessage(role: 'system', content: 'Error: $e'));
             _isGenerating = false;
             _streamingContent = '';
+            _streamingReasoning = '';
           });
         },
       );
@@ -390,25 +441,57 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
         _messages.add(_TestMessage(role: 'system', content: 'Error: $e'));
         _isGenerating = false;
         _streamingContent = '';
+        _streamingReasoning = '';
       });
     }
   }
 
-  void _stopGeneration() {
-    _streamSubscription?.cancel();
-    if (_streamingContent.isNotEmpty) {
-      _messages.add(_TestMessage(role: 'assistant', content: _streamingContent));
+  void _finalizeStreamingAssistantMessage() {
+    if (!_isGenerating) return;
+
+    final hasAny = _streamingContent.isNotEmpty || _streamingReasoning.isNotEmpty;
+    if (!hasAny) {
+      setState(() {
+        _isGenerating = false;
+        _streamingContent = '';
+        _streamingReasoning = '';
+      });
+      return;
     }
+
+    var content = _streamingContent;
+    var reasoning = _streamingReasoning;
+    if (reasoning.trim().isEmpty) {
+      final extracted = extractInlineThink(content);
+      content = extracted.content;
+      reasoning = extracted.reasoning;
+    }
+
     setState(() {
+      _messages.add(
+        _TestMessage(
+          role: 'assistant',
+          content: content.trim(),
+          reasoning: reasoning.trim().isEmpty ? null : reasoning.trim(),
+        ),
+      );
       _isGenerating = false;
       _streamingContent = '';
+      _streamingReasoning = '';
     });
+    _scrollToBottom();
+  }
+
+  void _stopGeneration() {
+    _streamSubscription?.cancel();
+    _finalizeStreamingAssistantMessage();
   }
 
   void _clearChat() {
     setState(() {
       _messages.clear();
       _streamingContent = '';
+      _streamingReasoning = '';
     });
   }
 
@@ -583,18 +666,18 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
               children: [
                 // Chat messages
                 Expanded(
-                  child: _messages.isEmpty && _streamingContent.isEmpty
+                  child: _messages.isEmpty && _streamingContent.isEmpty && _streamingReasoning.isEmpty
                       ? _buildEmptyState(l10n, cs)
                       : ListView.builder(
                           controller: _chatScrollController,
                           padding: const EdgeInsets.all(20),
-                          itemCount: _messages.length + (_streamingContent.isNotEmpty ? 1 : 0),
+                          itemCount: _messages.length + ((_streamingContent.isNotEmpty || _streamingReasoning.isNotEmpty) ? 1 : 0),
                           itemBuilder: (context, index) {
                             if (index < _messages.length) {
                               return _buildMessageBubble(_messages[index], cs, isDark: isDark);
                             } else {
                               return _buildMessageBubble(
-                                _TestMessage(role: 'assistant', content: _streamingContent),
+                                _TestMessage(role: 'assistant', content: _streamingContent, reasoning: _streamingReasoning),
                                 cs,
                                 isDark: isDark,
                                 isStreaming: true,
@@ -983,6 +1066,15 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
   Widget _buildMessageBubble(_TestMessage message, ColorScheme cs, {bool isDark = false, bool isStreaming = false}) {
     final isUser = message.role == 'user';
     final isSystem = message.role == 'system';
+    final l10n = AppLocalizations.of(context)!;
+
+    final rawContent = message.content;
+    final explicitReasoning = (message.reasoning ?? '').trim();
+    final extracted = (explicitReasoning.isEmpty && !isUser && !isSystem)
+        ? extractInlineThink(rawContent)
+        : (content: rawContent, reasoning: '');
+    final displayReasoning = explicitReasoning.isNotEmpty ? explicitReasoning : extracted.reasoning;
+    final displayContent = explicitReasoning.isNotEmpty ? rawContent : extracted.content;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1057,13 +1149,55 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
                   ),
                 ],
               ),
-              child: SelectableText(
-                message.content + (isStreaming ? ' ●' : ''),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: cs.onSurface,
-                  height: 1.6,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (displayReasoning.trim().isNotEmpty && !isSystem) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withOpacity(0.05) : cs.surface.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.25),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isStreaming ? l10n.chatMessageWidgetThinking : l10n.chatMessageWidgetDeepThinking,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: cs.onSurface.withOpacity(0.75),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText(
+                            displayReasoning.trim(),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: cs.onSurface.withOpacity(0.9),
+                              height: 1.6,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (displayContent.trim().isNotEmpty) const SizedBox(height: 10),
+                  ],
+                  if (displayContent.trim().isNotEmpty || isStreaming)
+                    SelectableText(
+                      (displayContent.trim().isNotEmpty ? displayContent.trimRight() : '') + (isStreaming ? ' ...' : ''),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: cs.onSurface,
+                        height: 1.6,
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -1099,8 +1233,9 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
 class _TestMessage {
   final String role;
   final String content;
+  final String? reasoning;
 
-  _TestMessage({required this.role, required this.content});
+  _TestMessage({required this.role, required this.content, this.reasoning});
 }
 
 class _ProviderConfig {

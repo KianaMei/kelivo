@@ -21,6 +21,7 @@ import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import 'runtime_cache_page.dart';
 import 'package:talker_flutter/talker_flutter.dart';
+import 'log_viewer_page.dart';
 import '../../../core/utils/http_logger.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -277,10 +278,7 @@ class SettingsPage extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => Scaffold(
-                      appBar: AppBar(title: Text(l10n.requestLoggingTitle)),
-                      body: TalkerScreen(talker: talker),
-                    ),
+                    builder: (_) => const LogViewerPage(),
                   ),
                 );
               },

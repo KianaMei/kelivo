@@ -2194,7 +2194,7 @@ extension on _SideDrawerState {
                 child: Text(
                   AppLocalizations.of(context)!.sideDrawerPinnedLabel,
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: cs.primary),
-                ).animate().fadeIn(duration: 180.ms).moveY(begin: 4, end: 0, duration: 220.ms, curve: Curves.easeOutCubic),
+                ).animate().fadeIn(duration: 180.ms),
               ),
               Column(
                 children: [
@@ -2209,8 +2209,7 @@ extension on _SideDrawerState {
                       onLongPress: () => _showChatMenu(context, pinnedList[i]),
                       onSecondaryTap: (pos) => _showChatMenu(context, pinnedList[i], anchor: pos),
                     ).animate(key: ValueKey('pin-${pinnedList[i].id}'))
-                      .fadeIn(duration: 220.ms, delay: (20 * i).ms)
-                      .moveY(begin: 8, end: 0, duration: 260.ms, curve: Curves.easeOutCubic, delay: (20 * i).ms),
+                      .fadeIn(duration: 220.ms, delay: (20 * i).ms),
                 ],
               ),
               const SizedBox(height: 8),
@@ -2223,7 +2222,7 @@ extension on _SideDrawerState {
                     group.label,
                     textAlign: TextAlign.left,
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: cs.primary),
-                  ).animate().fadeIn(duration: 180.ms).moveY(begin: 4, end: 0, duration: 220.ms, curve: Curves.easeOutCubic),
+                  ).animate().fadeIn(duration: 180.ms),
                 ),
               Column(
                 children: [
@@ -2238,8 +2237,7 @@ extension on _SideDrawerState {
                       onLongPress: () => _showChatMenu(context, group.items[j]),
                       onSecondaryTap: (pos) => _showChatMenu(context, group.items[j], anchor: pos),
                     ).animate(key: ValueKey('grp-${group.label}-${group.items[j].id}'))
-                      .fadeIn(duration: 220.ms, delay: (16 * j).ms)
-                      .moveY(begin: 6, end: 0, duration: 240.ms, curve: Curves.easeOutCubic, delay: (16 * j).ms),
+                      .fadeIn(duration: 220.ms, delay: (16 * j).ms),
                 ],
               ),
               if (context.watch<SettingsProvider>().showChatListDate)

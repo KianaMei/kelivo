@@ -1242,42 +1242,162 @@ class FencedCodeBlockMd extends BlockMd {
     final lang = (m.group(1) ?? '').trim();
     final code = (m.group(2) ?? '');
     final langLower = lang.toLowerCase();
-    
+
     // Special handling for Mermaid diagrams
     if (langLower == 'mermaid') {
       return _MermaidBlock(code: code);
     }
-    
-    // Check if this is a previewable frontend code (HTML, JSX, TSX, Vue, React)
+
+    // Check if this is a previewable code
     final isHtml = langLower == 'html';
+    final isMarkdown = langLower == 'md' || langLower == 'markdown' || langLower == 'text';
     final runtimeType = CodeRuntimeTemplates.detectType(langLower);
-    final canPreview = isHtml || runtimeType != null;
-    
+    final canPreview = isHtml || isMarkdown || runtimeType != null;
+
     return CodeArtifactsCard(
       code: code,
       language: lang,
       isStreaming: _detectStreamingState(langLower),
       canRenderPreview: canPreview,
-      onPreview: canPreview ? () async {
-        if (isHtml) {
-          // Plain HTML - direct preview
-          showHtmlPreviewDialog(context, code);
-        } else if (runtimeType != null) {
-          // Frontend code - generate HTML with runtime and preview
-          // Use async version to support local cache
-          final html = await CodeRuntimeTemplates.generateHtmlAsync(
-            code: code,
-            type: runtimeType,
-            useTailwind: true,
-            useLucide: false,
-            preferLocalCache: true,
-          );
-          if (context.mounted) {
-            showHtmlPreviewDialog(context, html);
+      // 统一的预览回调 - 打开通用预览对话框
+      onPreview: () async {
+        if (canPreview) {
+          // 可预览语言：生成预览 HTML
+          String previewHtml;
+          if (isHtml) {
+            previewHtml = code;
+          } else if (isMarkdown) {
+            previewHtml = _generateMarkdownPreviewHtml(code, Theme.of(context).brightness == Brightness.dark);
+          } else if (runtimeType != null) {
+            previewHtml = await CodeRuntimeTemplates.generateHtmlAsync(
+              code: code,
+              type: runtimeType,
+              useTailwind: true,
+              useLucide: false,
+              preferLocalCache: true,
+            );
+          } else {
+            previewHtml = code;
           }
+          if (context.mounted) {
+            showCodePreviewDialog(
+              context,
+              code: code,
+              language: lang,
+              canRenderPreview: true,
+              previewHtml: previewHtml,
+            );
+          }
+        } else {
+          // 不可预览语言：只显示源码
+          showCodePreviewDialog(
+            context,
+            code: code,
+            language: lang,
+            canRenderPreview: false,
+          );
         }
-      } : null,
+      },
     );
+  }
+
+  /// 生成 Markdown 预览 HTML（使用 marked.js 渲染）
+  static String _generateMarkdownPreviewHtml(String markdown, bool isDark) {
+    final bg = isDark ? '#1e1e1e' : '#ffffff';
+    final fg = isDark ? '#e0e0e0' : '#333333';
+    final codeBg = isDark ? '#2d2d2d' : '#f5f5f5';
+    final borderColor = isDark ? '#444444' : '#e0e0e0';
+    final linkColor = isDark ? '#58a6ff' : '#0366d6';
+
+    // 转义 HTML 特殊字符和反引号
+    final escaped = markdown
+        .replaceAll('\\', '\\\\')
+        .replaceAll('`', '\\`')
+        .replaceAll('\$', '\\\$');
+
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: $bg;
+      color: $fg;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.2em;
+      margin-bottom: 0.6em;
+      font-weight: 600;
+    }
+    h1 { font-size: 1.8em; border-bottom: 1px solid $borderColor; padding-bottom: 0.3em; }
+    h2 { font-size: 1.5em; border-bottom: 1px solid $borderColor; padding-bottom: 0.3em; }
+    h3 { font-size: 1.25em; }
+    p { margin: 0.8em 0; }
+    a { color: $linkColor; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      background: $codeBg;
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-family: "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.9em;
+    }
+    pre {
+      background: $codeBg;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    blockquote {
+      margin: 1em 0;
+      padding: 0.5em 1em;
+      border-left: 4px solid $linkColor;
+      background: ${isDark ? '#252525' : '#f8f8f8'};
+      border-radius: 0 8px 8px 0;
+    }
+    ul, ol { padding-left: 1.5em; margin: 0.8em 0; }
+    li { margin: 0.3em 0; }
+    hr {
+      border: none;
+      border-top: 1px solid $borderColor;
+      margin: 1.5em 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+    }
+    th, td {
+      border: 1px solid $borderColor;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: ${isDark ? '#2d2d2d' : '#f5f5f5'}; font-weight: 600; }
+    img { max-width: 100%; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="content"></div>
+  <script>
+    const markdown = `$escaped`;
+    document.getElementById('content').innerHTML = marked.parse(markdown);
+  </script>
+</body>
+</html>
+''';
   }
 }
 

@@ -149,11 +149,29 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
       });
     } catch (e) {
       if (!mounted) return;
+      // 检测 Cloudflare/TLS 握手错误并提供友好提示
+      final errStr = e.toString();
+      String friendlyError;
+      if (errStr.contains('HandshakeException') ||
+          errStr.contains('Connection terminated during handshake') ||
+          errStr.contains('CERTIFICATE_VERIFY_FAILED')) {
+        friendlyError = '连接被拒绝 (可能是 Cloudflare 防护)\n\n'
+            '建议：\n'
+            '• 在浏览器中访问该站点完成验证\n'
+            '• 联系 API 提供者关闭防护\n'
+            '• 配置代理服务器';
+      } else if (errStr.contains('403') || errStr.contains('Forbidden')) {
+        friendlyError = '访问被拒绝 (403)\n\n可能是 Cloudflare 防护或 API 密钥无效';
+      } else if (errStr.contains('SocketException') || errStr.contains('Connection refused')) {
+        friendlyError = '无法连接到服务器\n\n请检查网络连接和服务器地址';
+      } else {
+        friendlyError = errStr;
+      }
       setState(() {
         _items = const [];
         _unavailableItems = const [];
         _loading = false;
-        _error = '$e';
+        _error = friendlyError;
       });
     }
   }

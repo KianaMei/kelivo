@@ -29,6 +29,8 @@ import 'utils/restart_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/services/http/dio_client.dart';
 import 'bootstrap/platform_bootstrap.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/services/network/request_logger.dart';
 
 final RouteObserver<ModalRoute<dynamic>> routeObserver = RouteObserver<ModalRoute<dynamic>>();
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -42,6 +44,14 @@ Future<void> main() async {
   initDio();
   // Platform-specific bootstrap (IO: dirs/window/fonts/path fix, Web: minimal)
   await platformBootstrap();
+
+  // 在 runApp 之前初始化日志记录，确保不会丢失任何请求
+  final prefs = await SharedPreferences.getInstance();
+  final loggingEnabled = prefs.getBool('request_logging_enabled_v1') ?? false;
+  if (loggingEnabled) {
+    await RequestLogger.setEnabled(true);
+  }
+
   // Debug logging and global error handlers were enabled previously for diagnosis.
   // They are commented out now per request to reduce log noise.
   // FlutterError.onError = (FlutterErrorDetails details) { ... };

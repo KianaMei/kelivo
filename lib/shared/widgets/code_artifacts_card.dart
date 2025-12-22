@@ -423,8 +423,8 @@ class CodeArtifactsCard extends StatefulWidget {
   final String code;
   final String language;
   final bool isStreaming;
-  final VoidCallback? onPreview;
-  final bool canRenderPreview; // 是否支持渲染预览（如 HTML）
+  final VoidCallback? onPreview;    // 统一的预览回调（打开预览对话框）
+  final bool canRenderPreview;       // 是否支持渲染预览（影响按钮图标和对话框模式）
 
   const CodeArtifactsCard({
     super.key,
@@ -767,8 +767,8 @@ class _CodeArtifactsCardState extends State<CodeArtifactsCard> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: FilledButton.icon(
                     onPressed: hasContent ? widget.onPreview : null,
-                    icon: Icon(isHtml ? Lucide.Eye : Lucide.Code, size: 16),
-                    label: Text(isHtml ? l10n.codeCardPreview : l10n.codeCardView),
+                    icon: Icon(widget.canRenderPreview ? Lucide.Eye : Lucide.Code, size: 16),
+                    label: Text(widget.canRenderPreview ? l10n.codeCardPreview : l10n.codeCardView),
                   ),
                 ),
               ],
