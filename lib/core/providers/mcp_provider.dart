@@ -184,18 +184,13 @@ class McpProvider extends ChangeNotifier {
         _servers = list;
       } catch (_) {}
     }
-    // initialize statuses
+    // Initialize statuses: enabled servers are assumed "connected" (lazy connect on use)
     for (final s in _servers) {
-      _status[s.id] = McpStatus.idle;
+      _status[s.id] = s.enabled ? McpStatus.connected : McpStatus.idle;
       _errors.remove(s.id);
     }
     notifyListeners();
-
-    // Auto-connect enabled servers
-    for (final s in _servers.where((e) => e.enabled)) {
-      // fire and forget
-      unawaited(connect(s.id));
-    }
+    // No auto-connect at startup; connection happens lazily when tools are called
   }
 
   Future<void> _persist() async {
@@ -227,12 +222,10 @@ class McpProvider extends ChangeNotifier {
       headers: headers,
     );
     _servers = [..._servers, cfg];
-    _status[id] = McpStatus.idle;
+    // Enabled servers are assumed "connected" (lazy connect on use)
+    _status[id] = enabled ? McpStatus.connected : McpStatus.idle;
     await _persist();
     notifyListeners();
-    if (enabled) {
-      unawaited(connect(id));
-    }
     return id;
   }
 
@@ -245,9 +238,12 @@ class McpProvider extends ChangeNotifier {
     if (!updated.enabled) {
       await disconnect(updated.id);
     } else {
-      // Always reconnect after saving to apply changes (url/transport/name)
+      // Disconnect existing connection if any (to apply url/transport changes on next use)
       await disconnect(updated.id);
-      unawaited(connect(updated.id));
+      // Mark as connected (lazy reconnect on next tool call)
+      _status[updated.id] = McpStatus.connected;
+      _errors.remove(updated.id);
+      notifyListeners();
     }
   }
 
@@ -725,9 +721,10 @@ class McpProvider extends ChangeNotifier {
     // Do not attempt to connect if the server is disabled
     final cfg = getById(id);
     if (cfg == null || !cfg.enabled) return;
-    if (isConnected(id)) return;
-    // Try a few times with short backoff in case server blips
-    await _reconnectWithBackoff(id, maxAttempts: 3);
+    // Check if we have an actual client connection (not just status)
+    if (_clients.containsKey(id)) return;
+    // Need to actually connect now
+    await connect(id);
   }
 
   Future<mcp.CallToolResult?> callTool(String serverId, String toolName, Map<String, dynamic> args) async {

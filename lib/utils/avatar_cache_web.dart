@@ -9,6 +9,16 @@ class AvatarCache {
 
   static final Map<String, String?> _memo = <String, String?>{};
 
+  /// Clears the in-memory avatar cache.
+  static void clearMemory() {
+    _memo.clear();
+  }
+
+  /// Alias for compatibility with storage_usage_service.
+  static void clearMemoryCache() {
+    clearMemory();
+  }
+
   static Future<String?> getPath(String url) async {
     if (url.isEmpty) return null;
     if (_memo.containsKey(url)) return _memo[url];

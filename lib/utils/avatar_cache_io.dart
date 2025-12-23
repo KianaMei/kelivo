@@ -13,6 +13,16 @@ class AvatarCache {
 
   static final Map<String, String?> _memo = <String, String?>{};
 
+  /// Clears the in-memory avatar cache.
+  static void clearMemory() {
+    _memo.clear();
+  }
+
+  /// Alias for compatibility with storage_usage_service.
+  static void clearMemoryCache() {
+    clearMemory();
+  }
+
   static Future<Directory> _cacheDir() async {
     final root = await AppDirs.dataRoot();
     final dir = Directory(p.join(root.path, 'cache/avatars'));

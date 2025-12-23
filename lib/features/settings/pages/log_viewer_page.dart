@@ -9,9 +9,6 @@ import '../../../utils/app_dirs.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 
-/// 日志解析状态枚举
-enum _ParseState { initial, requestHeaders, requestBody, responseHeaders, responseBody, chunks, error }
-
 /// 将字符串中的转义字符渲染为真实字符
 String _renderEscapes(String input) {
   return input
@@ -319,6 +316,42 @@ class _LogEntry {
   }
 }
 
+class _MutableLogEntry {
+  _MutableLogEntry(this.requestId);
+
+  final int requestId;
+  String method = '';
+  String url = '';
+  DateTime? timestamp;
+  Map<String, String> requestHeaders = <String, String>{};
+  String requestBody = '';
+  int? statusCode;
+  Map<String, String> responseHeaders = <String, String>{};
+  String responseBody = '';
+  final List<String> responseChunks = <String>[];
+  bool hasError = false;
+  String? errorMessage;
+  bool isDone = false;
+
+  _LogEntry toEntry() {
+    return _LogEntry(
+      requestId: requestId,
+      method: method,
+      url: url,
+      timestamp: timestamp,
+      requestHeaders: Map<String, String>.unmodifiable(requestHeaders),
+      requestBody: requestBody,
+      statusCode: statusCode,
+      responseHeaders: Map<String, String>.unmodifiable(responseHeaders),
+      responseBody: responseBody,
+      responseChunks: List<String>.unmodifiable(responseChunks),
+      hasError: hasError,
+      errorMessage: errorMessage,
+      isDone: isDone,
+    );
+  }
+}
+
 class _LogContentPageState extends State<_LogContentPage> {
   List<_LogEntry> _entries = [];
   String _rawContent = '';
@@ -351,8 +384,104 @@ class _LogContentPageState extends State<_LogContentPage> {
   }
 
   /// Parse log content into request/response entries
-  /// 支持新格式日志（带分隔符和结构化内容）
+  ///
+  /// JSONL: each line is a JSON object produced by RequestLogger.
   List<_LogEntry> _parseLogContent(String content) {
+    int? toInt(Object? v) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse(v?.toString() ?? '');
+    }
+
+    DateTime? toDateTime(Object? v) {
+      if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+      if (v is num) return DateTime.fromMillisecondsSinceEpoch(v.toInt());
+      if (v is String) return DateTime.tryParse(v);
+      return null;
+    }
+
+    Map<String, String> toStringMap(Object? v) {
+      if (v is! Map) return <String, String>{};
+      final out = <String, String>{};
+      v.forEach((k, val) {
+        out[k.toString()] = val.toString();
+      });
+      return out;
+    }
+
+    final byId = <int, _MutableLogEntry>{};
+    var parsed = 0;
+
+    for (final line in const LineSplitter().convert(content)) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      if (!trimmed.startsWith('{')) continue;
+
+      dynamic decoded;
+      try {
+        decoded = jsonDecode(trimmed);
+      } catch (_) {
+        continue;
+      }
+      if (decoded is! Map) continue;
+      final map = decoded.cast<String, dynamic>();
+
+      final type = map['type'];
+      if (type is! String) continue;
+      final id = toInt(map['id']);
+      if (id == null) continue;
+
+      final acc = byId.putIfAbsent(id, () => _MutableLogEntry(id));
+      final ts = toDateTime(map['ts']);
+
+      switch (type) {
+        case 'request':
+          acc.timestamp ??= ts;
+          final method = map['method'];
+          if (method is String) acc.method = method;
+          final url = map['url'];
+          if (url is String) acc.url = url;
+          acc.requestHeaders = toStringMap(map['headers']);
+          final body = map['body'];
+          if (body is String) acc.requestBody = body;
+          parsed++;
+          break;
+        case 'response_headers':
+          acc.statusCode = toInt(map['status']);
+          acc.responseHeaders = toStringMap(map['headers']);
+          parsed++;
+          break;
+        case 'response_body':
+          final body = map['body'];
+          if (body is String) acc.responseBody = body;
+          parsed++;
+          break;
+        case 'chunk':
+          final chunk = map['chunk'];
+          if (chunk is String) acc.responseChunks.add(chunk);
+          parsed++;
+          break;
+        case 'done':
+          acc.isDone = true;
+          parsed++;
+          break;
+        case 'error':
+          acc.hasError = true;
+          final msg = map['message'];
+          acc.errorMessage = (msg is String) ? msg : msg?.toString();
+          parsed++;
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (parsed == 0) return <_LogEntry>[];
+    final entries = byId.values.map((e) => e.toEntry()).toList();
+    entries.sort((a, b) => b.requestId.compareTo(a.requestId));
+    return entries;
+
+    /*
     final entries = <_LogEntry>[];
     final lines = content.split('\n');
     
@@ -653,6 +782,7 @@ class _LogContentPageState extends State<_LogContentPage> {
     // Sort by request ID descending (newest first)
     entries.sort((a, b) => b.requestId.compareTo(a.requestId));
     return entries;
+    */
   }
 
   Future<void> _exportFile() async {
