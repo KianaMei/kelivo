@@ -182,6 +182,7 @@ class DataSync {
             options: Options(
               method: 'PROPFIND',
               headers: headers,
+              extra: const {kLogNetworkResultOnlyExtraKey: true},
               validateStatus: (status) => true,
             ),
           );
@@ -193,6 +194,7 @@ class DataSync {
               options: Options(
                 method: 'MKCOL',
                 headers: _authHeaders(cfg),
+                extra: const {kLogNetworkResultOnlyExtraKey: true},
                 validateStatus: (status) => true,
               ),
             );
@@ -228,6 +230,7 @@ class DataSync {
       options: Options(
         method: 'PROPFIND',
         headers: {'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8', ..._authHeaders(cfg)},
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         validateStatus: (status) => true,
       ),
     );
@@ -343,6 +346,7 @@ class DataSync {
       data: bytes,
       options: Options(
         responseType: ResponseType.plain,
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         headers: {
           'Content-Type': 'application/zip',
           'Content-Length': bytes.length.toString(),
@@ -376,6 +380,7 @@ class DataSync {
       options: Options(
         method: 'PROPFIND',
         headers: {'Depth': '1', 'Content-Type': 'application/xml; charset=utf-8', ..._authHeaders(cfg)},
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         validateStatus: (status) => true,
       ),
     );
@@ -439,6 +444,7 @@ class DataSync {
       item.href.toString(),
       options: Options(
         headers: _authHeaders(cfg),
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         responseType: ResponseType.bytes,
         validateStatus: (status) => true,
       ),
@@ -463,6 +469,7 @@ class DataSync {
       item.href.toString(),
       options: Options(
         headers: _authHeaders(cfg),
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         validateStatus: (status) => true,
       ),
     );

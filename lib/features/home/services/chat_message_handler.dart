@@ -449,4 +449,30 @@ class ChatMessageHandler {
     sb.writeln('</recent_chats>');
     return sb.toString();
   }
+
+  /// Build a recent chats prompt with rich information including summaries.
+  ///
+  /// [chats] - List of maps containing 'title', optional 'summary', and 'timestamp' (ISO date string).
+  /// Returns the formatted recent chats prompt string.
+  static String buildRecentChatsPromptWithSummary(List<Map<String, String>> chats) {
+    if (chats.isEmpty) return '';
+    final sb = StringBuffer();
+    sb.writeln('<recent_chats>');
+    sb.writeln('这是用户最近的一些对话标题和摘要，你可以参考这些内容了解用户偏好和关注点');
+    for (final c in chats) {
+      sb.writeln('<conversation>');
+      // Format: timestamp: title || summary
+      final timestamp = c['timestamp'] ?? '';
+      final title = c['title'] ?? '';
+      final summary = c['summary'] ?? '';
+      if (summary.isNotEmpty) {
+        sb.writeln('  $timestamp: $title || $summary');
+      } else {
+        sb.writeln('  $timestamp: $title');
+      }
+      sb.writeln('</conversation>');
+    }
+    sb.writeln('</recent_chats>');
+    return sb.toString();
+  }
 }

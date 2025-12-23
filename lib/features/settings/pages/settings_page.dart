@@ -20,6 +20,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import 'runtime_cache_page.dart';
+import 'storage_space_page.dart';
+import 'network_proxy_page.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 import 'log_viewer_page.dart';
 import '../../../core/utils/http_logger.dart';
@@ -236,6 +238,15 @@ class SettingsPage extends StatelessWidget {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const QuickPhrasesPage()));
               },
             ),
+            _iosDivider(context),
+            _iosNavRow(
+              context,
+              icon: Lucide.EthernetPort,
+              label: l10n.settingsPageNetworkProxy,
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NetworkProxyPage()));
+              },
+            ),
           ]),
 
           const SizedBox(height: 12),
@@ -313,7 +324,9 @@ class SettingsPage extends StatelessWidget {
                   },
                 );
               },
-              onTap: null, // disabled: no tap, no chevron, no press feedback
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const StorageSpacePage()));
+              },
             ),
           ]),
 

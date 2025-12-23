@@ -79,6 +79,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _appLocaleKey = 'app_locale_v1';
   static const String _translateModelKey = 'translate_model_v1';
   static const String _translatePromptKey = 'translate_prompt_v1';
+  static const String _summaryModelKey = 'summary_model_v1';
+  static const String _summaryPromptKey = 'summary_prompt_v1';
   static const String _learningModeEnabledKey = 'learning_mode_enabled_v1';
   static const String _learningModePromptKey = 'learning_mode_prompt_v1';
   static const String _searchServicesKey = 'search_services_v1';
@@ -106,6 +108,13 @@ class SettingsProvider extends ChangeNotifier {
   static const String _desktopCloseToTrayKey = 'desktop_close_to_tray_v1';
   // Request logging (write HTTP requests/responses to file)
   static const String _requestLoggingEnabledKey = 'request_logging_enabled_v1';
+  // Global proxy settings
+  static const String _globalProxyEnabledKey = 'global_proxy_enabled_v1';
+  static const String _globalProxyTypeKey = 'global_proxy_type_v1'; // http|https|socks5
+  static const String _globalProxyHostKey = 'global_proxy_host_v1';
+  static const String _globalProxyPortKey = 'global_proxy_port_v1';
+  static const String _globalProxyUsernameKey = 'global_proxy_username_v1';
+  static const String _globalProxyPasswordKey = 'global_proxy_password_v1';
 
   List<String> _providersOrder = const [];
   List<String> get providersOrder => _providersOrder;
@@ -207,6 +216,21 @@ class SettingsProvider extends ChangeNotifier {
   final Map<String, bool?> _searchConnection = <String, bool?>{};
   Map<String, bool?> get searchConnection => Map.unmodifiable(_searchConnection);
 
+  // ===== Global Proxy Settings =====
+  bool _globalProxyEnabled = false;
+  String _globalProxyType = 'http';
+  String _globalProxyHost = '';
+  String _globalProxyPort = '8080';
+  String _globalProxyUsername = '';
+  String _globalProxyPassword = '';
+
+  bool get globalProxyEnabled => _globalProxyEnabled;
+  String get globalProxyType => _globalProxyType; // http|https|socks5
+  String get globalProxyHost => _globalProxyHost;
+  String get globalProxyPort => _globalProxyPort;
+  String get globalProxyUsername => _globalProxyUsername;
+  String get globalProxyPassword => _globalProxyPassword;
+
   SettingsProvider() {
     _load();
   }
@@ -294,6 +318,18 @@ class SettingsProvider extends ChangeNotifier {
     // load translate prompt
     final transp = prefs.getString(_translatePromptKey);
     _translatePrompt = (transp == null || transp.trim().isEmpty) ? defaultTranslatePrompt : transp;
+    // load summary model
+    final summarySel = prefs.getString(_summaryModelKey);
+    if (summarySel != null && summarySel.contains('::')) {
+      final parts = summarySel.split('::');
+      if (parts.length >= 2) {
+        _summaryModelProvider = parts[0];
+        _summaryModelId = parts.sublist(1).join('::');
+      }
+    }
+    // load summary prompt
+    final summaryp = prefs.getString(_summaryPromptKey);
+    _summaryPrompt = (summaryp == null || summaryp.trim().isEmpty) ? defaultSummaryPrompt : summaryp;
     // load OCR model
     final ocrSel = prefs.getString(_ocrModelKey);
     if (ocrSel != null && ocrSel.contains('::')) {
@@ -475,6 +511,15 @@ class SettingsProvider extends ChangeNotifier {
     if (webdavStr != null && webdavStr.isNotEmpty) {
       try { _webDavConfig = WebDavConfig.fromJson(jsonDecode(webdavStr) as Map<String, dynamic>); } catch (_) {}
     }
+
+    // Global proxy settings
+    _globalProxyEnabled = prefs.getBool(_globalProxyEnabledKey) ?? false;
+    _globalProxyType = prefs.getString(_globalProxyTypeKey) ?? 'http';
+    _globalProxyHost = prefs.getString(_globalProxyHostKey) ?? '';
+    _globalProxyPort = prefs.getString(_globalProxyPortKey) ?? '8080';
+    _globalProxyUsername = prefs.getString(_globalProxyUsernameKey) ?? '';
+    _globalProxyPassword = prefs.getString(_globalProxyPasswordKey) ?? '';
+
     if (_providerConfigs.isEmpty) {
       // Seed a couple of sensible defaults on first launch, but do not recreate
       // providers implicitly during later reads (e.g., when switching chats).
@@ -925,6 +970,11 @@ class SettingsProvider extends ChangeNotifier {
       _translateModelId = null;
       await prefs.remove(_translateModelKey);
     }
+    if (_summaryModelProvider == key) {
+      _summaryModelProvider = null;
+      _summaryModelId = null;
+      await prefs.remove(_summaryModelKey);
+    }
     if (_ocrModelProvider == key) {
       _ocrModelProvider = null;
       _ocrModelId = null;
@@ -1070,6 +1120,60 @@ Please translate the <source_text> section:
   }
 
   Future<void> resetTranslatePrompt() async => setTranslatePrompt(defaultTranslatePrompt);
+
+  // Summary model and prompt (for auto-generating conversation summaries)
+  String? _summaryModelProvider;
+  String? _summaryModelId;
+  String? get summaryModelProvider => _summaryModelProvider;
+  String? get summaryModelId => _summaryModelId;
+  String? get summaryModelKey => (_summaryModelProvider != null && _summaryModelId != null)
+      ? '${_summaryModelProvider!}::${_summaryModelId!}'
+      : null;
+
+  static const String defaultSummaryPrompt = '''I will give you user messages from a conversation in the `<messages>` block.
+Generate or update a brief summary of the user's questions and intentions.
+
+1. The summary should be in the same language as the user messages
+2. Focus on the user's core questions and intentions
+3. Keep it under 100 characters
+4. Output the summary directly without any prefix
+5. If a previous summary exists, incorporate it with the new messages
+
+<previous_summary>
+{previous_summary}
+</previous_summary>
+
+<messages>
+{user_messages}
+</messages>''';
+
+  String _summaryPrompt = defaultSummaryPrompt;
+  String get summaryPrompt => _summaryPrompt;
+
+  Future<void> setSummaryModel(String providerKey, String modelId) async {
+    _summaryModelProvider = providerKey;
+    _summaryModelId = modelId;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_summaryModelKey, '$providerKey::$modelId');
+  }
+
+  Future<void> resetSummaryModel() async {
+    _summaryModelProvider = null;
+    _summaryModelId = null;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_summaryModelKey);
+  }
+
+  Future<void> setSummaryPrompt(String prompt) async {
+    _summaryPrompt = prompt.trim().isEmpty ? defaultSummaryPrompt : prompt;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_summaryPromptKey, _summaryPrompt);
+  }
+
+  Future<void> resetSummaryPrompt() async => setSummaryPrompt(defaultSummaryPrompt);
 
   // OCR model, prompt and toggle
   String? _ocrModelProvider;
@@ -1621,6 +1725,9 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     copy._translateModelProvider = _translateModelProvider;
     copy._translateModelId = _translateModelId;
     copy._translatePrompt = _translatePrompt;
+    copy._summaryModelProvider = _summaryModelProvider;
+    copy._summaryModelId = _summaryModelId;
+    copy._summaryPrompt = _summaryPrompt;
     copy._thinkingBudget = _thinkingBudget;
     copy._showUserAvatar = _showUserAvatar;
     copy._showModelIcon = _showModelIcon;
@@ -1646,5 +1753,48 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     copy._enableReasoningMarkdown = _enableReasoningMarkdown;
     copy._showChatListDate = _showChatListDate;
     return copy;
+  }
+
+  // ===== Global Proxy Setters =====
+  Future<void> setGlobalProxyEnabled(bool v) async {
+    _globalProxyEnabled = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_globalProxyEnabledKey, _globalProxyEnabled);
+  }
+
+  Future<void> setGlobalProxyType(String v) async {
+    _globalProxyType = v.trim().isEmpty ? 'http' : v.trim();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_globalProxyTypeKey, _globalProxyType);
+  }
+
+  Future<void> setGlobalProxyHost(String v) async {
+    _globalProxyHost = v.trim();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_globalProxyHostKey, _globalProxyHost);
+  }
+
+  Future<void> setGlobalProxyPort(String v) async {
+    _globalProxyPort = v.trim();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_globalProxyPortKey, _globalProxyPort);
+  }
+
+  Future<void> setGlobalProxyUsername(String v) async {
+    _globalProxyUsername = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_globalProxyUsernameKey, _globalProxyUsername);
+  }
+
+  Future<void> setGlobalProxyPassword(String v) async {
+    _globalProxyPassword = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_globalProxyPasswordKey, _globalProxyPassword);
   }
 }

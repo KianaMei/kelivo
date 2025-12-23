@@ -478,6 +478,53 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Update the summary and lastSummarizedMessageCount for a conversation.
+  /// Used for LLM-generated summaries for the recent chats reference feature.
+  Future<void> updateConversationSummary(String id, String summary, int messageCount) async {
+    if (!_initialized) return;
+
+    if (_draftConversations.containsKey(id)) {
+      // Draft conversations don't need summaries yet
+      return;
+    }
+    final conversation = _conversationsBox.get(id);
+    if (conversation == null) return;
+
+    // Use HiveObject's direct field access since summary and lastSummarizedMessageCount are mutable
+    // We need to create a new object since HiveField are final for some fields
+    final updated = conversation.copyWith(
+      summary: summary,
+      lastSummarizedMessageCount: messageCount,
+    );
+    // Delete old and save new (Hive workaround for non-trivial updates)
+    await _conversationsBox.put(id, updated);
+    notifyListeners();
+  }
+
+  /// Get all conversations with a summary for a specific assistant.
+  /// Used for displaying and managing summaries in the memory tab.
+  List<Conversation> getConversationsWithSummaryForAssistant(String? assistantId) {
+    if (!_initialized) return [];
+    return _conversationsBox.values
+        .where((c) => c.assistantId == assistantId && c.summary != null && c.summary!.trim().isNotEmpty)
+        .toList()
+      ..sort((a, b) => (b.updatedAt ?? DateTime(1970)).compareTo(a.updatedAt ?? DateTime(1970)));
+  }
+
+  /// Clear the summary for a specific conversation.
+  Future<void> clearConversationSummary(String id) async {
+    if (!_initialized) return;
+    final conversation = _conversationsBox.get(id);
+    if (conversation == null) return;
+
+    final updated = conversation.copyWith(
+      summary: '',
+      lastSummarizedMessageCount: 0,
+    );
+    await _conversationsBox.put(id, updated);
+    notifyListeners();
+  }
+
   Future<void> togglePinConversation(String id) async {
     if (!_initialized) return;
 

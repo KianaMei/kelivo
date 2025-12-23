@@ -15,6 +15,14 @@ import '../../providers/settings_provider.dart';
 import '../../utils/http_logger.dart';
 import '../network/request_logger.dart';
 
+/// Set `RequestOptions.extra[kLogNetworkResultOnlyExtraKey] = true` to avoid
+/// logging request/response headers and bodies (e.g. WebDAV backup payloads),
+/// while still logging method/url/status for troubleshooting.
+const String kLogNetworkResultOnlyExtraKey = 'kelivo_log_network_result_only';
+
+bool _logNetworkResultOnly(RequestOptions options) =>
+    options.extra[kLogNetworkResultOnlyExtraKey] == true;
+
 /// 全局 Dio 实例
 late final Dio dio;
 
@@ -113,11 +121,14 @@ class RequestLoggerInterceptor extends Interceptor {
       _requestIds[options] = reqId;
 
       // 记录请求
-      final headers = Map<String, String>.from(
-        options.headers.map((k, v) => MapEntry(k, v.toString())),
-      );
+      final resultOnly = _logNetworkResultOnly(options);
+      final headers = resultOnly
+          ? <String, String>{}
+          : Map<String, String>.from(
+              options.headers.map((k, v) => MapEntry(k, v.toString())),
+            );
       List<int> bodyBytes = const [];
-      if (options.data != null) {
+      if (!resultOnly && options.data != null) {
         if (options.data is List<int>) {
           bodyBytes = options.data as List<int>;
         } else if (options.data is String) {
@@ -135,16 +146,19 @@ class RequestLoggerInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    if (RequestLogger.enabled) {
-      final reqId = _requestIds.remove(response.requestOptions) ?? 0;
+    final reqId = _requestIds.remove(response.requestOptions);
+    if (RequestLogger.enabled && reqId != null) {
+      final resultOnly = _logNetworkResultOnly(response.requestOptions);
       final headers = <String, String>{};
-      response.headers.forEach((name, values) {
-        if (values.isNotEmpty) headers[name] = values.join(',');
-      });
+      if (!resultOnly) {
+        response.headers.forEach((name, values) {
+          if (values.isNotEmpty) headers[name] = values.join(',');
+        });
+      }
       RequestLogger.logResponseHeaders(reqId, response.statusCode ?? 0, headers);
 
       // 记录响应体（非流式）
-      if (response.data != null && response.data is! ResponseBody) {
+      if (!resultOnly && response.data != null && response.data is! ResponseBody) {
         String bodyStr = '';
         if (response.data is String) {
           bodyStr = response.data as String;
@@ -154,6 +168,8 @@ class RequestLoggerInterceptor extends Interceptor {
           } catch (_) {}
         } else if (response.data is Uint8List) {
           bodyStr = RequestLogger.safeDecodeUtf8(response.data as Uint8List);
+        } else if (response.data is List<int>) {
+          bodyStr = RequestLogger.safeDecodeUtf8(response.data as List<int>);
         }
         if (bodyStr.isNotEmpty) {
           RequestLogger.logResponseBody(reqId, bodyStr);
@@ -166,8 +182,8 @@ class RequestLoggerInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (RequestLogger.enabled) {
-      final reqId = _requestIds.remove(err.requestOptions) ?? 0;
+    final reqId = _requestIds.remove(err.requestOptions);
+    if (RequestLogger.enabled && reqId != null) {
       RequestLogger.logError(reqId, err.toString());
     }
     handler.next(err);
@@ -180,15 +196,19 @@ class StreamResponseLoggerInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (RequestLogger.enabled && options.responseType == ResponseType.stream) {
+    if (RequestLogger.enabled &&
+        options.responseType == ResponseType.stream) {
       final reqId = RequestLogger.nextRequestId();
       _requestIds[options] = reqId;
 
-      final headers = Map<String, String>.from(
-        options.headers.map((k, v) => MapEntry(k, v.toString())),
-      );
+      final resultOnly = _logNetworkResultOnly(options);
+      final headers = resultOnly
+          ? <String, String>{}
+          : Map<String, String>.from(
+              options.headers.map((k, v) => MapEntry(k, v.toString())),
+            );
       List<int> bodyBytes = const [];
-      if (options.data != null) {
+      if (!resultOnly && options.data != null) {
         if (options.data is List<int>) {
           bodyBytes = options.data as List<int>;
         } else if (options.data is String) {
@@ -206,12 +226,17 @@ class StreamResponseLoggerInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    if (RequestLogger.enabled && response.requestOptions.responseType == ResponseType.stream) {
-      final reqId = _requestIds[response.requestOptions] ?? 0;
+    final reqId = _requestIds[response.requestOptions];
+    if (RequestLogger.enabled &&
+        reqId != null &&
+        response.requestOptions.responseType == ResponseType.stream) {
+      final resultOnly = _logNetworkResultOnly(response.requestOptions);
       final headers = <String, String>{};
-      response.headers.forEach((name, values) {
-        if (values.isNotEmpty) headers[name] = values.join(',');
-      });
+      if (!resultOnly) {
+        response.headers.forEach((name, values) {
+          if (values.isNotEmpty) headers[name] = values.join(',');
+        });
+      }
       RequestLogger.logResponseHeaders(reqId, response.statusCode ?? 0, headers);
       // 流式数据的 chunk 记录在 chat_api_service 中处理
     }
@@ -220,15 +245,16 @@ class StreamResponseLoggerInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (RequestLogger.enabled) {
-      final reqId = _requestIds.remove(err.requestOptions) ?? 0;
+    final reqId = _requestIds.remove(err.requestOptions);
+    if (RequestLogger.enabled && reqId != null) {
       RequestLogger.logError(reqId, err.toString());
     }
     handler.next(err);
   }
 
   /// 获取请求 ID（用于流式响应的 chunk 记录）
-  int? getRequestId(RequestOptions options) => _requestIds[options];
+  int? getRequestId(RequestOptions options) =>
+      _logNetworkResultOnly(options) ? null : _requestIds[options];
 
   /// 完成请求记录
   void finishRequest(RequestOptions options) {
@@ -243,7 +269,7 @@ class StreamResponseLoggerInterceptor extends Interceptor {
 class ConditionalTalkerInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (TalkerLogger.enabled) {
+    if (TalkerLogger.enabled && !_logNetworkResultOnly(options)) {
       final sb = StringBuffer();
       sb.writeln('→ ${options.method} ${options.uri}');
 
@@ -281,7 +307,7 @@ class ConditionalTalkerInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    if (TalkerLogger.enabled) {
+    if (TalkerLogger.enabled && !_logNetworkResultOnly(response.requestOptions)) {
       final sb = StringBuffer();
       sb.writeln('← ${response.statusCode} ${response.requestOptions.method} ${response.requestOptions.uri}');
 
@@ -306,8 +332,6 @@ class ConditionalTalkerInterceptor extends Interceptor {
           } catch (_) {
             bodyStr = response.data.toString();
           }
-        } else if (response.data is Uint8List) {
-          bodyStr = '[Binary data: ${(response.data as Uint8List).length} bytes]';
         } else {
           bodyStr = response.data.toString();
         }
@@ -325,7 +349,7 @@ class ConditionalTalkerInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (TalkerLogger.enabled) {
+    if (TalkerLogger.enabled && !_logNetworkResultOnly(err.requestOptions)) {
       final sb = StringBuffer();
       sb.writeln('✕ ERROR ${err.requestOptions.method} ${err.requestOptions.uri}');
       sb.writeln('Type: ${err.type}');

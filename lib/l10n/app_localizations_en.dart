@@ -1689,6 +1689,25 @@ class AppLocalizationsEn extends AppLocalizations {
       'Used for summarizing conversation titles; prefer fast & cheap models';
 
   @override
+  String get defaultModelPageSummaryModelTitle => 'Chat Summary Model';
+
+  @override
+  String get defaultModelPageSummaryModelSubtitle =>
+      'Used for auto-generating chat summaries for recent chats reference';
+
+  @override
+  String get defaultModelPageSummaryPromptHint =>
+      'Enter prompt template for summary generation';
+
+  @override
+  String defaultModelPageSummaryVars(
+    Object previousSummaryVar,
+    Object userMessagesVar,
+  ) {
+    return 'Vars: previous_summary: $previousSummaryVar, user_messages: $userMessagesVar';
+  }
+
+  @override
   String get defaultModelPageTranslateModelTitle => 'Translation Model';
 
   @override
@@ -2846,6 +2865,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditMemoryDialogHint => 'Enter memory content';
 
   @override
+  String get assistantEditManageSummariesTitle => 'Chat Summaries';
+
+  @override
+  String get assistantEditSummaryEmpty => 'No summaries yet';
+
+  @override
+  String get assistantEditSummaryDialogTitle => 'Edit Summary';
+
+  @override
+  String get assistantEditSummaryDialogHint => 'Enter summary content';
+
+  @override
   String get assistantEditPresetTitle => 'Preset Messages';
 
   @override
@@ -3029,6 +3060,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopNavApiTestTooltip => 'API Test';
 
   @override
+  String get desktopNavStorageTooltip => 'Storage';
+
+  @override
   String get apiTestPageTitle => 'API Test';
 
   @override
@@ -3131,4 +3165,221 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get runtimeCacheClearMessage =>
       'Are you sure you want to delete all downloaded runtime libraries?';
+
+  @override
+  String get storageSpacePageTitle => 'Storage Space';
+
+  @override
+  String get storageSpaceRefreshTooltip => 'Refresh';
+
+  @override
+  String get storageSpaceLoadFailed => 'Failed to load storage usage';
+
+  @override
+  String get storageSpaceTotalLabel => 'Used';
+
+  @override
+  String storageSpaceClearableLabel(String size) {
+    return 'Clearable: $size';
+  }
+
+  @override
+  String storageSpaceClearableHint(String size) {
+    return 'Safe to clear: $size';
+  }
+
+  @override
+  String get storageSpaceCategoryImages => 'Images';
+
+  @override
+  String get storageSpaceCategoryFiles => 'Files';
+
+  @override
+  String get storageSpaceCategoryChatData => 'Chat Records';
+
+  @override
+  String get storageSpaceCategoryAssistantData => 'Assistants';
+
+  @override
+  String get storageSpaceCategoryCache => 'Cache';
+
+  @override
+  String get storageSpaceCategoryLogs => 'Logs';
+
+  @override
+  String get storageSpaceCategoryOther => 'App';
+
+  @override
+  String storageSpaceFilesCount(int count) {
+    return '$count files';
+  }
+
+  @override
+  String get storageSpaceSafeToClearHint =>
+      'Safe to clear. This will not affect your chat history.';
+
+  @override
+  String get storageSpaceNotSafeToClearHint =>
+      'May affect your chat history. Delete with care.';
+
+  @override
+  String get storageSpaceBreakdownTitle => 'Breakdown';
+
+  @override
+  String get storageSpaceSubChatMessages => 'Messages';
+
+  @override
+  String get storageSpaceSubChatConversations => 'Conversations';
+
+  @override
+  String get storageSpaceSubChatToolEvents => 'Tool events';
+
+  @override
+  String get storageSpaceSubAssistantAvatars => 'Avatars';
+
+  @override
+  String get storageSpaceSubAssistantImages => 'Images';
+
+  @override
+  String get storageSpaceSubCacheAvatars => 'Avatar cache';
+
+  @override
+  String get storageSpaceSubCacheOther => 'Other cache';
+
+  @override
+  String get storageSpaceSubCacheSystem => 'System cache';
+
+  @override
+  String get storageSpaceSubLogsFlutter => 'Flutter logs';
+
+  @override
+  String get storageSpaceSubLogsRequests => 'Network logs';
+
+  @override
+  String get storageSpaceSubLogsOther => 'Other logs';
+
+  @override
+  String get storageSpaceClearConfirmTitle => 'Confirm clear';
+
+  @override
+  String storageSpaceClearConfirmMessage(String targetName) {
+    return 'Clear $targetName?';
+  }
+
+  @override
+  String get storageSpaceClearButton => 'Clear';
+
+  @override
+  String storageSpaceClearDone(String targetName) {
+    return '$targetName cleared';
+  }
+
+  @override
+  String storageSpaceClearFailed(String error) {
+    return 'Clear failed: $error';
+  }
+
+  @override
+  String get storageSpaceClearAvatarCacheButton => 'Clear Avatar Cache';
+
+  @override
+  String get storageSpaceClearCacheButton => 'Clear Cache';
+
+  @override
+  String get storageSpaceClearLogsButton => 'Clear Logs';
+
+  @override
+  String get storageSpaceDeleteConfirmTitle => 'Confirm deletion';
+
+  @override
+  String storageSpaceDeleteUploadsConfirmMessage(int count) {
+    return 'Delete $count items? Attachments in chat history may become unavailable.';
+  }
+
+  @override
+  String storageSpaceDeletedUploadsDone(int count) {
+    return 'Deleted $count items';
+  }
+
+  @override
+  String get storageSpaceNoUploads => 'No items';
+
+  @override
+  String get storageSpaceSelectAll => 'Select all';
+
+  @override
+  String get storageSpaceClearSelection => 'Clear selection';
+
+  @override
+  String storageSpaceSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String storageSpaceUploadsCount(int count) {
+    return '$count items';
+  }
+
+  @override
+  String get settingsPageNetworkProxy => 'Network Proxy';
+
+  @override
+  String get networkProxyEnableLabel => 'Enable Proxy';
+
+  @override
+  String get networkProxySettingsHeader => 'Proxy Settings';
+
+  @override
+  String get networkProxyType => 'Proxy Type';
+
+  @override
+  String get networkProxyTypeHttp => 'HTTP';
+
+  @override
+  String get networkProxyTypeHttps => 'HTTPS';
+
+  @override
+  String get networkProxyTypeSocks5 => 'SOCKS5';
+
+  @override
+  String get networkProxyServerHost => 'Server';
+
+  @override
+  String get networkProxyPort => 'Port';
+
+  @override
+  String get networkProxyUsername => 'Username';
+
+  @override
+  String get networkProxyPassword => 'Password';
+
+  @override
+  String get networkProxyOptionalHint => 'Optional';
+
+  @override
+  String get networkProxyTestHeader => 'Connection Test';
+
+  @override
+  String get networkProxyTestUrlHint => 'Test URL';
+
+  @override
+  String get networkProxyTestButton => 'Test';
+
+  @override
+  String get networkProxyTesting => 'Testing…';
+
+  @override
+  String get networkProxyTestSuccess => 'Connection successful';
+
+  @override
+  String networkProxyTestFailed(String error) {
+    return 'Test failed: $error';
+  }
+
+  @override
+  String get networkProxyNoUrl => 'Please enter a URL';
+
+  @override
+  String get networkProxyPriorityNote =>
+      'When both global and provider proxies are enabled, provider-level proxy takes priority.';
 }

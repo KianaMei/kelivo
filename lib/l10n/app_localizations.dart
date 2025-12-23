@@ -3239,6 +3239,33 @@ abstract class AppLocalizations {
   /// **'Used for summarizing conversation titles; prefer fast & cheap models'**
   String get defaultModelPageTitleModelSubtitle;
 
+  /// No description provided for @defaultModelPageSummaryModelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat Summary Model'**
+  String get defaultModelPageSummaryModelTitle;
+
+  /// No description provided for @defaultModelPageSummaryModelSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for auto-generating chat summaries for recent chats reference'**
+  String get defaultModelPageSummaryModelSubtitle;
+
+  /// No description provided for @defaultModelPageSummaryPromptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter prompt template for summary generation'**
+  String get defaultModelPageSummaryPromptHint;
+
+  /// No description provided for @defaultModelPageSummaryVars.
+  ///
+  /// In en, this message translates to:
+  /// **'Vars: previous_summary: {previousSummaryVar}, user_messages: {userMessagesVar}'**
+  String defaultModelPageSummaryVars(
+    Object previousSummaryVar,
+    Object userMessagesVar,
+  );
+
   /// No description provided for @defaultModelPageTranslateModelTitle.
   ///
   /// In en, this message translates to:
@@ -5381,6 +5408,30 @@ abstract class AppLocalizations {
   /// **'Enter memory content'**
   String get assistantEditMemoryDialogHint;
 
+  /// No description provided for @assistantEditManageSummariesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat Summaries'**
+  String get assistantEditManageSummariesTitle;
+
+  /// No description provided for @assistantEditSummaryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No summaries yet'**
+  String get assistantEditSummaryEmpty;
+
+  /// No description provided for @assistantEditSummaryDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Summary'**
+  String get assistantEditSummaryDialogTitle;
+
+  /// No description provided for @assistantEditSummaryDialogHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter summary content'**
+  String get assistantEditSummaryDialogHint;
+
   /// No description provided for @assistantEditPresetTitle.
   ///
   /// In en, this message translates to:
@@ -5723,6 +5774,12 @@ abstract class AppLocalizations {
   /// **'API Test'**
   String get desktopNavApiTestTooltip;
 
+  /// No description provided for @desktopNavStorageTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get desktopNavStorageTooltip;
+
   /// No description provided for @apiTestPageTitle.
   ///
   /// In en, this message translates to:
@@ -5926,6 +5983,390 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Are you sure you want to delete all downloaded runtime libraries?'**
   String get runtimeCacheClearMessage;
+
+  /// No description provided for @storageSpacePageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage Space'**
+  String get storageSpacePageTitle;
+
+  /// No description provided for @storageSpaceRefreshTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get storageSpaceRefreshTooltip;
+
+  /// No description provided for @storageSpaceLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load storage usage'**
+  String get storageSpaceLoadFailed;
+
+  /// No description provided for @storageSpaceTotalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Used'**
+  String get storageSpaceTotalLabel;
+
+  /// No description provided for @storageSpaceClearableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Clearable: {size}'**
+  String storageSpaceClearableLabel(String size);
+
+  /// No description provided for @storageSpaceClearableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Safe to clear: {size}'**
+  String storageSpaceClearableHint(String size);
+
+  /// No description provided for @storageSpaceCategoryImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Images'**
+  String get storageSpaceCategoryImages;
+
+  /// No description provided for @storageSpaceCategoryFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get storageSpaceCategoryFiles;
+
+  /// No description provided for @storageSpaceCategoryChatData.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat Records'**
+  String get storageSpaceCategoryChatData;
+
+  /// No description provided for @storageSpaceCategoryAssistantData.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistants'**
+  String get storageSpaceCategoryAssistantData;
+
+  /// No description provided for @storageSpaceCategoryCache.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache'**
+  String get storageSpaceCategoryCache;
+
+  /// No description provided for @storageSpaceCategoryLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Logs'**
+  String get storageSpaceCategoryLogs;
+
+  /// No description provided for @storageSpaceCategoryOther.
+  ///
+  /// In en, this message translates to:
+  /// **'App'**
+  String get storageSpaceCategoryOther;
+
+  /// No description provided for @storageSpaceFilesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} files'**
+  String storageSpaceFilesCount(int count);
+
+  /// No description provided for @storageSpaceSafeToClearHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Safe to clear. This will not affect your chat history.'**
+  String get storageSpaceSafeToClearHint;
+
+  /// No description provided for @storageSpaceNotSafeToClearHint.
+  ///
+  /// In en, this message translates to:
+  /// **'May affect your chat history. Delete with care.'**
+  String get storageSpaceNotSafeToClearHint;
+
+  /// No description provided for @storageSpaceBreakdownTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Breakdown'**
+  String get storageSpaceBreakdownTitle;
+
+  /// No description provided for @storageSpaceSubChatMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get storageSpaceSubChatMessages;
+
+  /// No description provided for @storageSpaceSubChatConversations.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations'**
+  String get storageSpaceSubChatConversations;
+
+  /// No description provided for @storageSpaceSubChatToolEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool events'**
+  String get storageSpaceSubChatToolEvents;
+
+  /// No description provided for @storageSpaceSubAssistantAvatars.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatars'**
+  String get storageSpaceSubAssistantAvatars;
+
+  /// No description provided for @storageSpaceSubAssistantImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Images'**
+  String get storageSpaceSubAssistantImages;
+
+  /// No description provided for @storageSpaceSubCacheAvatars.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar cache'**
+  String get storageSpaceSubCacheAvatars;
+
+  /// No description provided for @storageSpaceSubCacheOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other cache'**
+  String get storageSpaceSubCacheOther;
+
+  /// No description provided for @storageSpaceSubCacheSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System cache'**
+  String get storageSpaceSubCacheSystem;
+
+  /// No description provided for @storageSpaceSubLogsFlutter.
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter logs'**
+  String get storageSpaceSubLogsFlutter;
+
+  /// No description provided for @storageSpaceSubLogsRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'Network logs'**
+  String get storageSpaceSubLogsRequests;
+
+  /// No description provided for @storageSpaceSubLogsOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other logs'**
+  String get storageSpaceSubLogsOther;
+
+  /// No description provided for @storageSpaceClearConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm clear'**
+  String get storageSpaceClearConfirmTitle;
+
+  /// No description provided for @storageSpaceClearConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear {targetName}?'**
+  String storageSpaceClearConfirmMessage(String targetName);
+
+  /// No description provided for @storageSpaceClearButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get storageSpaceClearButton;
+
+  /// No description provided for @storageSpaceClearDone.
+  ///
+  /// In en, this message translates to:
+  /// **'{targetName} cleared'**
+  String storageSpaceClearDone(String targetName);
+
+  /// No description provided for @storageSpaceClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear failed: {error}'**
+  String storageSpaceClearFailed(String error);
+
+  /// No description provided for @storageSpaceClearAvatarCacheButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Avatar Cache'**
+  String get storageSpaceClearAvatarCacheButton;
+
+  /// No description provided for @storageSpaceClearCacheButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Cache'**
+  String get storageSpaceClearCacheButton;
+
+  /// No description provided for @storageSpaceClearLogsButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Logs'**
+  String get storageSpaceClearLogsButton;
+
+  /// No description provided for @storageSpaceDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm deletion'**
+  String get storageSpaceDeleteConfirmTitle;
+
+  /// No description provided for @storageSpaceDeleteUploadsConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {count} items? Attachments in chat history may become unavailable.'**
+  String storageSpaceDeleteUploadsConfirmMessage(int count);
+
+  /// No description provided for @storageSpaceDeletedUploadsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted {count} items'**
+  String storageSpaceDeletedUploadsDone(int count);
+
+  /// No description provided for @storageSpaceNoUploads.
+  ///
+  /// In en, this message translates to:
+  /// **'No items'**
+  String get storageSpaceNoUploads;
+
+  /// No description provided for @storageSpaceSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get storageSpaceSelectAll;
+
+  /// No description provided for @storageSpaceClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get storageSpaceClearSelection;
+
+  /// No description provided for @storageSpaceSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String storageSpaceSelectedCount(int count);
+
+  /// No description provided for @storageSpaceUploadsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} items'**
+  String storageSpaceUploadsCount(int count);
+
+  /// No description provided for @settingsPageNetworkProxy.
+  ///
+  /// In en, this message translates to:
+  /// **'Network Proxy'**
+  String get settingsPageNetworkProxy;
+
+  /// No description provided for @networkProxyEnableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Proxy'**
+  String get networkProxyEnableLabel;
+
+  /// No description provided for @networkProxySettingsHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy Settings'**
+  String get networkProxySettingsHeader;
+
+  /// No description provided for @networkProxyType.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy Type'**
+  String get networkProxyType;
+
+  /// No description provided for @networkProxyTypeHttp.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTP'**
+  String get networkProxyTypeHttp;
+
+  /// No description provided for @networkProxyTypeHttps.
+  ///
+  /// In en, this message translates to:
+  /// **'HTTPS'**
+  String get networkProxyTypeHttps;
+
+  /// No description provided for @networkProxyTypeSocks5.
+  ///
+  /// In en, this message translates to:
+  /// **'SOCKS5'**
+  String get networkProxyTypeSocks5;
+
+  /// No description provided for @networkProxyServerHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Server'**
+  String get networkProxyServerHost;
+
+  /// No description provided for @networkProxyPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get networkProxyPort;
+
+  /// No description provided for @networkProxyUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get networkProxyUsername;
+
+  /// No description provided for @networkProxyPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get networkProxyPassword;
+
+  /// No description provided for @networkProxyOptionalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional'**
+  String get networkProxyOptionalHint;
+
+  /// No description provided for @networkProxyTestHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection Test'**
+  String get networkProxyTestHeader;
+
+  /// No description provided for @networkProxyTestUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Test URL'**
+  String get networkProxyTestUrlHint;
+
+  /// No description provided for @networkProxyTestButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Test'**
+  String get networkProxyTestButton;
+
+  /// No description provided for @networkProxyTesting.
+  ///
+  /// In en, this message translates to:
+  /// **'Testing…'**
+  String get networkProxyTesting;
+
+  /// No description provided for @networkProxyTestSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection successful'**
+  String get networkProxyTestSuccess;
+
+  /// No description provided for @networkProxyTestFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Test failed: {error}'**
+  String networkProxyTestFailed(String error);
+
+  /// No description provided for @networkProxyNoUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a URL'**
+  String get networkProxyNoUrl;
+
+  /// No description provided for @networkProxyPriorityNote.
+  ///
+  /// In en, this message translates to:
+  /// **'When both global and provider proxies are enabled, provider-level proxy takes priority.'**
+  String get networkProxyPriorityNote;
 }
 
 class _AppLocalizationsDelegate

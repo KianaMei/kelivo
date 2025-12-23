@@ -19,13 +19,15 @@ class DesktopNavRail extends StatelessWidget {
     required this.onTapChat,
     required this.onTapTranslate,
     required this.onTapApiTest,
+    required this.onTapStorage,
     required this.onTapSettings,
   });
 
-  final int activeIndex; // 0=Chat, 1=Translate, 2=ApiTest
+  final int activeIndex; // 0=Chat, 1=Translate, 2=ApiTest, 3=Storage, 4=Settings
   final VoidCallback onTapChat;
   final VoidCallback onTapTranslate;
   final VoidCallback onTapApiTest;
+  final VoidCallback onTapStorage;
   final VoidCallback onTapSettings;
 
   static const double width = 64.0;
@@ -39,6 +41,7 @@ class DesktopNavRail extends StatelessWidget {
     final isChatActive = activeIndex == 0;
     final isTranslateActive = activeIndex == 1;
     final isApiTestActive = activeIndex == 2;
+    final isStorageActive = activeIndex == 3;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
@@ -77,6 +80,15 @@ class DesktopNavRail extends StatelessWidget {
             size: 40,
             iconSize: 18,
             iconColor: isApiTestActive ? cs.primary : null,
+          ),
+          const SizedBox(height: 8),
+          _CircleAction(
+            tooltip: l10n.desktopNavStorageTooltip,
+            icon: lucide.Lucide.HardDrive,
+            onTap: onTapStorage,
+            size: 40,
+            iconSize: 18,
+            iconColor: isStorageActive ? cs.primary : null,
           ),
           const Spacer(),
           _ThemeCycleButton(),

@@ -2174,14 +2174,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
       if (assistant?.enableRecentChatsReference == true) {
         final chats = context.read<ChatService>().getAllConversations();
-        final titles = chats
-            .where((c) => c.assistantId == assistant!.id)
+        // Exclude current conversation to avoid self-reference, include summary
+        final relevantChats = chats
+            .where((c) => c.assistantId == assistant!.id && c.id != _currentConversation?.id)
+            .where((c) => c.title.trim().isNotEmpty)
             .take(10)
-            .map((c) => c.title)
-            .where((t) => t.trim().isNotEmpty)
+            .map((c) => <String, String>{
+                  'timestamp': c.updatedAt.toIso8601String().substring(0, 10),
+                  'title': c.title.trim(),
+                  'summary': (c.summary ?? '').trim(),
+                })
             .toList();
-        if (titles.isNotEmpty) {
-          final recentPrompt = ChatMessageHandler.buildRecentChatsPrompt(titles);
+        if (relevantChats.isNotEmpty) {
+          final recentPrompt = ChatMessageHandler.buildRecentChatsPromptWithSummary(relevantChats);
           if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
             apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + recentPrompt;
           } else {
@@ -2433,6 +2438,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           if (shouldGenerateTitle) {
             _titleQueued = true;
             _maybeGenerateTitleFor(assistantMessage.conversationId);
+            _maybeGenerateSummaryFor(assistantMessage.conversationId);
           }
           return;
         }
@@ -2547,6 +2553,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
         if (shouldGenerateTitle) {
           _maybeGenerateTitleFor(assistantMessage.conversationId);
+          _maybeGenerateSummaryFor(assistantMessage.conversationId);
         }
         _cleanupStreamingUiForMessage(assistantMessage.id);
       }
@@ -2833,14 +2840,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
       if (assistant?.enableRecentChatsReference == true) {
         final chats = context.read<ChatService>().getAllConversations();
-        final titles = chats
-            .where((c) => c.assistantId == assistant!.id)
+        // Exclude current conversation to avoid self-reference, include summary
+        final relevantChats = chats
+            .where((c) => c.assistantId == assistant!.id && c.id != _currentConversation?.id)
+            .where((c) => c.title.trim().isNotEmpty)
             .take(10)
-            .map((c) => c.title)
-            .where((t) => t.trim().isNotEmpty)
+            .map((c) => <String, String>{
+                  'timestamp': c.updatedAt.toIso8601String().substring(0, 10),
+                  'title': c.title.trim(),
+                  'summary': (c.summary ?? '').trim(),
+                })
             .toList();
-        if (titles.isNotEmpty) {
-          final recentPrompt = ChatMessageHandler.buildRecentChatsPrompt(titles);
+        if (relevantChats.isNotEmpty) {
+          final recentPrompt = ChatMessageHandler.buildRecentChatsPromptWithSummary(relevantChats);
           if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
             apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + recentPrompt;
           } else {
@@ -3082,6 +3094,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           if (shouldGenerateTitle) {
             _titleQueued = true;
             _maybeGenerateTitleFor(assistantMessage.conversationId);
+            _maybeGenerateSummaryFor(assistantMessage.conversationId);
           }
           return;
         }
@@ -3188,6 +3201,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         }
         if (shouldGenerateTitle) {
           _maybeGenerateTitleFor(assistantMessage.conversationId);
+          _maybeGenerateSummaryFor(assistantMessage.conversationId);
         }
         _cleanupStreamingUiForMessage(assistantMessage.id);
       }
@@ -3394,14 +3408,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
       if (assistant?.enableRecentChatsReference == true) {
         final chats = context.read<ChatService>().getAllConversations();
-        final titles = chats
-            .where((c) => c.assistantId == assistant!.id)
+        // Exclude current conversation to avoid self-reference, include summary
+        final relevantChats = chats
+            .where((c) => c.assistantId == assistant!.id && c.id != _currentConversation?.id)
+            .where((c) => c.title.trim().isNotEmpty)
             .take(10)
-            .map((c) => c.title)
-            .where((t) => t.trim().isNotEmpty)
+            .map((c) => <String, String>{
+                  'timestamp': c.updatedAt.toIso8601String().substring(0, 10),
+                  'title': c.title.trim(),
+                  'summary': (c.summary ?? '').trim(),
+                })
             .toList();
-        if (titles.isNotEmpty) {
-          final recentPrompt = ChatMessageHandler.buildRecentChatsPrompt(titles);
+        if (relevantChats.isNotEmpty) {
+          final recentPrompt = ChatMessageHandler.buildRecentChatsPromptWithSummary(relevantChats);
           if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
             apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + recentPrompt;
           } else {
@@ -3548,6 +3567,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           if (shouldGenerateTitle) {
             _titleQueued = true;
             _maybeGenerateTitleFor(assistantMessage.conversationId);
+            _maybeGenerateSummaryFor(assistantMessage.conversationId);
           }
           return;
         }
@@ -3597,6 +3617,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         _setConversationLoading(assistantMessage.conversationId, false);
         if (shouldGenerateTitle) {
           _maybeGenerateTitleFor(assistantMessage.conversationId);
+          _maybeGenerateSummaryFor(assistantMessage.conversationId);
         }
         _cleanupStreamingUiForMessage(assistantMessage.id);
       }
@@ -3860,14 +3881,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
       if (assistant?.enableRecentChatsReference == true) {
         final chats = context.read<ChatService>().getAllConversations();
-        final titles = chats
-            .where((c) => c.assistantId == assistant!.id)
+        // Exclude current conversation to avoid self-reference, include summary
+        final relevantChats = chats
+            .where((c) => c.assistantId == assistant!.id && c.id != _currentConversation?.id)
+            .where((c) => c.title.trim().isNotEmpty)
             .take(10)
-            .map((c) => c.title)
-            .where((t) => t.trim().isNotEmpty)
+            .map((c) => <String, String>{
+                  'timestamp': c.updatedAt.toIso8601String().substring(0, 10),
+                  'title': c.title.trim(),
+                  'summary': (c.summary ?? '').trim(),
+                })
             .toList();
-        if (titles.isNotEmpty) {
-          final recentPrompt = ChatMessageHandler.buildRecentChatsPrompt(titles);
+        if (relevantChats.isNotEmpty) {
+          final recentPrompt = ChatMessageHandler.buildRecentChatsPromptWithSummary(relevantChats);
           if (apiMessages.isNotEmpty && apiMessages.first['role'] == 'system') {
             apiMessages[0]['content'] = ((apiMessages[0]['content'] ?? '') as String) + '\n\n' + recentPrompt;
           } else {
@@ -4284,6 +4310,92 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       if (mounted) {
         showAppSnackBar(context, message: l10n.titleGenerationFailed(e.toString()), type: NotificationType.error);
       }
+    }
+  }
+
+  /// Automatically generate a summary for the conversation if conditions are met.
+  /// Only generates every 5 new messages and only if recent chats reference is enabled.
+  Future<void> _maybeGenerateSummaryFor(String conversationId) async {
+    final convo = _chatService.getConversation(conversationId);
+    if (convo == null) return;
+
+    final msgCount = convo.messageIds.length;
+    // Only generate summary every 5 new messages
+    if (msgCount == 0 || msgCount - convo.lastSummarizedMessageCount < 5) return;
+
+    final settings = context.read<SettingsProvider>();
+    final assistantProvider = context.read<AssistantProvider>();
+
+    // Get assistant for this conversation
+    final assistant = convo.assistantId != null
+        ? assistantProvider.getById(convo.assistantId!)
+        : assistantProvider.currentAssistant;
+
+    // Only generate summary if assistant has recent chats reference enabled
+    if (assistant?.enableRecentChatsReference != true) return;
+
+    // Use summary model if configured, else fall back to title model, then current model
+    final provKey = settings.summaryModelProvider ??
+        settings.titleModelProvider ??
+        assistant?.chatModelProvider ??
+        settings.currentModelProvider;
+    final mdlId = settings.summaryModelId ??
+        settings.titleModelId ??
+        assistant?.chatModelId ??
+        settings.currentModelId;
+    if (provKey == null || mdlId == null) return;
+
+    final cfg = settings.getProviderConfig(provKey);
+
+    // Get all messages and filter user messages
+    final msgs = _chatService.getMessages(convo.id);
+    final allUserMsgs = msgs
+        .where((m) => m.role == 'user' && m.content.trim().isNotEmpty)
+        .toList();
+
+    if (allUserMsgs.isEmpty) return;
+
+    // Get previous summary (empty string if first time)
+    final previousSummary = (convo.summary ?? '').trim();
+
+    // Get only the recent user messages since last summarization
+    final lastSummarizedMsgCount = (convo.lastSummarizedMessageCount < 0) ? 0 : convo.lastSummarizedMessageCount;
+    final msgsAtLastSummary = msgs.take(lastSummarizedMsgCount).toList();
+    final userMsgsAtLastSummary = msgsAtLastSummary
+        .where((m) => m.role == 'user' && m.content.trim().isNotEmpty)
+        .length;
+
+    // Get new user messages since last summary
+    final newUserMsgs = allUserMsgs.skip(userMsgsAtLastSummary).toList();
+    if (newUserMsgs.isEmpty) return;
+
+    final recentMessages = newUserMsgs
+        .map((m) => m.content.trim())
+        .join('\n\n');
+
+    // Truncate if too long
+    final content =
+        recentMessages.length > 2000 ? recentMessages.substring(0, 2000) : recentMessages;
+
+    final prompt = settings.summaryPrompt
+        .replaceAll('{previous_summary}', previousSummary)
+        .replaceAll('{user_messages}', content);
+
+    try {
+      final summary =
+          (await ChatApiService.generateText(config: cfg, modelId: mdlId, prompt: prompt))
+              .trim();
+
+      if (summary.isNotEmpty) {
+        await _chatService.updateConversationSummary(convo.id, summary, msgCount);
+        if (mounted && _currentConversation?.id == convo.id) {
+          setState(() {
+            _currentConversation = _chatService.getConversation(convo.id);
+          });
+        }
+      }
+    } catch (_) {
+      // Keep old summary on failure, ignore silently
     }
   }
 

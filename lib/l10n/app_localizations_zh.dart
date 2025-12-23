@@ -1643,6 +1643,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultModelPageTitleModelSubtitle => '用于总结对话标题的模型，推荐使用快速且便宜的模型';
 
   @override
+  String get defaultModelPageSummaryModelTitle => '对话摘要模型';
+
+  @override
+  String get defaultModelPageSummaryModelSubtitle => '用于自动生成对话摘要，供历史聊天参考功能使用';
+
+  @override
+  String get defaultModelPageSummaryPromptHint => '输入用于生成摘要的提示词模板';
+
+  @override
+  String defaultModelPageSummaryVars(
+    Object previousSummaryVar,
+    Object userMessagesVar,
+  ) {
+    return '变量: 之前摘要: $previousSummaryVar, 用户消息: $userMessagesVar';
+  }
+
+  @override
   String get defaultModelPageTranslateModelTitle => '翻译模型';
 
   @override
@@ -2750,6 +2767,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditMemoryDialogHint => '输入记忆内容';
 
   @override
+  String get assistantEditManageSummariesTitle => '对话摘要';
+
+  @override
+  String get assistantEditSummaryEmpty => '暂无摘要';
+
+  @override
+  String get assistantEditSummaryDialogTitle => '编辑摘要';
+
+  @override
+  String get assistantEditSummaryDialogHint => '输入摘要内容';
+
+  @override
   String get assistantEditPresetTitle => '预设对话信息';
 
   @override
@@ -2926,6 +2955,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get desktopNavApiTestTooltip => 'API 测试';
 
   @override
+  String get desktopNavStorageTooltip => '存储空间';
+
+  @override
   String get apiTestPageTitle => 'API 测试';
 
   @override
@@ -3026,6 +3058,220 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get runtimeCacheClearMessage => '确定要删除所有已下载的运行时库吗？';
+
+  @override
+  String get storageSpacePageTitle => '存储空间';
+
+  @override
+  String get storageSpaceRefreshTooltip => '刷新';
+
+  @override
+  String get storageSpaceLoadFailed => '加载失败';
+
+  @override
+  String get storageSpaceTotalLabel => '已用空间';
+
+  @override
+  String storageSpaceClearableLabel(String size) {
+    return '可清理：$size';
+  }
+
+  @override
+  String storageSpaceClearableHint(String size) {
+    return '可安全清理：$size';
+  }
+
+  @override
+  String get storageSpaceCategoryImages => '图片';
+
+  @override
+  String get storageSpaceCategoryFiles => '文件';
+
+  @override
+  String get storageSpaceCategoryChatData => '聊天记录';
+
+  @override
+  String get storageSpaceCategoryAssistantData => '助手';
+
+  @override
+  String get storageSpaceCategoryCache => '缓存';
+
+  @override
+  String get storageSpaceCategoryLogs => '日志';
+
+  @override
+  String get storageSpaceCategoryOther => '应用';
+
+  @override
+  String storageSpaceFilesCount(int count) {
+    return '$count 个文件';
+  }
+
+  @override
+  String get storageSpaceSafeToClearHint => '可安全清理，不影响聊天记录。';
+
+  @override
+  String get storageSpaceNotSafeToClearHint => '可能影响聊天记录，请谨慎删除。';
+
+  @override
+  String get storageSpaceBreakdownTitle => '明细';
+
+  @override
+  String get storageSpaceSubChatMessages => '消息';
+
+  @override
+  String get storageSpaceSubChatConversations => '会话';
+
+  @override
+  String get storageSpaceSubChatToolEvents => '工具事件';
+
+  @override
+  String get storageSpaceSubAssistantAvatars => '头像';
+
+  @override
+  String get storageSpaceSubAssistantImages => '图片';
+
+  @override
+  String get storageSpaceSubCacheAvatars => '头像缓存';
+
+  @override
+  String get storageSpaceSubCacheOther => '其他缓存';
+
+  @override
+  String get storageSpaceSubCacheSystem => '系统缓存';
+
+  @override
+  String get storageSpaceSubLogsFlutter => '运行日志';
+
+  @override
+  String get storageSpaceSubLogsRequests => '网络日志';
+
+  @override
+  String get storageSpaceSubLogsOther => '其他日志';
+
+  @override
+  String get storageSpaceClearConfirmTitle => '确认清理';
+
+  @override
+  String storageSpaceClearConfirmMessage(String targetName) {
+    return '清理$targetName？';
+  }
+
+  @override
+  String get storageSpaceClearButton => '清理';
+
+  @override
+  String storageSpaceClearDone(String targetName) {
+    return '$targetName已清理';
+  }
+
+  @override
+  String storageSpaceClearFailed(String error) {
+    return '清理失败：$error';
+  }
+
+  @override
+  String get storageSpaceClearAvatarCacheButton => '清理头像缓存';
+
+  @override
+  String get storageSpaceClearCacheButton => '清理缓存';
+
+  @override
+  String get storageSpaceClearLogsButton => '清理日志';
+
+  @override
+  String get storageSpaceDeleteConfirmTitle => '确认删除';
+
+  @override
+  String storageSpaceDeleteUploadsConfirmMessage(int count) {
+    return '删除 $count 个项目？聊天记录中的附件可能变得不可用。';
+  }
+
+  @override
+  String storageSpaceDeletedUploadsDone(int count) {
+    return '已删除 $count 个项目';
+  }
+
+  @override
+  String get storageSpaceNoUploads => '暂无内容';
+
+  @override
+  String get storageSpaceSelectAll => '全选';
+
+  @override
+  String get storageSpaceClearSelection => '清空选择';
+
+  @override
+  String storageSpaceSelectedCount(int count) {
+    return '已选择 $count 个';
+  }
+
+  @override
+  String storageSpaceUploadsCount(int count) {
+    return '$count 个项目';
+  }
+
+  @override
+  String get settingsPageNetworkProxy => '网络代理';
+
+  @override
+  String get networkProxyEnableLabel => '启用代理';
+
+  @override
+  String get networkProxySettingsHeader => '代理设置';
+
+  @override
+  String get networkProxyType => '代理类型';
+
+  @override
+  String get networkProxyTypeHttp => 'HTTP';
+
+  @override
+  String get networkProxyTypeHttps => 'HTTPS';
+
+  @override
+  String get networkProxyTypeSocks5 => 'SOCKS5';
+
+  @override
+  String get networkProxyServerHost => '服务器';
+
+  @override
+  String get networkProxyPort => '端口';
+
+  @override
+  String get networkProxyUsername => '用户名';
+
+  @override
+  String get networkProxyPassword => '密码';
+
+  @override
+  String get networkProxyOptionalHint => '可选';
+
+  @override
+  String get networkProxyTestHeader => '连接测试';
+
+  @override
+  String get networkProxyTestUrlHint => '测试 URL';
+
+  @override
+  String get networkProxyTestButton => '测试';
+
+  @override
+  String get networkProxyTesting => '测试中…';
+
+  @override
+  String get networkProxyTestSuccess => '连接成功';
+
+  @override
+  String networkProxyTestFailed(String error) {
+    return '测试失败：$error';
+  }
+
+  @override
+  String get networkProxyNoUrl => '请输入 URL';
+
+  @override
+  String get networkProxyPriorityNote => '当全局代理和供应商代理同时启用时，供应商代理优先。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).

@@ -16,6 +16,7 @@ import '../features/settings/pages/about_page.dart';
 import '_sidebar_resize_handle.dart';
 import 'panes/desktop_display_pane.dart';
 import 'panes/desktop_assistants_pane.dart';
+import 'setting/desktop_network_proxy_pane.dart';
 
 /// Desktop settings layout: left menu + vertical divider + right content.
 /// All settings pages are now implemented.
@@ -35,6 +36,7 @@ enum _SettingsMenuItem {
   mcp,
   quickPhrases,
   tts,
+  networkProxy,
   backup,
   about,
 }
@@ -77,6 +79,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         return _SettingsMenuItem.quickPhrases;
       case 'tts':
         return _SettingsMenuItem.tts;
+      case 'networkProxy':
+        return _SettingsMenuItem.networkProxy;
       case 'backup':
         return _SettingsMenuItem.backup;
       case 'about':
@@ -104,6 +108,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         return 'quickPhrases';
       case _SettingsMenuItem.tts:
         return 'tts';
+      case _SettingsMenuItem.networkProxy:
+        return 'networkProxy';
       case _SettingsMenuItem.backup:
         return 'backup';
       case _SettingsMenuItem.about:
@@ -129,6 +135,8 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         return const _QuickPhrasesSettingsBody(key: ValueKey('quickPhrases'));
       case _SettingsMenuItem.tts:
         return const _TtsSettingsBody(key: ValueKey('tts'));
+      case _SettingsMenuItem.networkProxy:
+        return const _NetworkProxySettingsBody(key: ValueKey('networkProxy'));
       case _SettingsMenuItem.backup:
         return const _BackupSettingsBody(key: ValueKey('backup'));
       case _SettingsMenuItem.about:
@@ -230,6 +238,7 @@ class _SettingsMenu extends StatelessWidget {
       (_SettingsMenuItem.mcp, lucide.Lucide.Terminal, l10n.settingsPageMcp),
       (_SettingsMenuItem.quickPhrases, lucide.Lucide.Zap, l10n.settingsPageQuickPhrase),
       (_SettingsMenuItem.tts, lucide.Lucide.Volume2, l10n.settingsPageTts),
+      (_SettingsMenuItem.networkProxy, lucide.Lucide.Globe, l10n.settingsPageNetworkProxy),
       (_SettingsMenuItem.backup, lucide.Lucide.Database, l10n.settingsPageBackup),
       (_SettingsMenuItem.about, lucide.Lucide.BadgeInfo, l10n.settingsPageAbout),
     ];
@@ -448,6 +457,17 @@ class _TtsSettingsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const TtsServicesPage(embedded: true);
+  }
+}
+
+// ===== Network Proxy Settings Body =====
+
+class _NetworkProxySettingsBody extends StatelessWidget {
+  const _NetworkProxySettingsBody({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const DesktopNetworkProxyPane();
   }
 }
 

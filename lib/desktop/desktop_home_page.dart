@@ -9,6 +9,7 @@ import 'desktop_api_test_page.dart';
 import 'window_title_bar.dart' if (dart.library.html) 'window_title_bar_stub.dart';
 import 'desktop_settings_page.dart';
 import '../core/utils/http_logger.dart';
+import '../features/settings/pages/storage_space_page.dart';
 
 /// Desktop home screen: left compact rail + main content.
 /// Phase 1 focuses on structure and platform-appropriate interactions/hover.
@@ -20,7 +21,8 @@ class DesktopHomePage extends StatefulWidget {
 }
 
 class _DesktopHomePageState extends State<DesktopHomePage> {
-  int _tabIndex = 0; // 0=Chat, 1=Translate, 2=ApiTest, 3=Settings
+  int _tabIndex = 0; // 0=Chat, 1=Translate, 2=ApiTest, 3=Storage, 4=Settings
+  bool _storageVisited = false;
 
   void _openDevTools() {
     if (!kDebugMode) return;
@@ -66,8 +68,12 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
                   onTapChat: () => setState(() => _tabIndex = 0),
                   onTapTranslate: () => setState(() => _tabIndex = 1),
                   onTapApiTest: () => setState(() => _tabIndex = 2),
+                  onTapStorage: () => setState(() {
+                    _tabIndex = 3;
+                    _storageVisited = true;
+                  }),
                   onTapSettings: () {
-                    setState(() => _tabIndex = 3);
+                    setState(() => _tabIndex = 4);
                   },
                 ),
                 Expanded(
@@ -75,15 +81,19 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
                   // when switching tabs (Chat/Translate/Settings) on desktop.
                   child: IndexedStack(
                     index: _tabIndex,
-                    children: const [
+                    children: [
                       // Chat page remains mounted
-                      DesktopChatPage(),
+                      const DesktopChatPage(),
                       // Translate page remains mounted
-                      DesktopTranslatePage(key: ValueKey('translate_page')),
+                      const DesktopTranslatePage(key: ValueKey('translate_page')),
                       // API Test page remains mounted
-                      DesktopApiTestPage(key: ValueKey('api_test_page')),
+                      const DesktopApiTestPage(key: ValueKey('api_test_page')),
+                      // Storage page - lazy loaded
+                      _storageVisited 
+                          ? const StorageSpacePage(key: ValueKey('storage_space_page'), embedded: true) 
+                          : const SizedBox.shrink(),
                       // Settings page remains mounted
-                      DesktopSettingsPage(key: ValueKey('settings_page')),
+                      const DesktopSettingsPage(key: ValueKey('settings_page')),
                     ],
                   ),
                 ),

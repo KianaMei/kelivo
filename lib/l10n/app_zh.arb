@@ -581,6 +581,16 @@
   "defaultModelPageChatModelSubtitle": "全局默认的聊天模型",
   "defaultModelPageTitleModelTitle": "标题总结模型",
   "defaultModelPageTitleModelSubtitle": "用于总结对话标题的模型，推荐使用快速且便宜的模型",
+  "defaultModelPageSummaryModelTitle": "对话摘要模型",
+  "defaultModelPageSummaryModelSubtitle": "用于自动生成对话摘要，供历史聊天参考功能使用",
+  "defaultModelPageSummaryPromptHint": "输入用于生成摘要的提示词模板",
+  "defaultModelPageSummaryVars": "变量: 之前摘要: {previousSummaryVar}, 用户消息: {userMessagesVar}",
+  "@defaultModelPageSummaryVars": {
+    "placeholders": {
+      "previousSummaryVar": {},
+      "userMessagesVar": {}
+    }
+  },
   "defaultModelPageTranslateModelTitle": "翻译模型",
   "defaultModelPageTranslateModelSubtitle": "用于翻译消息内容的模型，推荐使用快速且准确的模型",
   "defaultModelPagePromptLabel": "提示词",
@@ -950,6 +960,10 @@
   "assistantEditMemoryEmpty": "暂无记忆",
   "assistantEditMemoryDialogTitle": "记忆",
   "assistantEditMemoryDialogHint": "输入记忆内容",
+  "assistantEditManageSummariesTitle": "对话摘要",
+  "assistantEditSummaryEmpty": "暂无摘要",
+  "assistantEditSummaryDialogTitle": "编辑摘要",
+  "assistantEditSummaryDialogHint": "输入摘要内容",
   "assistantEditPresetTitle": "预设对话信息",
   "assistantEditPresetAddUser": "添加预设用户信息",
   "assistantEditPresetAddAssistant": "添加预设助手信息",
@@ -1005,6 +1019,7 @@
   "codeCardDownload": "下载",
   "codeCardOpen": "打开",
   "desktopNavApiTestTooltip": "API 测试",
+  "desktopNavStorageTooltip": "存储空间",
   "apiTestPageTitle": "API 测试",
   "apiTestProviderLabel": "供应商",
   "apiTestApiKeyLabel": "API Key",
@@ -1038,5 +1053,134 @@
   "runtimeCacheAllDownloaded": "全部已下载",
   "runtimeCacheClearButton": "清除缓存",
   "runtimeCacheClearTitle": "清除缓存",
-  "runtimeCacheClearMessage": "确定要删除所有已下载的运行时库吗？"
+  "runtimeCacheClearMessage": "确定要删除所有已下载的运行时库吗？",
+
+  "storageSpacePageTitle": "存储空间",
+  "storageSpaceRefreshTooltip": "刷新",
+  "storageSpaceLoadFailed": "加载失败",
+  "storageSpaceTotalLabel": "已用空间",
+  "storageSpaceClearableLabel": "可清理：{size}",
+  "@storageSpaceClearableLabel": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "storageSpaceClearableHint": "可安全清理：{size}",
+  "@storageSpaceClearableHint": {
+    "placeholders": {
+      "size": { "type": "String" }
+    }
+  },
+  "storageSpaceCategoryImages": "图片",
+  "storageSpaceCategoryFiles": "文件",
+  "storageSpaceCategoryChatData": "聊天记录",
+  "storageSpaceCategoryAssistantData": "助手",
+  "storageSpaceCategoryCache": "缓存",
+  "storageSpaceCategoryLogs": "日志",
+  "storageSpaceCategoryOther": "应用",
+  "storageSpaceFilesCount": "{count} 个文件",
+  "@storageSpaceFilesCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceSafeToClearHint": "可安全清理，不影响聊天记录。",
+  "storageSpaceNotSafeToClearHint": "可能影响聊天记录，请谨慎删除。",
+  "storageSpaceBreakdownTitle": "明细",
+  "storageSpaceSubChatMessages": "消息",
+  "storageSpaceSubChatConversations": "会话",
+  "storageSpaceSubChatToolEvents": "工具事件",
+  "storageSpaceSubAssistantAvatars": "头像",
+  "storageSpaceSubAssistantImages": "图片",
+  "storageSpaceSubCacheAvatars": "头像缓存",
+  "storageSpaceSubCacheOther": "其他缓存",
+  "storageSpaceSubCacheSystem": "系统缓存",
+  "storageSpaceSubLogsFlutter": "运行日志",
+  "storageSpaceSubLogsRequests": "网络日志",
+  "storageSpaceSubLogsOther": "其他日志",
+  "storageSpaceClearConfirmTitle": "确认清理",
+  "storageSpaceClearConfirmMessage": "清理{targetName}？",
+  "@storageSpaceClearConfirmMessage": {
+    "placeholders": {
+      "targetName": { "type": "String" }
+    }
+  },
+  "storageSpaceClearButton": "清理",
+  "storageSpaceClearDone": "{targetName}已清理",
+  "@storageSpaceClearDone": {
+    "placeholders": {
+      "targetName": { "type": "String" }
+    }
+  },
+  "storageSpaceClearFailed": "清理失败：{error}",
+  "@storageSpaceClearFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "storageSpaceClearAvatarCacheButton": "清理头像缓存",
+  "storageSpaceClearCacheButton": "清理缓存",
+  "storageSpaceClearLogsButton": "清理日志",
+  "storageSpaceDeleteConfirmTitle": "确认删除",
+  "storageSpaceDeleteUploadsConfirmMessage": "删除 {count} 个项目？聊天记录中的附件可能变得不可用。",
+  "@storageSpaceDeleteUploadsConfirmMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceDeletedUploadsDone": "已删除 {count} 个项目",
+  "@storageSpaceDeletedUploadsDone": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceNoUploads": "暂无内容",
+  "storageSpaceSelectAll": "全选",
+  "storageSpaceClearSelection": "清空选择",
+  "storageSpaceSelectedCount": "已选择 {count} 个",
+  "@storageSpaceSelectedCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceUploadsCount": "{count} 个项目",
+  "@storageSpaceUploadsCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "assistantEditEmojiDialogTitle": "选择表情",
+  "assistantEditEmojiDialogHint": "输入或粘贴任意表情",
+  "assistantEditEmojiDialogCancel": "取消",
+  "assistantEditEmojiDialogSave": "保存",
+  "sideDrawerChooseEmoji": "选择表情",
+  "sideDrawerEmojiDialogTitle": "选择表情",
+  "sideDrawerEmojiDialogHint": "输入或粘贴任意表情",
+
+  "settingsPageNetworkProxy": "网络代理",
+  "networkProxyEnableLabel": "启用代理",
+  "networkProxySettingsHeader": "代理设置",
+  "networkProxyType": "代理类型",
+  "networkProxyTypeHttp": "HTTP",
+  "networkProxyTypeHttps": "HTTPS",
+  "networkProxyTypeSocks5": "SOCKS5",
+  "networkProxyServerHost": "服务器",
+  "networkProxyPort": "端口",
+  "networkProxyUsername": "用户名",
+  "networkProxyPassword": "密码",
+  "networkProxyOptionalHint": "可选",
+  "networkProxyTestHeader": "连接测试",
+  "networkProxyTestUrlHint": "测试 URL",
+  "networkProxyTestButton": "测试",
+  "networkProxyTesting": "测试中…",
+  "networkProxyTestSuccess": "连接成功",
+  "networkProxyTestFailed": "测试失败：{error}",
+  "@networkProxyTestFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "networkProxyNoUrl": "请输入 URL",
+  "networkProxyPriorityNote": "当全局代理和供应商代理同时启用时，供应商代理优先。"
 }

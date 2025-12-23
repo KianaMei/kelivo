@@ -208,6 +208,9 @@ class OpenAIChatCompletions {
     final host = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
     final isGrok = ChatApiHelper.isGrokModel(config, modelId);
     
+    // OpenRouter reasoning models require preserving `reasoning_details` across tool-calling turns.
+    final bool preserveReasoningDetails = host.contains('openrouter.ai') && isReasoning;
+    
     final stream = responseStream.cast<List<int>>().transform(utf8.decoder);
     String buffer = '';
     int totalTokens = 0;
@@ -222,6 +225,9 @@ class OpenAIChatCompletions {
     // Tool call tracking
     final Map<int, Map<String, String>> toolAcc = {};
     String? finishReason;
+    
+    // OpenRouter reasoning_details accumulator
+    List<dynamic>? reasoningDetailsAccum;
 
     await for (final chunk in stream) {
       buffer += chunk;
@@ -259,6 +265,7 @@ class OpenAIChatCompletions {
               maxToolLoopIterations: maxToolLoopIterations,
               approxPromptTokens: approxPromptTokens,
               approxCompletionChars: approxCompletionChars,
+              reasoningDetails: reasoningDetailsAccum,
             );
             return;
           }
@@ -315,6 +322,14 @@ class OpenAIChatCompletions {
               
               final rc = (delta['reasoning_content'] ?? delta['reasoning']) as String?;
               if (rc != null && rc.isNotEmpty) reasoning = rc;
+              
+              // Accumulate OpenRouter reasoning_details for tool-calling preservation
+              if (preserveReasoningDetails) {
+                final rd = delta['reasoning_details'];
+                if (rd is List && rd.isNotEmpty) reasoningDetailsAccum = rd;
+                final rdMsg = message?['reasoning_details'];
+                if (rdMsg is List && rdMsg.isNotEmpty) reasoningDetailsAccum = rdMsg;
+              }
 
               // Handle image outputs
               if (wantsImageOutput) {
@@ -455,10 +470,14 @@ class OpenAIChatCompletions {
     required int maxToolLoopIterations,
     required int approxPromptTokens,
     required int approxCompletionChars,
+    List<dynamic>? reasoningDetails,
   }) async* {
     final upstreamModelId = ChatApiHelper.apiModelId(config, modelId);
     final host = Uri.tryParse(config.baseUrl)?.host.toLowerCase() ?? '';
     final isGrok = ChatApiHelper.isGrokModel(config, modelId);
+    
+    // OpenRouter reasoning models require preserving reasoning_details
+    final bool preserveReasoningDetails = host.contains('openrouter.ai') && isReasoning;
     
     // Build tool calls
     final calls = <Map<String, dynamic>>[];
@@ -498,7 +517,12 @@ class OpenAIChatCompletions {
     for (final m in messages) {
       currentMessages.add({'role': m['role'] ?? 'user', 'content': m['content'] ?? ''});
     }
-    currentMessages.add({'role': 'assistant', 'content': '', 'tool_calls': calls});
+    // Add assistant message with tool calls and optional reasoning_details for OpenRouter
+    final assistantMsg = <String, dynamic>{'role': 'assistant', 'content': '', 'tool_calls': calls};
+    if (preserveReasoningDetails && reasoningDetails != null) {
+      assistantMsg['reasoning_details'] = reasoningDetails;
+    }
+    currentMessages.add(assistantMsg);
     for (final r in results) {
       final id = r['tool_call_id'];
       final name = calls.firstWhere((c) => c['id'] == id, orElse: () => const {'function': {'name': ''}})['function']['name'];
@@ -559,6 +583,8 @@ class OpenAIChatCompletions {
       final Map<int, Map<String, String>> toolAcc2 = {};
       String? finishReason2;
       String contentAccum = '';
+      // Track reasoning_details for this round
+      List<dynamic>? roundReasoningDetails = reasoningDetails;
 
       await for (final ch in s2) {
         buf2 += ch;
@@ -577,6 +603,7 @@ class OpenAIChatCompletions {
               final c0 = (o['choices'] as List).first;
               finishReason2 = c0['finish_reason'] as String?;
               final delta = c0['delta'] as Map?;
+              final message = c0['message'] as Map?;
               final txt = delta?['content'];
               final rc = delta?['reasoning_content'] ?? delta?['reasoning'];
               final u = o['usage'];
@@ -602,6 +629,14 @@ class OpenAIChatCompletions {
               if (txt is String && txt.isNotEmpty) {
                 contentAccum += txt;
                 yield ChatStreamChunk(content: txt, isDone: false, totalTokens: 0, usage: usage);
+              }
+              
+              // Accumulate OpenRouter reasoning_details for next tool-calling turn
+              if (preserveReasoningDetails) {
+                final rd = delta?['reasoning_details'];
+                if (rd is List && rd.isNotEmpty) roundReasoningDetails = rd;
+                final rdMsg = message?['reasoning_details'];
+                if (rdMsg is List && rdMsg.isNotEmpty) roundReasoningDetails = rdMsg;
               }
               
               // Handle image outputs
@@ -687,10 +722,16 @@ class OpenAIChatCompletions {
           yield ChatStreamChunk(content: '', isDone: false, totalTokens: usage?.totalTokens ?? 0, usage: usage, toolResults: resultsInfo2);
         }
         
+        // Build assistant message with optional reasoning_details for OpenRouter
+        final assistantToolMsg = <String, dynamic>{'role': 'assistant', 'content': '', 'tool_calls': calls2};
+        if (preserveReasoningDetails && roundReasoningDetails != null) {
+          assistantToolMsg['reasoning_details'] = roundReasoningDetails;
+        }
+        
         currentMessages = [
           ...currentMessages,
           if (contentAccum.isNotEmpty) {'role': 'assistant', 'content': contentAccum},
-          {'role': 'assistant', 'content': '', 'tool_calls': calls2},
+          assistantToolMsg,
           for (final r in results2)
             {
               'role': 'tool',
@@ -699,6 +740,9 @@ class OpenAIChatCompletions {
               'content': r['content'],
             },
         ];
+        
+        // Update reasoning details for next round
+        reasoningDetails = roundReasoningDetails;
         continue;
       } else {
         yield ChatStreamChunk(content: '', isDone: true, totalTokens: usage?.totalTokens ?? 0, usage: usage);

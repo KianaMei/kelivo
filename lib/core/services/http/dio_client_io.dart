@@ -151,6 +151,8 @@ class RequestLoggerInterceptor extends Interceptor {
           } catch (_) {}
         } else if (response.data is Uint8List) {
           bodyStr = RequestLogger.safeDecodeUtf8(response.data as Uint8List);
+        } else if (response.data is List<int>) {
+          bodyStr = RequestLogger.safeDecodeUtf8(response.data as List<int>);
         }
         if (bodyStr.isNotEmpty) {
           RequestLogger.logResponseBody(reqId, bodyStr);
@@ -303,8 +305,6 @@ class ConditionalTalkerInterceptor extends Interceptor {
           } catch (_) {
             bodyStr = response.data.toString();
           }
-        } else if (response.data is Uint8List) {
-          bodyStr = '[Binary data: ${(response.data as Uint8List).length} bytes]';
         } else {
           bodyStr = response.data.toString();
         }

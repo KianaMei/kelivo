@@ -12,6 +12,7 @@ class IosTileButton extends StatefulWidget {
     this.backgroundColor,
     this.foregroundColor,
     this.borderColor,
+    this.enabled = true,
   });
 
   final String label;
@@ -22,6 +23,7 @@ class IosTileButton extends StatefulWidget {
   final Color? backgroundColor;
   final Color? foregroundColor;
   final Color? borderColor;
+  final bool enabled;
 
   @override
   State<IosTileButton> createState() => _IosTileButtonState();
@@ -45,8 +47,8 @@ class _IosTileButtonState extends State<IosTileButton> {
     final pressedBg = Color.alphaBlend(overlay, baseBg);
     // Use primary (or provided foreground) for text/icon when tinted; otherwise neutral onSurface
     final Color defaultFg = widget.foregroundColor ?? (tinted ? (widget.backgroundColor ?? cs.primary) : cs.onSurface.withOpacity(0.9));
-    final iconColor = defaultFg;
-    final textColor = defaultFg;
+    final iconColor = widget.enabled ? defaultFg : defaultFg.withOpacity(0.45);
+    final textColor = widget.enabled ? defaultFg : defaultFg.withOpacity(0.45);
     // Keep a subtle same-hue border when tinted; otherwise use neutral outline
     final Color effectiveBorder = widget.borderColor ?? (
       tinted
@@ -56,13 +58,13 @@ class _IosTileButtonState extends State<IosTileButton> {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: () {
+      onTapDown: widget.enabled ? (_) => setState(() => _pressed = true) : null,
+      onTapUp: widget.enabled ? (_) => setState(() => _pressed = false) : null,
+      onTapCancel: widget.enabled ? () => setState(() => _pressed = false) : null,
+      onTap: widget.enabled ? () {
         Haptics.light();
         widget.onTap();
-      },
+      } : null,
       child: Material(
         type: MaterialType.transparency,
         elevation: 0,

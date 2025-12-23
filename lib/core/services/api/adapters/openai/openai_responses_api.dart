@@ -373,6 +373,31 @@ class OpenAIResponsesApi {
               }
             } catch (_) {}
 
+            // Handle image_generation_call outputs (OpenAI native image generation)
+            try {
+              final output = json['response']?['output'];
+              if (output is List) {
+                for (final it in output) {
+                  if (it is! Map) continue;
+                  if (it['type'] == 'image_generation_call') {
+                    // Extract base64 image from result
+                    final b64 = (it['result'] ?? '').toString();
+                    if (b64.isNotEmpty) {
+                      final savedPath = await InlineImageSaver.saveToFile('image/png', b64);
+                      if (savedPath != null) {
+                        yield ChatStreamChunk(
+                          content: '\n![Generated Image]($savedPath)\n',
+                          isDone: false,
+                          totalTokens: totalTokens,
+                          usage: usage,
+                        );
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (_) {}
+
             // Handle tool calls
             if (onToolCall != null && toolAccResp.isNotEmpty) {
               yield* _executeToolsAndContinue(

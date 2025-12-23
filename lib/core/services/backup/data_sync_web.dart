@@ -581,6 +581,7 @@ class DataSync {
       data: body,
       options: Options(
         method: 'PROPFIND',
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         headers: {
           'Depth': '1',
           'Content-Type': 'application/xml; charset=utf-8',
@@ -613,6 +614,7 @@ class DataSync {
         data: '<?xml version="1.0" encoding="utf-8" ?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>',
         options: Options(
           method: 'PROPFIND',
+          extra: const {kLogNetworkResultOnlyExtraKey: true},
           headers: {
             'Depth': '0',
             'Content-Type': 'application/xml; charset=utf-8',
@@ -629,6 +631,7 @@ class DataSync {
           options: Options(
             method: 'MKCOL',
             headers: _webdavHeaders(cfg),
+            extra: const {kLogNetworkResultOnlyExtraKey: true},
             validateStatus: (status) => true,
           ),
         );
@@ -653,6 +656,7 @@ class DataSync {
       data: bytes,
       options: Options(
         method: 'PUT',
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         headers: {
           'Content-Type': 'application/zip',
           ..._webdavHeaders(cfg),
@@ -684,6 +688,7 @@ class DataSync {
       data: body,
       options: Options(
         method: 'PROPFIND',
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         headers: {
           'Depth': '1',
           'Content-Type': 'application/xml; charset=utf-8',
@@ -769,6 +774,7 @@ class DataSync {
       options: Options(
         method: 'GET',
         headers: _webdavHeaders(cfg),
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         responseType: ResponseType.bytes,
         validateStatus: (status) => true,
       ),
@@ -792,6 +798,7 @@ class DataSync {
       options: Options(
         method: 'DELETE',
         headers: _webdavHeaders(cfg),
+        extra: const {kLogNetworkResultOnlyExtraKey: true},
         validateStatus: (status) => true,
       ),
     );
