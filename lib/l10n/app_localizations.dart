@@ -1991,6 +1991,12 @@ abstract class AppLocalizations {
   /// **'Start Sync'**
   String get backupPageIncrementalSyncBtn;
 
+  /// No description provided for @backupPageViewRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'View Remote'**
+  String get backupPageViewRemote;
+
   /// No description provided for @backupPageSyncStarting.
   ///
   /// In en, this message translates to:

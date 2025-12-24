@@ -289,6 +289,7 @@ class IncrementalSyncManager {
   /// [localAssetRoot] 本地数据根目录 (AppDirs.dataRoot)
   /// [localSettings] 本地全局设置 (可选)
   /// [localAssistants] 本地助手列表 (可选)
+  /// [onProgress] 进度回调 (current, total, stage)
   Future<void> performSync({
     required List<Map<String, dynamic>> localConversations,
     required Future<List<Map<String, dynamic>>> Function(String convId) localMessagesFetcher,
@@ -299,8 +300,17 @@ class IncrementalSyncManager {
     required Function(String convId, List<Map<String, dynamic>> msgs) onRemoteMessagesFound,
     Function(Map<String, dynamic> settings)? onRemoteSettingsFound,
     Function(List<Map<String, dynamic>> assistants)? onRemoteAssistantsFound,
+    Function(int current, int total, String stage)? onProgress,
   }) async {
     _log('Starting incremental sync...');
+
+    // Progress tracking
+    int currentStep = 0;
+    int totalSteps = 0;
+    void reportProgress(String stage) {
+      currentStep++;
+      onProgress?.call(currentStep, totalSteps, stage);
+    }
 
     // 1. 确保存储桶存在
     await _api.initRemoteDir();
@@ -324,24 +334,30 @@ class IncrementalSyncManager {
 
     _log('Remote index fetched. Convs: ${remoteConvs.length}, Msgs: ${remoteMsgs.length}');
 
-    // 3. 处理 Conversation 同步 (双向)
-    await _syncConversations(localConversations, remoteConvs, onRemoteConversationFound);
-
-    // 4. 处理 Messages 同步 (双向)
+    // Calculate total steps for progress
     final allConvIds = <String>{
       ...localConversations.map((c) => c['id'] as String),
       ...remoteConvs.keys.map((k) => p.basenameWithoutExtension(k))
     };
+    // Steps: conversations + messages per conv + assets (estimated 3 dirs)
+    totalSteps = localConversations.length + remoteConvs.length + allConvIds.length + 3;
+    onProgress?.call(0, totalSteps, 'Preparing...');
 
+    // 3. 处理 Conversation 同步 (双向)
+    await _syncConversations(localConversations, remoteConvs, onRemoteConversationFound, reportProgress);
+
+    // 4. 处理 Messages 同步 (双向)
     for (final convId in allConvIds) {
       await _syncMessagesForConversation(convId, localMessagesFetcher, remoteMsgs, onRemoteMessagesFound);
+      reportProgress('Messages: $convId');
     }
 
     // 5. 同步所有静态资源 (upload, avatars, images)
     if (localAssetRoot.isNotEmpty) {
-      await _syncAllAssets(localAssetRoot);
+      await _syncAllAssets(localAssetRoot, reportProgress);
     }
 
+    onProgress?.call(totalSteps, totalSteps, 'Done');
     _log('Sync completed.');
   }
 
@@ -404,7 +420,7 @@ class IncrementalSyncManager {
     }
   }
 
-  Future<void> _syncAllAssets(String dataRoot) async {
+  Future<void> _syncAllAssets(String dataRoot, Function(String stage) reportProgress) async {
     // 递归同步以下目录：
     // - upload/ (聊天附件)
     // - avatars/ (助手头像)
@@ -420,7 +436,10 @@ class IncrementalSyncManager {
 
     for (var subdir in targets) {
       final localDir = Directory(p.join(dataRoot, subdir));
-      if (!await localDir.exists()) continue;
+      if (!await localDir.exists()) {
+        reportProgress('Assets: $subdir');
+        continue;
+      }
 
       try {
         _log('Checking assets/$subdir...');
@@ -455,6 +474,7 @@ class IncrementalSyncManager {
       } catch (e) {
         _log('Error syncing $subdir: $e');
       }
+      reportProgress('Assets: $subdir');
     }
   }
 
@@ -485,6 +505,7 @@ class IncrementalSyncManager {
     List<Map<String, dynamic>> localList,
     Map<String, RemoteFileInfo> remoteIndex,
     Function(Map<String, dynamic>) onRemoteNewer,
+    Function(String stage) reportProgress,
   ) async {
     final localMap = {for (var c in localList) c['id'] as String: c};
 
@@ -508,6 +529,7 @@ class IncrementalSyncManager {
           await _api.uploadJson('conversations/$remoteFilename', local);
         }
       }
+      reportProgress('Conv: $id');
     }
 
     // B. 遍历云端，决定是否下载

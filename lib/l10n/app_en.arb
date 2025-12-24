@@ -379,6 +379,7 @@
   "backupPageImportFromCherryStudio": "Import from Cherry Studio",
   "backupPageIncrementalSyncTitle": "Incremental Sync (Experimental)",
   "backupPageIncrementalSyncBtn": "Start Sync",
+  "backupPageViewRemote": "View Remote",
   "backupPageSyncStarting": "Starting sync...",
   "backupPageSyncDone": "Sync completed successfully!",
   "backupPageSyncError": "Sync failed: {error}",

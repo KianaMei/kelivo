@@ -53,6 +53,12 @@ class _BackupPageState extends State<BackupPage> {
   List<BackupFileItem> _remote = const <BackupFileItem>[];
   bool _loadingRemote = false;
 
+  // Sync progress state
+  bool _syncing = false;
+  int _syncCurrent = 0;
+  int _syncTotal = 0;
+  String _syncStage = '';
+
   Future<bool?> _confirmCherryImport(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
@@ -524,16 +530,21 @@ class _BackupPageState extends State<BackupPage> {
                   context,
                   icon: Lucide.Zap,
                   label: l10n.backupPageIncrementalSyncTitle,
-                  detailText: '',
-                  onTap: vm.busy ? null : () async {
+                  detailText: _syncing ? '$_syncCurrent/$_syncTotal' : '',
+                  onTap: (vm.busy || _syncing) ? null : () async {
                     final cfg = vm.config;
                     if (cfg.url.isEmpty) {
                       showAppSnackBar(context, message: l10n.backupPageWebDavServerUrl + '?', type: NotificationType.error);
                       return;
                     }
-                    
-                    showAppSnackBar(context, message: l10n.backupPageSyncStarting, type: NotificationType.info);
-                    
+
+                    setState(() {
+                      _syncing = true;
+                      _syncCurrent = 0;
+                      _syncTotal = 0;
+                      _syncStage = '';
+                    });
+
                     try {
                       final chatService = context.read<ChatService>();
                       final settingsProvider = context.read<SettingsProvider>();
@@ -545,7 +556,7 @@ class _BackupPageState extends State<BackupPage> {
                         cfg,
                         logger: (msg) => print('[Sync] $msg'),
                       );
-                      
+
                       // 1. Get real local conversations
                       final convs = chatService.getAllConversations();
                       final localConvsMapped = convs.map((c) => {
@@ -553,7 +564,7 @@ class _BackupPageState extends State<BackupPage> {
                         'title': c.title,
                         'updatedAt': c.updatedAt.toIso8601String(),
                       }).toList();
-                      
+
                       // 2. Export data
                       final settingsMap = settingsProvider.exportSettings();
                       final assistantsList = assistantProvider.exportAssistants();
@@ -582,17 +593,52 @@ class _BackupPageState extends State<BackupPage> {
                         onRemoteAssistantsFound: (list) async {
                           await assistantProvider.importAssistants(list);
                         },
+                        onProgress: (current, total, stage) {
+                          if (mounted) {
+                            setState(() {
+                              _syncCurrent = current;
+                              _syncTotal = total;
+                              _syncStage = stage;
+                            });
+                          }
+                        },
                       );
-                      
+
                       if (!mounted) return;
+                      setState(() => _syncing = false);
                       showAppSnackBar(context, message: l10n.backupPageSyncDone, type: NotificationType.success);
                     } catch (e) {
                       print(e);
                       if (!mounted) return;
+                      setState(() => _syncing = false);
                       showAppSnackBar(context, message: l10n.backupPageSyncError(e.toString()), type: NotificationType.error);
                     }
                   },
                 ),
+                // Sync progress indicator
+                if (_syncing) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LinearProgressIndicator(
+                          value: _syncTotal > 0 ? _syncCurrent / _syncTotal : null,
+                          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _syncStage.isNotEmpty ? _syncStage : 'Syncing...',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ]),
 
               // Section 3: 本地备份

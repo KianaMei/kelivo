@@ -51,6 +51,12 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
   // Password visibility toggle (FIX: remote doesn't have this!)
   bool _obscurePassword = true;
 
+  // Sync progress state
+  bool _syncing = false;
+  int _syncCurrent = 0;
+  int _syncTotal = 0;
+  String _syncStage = '';
+
   bool _initialized = false;
 
   @override
@@ -824,7 +830,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                     label: l10n.backupPageIncrementalSyncTitle,
                     trailing: Wrap(spacing: 8, children: [
                       _DeskIosButton(
-                        label: 'View Remote', // TODO: Add to l10n
+                        label: l10n.backupPageViewRemote,
                         filled: false,
                         dense: true,
                         onTap: () {
@@ -840,18 +846,23 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                         },
                       ),
                       _DeskIosButton(
-                        label: l10n.backupPageIncrementalSyncBtn,
+                        label: _syncing ? '$_syncCurrent/$_syncTotal' : l10n.backupPageIncrementalSyncBtn,
                         filled: false,
                         dense: true,
-                        onTap: busy ? (){} : () async {
+                        onTap: (busy || _syncing) ? (){} : () async {
                           final cfg = _buildConfigFromForm();
                           if (cfg.url.isEmpty) {
                             showAppSnackBar(context, message: l10n.backupPageWebDavServerUrl + '?', type: NotificationType.error);
                             return;
                           }
-                          
-                          showAppSnackBar(context, message: l10n.backupPageSyncStarting, type: NotificationType.info);
-                          
+
+                          setState(() {
+                            _syncing = true;
+                            _syncCurrent = 0;
+                            _syncTotal = 0;
+                            _syncStage = '';
+                          });
+
                           try {
                             final chatService = context.read<ChatService>();
                             final settingsProvider = context.read<SettingsProvider>();
@@ -864,7 +875,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                               cfg,
                               logger: (msg) => print('[Sync] $msg'),
                             );
-                            
+
                             // 1. Get real local conversations
                             final convs = chatService.getAllConversations();
                             final localConvsMapped = convs.map((c) => {
@@ -872,7 +883,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                               'title': c.title,
                               'updatedAt': c.updatedAt.toIso8601String(),
                             }).toList();
-                            
+
                             // 2. Export data
                             final settingsMap = settingsProvider.exportSettings();
                             final assistantsList = assistantProvider.exportAssistants();
@@ -903,19 +914,50 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                                 print('[Sync] Merging remote assistants...');
                                 await assistantProvider.importAssistants(list);
                               },
+                              onProgress: (current, total, stage) {
+                                if (mounted) {
+                                  setState(() {
+                                    _syncCurrent = current;
+                                    _syncTotal = total;
+                                    _syncStage = stage;
+                                  });
+                                }
+                              },
                             );
-                            
+
                             if (!mounted) return;
+                            setState(() => _syncing = false);
                             showAppSnackBar(context, message: l10n.backupPageSyncDone, type: NotificationType.success);
                           } catch (e) {
                             print(e);
                             if (!mounted) return;
+                            setState(() => _syncing = false);
                             showAppSnackBar(context, message: l10n.backupPageSyncError(e.toString()), type: NotificationType.error);
                           }
                         },
                       ),
                     ]),
                   ),
+                  // Progress indicator
+                  if (_syncing) ...[
+                    const SizedBox(height: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LinearProgressIndicator(
+                          value: _syncTotal > 0 ? _syncCurrent / _syncTotal : null,
+                          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _syncStage.isNotEmpty ? _syncStage : 'Syncing...',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ]),
               ),
 
