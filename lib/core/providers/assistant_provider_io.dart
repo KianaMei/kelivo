@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'dart:io';
 import '../../utils/sandbox_path_resolver.dart';
 import '../models/assistant.dart';
+import '../models/assistant_regex.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/avatar_cache.dart';
 import 'package:path/path.dart' as p;
@@ -349,6 +350,27 @@ Do not interpret or translate—only transcribe and describe what is visually pr
     final to = subsetIndices[newIndex];
     final item = _assistants.removeAt(from);
     _assistants.insert(to, item);
+    notifyListeners();
+    await _persist();
+  }
+
+  /// Reorder regex rules within a specific assistant
+  Future<void> reorderAssistantRegex({
+    required String assistantId,
+    required int oldIndex,
+    required int newIndex,
+  }) async {
+    final idx = _assistants.indexWhere((a) => a.id == assistantId);
+    if (idx == -1) return;
+
+    final rules = List<AssistantRegex>.of(_assistants[idx].regexRules);
+    if (oldIndex < 0 || oldIndex >= rules.length) return;
+    if (newIndex < 0 || newIndex >= rules.length) return;
+
+    final item = rules.removeAt(oldIndex);
+    rules.insert(newIndex, item);
+
+    _assistants[idx] = _assistants[idx].copyWith(regexRules: rules);
     notifyListeners();
     await _persist();
   }
