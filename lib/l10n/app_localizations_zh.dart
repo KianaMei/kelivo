@@ -3186,7 +3186,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get storageSpaceCategoryChatData => '聊天记录';
 
   @override
-  String get storageSpaceCategoryAssistantData => '助手';
+  String get storageSpaceCategoryAssistantData => '自定义头像';
 
   @override
   String get storageSpaceCategoryCache => '缓存';
@@ -3221,6 +3221,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get storageSpaceSubChatToolEvents => '工具事件';
 
   @override
+  String get storageSpaceSubProviderAvatars => '供应商头像';
+
+  @override
+  String get storageSpaceSubOtherAvatars => '其他头像';
+
+  @override
   String get storageSpaceSubAssistantAvatars => '头像';
 
   @override
@@ -3243,6 +3249,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get storageSpaceSubLogsOther => '其他日志';
+
+  @override
+  String get storageSpaceNoCache => '暂无缓存文件';
+
+  @override
+  String storageSpaceCacheCount(int count) {
+    return '$count 个缓存文件';
+  }
+
+  @override
+  String storageSpaceCacheImagesSection(int count) {
+    return '图片缓存 ($count)';
+  }
+
+  @override
+  String storageSpaceCacheOtherSection(int count) {
+    return '其他缓存 ($count)';
+  }
 
   @override
   String get storageSpaceClearConfirmTitle => '确认清理';
@@ -3305,6 +3329,48 @@ class AppLocalizationsZh extends AppLocalizations {
   String storageSpaceUploadsCount(int count) {
     return '$count 个项目';
   }
+
+  @override
+  String get storageSpaceNoChatData => '暂无聊天数据';
+
+  @override
+  String get storageSpaceNoLogs => '暂无日志文件';
+
+  @override
+  String storageSpaceLogsCount(int count) {
+    return '$count 个日志文件';
+  }
+
+  @override
+  String storageSpaceDeleteLogsConfirmMessage(int count) {
+    return '删除 $count 个日志文件？';
+  }
+
+  @override
+  String storageSpaceDeletedLogsDone(int count) {
+    return '已删除 $count 个日志文件';
+  }
+
+  @override
+  String get storageSpaceNoAvatars => '暂无头像文件';
+
+  @override
+  String storageSpaceAvatarsCount(int count) {
+    return '$count 个头像文件';
+  }
+
+  @override
+  String storageSpaceDeleteAvatarsConfirmMessage(int count) {
+    return '删除 $count 个头像文件？使用这些头像的助手将显示默认图标。';
+  }
+
+  @override
+  String storageSpaceDeletedAvatarsDone(int count) {
+    return '已删除 $count 个头像文件';
+  }
+
+  @override
+  String get storageSpaceClearAvatarsButton => '清理所有头像';
 
   @override
   String get settingsPageNetworkProxy => '网络代理';

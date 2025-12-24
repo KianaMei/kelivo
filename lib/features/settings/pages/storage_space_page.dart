@@ -132,6 +132,10 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
         return l10n.storageSpaceSubChatConversations;
       case 'tool_events_v1':
         return l10n.storageSpaceSubChatToolEvents;
+      case 'provider_avatars':
+        return l10n.storageSpaceSubProviderAvatars;
+      case 'other_avatars':
+        return l10n.storageSpaceSubOtherAvatars;
       case 'avatars':
         return l10n.storageSpaceSubAssistantAvatars;
       case 'images':
@@ -963,6 +967,101 @@ class _CategoryDetail extends StatelessWidget {
       );
     }
 
+    // Logs category with detailed file list
+    if (category.key == StorageUsageCategoryKey.logs) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(subtitle, style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7))),
+          const SizedBox(height: 8),
+          Text(hint, style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7))),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _LogsManager(
+              key: const ValueKey('logs'),
+              refreshReport: refreshReport,
+              fmtBytes: fmtBytes,
+              clearing: clearing,
+              onClearLogs: onClearLogs,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Chat data category with detailed file list
+    if (category.key == StorageUsageCategoryKey.chatData) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(subtitle, style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7))),
+          const SizedBox(height: 8),
+          Text(hint, style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7))),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _ChatDataManager(
+              key: const ValueKey('chatData'),
+              fmtBytes: fmtBytes,
+              subcategories: category.subcategories,
+              subTitleFor: subTitleFor,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Assistant data category with avatar preview
+    if (category.key == StorageUsageCategoryKey.assistantData) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(subtitle, style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7))),
+          const SizedBox(height: 8),
+          Text(hint, style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7))),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _AvatarsManager(
+              key: const ValueKey('avatars'),
+              refreshReport: refreshReport,
+              fmtBytes: fmtBytes,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Cache category with detailed file list
+    if (category.key == StorageUsageCategoryKey.cache) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(subtitle, style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7))),
+          const SizedBox(height: 8),
+          Text(hint, style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.7))),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _CacheManager(
+              key: const ValueKey('cache'),
+              refreshReport: refreshReport,
+              fmtBytes: fmtBytes,
+              clearing: clearing,
+              onClearCache: onClearCache,
+              onClearOtherCache: onClearOtherCache,
+              onClearSystemCache: onClearSystemCache,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1298,6 +1397,1249 @@ class _UploadManagerState extends State<_UploadManager> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A manager widget for displaying and managing log files in storage space.
+class _LogsManager extends StatefulWidget {
+  const _LogsManager({
+    super.key,
+    required this.refreshReport,
+    required this.fmtBytes,
+    required this.clearing,
+    required this.onClearLogs,
+  });
+
+  final Future<void> Function() refreshReport;
+  final String Function(int) fmtBytes;
+  final bool clearing;
+  final Future<void> Function()? onClearLogs;
+
+  @override
+  State<_LogsManager> createState() => _LogsManagerState();
+}
+
+class _LogsManagerState extends State<_LogsManager> {
+  bool _loading = false;
+  List<StorageFileEntry> _entries = const <StorageFileEntry>[];
+  final Set<String> _selected = <String>{};
+
+  bool get _selectMode => _selected.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final list = await StorageUsageService.listLogEntries();
+      if (!mounted) return;
+      setState(() {
+        _entries = list;
+        final paths = _entries.map((e) => e.path).toSet();
+        _selected.removeWhere((p) => !paths.contains(p));
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _toggleSelect(String path) {
+    setState(() {
+      if (_selected.contains(path)) {
+        _selected.remove(path);
+      } else {
+        _selected.add(path);
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(_entries.map((e) => e.path));
+    });
+  }
+
+  void _clearSelection() {
+    setState(() => _selected.clear());
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selected.isEmpty) return;
+    final l10n = AppLocalizations.of(context)!;
+    final count = _selected.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(l10n.storageSpaceDeleteConfirmTitle),
+          content: Text(l10n.storageSpaceDeleteLogsConfirmMessage(count)),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.homePageCancel)),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.homePageDelete)),
+          ],
+        );
+      },
+    );
+    if (ok != true) return;
+
+    final deleted = await StorageUsageService.deleteLogFiles(_selected);
+    if (!mounted) return;
+
+    _clearSelection();
+    showAppSnackBar(context, message: l10n.storageSpaceDeletedLogsDone(deleted), type: NotificationType.success);
+    await _load();
+    await widget.refreshReport();
+  }
+
+  Future<void> _openLogFile(String path) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final file = File(path);
+      if (!await file.exists()) {
+        if (!mounted) return;
+        showAppSnackBar(context, message: l10n.chatMessageWidgetCannotOpenFile('File not found'), type: NotificationType.error);
+        return;
+      }
+      final content = await file.readAsString();
+      if (!mounted) return;
+      // Show log content in a dialog
+      showDialog(
+        context: context,
+        builder: (ctx) => _LogViewerDialog(
+          fileName: path.split(Platform.pathSeparator).last,
+          content: content,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, message: l10n.chatMessageWidgetOpenFileError(e.toString()), type: NotificationType.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_loading && _entries.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_entries.isEmpty) {
+      return Center(
+        child: Text(
+          l10n.storageSpaceNoLogs,
+          style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+        ),
+      );
+    }
+
+    final actions = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        IosTileButton(
+          label: _selectMode ? l10n.storageSpaceClearSelection : l10n.storageSpaceSelectAll,
+          icon: _selectMode ? Lucide.XCircle : Lucide.CheckSquare,
+          backgroundColor: cs.primary,
+          onTap: _selectMode ? _clearSelection : _selectAll,
+        ),
+        IosTileButton(
+          label: l10n.homePageDelete,
+          icon: Lucide.Trash2,
+          backgroundColor: cs.error,
+          enabled: _selected.isNotEmpty,
+          onTap: _deleteSelected,
+        ),
+        IosTileButton(
+          label: l10n.storageSpaceClearLogsButton,
+          icon: Lucide.Trash2,
+          backgroundColor: cs.primary,
+          enabled: !widget.clearing && widget.onClearLogs != null,
+          onTap: () => widget.onClearLogs?.call(),
+        ),
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        actions,
+        const SizedBox(height: 12),
+        Expanded(
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    _selectMode ? l10n.storageSpaceSelectedCount(_selected.length) : l10n.storageSpaceLogsCount(_entries.length),
+                    style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.65)),
+                  ),
+                ),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final e = _entries[index];
+                    final selected = _selected.contains(e.path);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _LogFileRow(
+                        entry: e,
+                        selected: selected,
+                        fmtBytes: widget.fmtBytes,
+                        onTap: () {
+                          if (_selectMode) {
+                            _toggleSelect(e.path);
+                          } else {
+                            _openLogFile(e.path);
+                          }
+                        },
+                        onLongPress: () => _toggleSelect(e.path),
+                        onToggle: () => _toggleSelect(e.path),
+                      ),
+                    );
+                  },
+                  childCount: _entries.length,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A row widget for displaying a log file entry.
+class _LogFileRow extends StatelessWidget {
+  const _LogFileRow({
+    required this.entry,
+    required this.selected,
+    required this.fmtBytes,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onToggle,
+  });
+
+  final StorageFileEntry entry;
+  final bool selected;
+  final String Function(int) fmtBytes;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final border = cs.onSurface.withOpacity(0.08);
+
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: border)),
+      clipBehavior: Clip.antiAlias,
+      child: IosCardPress(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        haptics: false,
+        pressedScale: 1.0,
+        borderRadius: BorderRadius.circular(12),
+        baseColor: cs.onSurface.withOpacity(0.03),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            IosCheckbox(
+              value: selected,
+              size: 20,
+              hitTestSize: 22,
+              borderWidth: 1.6,
+              activeColor: cs.primary,
+              borderColor: cs.primary.withOpacity(0.55),
+              onChanged: (_) => onToggle(),
+              enableHaptics: false,
+            ),
+            const SizedBox(width: 10),
+            Icon(Lucide.FileText, size: 18, color: cs.onSurface.withOpacity(0.82)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.88)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${fmtBytes(entry.bytes)} · ${_fmtTime(entry.modifiedAt)}',
+                    style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.65)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fmtTime(DateTime dt) {
+    final local = dt.toLocal();
+    final y = local.year.toString().padLeft(4, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $hh:$mm';
+  }
+}
+
+/// A dialog for viewing log file content.
+class _LogViewerDialog extends StatelessWidget {
+  const _LogViewerDialog({
+    required this.fileName,
+    required this.content,
+  });
+
+  final String fileName;
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final isDesktop = PlatformUtils.isDesktop;
+    final screenSize = MediaQuery.of(context).size;
+
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? screenSize.width * 0.15 : 24,
+        vertical: isDesktop ? screenSize.height * 0.1 : 40,
+      ),
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: isDesktop ? 900 : double.infinity,
+          maxHeight: screenSize.height * 0.8,
+        ),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: cs.onSurface.withOpacity(0.08))),
+              ),
+              child: Row(
+                children: [
+                  Icon(Lucide.FileText, size: 20, color: cs.onSurface.withOpacity(0.7)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      fileName,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Lucide.X, size: 20, color: cs.onSurface.withOpacity(0.6)),
+                    onPressed: () => Navigator.of(context).pop(),
+                    tooltip: l10n.homePageCancel,
+                  ),
+                ],
+              ),
+            ),
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: SelectableText(
+                  content.isEmpty ? '(Empty file)' : content,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    color: cs.onSurface.withOpacity(0.85),
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A manager widget for displaying chat data (Hive database) files in storage space.
+class _ChatDataManager extends StatefulWidget {
+  const _ChatDataManager({
+    super.key,
+    required this.fmtBytes,
+    required this.subcategories,
+    required this.subTitleFor,
+  });
+
+  final String Function(int) fmtBytes;
+  final List<StorageUsageSubcategory> subcategories;
+  final String Function(String) subTitleFor;
+
+  @override
+  State<_ChatDataManager> createState() => _ChatDataManagerState();
+}
+
+class _ChatDataManagerState extends State<_ChatDataManager> {
+  List<StorageFileEntry> _entries = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEntries();
+  }
+
+  Future<void> _loadEntries() async {
+    setState(() => _loading = true);
+    try {
+      final list = await StorageUsageService.listChatDataEntries();
+      if (mounted) setState(() => _entries = list);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Groups entries by their base name (without .lock extension) into subcategories.
+  Map<String, List<StorageFileEntry>> _groupBySubcategory() {
+    final groups = <String, List<StorageFileEntry>>{};
+    for (final entry in _entries) {
+      // Extract the base name without extension to group .hive and .lock files together
+      String baseName = entry.name;
+      if (baseName.toLowerCase().endsWith('.lock')) {
+        baseName = baseName.substring(0, baseName.length - 5); // Remove .lock
+      } else if (baseName.toLowerCase().endsWith('.hive')) {
+        baseName = baseName.substring(0, baseName.length - 5); // Remove .hive
+      }
+      groups.putIfAbsent(baseName, () => []).add(entry);
+    }
+    return groups;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+
+    if (_entries.isEmpty) {
+      return Center(
+        child: Text(
+          l10n.storageSpaceNoChatData,
+          style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.5)),
+        ),
+      );
+    }
+
+    final groups = _groupBySubcategory();
+    final groupKeys = groups.keys.toList();
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.storageSpaceBreakdownTitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          for (final key in groupKeys) ...[
+            _ChatDataGroup(
+              groupName: key,
+              entries: groups[key]!,
+              fmtBytes: widget.fmtBytes,
+              displayName: widget.subTitleFor(key),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A group of chat data files (e.g. messages.hive + messages.lock).
+class _ChatDataGroup extends StatelessWidget {
+  const _ChatDataGroup({
+    required this.groupName,
+    required this.entries,
+    required this.fmtBytes,
+    required this.displayName,
+  });
+
+  final String groupName;
+  final List<StorageFileEntry> entries;
+  final String Function(int) fmtBytes;
+  final String displayName;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final totalBytes = entries.fold<int>(0, (sum, e) => sum + e.bytes);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: cs.onSurface.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.onSurface.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Lucide.Database, size: 16, color: cs.onSurface.withOpacity(0.7)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  displayName,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                fmtBytes(totalBytes),
+                style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.65)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final entry in entries)
+            Padding(
+              padding: const EdgeInsets.only(left: 24, bottom: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      entry.name,
+                      style: TextStyle(fontSize: 11.5, color: cs.onSurface.withOpacity(0.6)),
+                    ),
+                  ),
+                  Text(
+                    fmtBytes(entry.bytes),
+                    style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A manager widget for displaying and managing assistant avatar files in storage space.
+class _AvatarsManager extends StatefulWidget {
+  const _AvatarsManager({
+    super.key,
+    required this.refreshReport,
+    required this.fmtBytes,
+  });
+
+  final Future<void> Function() refreshReport;
+  final String Function(int) fmtBytes;
+
+  @override
+  State<_AvatarsManager> createState() => _AvatarsManagerState();
+}
+
+class _AvatarsManagerState extends State<_AvatarsManager> {
+  bool _loading = false;
+  bool _clearing = false;
+  List<StorageFileEntry> _entries = const <StorageFileEntry>[];
+  final Set<String> _selected = <String>{};
+
+  bool get _selectMode => _selected.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final list = await StorageUsageService.listAvatarEntries();
+      if (!mounted) return;
+      setState(() {
+        _entries = list;
+        final paths = _entries.map((e) => e.path).toSet();
+        _selected.removeWhere((p) => !paths.contains(p));
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _toggleSelect(String path) {
+    setState(() {
+      if (_selected.contains(path)) {
+        _selected.remove(path);
+      } else {
+        _selected.add(path);
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(_entries.map((e) => e.path));
+    });
+  }
+
+  void _clearSelection() {
+    setState(() => _selected.clear());
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_selected.isEmpty) return;
+    final l10n = AppLocalizations.of(context)!;
+    final count = _selected.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(l10n.storageSpaceDeleteConfirmTitle),
+          content: Text(l10n.storageSpaceDeleteAvatarsConfirmMessage(count)),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.homePageCancel)),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.homePageDelete)),
+          ],
+        );
+      },
+    );
+    if (ok != true) return;
+
+    final deleted = await StorageUsageService.deleteAvatarFiles(_selected);
+    if (!mounted) return;
+
+    _clearSelection();
+    showAppSnackBar(context, message: l10n.storageSpaceDeletedAvatarsDone(deleted), type: NotificationType.success);
+    await _load();
+    await widget.refreshReport();
+  }
+
+  Future<void> _clearAllAvatars() async {
+    if (_clearing) return;
+    final l10n = AppLocalizations.of(context)!;
+    final targetName = l10n.storageSpaceSubAssistantAvatars;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text(l10n.storageSpaceClearConfirmTitle),
+          content: Text(l10n.storageSpaceClearConfirmMessage(targetName)),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(l10n.homePageCancel)),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: Text(l10n.storageSpaceClearButton)),
+          ],
+        );
+      },
+    );
+    if (ok != true) return;
+
+    setState(() => _clearing = true);
+    try {
+      await StorageUsageService.clearAvatars();
+      if (!mounted) return;
+      showAppSnackBar(context, message: l10n.storageSpaceClearDone(targetName), type: NotificationType.success);
+      await _load();
+      await widget.refreshReport();
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, message: l10n.storageSpaceClearFailed(e.toString()), type: NotificationType.error);
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
+  Future<void> _openImageViewer(int initialIndex) async {
+    final images = _entries.map((e) => e.path).toList(growable: false);
+    final route = PlatformUtils.isDesktop
+        ? PageRouteBuilder(
+            pageBuilder: (_, __, ___) => ImageViewerPage(images: images, initialIndex: initialIndex),
+            transitionDuration: const Duration(milliseconds: 180),
+            reverseTransitionDuration: const Duration(milliseconds: 160),
+            transitionsBuilder: (ctx, anim, sec, child) {
+              final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+              return FadeTransition(opacity: curved, child: child);
+            },
+          )
+        : MaterialPageRoute(builder: (_) => ImageViewerPage(images: images, initialIndex: initialIndex));
+    await Navigator.of(context).push(route);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_loading && _entries.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_entries.isEmpty) {
+      return Center(
+        child: Text(
+          l10n.storageSpaceNoAvatars,
+          style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+        ),
+      );
+    }
+
+    final actions = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        IosTileButton(
+          label: _selectMode ? l10n.storageSpaceClearSelection : l10n.storageSpaceSelectAll,
+          icon: _selectMode ? Lucide.XCircle : Lucide.CheckSquare,
+          backgroundColor: cs.primary,
+          onTap: _selectMode ? _clearSelection : _selectAll,
+        ),
+        IosTileButton(
+          label: l10n.homePageDelete,
+          icon: Lucide.Trash2,
+          backgroundColor: cs.error,
+          enabled: _selected.isNotEmpty,
+          onTap: _deleteSelected,
+        ),
+        IosTileButton(
+          label: l10n.storageSpaceClearAvatarsButton,
+          icon: Lucide.Trash2,
+          backgroundColor: cs.primary,
+          enabled: !_clearing,
+          onTap: _clearAllAvatars,
+        ),
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        actions,
+        const SizedBox(height: 12),
+        Expanded(
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    _selectMode ? l10n.storageSpaceSelectedCount(_selected.length) : l10n.storageSpaceAvatarsCount(_entries.length),
+                    style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.65)),
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.only(bottom: 16),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 140,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 1,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final e = _entries[index];
+                      final selected = _selected.contains(e.path);
+                      return _AvatarTile(
+                        entry: e,
+                        selected: selected,
+                        fmtBytes: widget.fmtBytes,
+                        onToggle: () => _toggleSelect(e.path),
+                        onTap: () {
+                          if (_selectMode) {
+                            _toggleSelect(e.path);
+                          } else {
+                            _openImageViewer(index);
+                          }
+                        },
+                        onLongPress: () => _toggleSelect(e.path),
+                      );
+                    },
+                    childCount: _entries.length,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A manager widget for displaying and managing cache files in storage space.
+class _CacheManager extends StatefulWidget {
+  const _CacheManager({
+    super.key,
+    required this.refreshReport,
+    required this.fmtBytes,
+    required this.clearing,
+    required this.onClearCache,
+    required this.onClearOtherCache,
+    required this.onClearSystemCache,
+  });
+
+  final Future<void> Function() refreshReport;
+  final String Function(int) fmtBytes;
+  final bool clearing;
+  final Future<void> Function({required bool avatarsOnly})? onClearCache;
+  final Future<void> Function()? onClearOtherCache;
+  final Future<void> Function()? onClearSystemCache;
+
+  @override
+  State<_CacheManager> createState() => _CacheManagerState();
+}
+
+class _CacheManagerState extends State<_CacheManager> {
+  bool _loading = false;
+  List<StorageFileEntry> _entries = const <StorageFileEntry>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final list = await StorageUsageService.listCacheEntries();
+      if (!mounted) return;
+      setState(() {
+        _entries = list;
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _openImageViewer(int initialIndex) async {
+    // Only open image viewer for image files
+    final imageEntries = _entries.where((e) => _isImageExt(e.name)).toList();
+    if (imageEntries.isEmpty) return;
+    
+    final images = imageEntries.map((e) => e.path).toList(growable: false);
+    final route = PlatformUtils.isDesktop
+        ? PageRouteBuilder(
+            pageBuilder: (_, __, ___) => ImageViewerPage(images: images, initialIndex: initialIndex),
+            transitionDuration: const Duration(milliseconds: 180),
+            reverseTransitionDuration: const Duration(milliseconds: 160),
+            transitionsBuilder: (ctx, anim, sec, child) {
+              final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+              return FadeTransition(opacity: curved, child: child);
+            },
+          )
+        : MaterialPageRoute(builder: (_) => ImageViewerPage(images: images, initialIndex: initialIndex));
+    await Navigator.of(context).push(route);
+  }
+
+  static bool _isImageExt(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.heic') ||
+        lower.endsWith('.heif') ||
+        lower.endsWith('.bmp') ||
+        lower.endsWith('.ico') ||
+        lower.endsWith('.img'); // Flutter cached_network_image format
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_loading && _entries.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final actions = Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        IosTileButton(
+          label: l10n.storageSpaceClearAvatarCacheButton,
+          icon: Lucide.User,
+          backgroundColor: cs.primary,
+          enabled: !widget.clearing && widget.onClearCache != null,
+          onTap: () => widget.onClearCache?.call(avatarsOnly: true),
+        ),
+        IosTileButton(
+          label: l10n.storageSpaceClearCacheButton,
+          icon: Lucide.Trash2,
+          backgroundColor: cs.primary,
+          enabled: !widget.clearing && widget.onClearCache != null,
+          onTap: () => widget.onClearCache?.call(avatarsOnly: false),
+        ),
+      ],
+    );
+
+    if (_entries.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          actions,
+          const SizedBox(height: 12),
+          Expanded(
+            child: Center(
+              child: Text(
+                l10n.storageSpaceNoCache,
+                style: TextStyle(color: cs.onSurface.withOpacity(0.7)),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Separate image files and other files
+    final imageEntries = _entries.where((e) => _isImageExt(e.name)).toList();
+    final otherEntries = _entries.where((e) => !_isImageExt(e.name)).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        actions,
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            l10n.storageSpaceCacheCount(_entries.length),
+            style: TextStyle(fontSize: 12.5, color: cs.onSurface.withOpacity(0.65)),
+          ),
+        ),
+        Expanded(
+          child: CustomScrollView(
+            slivers: [
+              // Image cache grid
+              if (imageEntries.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8, top: 4),
+                    child: Text(
+                      l10n.storageSpaceCacheImagesSection(imageEntries.length),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.8)),
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 100,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 1,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final e = imageEntries[index];
+                        return _CacheTile(
+                          entry: e,
+                          fmtBytes: widget.fmtBytes,
+                          onTap: () => _openImageViewer(index),
+                        );
+                      },
+                      childCount: imageEntries.length,
+                    ),
+                  ),
+                ),
+              ],
+              // Other cache files list
+              if (otherEntries.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8, top: 4),
+                    child: Text(
+                      l10n.storageSpaceCacheOtherSection(otherEntries.length),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.8)),
+                    ),
+                  ),
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final e = otherEntries[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: _CacheFileRow(
+                          entry: e,
+                          fmtBytes: widget.fmtBytes,
+                        ),
+                      );
+                    },
+                    childCount: otherEntries.length,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A tile widget for displaying a cached image file.
+class _CacheTile extends StatelessWidget {
+  const _CacheTile({
+    required this.entry,
+    required this.fmtBytes,
+    required this.onTap,
+  });
+
+  final StorageFileEntry entry;
+  final String Function(int) fmtBytes;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cs = Theme.of(context).colorScheme;
+        final border = cs.onSurface.withOpacity(0.10);
+        final dpr = MediaQuery.of(context).devicePixelRatio;
+        final side = constraints.maxWidth.isFinite && constraints.maxWidth > 0 ? constraints.maxWidth : 100.0;
+        final int cachePx = (side * dpr).clamp(64.0, 512.0).round();
+
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: IosCardPress(
+            onTap: onTap,
+            haptics: false,
+            pressedScale: 1.0,
+            borderRadius: BorderRadius.circular(8),
+            baseColor: cs.onSurface.withOpacity(0.03),
+            padding: EdgeInsets.zero,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.file(
+                  File(entry.path),
+                  fit: BoxFit.cover,
+                  cacheWidth: cachePx,
+                  cacheHeight: cachePx,
+                  filterQuality: FilterQuality.low,
+                  errorBuilder: (_, __, ___) {
+                    return Container(
+                      color: cs.onSurface.withOpacity(0.04),
+                      alignment: Alignment.center,
+                      child: Icon(Lucide.ImageOff, size: 16, color: cs.onSurface.withOpacity(0.55)),
+                    );
+                  },
+                ),
+                // Size label at bottom
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+                      ),
+                    ),
+                    child: Text(
+                      fmtBytes(entry.bytes),
+                      style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A row widget for displaying a non-image cache file.
+class _CacheFileRow extends StatelessWidget {
+  const _CacheFileRow({
+    required this.entry,
+    required this.fmtBytes,
+  });
+
+  final StorageFileEntry entry;
+  final String Function(int) fmtBytes;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final border = cs.onSurface.withOpacity(0.08);
+
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: border)),
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Row(
+        children: [
+          Icon(Lucide.FileText, size: 16, color: cs.onSurface.withOpacity(0.7)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              entry.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.85)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            fmtBytes(entry.bytes),
+            style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A tile widget for displaying an avatar file entry with preview.
+class _AvatarTile extends StatelessWidget {
+  const _AvatarTile({
+    required this.entry,
+    required this.selected,
+    required this.fmtBytes,
+    required this.onToggle,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final StorageFileEntry entry;
+  final bool selected;
+  final String Function(int) fmtBytes;
+  final VoidCallback onToggle;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cs = Theme.of(context).colorScheme;
+        final border = cs.onSurface.withOpacity(0.10);
+        final dpr = MediaQuery.of(context).devicePixelRatio;
+        final side = constraints.maxWidth.isFinite && constraints.maxWidth > 0 ? constraints.maxWidth : 140.0;
+        final int cachePx = (side * dpr).clamp(64.0, 1024.0).round();
+
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selected ? cs.primary.withOpacity(0.55) : border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: IosCardPress(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            haptics: false,
+            pressedScale: 1.0,
+            borderRadius: BorderRadius.circular(12),
+            baseColor: cs.onSurface.withOpacity(0.03),
+            padding: EdgeInsets.zero,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.file(
+                  File(entry.path),
+                  fit: BoxFit.cover,
+                  cacheWidth: cachePx,
+                  cacheHeight: cachePx,
+                  filterQuality: FilterQuality.low,
+                  errorBuilder: (_, __, ___) {
+                    return Container(
+                      color: cs.onSurface.withOpacity(0.04),
+                      alignment: Alignment.center,
+                      child: Icon(Lucide.ImageOff, size: 18, color: cs.onSurface.withOpacity(0.55)),
+                    );
+                  },
+                ),
+                // Size label at bottom
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+                      ),
+                    ),
+                    child: Text(
+                      fmtBytes(entry.bytes),
+                      style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: IosCheckbox(
+                    value: selected,
+                    size: 20,
+                    hitTestSize: 22,
+                    borderWidth: 1.6,
+                    activeColor: cs.primary,
+                    borderColor: cs.primary.withOpacity(0.55),
+                    onChanged: (_) => onToggle(),
+                    enableHaptics: false,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

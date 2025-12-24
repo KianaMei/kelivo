@@ -1046,19 +1046,6 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                   _RuntimeCacheRow(),
                 ]),
               ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 10)),
-
-              // Chat storage section
-              SliverToBoxAdapter(
-                child: _sectionCard(children: [
-                  Row(children: [
-                    Expanded(child: Text(l10n.settingsPageChatStorage, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
-                  ]),
-                  const SizedBox(height: 6),
-                  _ChatStorageRow(),
-                ]),
-              ),
             ],
           ),
         ),
@@ -2923,76 +2910,6 @@ class _RuntimeCacheRowState extends State<_RuntimeCacheRow> {
           ),
         ],
       ],
-    );
-  }
-}
-
-/// Chat storage row for desktop backup pane
-class _ChatStorageRow extends StatefulWidget {
-  @override
-  State<_ChatStorageRow> createState() => _ChatStorageRowState();
-}
-
-class _ChatStorageRowState extends State<_ChatStorageRow> {
-  UploadStats? _stats;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadStats();
-  }
-
-  Future<void> _loadStats() async {
-    setState(() => _isLoading = true);
-    try {
-      final svc = context.read<ChatService>();
-      final stats = await svc.getUploadStats();
-      if (mounted) {
-        setState(() {
-          _stats = stats;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  String _formatBytes(int bytes) {
-    const kb = 1024;
-    const mb = kb * 1024;
-    const gb = mb * 1024;
-    if (bytes >= gb) return '${(bytes / gb).toStringAsFixed(2)} GB';
-    if (bytes >= mb) return '${(bytes / mb).toStringAsFixed(2)} MB';
-    if (bytes >= kb) return '${(bytes / kb).toStringAsFixed(1)} KB';
-    return '$bytes B';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-
-    if (_isLoading) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        child: Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
-          ),
-        ),
-      );
-    }
-
-    final count = _stats?.fileCount ?? 0;
-    final size = _formatBytes(_stats?.totalBytes ?? 0);
-
-    return _ItemRow(
-      label: l10n.settingsPageFilesCount(count, size),
-      trailing: Icon(lucide.Lucide.HardDrive, size: 18, color: cs.onSurface.withOpacity(0.5)),
     );
   }
 }

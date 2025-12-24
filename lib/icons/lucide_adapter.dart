@@ -192,4 +192,7 @@ class Lucide {
   static const IconData CloudCheck = lucide.LucideIcons.cloudCheck;
   static const IconData CloudOff = lucide.LucideIcons.cloudOff;
   static const IconData Server = lucide.LucideIcons.server;
+  // Regex icons
+  static const IconData Replace = lucide.LucideIcons.replace;
+  static const IconData ReplaceAll = lucide.LucideIcons.replaceAll;
 }

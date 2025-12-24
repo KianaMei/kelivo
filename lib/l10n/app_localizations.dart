@@ -6227,7 +6227,7 @@ abstract class AppLocalizations {
   /// No description provided for @storageSpaceCategoryAssistantData.
   ///
   /// In en, this message translates to:
-  /// **'Assistants'**
+  /// **'Custom Avatars'**
   String get storageSpaceCategoryAssistantData;
 
   /// No description provided for @storageSpaceCategoryCache.
@@ -6290,6 +6290,18 @@ abstract class AppLocalizations {
   /// **'Tool events'**
   String get storageSpaceSubChatToolEvents;
 
+  /// No description provided for @storageSpaceSubProviderAvatars.
+  ///
+  /// In en, this message translates to:
+  /// **'Provider avatars'**
+  String get storageSpaceSubProviderAvatars;
+
+  /// No description provided for @storageSpaceSubOtherAvatars.
+  ///
+  /// In en, this message translates to:
+  /// **'Other avatars'**
+  String get storageSpaceSubOtherAvatars;
+
   /// No description provided for @storageSpaceSubAssistantAvatars.
   ///
   /// In en, this message translates to:
@@ -6337,6 +6349,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Other logs'**
   String get storageSpaceSubLogsOther;
+
+  /// No description provided for @storageSpaceNoCache.
+  ///
+  /// In en, this message translates to:
+  /// **'No cache files'**
+  String get storageSpaceNoCache;
+
+  /// No description provided for @storageSpaceCacheCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} cache files'**
+  String storageSpaceCacheCount(int count);
+
+  /// No description provided for @storageSpaceCacheImagesSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Image cache ({count})'**
+  String storageSpaceCacheImagesSection(int count);
+
+  /// No description provided for @storageSpaceCacheOtherSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Other cache ({count})'**
+  String storageSpaceCacheOtherSection(int count);
 
   /// No description provided for @storageSpaceClearConfirmTitle.
   ///
@@ -6433,6 +6469,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} items'**
   String storageSpaceUploadsCount(int count);
+
+  /// No description provided for @storageSpaceNoChatData.
+  ///
+  /// In en, this message translates to:
+  /// **'No chat data'**
+  String get storageSpaceNoChatData;
+
+  /// No description provided for @storageSpaceNoLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'No log files'**
+  String get storageSpaceNoLogs;
+
+  /// No description provided for @storageSpaceLogsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} log files'**
+  String storageSpaceLogsCount(int count);
+
+  /// No description provided for @storageSpaceDeleteLogsConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {count} log files?'**
+  String storageSpaceDeleteLogsConfirmMessage(int count);
+
+  /// No description provided for @storageSpaceDeletedLogsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted {count} log files'**
+  String storageSpaceDeletedLogsDone(int count);
+
+  /// No description provided for @storageSpaceNoAvatars.
+  ///
+  /// In en, this message translates to:
+  /// **'No avatar files'**
+  String get storageSpaceNoAvatars;
+
+  /// No description provided for @storageSpaceAvatarsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} avatar files'**
+  String storageSpaceAvatarsCount(int count);
+
+  /// No description provided for @storageSpaceDeleteAvatarsConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {count} avatar files? Assistants using these avatars will show default icons.'**
+  String storageSpaceDeleteAvatarsConfirmMessage(int count);
+
+  /// No description provided for @storageSpaceDeletedAvatarsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted {count} avatar files'**
+  String storageSpaceDeletedAvatarsDone(int count);
+
+  /// No description provided for @storageSpaceClearAvatarsButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear All Avatars'**
+  String get storageSpaceClearAvatarsButton;
 
   /// No description provided for @settingsPageNetworkProxy.
   ///

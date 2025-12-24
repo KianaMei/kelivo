@@ -1342,7 +1342,7 @@
   "storageSpaceCategoryImages": "Images",
   "storageSpaceCategoryFiles": "Files",
   "storageSpaceCategoryChatData": "Chat Records",
-  "storageSpaceCategoryAssistantData": "Assistants",
+  "storageSpaceCategoryAssistantData": "Custom Avatars",
   "storageSpaceCategoryCache": "Cache",
   "storageSpaceCategoryLogs": "Logs",
   "storageSpaceCategoryOther": "App",
@@ -1358,6 +1358,8 @@
   "storageSpaceSubChatMessages": "Messages",
   "storageSpaceSubChatConversations": "Conversations",
   "storageSpaceSubChatToolEvents": "Tool events",
+  "storageSpaceSubProviderAvatars": "Provider avatars",
+  "storageSpaceSubOtherAvatars": "Other avatars",
   "storageSpaceSubAssistantAvatars": "Avatars",
   "storageSpaceSubAssistantImages": "Images",
   "storageSpaceSubCacheAvatars": "Avatar cache",
@@ -1366,6 +1368,25 @@
   "storageSpaceSubLogsFlutter": "Flutter logs",
   "storageSpaceSubLogsRequests": "Network logs",
   "storageSpaceSubLogsOther": "Other logs",
+  "storageSpaceNoCache": "No cache files",
+  "storageSpaceCacheCount": "{count} cache files",
+  "@storageSpaceCacheCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceCacheImagesSection": "Image cache ({count})",
+  "@storageSpaceCacheImagesSection": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceCacheOtherSection": "Other cache ({count})",
+  "@storageSpaceCacheOtherSection": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "storageSpaceClearConfirmTitle": "Confirm clear",
   "storageSpaceClearConfirmMessage": "Clear {targetName}?",
   "@storageSpaceClearConfirmMessage": {
@@ -1417,6 +1438,46 @@
       "count": { "type": "int" }
     }
   },
+  "storageSpaceNoChatData": "No chat data",
+  "storageSpaceNoLogs": "No log files",
+  "storageSpaceLogsCount": "{count} log files",
+  "@storageSpaceLogsCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceDeleteLogsConfirmMessage": "Delete {count} log files?",
+  "@storageSpaceDeleteLogsConfirmMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceDeletedLogsDone": "Deleted {count} log files",
+  "@storageSpaceDeletedLogsDone": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceNoAvatars": "No avatar files",
+  "storageSpaceAvatarsCount": "{count} avatar files",
+  "@storageSpaceAvatarsCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceDeleteAvatarsConfirmMessage": "Delete {count} avatar files? Assistants using these avatars will show default icons.",
+  "@storageSpaceDeleteAvatarsConfirmMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceDeletedAvatarsDone": "Deleted {count} avatar files",
+  "@storageSpaceDeletedAvatarsDone": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceClearAvatarsButton": "Clear All Avatars",
 
   "assistantEditEmojiDialogTitle": "Choose Emoji",
   "assistantEditEmojiDialogHint": "Type or paste any emoji",

@@ -107,7 +107,8 @@ abstract final class StorageUsageService {
     };
 
     final assistantSubs = <String, _MutableStats>{
-      'avatars': _MutableStats(),
+      'provider_avatars': _MutableStats(),
+      'other_avatars': _MutableStats(),
     };
 
     final cacheSubs = <String, _MutableStats>{
@@ -181,9 +182,28 @@ abstract final class StorageUsageService {
               byCat[StorageUsageCategoryKey.files]!.add(bytes);
             }
             break;
+          case 'hive':
+            // Hive database files are stored under hive/ directory
+            final name = parts.last;
+            final lower = name.toLowerCase();
+            final isHive = lower.endsWith('.hive') || lower.endsWith('.lock');
+            if (isHive) {
+              byCat[StorageUsageCategoryKey.chatData]!.add(bytes);
+              final box = _basenameNoExt(name);
+              final sub = chatSubs[box];
+              if (sub != null) sub.add(bytes);
+            } else {
+              byCat[StorageUsageCategoryKey.chatData]!.add(bytes);
+            }
+            break;
           case 'avatars':
             byCat[StorageUsageCategoryKey.assistantData]!.add(bytes);
-            assistantSubs['avatars']!.add(bytes);
+            // Distinguish provider avatars from other avatars
+            if (parts.length >= 2 && parts[1].toLowerCase() == 'providers') {
+              assistantSubs['provider_avatars']!.add(bytes);
+            } else {
+              assistantSubs['other_avatars']!.add(bytes);
+            }
             break;
           case 'images':
             // Inline/generated images are stored under appData/images.
@@ -268,7 +288,10 @@ abstract final class StorageUsageService {
         key: StorageUsageCategoryKey.assistantData,
         stats: byCat[StorageUsageCategoryKey.assistantData]!.toStats(),
         subcategories: [
-          StorageUsageSubcategory(id: 'avatars', stats: assistantSubs['avatars']!.toStats(), path: avatarsDir.path),
+          if (assistantSubs['provider_avatars']!.bytes > 0 || assistantSubs['provider_avatars']!.fileCount > 0)
+            StorageUsageSubcategory(id: 'provider_avatars', stats: assistantSubs['provider_avatars']!.toStats(), path: p.join(avatarsDir.path, 'providers')),
+          if (assistantSubs['other_avatars']!.bytes > 0 || assistantSubs['other_avatars']!.fileCount > 0)
+            StorageUsageSubcategory(id: 'other_avatars', stats: assistantSubs['other_avatars']!.toStats(), path: avatarsDir.path),
         ],
       ),
       StorageUsageCategory(
@@ -422,6 +445,216 @@ abstract final class StorageUsageService {
       } catch (_) {}
     }
     return deleted;
+  }
+
+  /// Lists all log files with details (path, name, size, modifiedAt).
+  static Future<List<StorageFileEntry>> listLogEntries() async {
+    final root = await AppDirectories.getAppDataDirectory();
+    final logsDir = Directory(p.join(root.path, 'logs'));
+    final out = <StorageFileEntry>[];
+
+    if (!await logsDir.exists()) return out;
+
+    try {
+      await for (final ent in logsDir.list(recursive: true, followLinks: false)) {
+        if (ent is! File) continue;
+        final name = p.basename(ent.path);
+        int bytes = 0;
+        DateTime modifiedAt = DateTime.fromMillisecondsSinceEpoch(0);
+        try {
+          final stat = await ent.stat();
+          bytes = stat.size;
+          modifiedAt = stat.modified;
+        } catch (_) {
+          try {
+            bytes = await ent.length();
+          } catch (_) {}
+        }
+        out.add(StorageFileEntry(path: ent.path, name: name, bytes: bytes, modifiedAt: modifiedAt));
+      }
+    } catch (_) {
+      // Ignore listing errors and return partial results.
+    }
+
+    // Sort by modification time, newest first.
+    out.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
+    return out;
+  }
+
+  /// Deletes specific log files by path.
+  static Future<int> deleteLogFiles(Iterable<String> paths) async {
+    final root = await AppDirectories.getAppDataDirectory();
+    final logsDir = Directory(p.join(root.path, 'logs'));
+    final logsRoot = p.normalize(Directory(logsDir.path).absolute.path);
+
+    int deleted = 0;
+    for (final raw in paths) {
+      try {
+        final abs = p.normalize(File(raw).absolute.path);
+        // Only allow deletion within logs directory.
+        if (!p.isWithin(logsRoot, abs) && abs != logsRoot) continue;
+        final f = File(abs);
+        if (await f.exists()) {
+          await f.delete();
+          deleted += 1;
+        }
+      } catch (_) {}
+    }
+    return deleted;
+  }
+
+  /// Lists all assistant avatar files with details (path, name, size, modifiedAt).
+  static Future<List<StorageFileEntry>> listAvatarEntries() async {
+    final avatarsDir = await AppDirectories.getAvatarsDirectory();
+    final out = <StorageFileEntry>[];
+
+    if (!await avatarsDir.exists()) return out;
+
+    try {
+      await for (final ent in avatarsDir.list(recursive: true, followLinks: false)) {
+        if (ent is! File) continue;
+        final name = p.basename(ent.path);
+        // Only include image files
+        if (!_isImageExt(name)) continue;
+        int bytes = 0;
+        DateTime modifiedAt = DateTime.fromMillisecondsSinceEpoch(0);
+        try {
+          final stat = await ent.stat();
+          bytes = stat.size;
+          modifiedAt = stat.modified;
+        } catch (_) {
+          try {
+            bytes = await ent.length();
+          } catch (_) {}
+        }
+        out.add(StorageFileEntry(path: ent.path, name: name, bytes: bytes, modifiedAt: modifiedAt));
+      }
+    } catch (_) {
+      // Ignore listing errors and return partial results.
+    }
+
+    // Sort by modification time, newest first.
+    out.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
+    return out;
+  }
+
+  /// Deletes specific avatar files by path.
+  static Future<int> deleteAvatarFiles(Iterable<String> paths) async {
+    final avatarsDir = await AppDirectories.getAvatarsDirectory();
+    final avatarsRoot = p.normalize(Directory(avatarsDir.path).absolute.path);
+
+    int deleted = 0;
+    for (final raw in paths) {
+      try {
+        final abs = p.normalize(File(raw).absolute.path);
+        // Only allow deletion within avatars directory.
+        if (!p.isWithin(avatarsRoot, abs) && abs != avatarsRoot) continue;
+        final f = File(abs);
+        if (await f.exists()) {
+          await f.delete();
+          deleted += 1;
+        }
+      } catch (_) {}
+    }
+    return deleted;
+  }
+
+  /// Clears all assistant avatars.
+  static Future<void> clearAvatars() async {
+    final dir = await AppDirectories.getAvatarsDirectory();
+    await _deleteDirectoryContents(dir);
+  }
+
+  /// Lists all cached avatar files with details (path, name, size, modifiedAt).
+  static Future<List<StorageFileEntry>> listCacheEntries() async {
+    final cacheDir = await AppDirectories.getCacheDirectory();
+    final out = <StorageFileEntry>[];
+
+    if (!await cacheDir.exists()) return out;
+
+    try {
+      await for (final ent in cacheDir.list(recursive: true, followLinks: false)) {
+        if (ent is! File) continue;
+        final name = p.basename(ent.path);
+        int bytes = 0;
+        DateTime modifiedAt = DateTime.fromMillisecondsSinceEpoch(0);
+        try {
+          final stat = await ent.stat();
+          bytes = stat.size;
+          modifiedAt = stat.modified;
+        } catch (_) {
+          try {
+            bytes = await ent.length();
+          } catch (_) {}
+        }
+        out.add(StorageFileEntry(path: ent.path, name: name, bytes: bytes, modifiedAt: modifiedAt));
+      }
+    } catch (_) {
+      // Ignore listing errors and return partial results.
+    }
+
+    // Sort by modification time, newest first.
+    out.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
+    return out;
+  }
+
+  /// Lists all chat data (Hive database) files with details.
+  static Future<List<StorageFileEntry>> listChatDataEntries() async {
+    final root = await AppDirectories.getAppDataDirectory();
+    final out = <StorageFileEntry>[];
+
+    if (!await root.exists()) return out;
+
+    try {
+      // Check hive/ subdirectory first
+      final hiveDir = Directory(p.join(root.path, 'hive'));
+      if (await hiveDir.exists()) {
+        await for (final ent in hiveDir.list(recursive: false, followLinks: false)) {
+          if (ent is! File) continue;
+          final name = p.basename(ent.path);
+          final lower = name.toLowerCase();
+          if (!lower.endsWith('.hive') && !lower.endsWith('.lock')) continue;
+          int bytes = 0;
+          DateTime modifiedAt = DateTime.fromMillisecondsSinceEpoch(0);
+          try {
+            final stat = await ent.stat();
+            bytes = stat.size;
+            modifiedAt = stat.modified;
+          } catch (_) {
+            try {
+              bytes = await ent.length();
+            } catch (_) {}
+          }
+          out.add(StorageFileEntry(path: ent.path, name: name, bytes: bytes, modifiedAt: modifiedAt));
+        }
+      }
+
+      // Also check root level for hive files
+      await for (final ent in root.list(recursive: false, followLinks: false)) {
+        if (ent is! File) continue;
+        final name = p.basename(ent.path);
+        final lower = name.toLowerCase();
+        if (!lower.endsWith('.hive') && !lower.endsWith('.lock')) continue;
+        int bytes = 0;
+        DateTime modifiedAt = DateTime.fromMillisecondsSinceEpoch(0);
+        try {
+          final stat = await ent.stat();
+          bytes = stat.size;
+          modifiedAt = stat.modified;
+        } catch (_) {
+          try {
+            bytes = await ent.length();
+          } catch (_) {}
+        }
+        out.add(StorageFileEntry(path: ent.path, name: name, bytes: bytes, modifiedAt: modifiedAt));
+      }
+    } catch (_) {
+      // Ignore listing errors and return partial results.
+    }
+
+    // Sort by size, largest first.
+    out.sort((a, b) => b.bytes.compareTo(a.bytes));
+    return out;
   }
 
   static Future<void> _deleteDirectoryContents(Directory dir) async {
