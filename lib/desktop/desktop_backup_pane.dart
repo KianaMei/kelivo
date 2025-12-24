@@ -950,7 +950,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _syncStage.isNotEmpty ? _syncStage : 'Syncing...',
+                          _syncStage.isNotEmpty ? _syncStage : l10n.backupPageSyncing,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),

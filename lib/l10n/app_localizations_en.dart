@@ -1000,6 +1000,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupPageViewRemote => 'View Remote';
 
   @override
+  String get backupPageSyncing => 'Syncing...';
+
+  @override
   String get backupPageSyncStarting => 'Starting sync...';
 
   @override

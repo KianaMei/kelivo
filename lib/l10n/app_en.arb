@@ -380,6 +380,7 @@
   "backupPageIncrementalSyncTitle": "Incremental Sync (Experimental)",
   "backupPageIncrementalSyncBtn": "Start Sync",
   "backupPageViewRemote": "View Remote",
+  "backupPageSyncing": "Syncing...",
   "backupPageSyncStarting": "Starting sync...",
   "backupPageSyncDone": "Sync completed successfully!",
   "backupPageSyncError": "Sync failed: {error}",

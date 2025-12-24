@@ -368,22 +368,23 @@ class IncrementalSyncManager {
       final remoteFiles = await _api.listRemoteFiles('');
       final remoteInfo = remoteFiles['settings.json'];
 
-      // 简单策略：如果云端存在且较新（这里假设5分钟阈值，避免频繁冲突），则下载覆盖本地
-      // 否则上传本地
-      bool upload = true;
+      // 策略：新的覆盖旧的（比较时间戳，2秒容差）
+      final localTime = DateTime.tryParse(localSettings['exportedAt'] ?? '') ?? DateTime(2000);
+
       if (remoteInfo != null && onRemoteFound != null) {
-        final localTime = DateTime.tryParse(localSettings['exportedAt'] ?? '') ?? DateTime.now();
-        if (remoteInfo.lastModified.isAfter(localTime.add(const Duration(minutes: 5)))) {
+        // 云端比本地新 -> 下载覆盖本地
+        if (remoteInfo.lastModified.isAfter(localTime.add(const Duration(seconds: 2)))) {
           _log('Downloading newer settings...');
           final remoteData = await _api.downloadJson('settings.json');
           if (remoteData != null) {
             onRemoteFound(remoteData);
-            upload = false;
+            return; // 下载了就不上传
           }
         }
       }
 
-      if (upload) {
+      // 本地比云端新（或云端不存在）-> 上传本地
+      if (remoteInfo == null || localTime.isAfter(remoteInfo.lastModified.add(const Duration(seconds: 2)))) {
         _log('Uploading settings...');
         await _api.uploadJson('settings.json', localSettings);
       }

@@ -353,6 +353,7 @@
   "backupPageIncrementalSyncTitle": "增量同步 (实验性)",
   "backupPageIncrementalSyncBtn": "开始同步",
   "backupPageViewRemote": "查看远程",
+  "backupPageSyncing": "同步中...",
   "backupPageSyncStarting": "正在开始同步...",
   "backupPageSyncDone": "同步完成！",
   "backupPageSyncError": "同步失败: {error}",

@@ -976,6 +976,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupPageViewRemote => '查看远程';
 
   @override
+  String get backupPageSyncing => '同步中...';
+
+  @override
   String get backupPageSyncStarting => '正在开始同步...';
 
   @override
