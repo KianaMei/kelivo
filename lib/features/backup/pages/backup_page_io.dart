@@ -568,11 +568,13 @@ class _BackupPageState extends State<BackupPage> {
                           final messages = chatService.getMessages(convId);
                           return messages.map((m) => m.toJson()).toList();
                         },
-                        onRemoteConversationFound: (c) {
+                        onRemoteConversationFound: (c) async {
                           print('[Sync] Remote conv found: ${c['id']}');
+                          await chatService.importConversationFromJson(c);
                         },
-                        onRemoteMessagesFound: (id, msgs) {
+                        onRemoteMessagesFound: (id, msgs) async {
                           print('[Sync] Remote msgs found for $id: ${msgs.length} items');
+                          await chatService.importMessagesFromJson(id, msgs);
                         },
                         onRemoteSettingsFound: (data) async {
                           await settingsProvider.importSettings(data);

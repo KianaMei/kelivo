@@ -445,8 +445,97 @@ class ChatService extends ChangeNotifier {
         _messagesCache[conversationId]!.add(message);
       }
     }
-    
+
     notifyListeners();
+  }
+
+  /// Import or update a conversation from JSON (for incremental sync)
+  /// Always merges messageIds (union). Metadata uses "newer wins" strategy.
+  Future<void> importConversationFromJson(Map<String, dynamic> json) async {
+    if (!_initialized) await init();
+
+    final remoteConv = Conversation.fromJson(json);
+    final localConv = _conversationsBox.get(remoteConv.id);
+
+    if (localConv == null) {
+      // Local doesn't exist -> just save remote
+      await _conversationsBox.put(remoteConv.id, remoteConv);
+      notifyListeners();
+      return;
+    }
+
+    // Always merge messageIds (union of both sides)
+    final mergedIds = {...localConv.messageIds, ...remoteConv.messageIds}.toList();
+
+    // For metadata: newer updatedAt wins
+    final useRemoteMetadata = remoteConv.updatedAt.isAfter(localConv.updatedAt);
+
+    final merged = Conversation(
+      id: remoteConv.id,
+      title: useRemoteMetadata ? remoteConv.title : localConv.title,
+      createdAt: localConv.createdAt, // Keep original creation time
+      updatedAt: useRemoteMetadata ? remoteConv.updatedAt : localConv.updatedAt,
+      messageIds: mergedIds,
+      isPinned: useRemoteMetadata ? remoteConv.isPinned : localConv.isPinned,
+      mcpServerIds: List.of(useRemoteMetadata ? remoteConv.mcpServerIds : localConv.mcpServerIds),
+      truncateIndex: useRemoteMetadata ? remoteConv.truncateIndex : localConv.truncateIndex,
+      assistantId: useRemoteMetadata ? remoteConv.assistantId : localConv.assistantId,
+      versionSelections: Map<String, int>.from(useRemoteMetadata ? remoteConv.versionSelections : localConv.versionSelections),
+      thinkingBudget: useRemoteMetadata ? remoteConv.thinkingBudget : localConv.thinkingBudget,
+      summary: useRemoteMetadata ? remoteConv.summary : localConv.summary,
+      lastSummarizedMessageCount: useRemoteMetadata ? remoteConv.lastSummarizedMessageCount : localConv.lastSummarizedMessageCount,
+    );
+
+    await _conversationsBox.put(merged.id, merged);
+
+    // Invalidate cache
+    _messagesCache.remove(merged.id);
+
+    notifyListeners();
+  }
+
+  /// Import messages from JSON list (for incremental sync)
+  /// Merges with existing messages by ID (no duplicates)
+  Future<void> importMessagesFromJson(String conversationId, List<Map<String, dynamic>> messagesJson) async {
+    if (!_initialized) await init();
+
+    final conversation = _conversationsBox.get(conversationId);
+    if (conversation == null) {
+      // Conversation doesn't exist yet, create a placeholder
+      final placeholder = Conversation(
+        id: conversationId,
+        title: 'Synced Conversation',
+      );
+      await _conversationsBox.put(conversationId, placeholder);
+    }
+
+    final existingIds = <String>{};
+    final conv = _conversationsBox.get(conversationId)!;
+    existingIds.addAll(conv.messageIds);
+
+    final newIds = <String>[];
+
+    for (final msgJson in messagesJson) {
+      final msg = ChatMessage.fromJson(msgJson);
+
+      // Only add if not already present
+      if (!existingIds.contains(msg.id)) {
+        await _messagesBox.put(msg.id, msg);
+        newIds.add(msg.id);
+        existingIds.add(msg.id);
+      }
+    }
+
+    // Update conversation messageIds if we added new ones
+    if (newIds.isNotEmpty) {
+      conv.messageIds.addAll(newIds);
+      await conv.save();
+
+      // Invalidate cache
+      _messagesCache.remove(conversationId);
+
+      notifyListeners();
+    }
   }
 
   // Conversation-scoped MCP servers selection
