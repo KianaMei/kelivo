@@ -990,6 +990,46 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupPageImportFromCherryStudio => 'Import from Cherry Studio';
 
   @override
+  String get backupPageIncrementalSyncTitle =>
+      'Incremental Sync (Experimental)';
+
+  @override
+  String get backupPageIncrementalSyncBtn => 'Start Sync';
+
+  @override
+  String get backupPageSyncStarting => 'Starting sync...';
+
+  @override
+  String get backupPageSyncDone => 'Sync completed successfully!';
+
+  @override
+  String backupPageSyncError(String error) {
+    return 'Sync failed: $error';
+  }
+
+  @override
+  String get backupPageConfigSelectorAddServer => 'Add Server';
+
+  @override
+  String get backupPageConfigSelectorActive => 'Active';
+
+  @override
+  String get backupPageConfigSelectorAddNewServer => 'Add New Server';
+
+  @override
+  String get backupPageConfigSelectorDeleteTitle => 'Delete Configuration?';
+
+  @override
+  String get backupPageConfigSelectorDeleteContent =>
+      'This action cannot be undone. The server configuration will be permanently removed.';
+
+  @override
+  String get backupPageConfigSelectorDelete => 'Delete';
+
+  @override
+  String get backupPageConfigName => 'Config Name';
+
+  @override
   String get chatHistoryPageTitle => 'Chat History';
 
   @override

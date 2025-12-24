@@ -42,7 +42,7 @@ class ExaSearchService extends SearchService<ExaOptions> {
         });
         
         final response = await simpleDio.post(
-          'https://api.exa.ai/search',
+          '${serviceOptions.effectiveBaseUrl}/search',
           data: jsonDecode(body),
           options: Options(
             headers: {

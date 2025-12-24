@@ -118,10 +118,11 @@ class SearchServiceFactory {
   static SearchServiceOptions updateMultiKey(
     SearchServiceOptions s,
     List<ApiKeyConfig> keys,
-    LoadBalanceStrategy strategy,
-  ) {
+    LoadBalanceStrategy strategy, {
+    String? baseUrl,
+  }) {
     if (s is TavilyOptions) return TavilyOptions(id: s.id, apiKeys: keys, strategy: strategy);
-    if (s is ExaOptions) return ExaOptions(id: s.id, apiKeys: keys, strategy: strategy);
+    if (s is ExaOptions) return ExaOptions(id: s.id, apiKeys: keys, strategy: strategy, baseUrl: baseUrl ?? s.baseUrl);
     if (s is ZhipuOptions) return ZhipuOptions(id: s.id, apiKeys: keys, strategy: strategy);
     if (s is LinkUpOptions) return LinkUpOptions(id: s.id, apiKeys: keys, strategy: strategy);
     if (s is BraveOptions) return BraveOptions(id: s.id, apiKeys: keys, strategy: strategy);
@@ -138,4 +139,13 @@ class SearchServiceFactory {
     );
     return s;
   }
+
+  /// Get baseUrl for Exa service (returns null for other services)
+  static String? getBaseUrl(SearchServiceOptions s) {
+    if (s is ExaOptions) return s.baseUrl;
+    return null;
+  }
+
+  /// Check if service supports custom base URL
+  static bool supportsBaseUrl(SearchServiceOptions s) => s is ExaOptions;
 }

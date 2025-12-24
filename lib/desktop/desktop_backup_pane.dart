@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb, compute;
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +13,7 @@ import '../l10n/app_localizations.dart';
 import '../core/models/backup.dart';
 import '../core/providers/backup_provider.dart';
 import '../core/providers/settings_provider.dart';
+import '../core/providers/assistant_provider.dart';
 import '../core/services/chat/chat_service.dart';
 import '../core/services/backup/cherry_importer.dart' if (dart.library.html) '../core/services/backup/cherry_importer_stub.dart';
 import '../shared/widgets/ios_switch.dart';
@@ -25,6 +27,7 @@ import '../utils/file_io_helper.dart' if (dart.library.html) '../utils/file_io_h
 import '../core/services/runtime_cache_service.dart';
 import '../features/settings/pages/log_viewer_page.dart';
 import '../utils/app_dirs.dart';
+import '../core/services/sync/webdav_incremental_sync.dart';
 
 class DesktopBackupPane extends StatefulWidget {
   const DesktopBackupPane({super.key});
@@ -34,12 +37,16 @@ class DesktopBackupPane extends StatefulWidget {
 
 class _DesktopBackupPaneState extends State<DesktopBackupPane> {
   // Local form controllers
+  late TextEditingController _name;
   late TextEditingController _url;
   late TextEditingController _username;
   late TextEditingController _password;
   late TextEditingController _path;
   bool _includeChats = true;
   bool _includeFiles = true;
+
+  // 当前编辑的配置ID
+  String _currentConfigId = '';
 
   // Password visibility toggle (FIX: remote doesn't have this!)
   bool _obscurePassword = true;
@@ -51,6 +58,8 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
     super.didChangeDependencies();
     if (!_initialized) {
       final cfg = Provider.of<SettingsProvider>(context, listen: false).webDavConfig;
+      _currentConfigId = cfg.id;
+      _name = TextEditingController(text: cfg.name);
       _url = TextEditingController(text: cfg.url);
       _username = TextEditingController(text: cfg.username);
       _password = TextEditingController(text: cfg.password);
@@ -61,8 +70,42 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
     }
   }
 
+  /// 切换到指定配置
+  void _switchToConfig(WebDavConfig cfg) {
+    setState(() {
+      _currentConfigId = cfg.id;
+      _name.text = cfg.name;
+      _url.text = cfg.url;
+      _username.text = cfg.username;
+      _password.text = cfg.password;
+      _path.text = cfg.path;
+      _includeChats = cfg.includeChats;
+      _includeFiles = cfg.includeFiles;
+    });
+    // 设置为当前活动配置
+    context.read<SettingsProvider>().setActiveWebDavConfig(cfg.id);
+    // 同步更新 BackupProvider，确保恢复列表使用正确的配置
+    context.read<BackupProvider>().updateConfig(cfg);
+  }
+
+  /// 创建新配置
+  void _createNewConfig() {
+    final newId = DateTime.now().millisecondsSinceEpoch.toString();
+    setState(() {
+      _currentConfigId = newId;
+      _name.text = '';
+      _url.text = '';
+      _username.text = '';
+      _password.text = '';
+      _path.text = 'kelivo_backups';
+      _includeChats = true;
+      _includeFiles = true;
+    });
+  }
+
   @override
   void dispose() {
+    _name.dispose();
     _url.dispose();
     _username.dispose();
     _password.dispose();
@@ -72,6 +115,8 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
 
   WebDavConfig _buildConfigFromForm() {
     return WebDavConfig(
+      id: _currentConfigId,
+      name: _name.text.trim(),
       url: _url.text.trim(),
       username: _username.text.trim(),
       password: _password.text,
@@ -87,8 +132,10 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
     Provider.of<BackupProvider>(context, listen: false).updateConfig(cfg);
   }
 
-  Future<void> _applyPartial({String? url, String? username, String? password, String? path, bool? includeChats, bool? includeFiles}) async {
+  Future<void> _applyPartial({String? name, String? url, String? username, String? password, String? path, bool? includeChats, bool? includeFiles}) async {
     final cfg = WebDavConfig(
+      id: _currentConfigId,
+      name: name ?? _name.text.trim(),
       url: url ?? _url.text.trim(),
       username: username ?? _username.text.trim(),
       password: password ?? _password.text,
@@ -98,6 +145,426 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
     );
     await Provider.of<SettingsProvider>(context, listen: false).setWebDavConfig(cfg);
     Provider.of<BackupProvider>(context, listen: false).updateConfig(cfg);
+  }
+
+  /// 构建配置选择器下拉菜单
+  Widget _buildConfigSelector(BuildContext context, ColorScheme cs, AppLocalizations l10n) {
+    final settings = context.watch<SettingsProvider>();
+    final configs = settings.webDavConfigs;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final menuController = MenuController();
+
+    return MenuAnchor(
+      controller: menuController,
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(
+          isDark ? cs.surface.withOpacity(0.95) : cs.surface,
+        ),
+        elevation: const WidgetStatePropertyAll(8),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 6)),
+      ),
+      menuChildren: [
+        // 配置列表
+        ...configs.map((cfg) {
+          final isActive = cfg.id == _currentConfigId;
+          return _buildDropdownConfigItem(cfg, isActive, cs, isDark, configs.length > 1, l10n, menuController);
+        }),
+        // 分隔线
+        if (configs.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Divider(height: 1, color: cs.outlineVariant.withOpacity(0.3)),
+          ),
+        // 添加按钮
+        _buildDropdownAddButton(cs, isDark, l10n, menuController),
+      ],
+      builder: (context, controller, child) {
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            bool isHovered = false;
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) => setLocalState(() => isHovered = true),
+              onExit: (_) => setLocalState(() => isHovered = false),
+              child: GestureDetector(
+                onTap: () {
+                  if (controller.isOpen) {
+                    controller.close();
+                  } else {
+                    controller.open();
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  transform: isHovered
+                      ? (Matrix4.identity()..scale(1.02))
+                      : Matrix4.identity(),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isHovered
+                          ? (isDark
+                              ? [cs.primary.withOpacity(0.25), cs.primary.withOpacity(0.15)]
+                              : [cs.primary.withOpacity(0.2), cs.primary.withOpacity(0.1)])
+                          : (isDark
+                              ? [cs.primaryContainer.withOpacity(0.2), cs.primaryContainer.withOpacity(0.1)]
+                              : [cs.primaryContainer.withOpacity(0.4), cs.primaryContainer.withOpacity(0.2)]),
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isHovered ? cs.primary.withOpacity(0.5) : cs.primary.withOpacity(0.3),
+                      width: isHovered ? 1.5 : 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: cs.primary.withOpacity(isHovered ? 0.15 : 0.08),
+                        blurRadius: isHovered ? 12 : 8,
+                        offset: Offset(0, isHovered ? 4 : 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: isHovered
+                                ? [cs.primary, cs.primary.withOpacity(0.8)]
+                                : [cs.primary.withOpacity(0.2), cs.primary.withOpacity(0.1)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          lucide.Lucide.Cloud,
+                          size: 12,
+                          color: isHovered ? Colors.white : cs.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 130),
+                        child: Text(
+                          configs.isEmpty ? l10n.backupPageConfigSelectorAddServer : _getCurrentConfigDisplayName(configs),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isHovered ? cs.primary : cs.onSurface,
+                            letterSpacing: 0.2,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      AnimatedRotation(
+                        duration: const Duration(milliseconds: 200),
+                        turns: controller.isOpen ? 0.5 : 0,
+                        child: Icon(
+                          lucide.Lucide.ChevronDown,
+                          size: 14,
+                          color: isHovered ? cs.primary : cs.onSurface.withOpacity(0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDropdownConfigItem(WebDavConfig cfg, bool isActive, ColorScheme cs, bool isDark, bool canDelete, AppLocalizations l10n, MenuController menuController) {
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        bool isHovered = false;
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setLocalState(() => isHovered = true),
+          onExit: (_) => setLocalState(() => isHovered = false),
+          child: GestureDetector(
+            onTap: () {
+              if (!isActive) {
+                _switchToConfig(cfg);
+              }
+              // 关闭菜单
+              menuController.close();
+            },
+            child: Container(
+              width: 280,
+              margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? cs.primary.withOpacity(isDark ? 0.2 : 0.12)
+                    : (isHovered ? cs.primary.withOpacity(0.08) : Colors.transparent),
+                borderRadius: BorderRadius.circular(10),
+                border: isActive
+                    ? Border.all(color: cs.primary.withOpacity(0.3))
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  // 图标
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      gradient: isActive
+                          ? LinearGradient(
+                              colors: [cs.primary, cs.primary.withOpacity(0.8)],
+                            )
+                          : null,
+                      color: isActive ? null : cs.onSurface.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      isActive ? lucide.Lucide.CloudCheck : lucide.Lucide.Cloud,
+                      size: 14,
+                      color: isActive ? Colors.white : cs.onSurface.withOpacity(0.5),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // 信息
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          cfg.displayName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                            color: isActive ? cs.primary : cs.onSurface,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatUrl(cfg.url),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurface.withOpacity(0.45),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Active徽章或删除按钮
+                  if (isActive)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: cs.primary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        l10n.backupPageConfigSelectorActive,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                  else if (canDelete && isHovered)
+                    GestureDetector(
+                      onTap: () {
+                        menuController.close();
+                        _deleteConfig(cfg.id);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: cs.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Icon(
+                          lucide.Lucide.Trash2,
+                          size: 14,
+                          color: cs.error,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDropdownAddButton(ColorScheme cs, bool isDark, AppLocalizations l10n, MenuController menuController) {
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        bool isHovered = false;
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setLocalState(() => isHovered = true),
+          onExit: (_) => setLocalState(() => isHovered = false),
+          child: GestureDetector(
+            onTap: () {
+              menuController.close();
+              _createNewConfig();
+            },
+            child: Container(
+              width: 280,
+              margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isHovered ? cs.primary.withOpacity(0.1) : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: cs.primary.withOpacity(isHovered ? 0.2 : 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      lucide.Lucide.Plus,
+                      size: 14,
+                      color: cs.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    l10n.backupPageConfigSelectorAddNewServer,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: cs.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatUrl(String url) {
+    if (url.isEmpty) return 'Not configured';
+    try {
+      final uri = Uri.parse(url);
+      final path = uri.path.length > 20 ? '${uri.path.substring(0, 20)}...' : uri.path;
+      return '${uri.host}$path';
+    } catch (_) {
+      return url.length > 30 ? '${url.substring(0, 30)}...' : url;
+    }
+  }
+
+  String _getCurrentConfigDisplayName(List<WebDavConfig> configs) {
+    if (configs.isEmpty) return 'None';
+    final cfg = configs.firstWhere((c) => c.id == _currentConfigId, orElse: () => configs.first);
+    return cfg.displayName;
+  }
+
+  Future<void> _deleteConfig(String id) async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 340,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.error.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(lucide.Lucide.TriangleAlert, size: 24, color: cs.error),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                l10n.backupPageConfigSelectorDeleteTitle,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onSurface),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.backupPageConfigSelectorDeleteContent,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.6)),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text(l10n.backupPageCancel, style: TextStyle(color: cs.onSurface.withOpacity(0.7))),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: cs.error,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
+                      ),
+                      child: Text(l10n.backupPageConfigSelectorDelete, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await context.read<SettingsProvider>().deleteWebDavConfig(id);
+      // 如果删除的是当前配置，切换到新的当前配置
+      final newCfg = context.read<SettingsProvider>().webDavConfig;
+      _switchToConfig(newCfg);
+    }
   }
 
   Future<void> _chooseRestoreModeAndRun(Future<void> Function(RestoreMode) action) async {
@@ -180,9 +647,26 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.95)),
                           ),
                         ),
+                        // 配置选择器
+                        _buildConfigSelector(context, cs, l10n),
                       ],
                     ),
                   ),
+                  // 配置名称
+                  _ItemRow(
+                    label: l10n.backupPageConfigName,
+                    trailing: SizedBox(
+                      width: 420,
+                      child: TextField(
+                        controller: _name,
+                        enabled: !busy,
+                        style: const TextStyle(fontSize: 14),
+                        decoration: _deskInputDecoration(context).copyWith(hintText: 'e.g. Home NAS, Company Server'),
+                        onChanged: (v) => _applyPartial(name: v),
+                      ),
+                    ),
+                  ),
+                  _rowDivider(context),
                   _ItemRow(
                     label: l10n.backupPageWebDavServerUrl,
                     trailing: SizedBox(
@@ -331,6 +815,103 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                             message: message,
                             type: NotificationType.info,
                           );
+                        },
+                      ),
+                    ]),
+                  ),
+                  _rowDivider(context),
+                  _ItemRow(
+                    label: l10n.backupPageIncrementalSyncTitle,
+                    trailing: Wrap(spacing: 8, children: [
+                      _DeskIosButton(
+                        label: 'View Remote', // TODO: Add to l10n
+                        filled: false,
+                        dense: true,
+                        onTap: () {
+                          final cfg = _buildConfigFromForm();
+                          if (cfg.url.isEmpty) {
+                            showAppSnackBar(context, message: l10n.backupPageWebDavServerUrl + '?', type: NotificationType.error);
+                            return;
+                          }
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => _IncrementalRemoteBrowserDialog(config: cfg),
+                          );
+                        },
+                      ),
+                      _DeskIosButton(
+                        label: l10n.backupPageIncrementalSyncBtn,
+                        filled: false,
+                        dense: true,
+                        onTap: busy ? (){} : () async {
+                          final cfg = _buildConfigFromForm();
+                          if (cfg.url.isEmpty) {
+                            showAppSnackBar(context, message: l10n.backupPageWebDavServerUrl + '?', type: NotificationType.error);
+                            return;
+                          }
+                          
+                          showAppSnackBar(context, message: l10n.backupPageSyncStarting, type: NotificationType.info);
+                          
+                          try {
+                            final chatService = context.read<ChatService>();
+                            final settingsProvider = context.read<SettingsProvider>();
+                            final assistantProvider = context.read<AssistantProvider>();
+                            final rootDir = await AppDirs.dataRoot();
+                            // Pass root data path, sync manager will handle subdirs (upload, avatars, images)
+                            final localAssetRoot = rootDir.path;
+
+                            final manager = IncrementalSyncManager(
+                              cfg,
+                              logger: (msg) => print('[Sync] $msg'),
+                            );
+                            
+                            // 1. Get real local conversations
+                            final convs = chatService.getAllConversations();
+                            final localConvsMapped = convs.map((c) => {
+                              'id': c.id,
+                              'title': c.title,
+                              'updatedAt': c.updatedAt.toIso8601String(),
+                            }).toList();
+                            
+                            // 2. Export data
+                            final settingsMap = settingsProvider.exportSettings();
+                            final assistantsList = assistantProvider.exportAssistants();
+
+                            await manager.performSync(
+                              localConversations: localConvsMapped,
+                              localAssetRoot: localAssetRoot,
+                              localSettings: settingsMap,
+                              localAssistants: assistantsList,
+                              localMessagesFetcher: (convId) async {
+                                // 3. Fetch real messages for conversation
+                                final messages = chatService.getMessages(convId);
+                                return messages.map((m) => m.toJson()).toList();
+                              },
+                              onRemoteConversationFound: (c) {
+                                // TODO: Merge conversation metadata
+                                print('[Sync] Remote conv found: ${c['id']}');
+                              },
+                              onRemoteMessagesFound: (id, msgs) {
+                                // TODO: Merge messages
+                                print('[Sync] Remote msgs found for $id: ${msgs.length} items');
+                              },
+                              onRemoteSettingsFound: (data) async {
+                                print('[Sync] Merging remote settings...');
+                                await settingsProvider.importSettings(data);
+                              },
+                              onRemoteAssistantsFound: (list) async {
+                                print('[Sync] Merging remote assistants...');
+                                await assistantProvider.importAssistants(list);
+                              },
+                            );
+                            
+                            if (!mounted) return;
+                            showAppSnackBar(context, message: l10n.backupPageSyncDone, type: NotificationType.success);
+                          } catch (e) {
+                            print(e);
+                            if (!mounted) return;
+                            showAppSnackBar(context, message: l10n.backupPageSyncError(e.toString()), type: NotificationType.error);
+                          }
                         },
                       ),
                     ]),
@@ -1915,99 +2496,6 @@ class _LogPickerItem extends StatefulWidget {
   State<_LogPickerItem> createState() => _LogPickerItemState();
 }
 
-class _LogPickerItemState extends State<_LogPickerItem> {
-  bool _hover = false;
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final hoverBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
-    final selectedBg = isDark ? cs.primary.withOpacity(0.18) : cs.primary.withOpacity(0.10);
-    final bg = widget.selected ? selectedBg : (_hover ? hoverBg : Colors.transparent);
-
-    final titleColor = cs.onSurface.withOpacity(0.92);
-    final subtitleColor = cs.onSurface.withOpacity(widget.selected ? 0.55 : 0.45);
-    final iconColor = cs.onSurface.withOpacity(widget.selected ? 0.75 : 0.55);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          scale: _pressed ? 0.99 : 1.0,
-          duration: const Duration(milliseconds: 110),
-          curve: Curves.easeOutCubic,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 3,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: widget.selected ? cs.primary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Icon(Icons.description_outlined, size: 18, color: iconColor),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: widget.selected ? FontWeight.w800 : FontWeight.w700,
-                          color: titleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: subtitleColor,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (widget.selected) ...[
-                  const SizedBox(width: 10),
-                  Icon(Icons.check_rounded, size: 18, color: cs.primary),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// 单个日志条目组件 - 独立管理状态，懒加载内容
 class _LogEntryTile extends StatefulWidget {
   final _LogEntry entry;
@@ -3367,4 +3855,445 @@ DateTime? _parseTimestampIsolate(String timestamp) {
     }
   } catch (_) {}
   return null;
+}
+
+class _LogPickerItemState extends State<_LogPickerItem> {
+  bool _hover = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final hoverBg = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.04);
+    final selectedBg = isDark ? cs.primary.withOpacity(0.18) : cs.primary.withOpacity(0.10);
+    final bg = widget.selected ? selectedBg : (_hover ? hoverBg : Colors.transparent);
+
+    final titleColor = cs.onSurface.withOpacity(0.92);
+    final subtitleColor = cs.onSurface.withOpacity(widget.selected ? 0.55 : 0.45);
+    final iconColor = cs.onSurface.withOpacity(widget.selected ? 0.75 : 0.55);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed ? 0.99 : 1.0,
+          duration: const Duration(milliseconds: 110),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 3,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: widget.selected ? cs.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Icon(Icons.description_outlined, size: 18, color: iconColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: widget.selected ? FontWeight.w800 : FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: subtitleColor,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.selected) ...[
+                  const SizedBox(width: 10),
+                  Icon(Icons.check_rounded, size: 18, color: cs.primary),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IncrementalRemoteBrowserDialog extends StatefulWidget {
+  const _IncrementalRemoteBrowserDialog({required this.config});
+  final WebDavConfig config;
+
+  @override
+  State<_IncrementalRemoteBrowserDialog> createState() => _IncrementalRemoteBrowserDialogState();
+}
+
+enum _SortMode { name, date, size }
+enum _SortOrder { asc, desc }
+
+class _IncrementalRemoteBrowserDialogState extends State<_IncrementalRemoteBrowserDialog> {
+  late final WebDavIncrementalSync _api;
+  String _currentPath = '';
+  List<RemoteFileInfo> _files = [];
+  bool _loading = true;
+  String? _error;
+  _SortMode _sortMode = _SortMode.name;
+  _SortOrder _sortOrder = _SortOrder.asc;
+
+  // 图片预览缓存
+  final Map<String, Uint8List> _imageCache = {};
+  final Set<String> _loadingImages = {};
+
+  static const _imageExtensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'};
+
+  @override
+  void initState() {
+    super.initState();
+    _api = WebDavIncrementalSync(widget.config);
+    _load(_currentPath);
+  }
+
+  @override
+  void dispose() {
+    // 关闭 HTTP 客户端，释放资源
+    _api.close();
+    // 清除图片缓存
+    _imageCache.clear();
+    _loadingImages.clear();
+    _files.clear();
+    super.dispose();
+  }
+
+  bool _isImage(String name) {
+    final lower = name.toLowerCase();
+    return _imageExtensions.any((ext) => lower.endsWith(ext));
+  }
+
+  bool _isFolder(String name) {
+    return !name.contains('.') ||
+        name == 'upload' ||
+        name == 'avatars' ||
+        name == 'images' ||
+        name == 'conversations' ||
+        name == 'messages' ||
+        name == 'assets';
+  }
+
+  void _sortFiles() {
+    _files.sort((a, b) {
+      final aIsFolder = _isFolder(a.name);
+      final bIsFolder = _isFolder(b.name);
+      // 文件夹始终在前
+      if (aIsFolder && !bIsFolder) return -1;
+      if (!aIsFolder && bIsFolder) return 1;
+
+      int cmp;
+      switch (_sortMode) {
+        case _SortMode.name:
+          cmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          break;
+        case _SortMode.date:
+          cmp = a.lastModified.compareTo(b.lastModified);
+          break;
+        case _SortMode.size:
+          cmp = a.size.compareTo(b.size);
+          break;
+      }
+      return _sortOrder == _SortOrder.asc ? cmp : -cmp;
+    });
+  }
+
+  Future<void> _load(String path) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _currentPath = path;
+      _imageCache.clear();
+      _loadingImages.clear();
+    });
+    try {
+      final map = await _api.listRemoteFiles(path);
+      final list = map.values.toList();
+      if (mounted) {
+        setState(() {
+          _files = list;
+          _sortFiles();
+          _loading = false;
+        });
+        // 预加载图片缩略图
+        _preloadImages();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _preloadImages() {
+    for (final f in _files) {
+      if (_isImage(f.name) && !_imageCache.containsKey(f.name) && !_loadingImages.contains(f.name)) {
+        _loadImage(f.name);
+      }
+    }
+  }
+
+  Future<void> _loadImage(String name) async {
+    if (_loadingImages.contains(name)) return;
+    _loadingImages.add(name);
+
+    try {
+      final path = _currentPath.isEmpty ? name : '$_currentPath/$name';
+      final bytes = await _api.downloadBytes(path);
+      if (mounted && bytes != null) {
+        setState(() {
+          _imageCache[name] = bytes;
+        });
+      }
+    } catch (_) {
+      // 加载失败，忽略
+    } finally {
+      _loadingImages.remove(name);
+    }
+  }
+
+  void _toggleSort(_SortMode mode) {
+    setState(() {
+      if (_sortMode == mode) {
+        _sortOrder = _sortOrder == _SortOrder.asc ? _SortOrder.desc : _SortOrder.asc;
+      } else {
+        _sortMode = mode;
+        _sortOrder = _SortOrder.asc;
+      }
+      _sortFiles();
+    });
+  }
+
+  Widget _buildSortButton(_SortMode mode, String label, IconData icon) {
+    final isActive = _sortMode == mode;
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () => _toggleSort(mode),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? cs.primaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: isActive ? cs.primary : cs.onSurface.withOpacity(0.6)),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(fontSize: 12, color: isActive ? cs.primary : cs.onSurface.withOpacity(0.6))),
+            if (isActive) ...[
+              const SizedBox(width: 2),
+              Icon(
+                _sortOrder == _SortOrder.asc ? Icons.arrow_upward : Icons.arrow_downward,
+                size: 12,
+                color: cs.primary,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Dialog(
+      backgroundColor: cs.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 650, maxHeight: 650),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.home, size: 20, color: cs.primary),
+                    onPressed: () => _load(''),
+                    tooltip: 'Root',
+                    splashRadius: 20,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      '/kelivo_sync_data${_currentPath.isEmpty ? '/' : '/$_currentPath/'}',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, fontFamily: 'monospace'),
+                    ),
+                  ),
+                  if (_currentPath.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.arrow_upward, size: 20),
+                      onPressed: () {
+                        final parts = _currentPath.split('/');
+                        if (parts.length > 1) {
+                          parts.removeLast();
+                          _load(parts.join('/'));
+                        } else {
+                          _load('');
+                        }
+                      },
+                      tooltip: 'Up',
+                      splashRadius: 20,
+                    ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(lucide.Lucide.X, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
+                    splashRadius: 20,
+                  ),
+                ],
+              ),
+            ),
+            // 排序按钮行
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  Text('Sort:', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.5))),
+                  const SizedBox(width: 8),
+                  _buildSortButton(_SortMode.name, 'Name', Icons.sort_by_alpha),
+                  const SizedBox(width: 6),
+                  _buildSortButton(_SortMode.date, 'Date', Icons.schedule),
+                  const SizedBox(width: 6),
+                  _buildSortButton(_SortMode.size, 'Size', Icons.data_usage),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(child: Text('Error: $_error', style: TextStyle(color: cs.error)))
+                      : _files.isEmpty
+                          ? Center(child: Text('Empty folder', style: TextStyle(color: cs.onSurface.withOpacity(0.5))))
+                          : ListView.separated(
+                              padding: const EdgeInsets.all(8),
+                              itemCount: _files.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1, indent: 48),
+                              itemBuilder: (ctx, i) {
+                                final f = _files[i];
+                                final isFolder = _isFolder(f.name);
+                                final isImage = _isImage(f.name);
+
+                                // 构建 leading widget
+                                Widget leadingWidget;
+                                if (isFolder) {
+                                  leadingWidget = const Icon(Icons.folder, color: Colors.amber, size: 36);
+                                } else if (isImage && _imageCache.containsKey(f.name)) {
+                                  leadingWidget = ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.memory(
+                                      _imageCache[f.name]!,
+                                      width: 36,
+                                      height: 36,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        Icons.broken_image,
+                                        size: 36,
+                                        color: cs.onSurface.withOpacity(0.4),
+                                      ),
+                                    ),
+                                  );
+                                } else if (isImage && _loadingImages.contains(f.name)) {
+                                  leadingWidget = SizedBox(
+                                    width: 36,
+                                    height: 36,
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  leadingWidget = Icon(
+                                    Icons.insert_drive_file_outlined,
+                                    size: 36,
+                                    color: cs.onSurface.withOpacity(0.6),
+                                  );
+                                }
+
+                                // 格式化文件大小
+                                String sizeStr;
+                                if (isFolder) {
+                                  sizeStr = '';
+                                } else if (f.size >= 1024 * 1024) {
+                                  sizeStr = '${(f.size / (1024 * 1024)).toStringAsFixed(1)} MB';
+                                } else if (f.size >= 1024) {
+                                  sizeStr = '${(f.size / 1024).toStringAsFixed(1)} KB';
+                                } else {
+                                  sizeStr = '${f.size} B';
+                                }
+
+                                final timeStr = f.lastModified.toLocal().toString().split('.')[0];
+                                final subtitleText = isFolder ? timeStr : '$sizeStr · $timeStr';
+
+                                return ListTile(
+                                  leading: leadingWidget,
+                                  title: Text(f.name, style: const TextStyle(fontSize: 14)),
+                                  subtitle: Text(
+                                    subtitleText,
+                                    style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.5)),
+                                  ),
+                                  dense: true,
+                                  onTap: isFolder
+                                      ? () => _load(_currentPath.isEmpty ? f.name : '$_currentPath/${f.name}')
+                                      : null,
+                                  hoverColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                );
+                              },
+                            ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

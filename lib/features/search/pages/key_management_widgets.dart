@@ -31,20 +31,36 @@ class KeyManagementDialog extends StatefulWidget {
 class _KeyManagementDialogState extends State<KeyManagementDialog> {
   ApiKeyStatus? _filterStatus;
   final Set<String> _hiddenKeyIds = <String>{};
-  
+
   // 本地缓存的 apiKeys 列表，用于编辑操作
   late List<ApiKeyConfig> _apiKeys;
   late LoadBalanceStrategy _strategy;
+  late TextEditingController _baseUrlController;
 
   @override
   void initState() {
     super.initState();
     _apiKeys = List.from(SearchServiceFactory.getApiKeys(widget.service));
     _strategy = SearchServiceFactory.getStrategy(widget.service);
+    _baseUrlController = TextEditingController(
+      text: SearchServiceFactory.getBaseUrl(widget.service) ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _baseUrlController.dispose();
+    super.dispose();
   }
 
   void _save() {
-    final updated = SearchServiceFactory.updateMultiKey(widget.service, _apiKeys, _strategy);
+    final baseUrl = _baseUrlController.text.trim();
+    final updated = SearchServiceFactory.updateMultiKey(
+      widget.service,
+      _apiKeys,
+      _strategy,
+      baseUrl: baseUrl.isEmpty ? null : baseUrl,
+    );
     widget.onSave(updated);
   }
 
@@ -179,6 +195,10 @@ class _KeyManagementDialogState extends State<KeyManagementDialog> {
               // Strategy selection
               _buildStrategyRow(context),
 
+              // Base URL configuration (only for services that support it)
+              if (SearchServiceFactory.supportsBaseUrl(widget.service))
+                _buildBaseUrlRow(context),
+
               const Divider(height: 1),
 
               // Key list - 支持拖拽排序
@@ -280,6 +300,60 @@ class _KeyManagementDialogState extends State<KeyManagementDialog> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBaseUrlRow(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Lucide.Link, size: 16, color: cs.primary),
+              const SizedBox(width: 8),
+              const Text('自定义 API 地址', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(width: 8),
+              Text('(可选)', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.5))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _baseUrlController,
+            decoration: InputDecoration(
+              hintText: ExaOptions.defaultBaseUrl,
+              hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.3)),
+              filled: true,
+              fillColor: isDark ? Colors.white10 : Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.primary.withOpacity(0.5)),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 14),
+            onChanged: (_) => _save(),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '留空使用官方地址，填写中转地址可使用第三方服务',
+            style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+          ),
         ],
       ),
     );
@@ -880,19 +954,35 @@ class KeyManagementSheet extends StatefulWidget {
 class _KeyManagementSheetState extends State<KeyManagementSheet> {
   ApiKeyStatus? _filterStatus;
   final Set<String> _hiddenKeyIds = <String>{};
-  
+
   late List<ApiKeyConfig> _apiKeys;
   late LoadBalanceStrategy _strategy;
+  late TextEditingController _baseUrlController;
 
   @override
   void initState() {
     super.initState();
     _apiKeys = List.from(SearchServiceFactory.getApiKeys(widget.service));
     _strategy = SearchServiceFactory.getStrategy(widget.service);
+    _baseUrlController = TextEditingController(
+      text: SearchServiceFactory.getBaseUrl(widget.service) ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _baseUrlController.dispose();
+    super.dispose();
   }
 
   void _save() {
-    final updated = SearchServiceFactory.updateMultiKey(widget.service, _apiKeys, _strategy);
+    final baseUrl = _baseUrlController.text.trim();
+    final updated = SearchServiceFactory.updateMultiKey(
+      widget.service,
+      _apiKeys,
+      _strategy,
+      baseUrl: baseUrl.isEmpty ? null : baseUrl,
+    );
     widget.onSave(updated);
   }
 
@@ -1021,6 +1111,10 @@ class _KeyManagementSheetState extends State<KeyManagementSheet> {
             // Strategy selection
             _buildStrategyRow(context),
 
+            // Base URL configuration (only for services that support it)
+            if (SearchServiceFactory.supportsBaseUrl(widget.service))
+              _buildBaseUrlRow(context),
+
             const Divider(height: 1),
 
             // Key list - 支持拖拽排序
@@ -1119,6 +1213,60 @@ class _KeyManagementSheetState extends State<KeyManagementSheet> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBaseUrlRow(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Lucide.Link, size: 16, color: cs.primary),
+              const SizedBox(width: 8),
+              const Text('自定义 API 地址', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(width: 8),
+              Text('(可选)', style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.5))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _baseUrlController,
+            decoration: InputDecoration(
+              hintText: ExaOptions.defaultBaseUrl,
+              hintStyle: TextStyle(color: cs.onSurface.withOpacity(0.3)),
+              filled: true,
+              fillColor: isDark ? Colors.white10 : Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.outlineVariant.withOpacity(0.4)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: cs.primary.withOpacity(0.5)),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 14),
+            onChanged: (_) => _save(),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '留空使用官方地址，填写中转地址可使用第三方服务',
+            style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.5)),
+          ),
         ],
       ),
     );

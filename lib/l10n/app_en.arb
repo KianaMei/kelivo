@@ -377,6 +377,25 @@
   "backupPageBackupNow": "Backup Now",
   "backupPageLocalBackup": "Local Backup",
   "backupPageImportFromCherryStudio": "Import from Cherry Studio",
+  "backupPageIncrementalSyncTitle": "Incremental Sync (Experimental)",
+  "backupPageIncrementalSyncBtn": "Start Sync",
+  "backupPageSyncStarting": "Starting sync...",
+  "backupPageSyncDone": "Sync completed successfully!",
+  "backupPageSyncError": "Sync failed: {error}",
+  "@backupPageSyncError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "backupPageConfigSelectorAddServer": "Add Server",
+  "backupPageConfigSelectorActive": "Active",
+  "backupPageConfigSelectorAddNewServer": "Add New Server",
+  "backupPageConfigSelectorDeleteTitle": "Delete Configuration?",
+  "backupPageConfigSelectorDeleteContent": "This action cannot be undone. The server configuration will be permanently removed.",
+  "backupPageConfigSelectorDelete": "Delete",
+  "backupPageConfigName": "Config Name",
   "chatHistoryPageTitle": "Chat History",
   "chatHistoryPageSearchTooltip": "Search",
   "chatHistoryPageDeleteAllTooltip": "Delete All",

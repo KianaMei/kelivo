@@ -1979,6 +1979,78 @@ abstract class AppLocalizations {
   /// **'Import from Cherry Studio'**
   String get backupPageImportFromCherryStudio;
 
+  /// No description provided for @backupPageIncrementalSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Incremental Sync (Experimental)'**
+  String get backupPageIncrementalSyncTitle;
+
+  /// No description provided for @backupPageIncrementalSyncBtn.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Sync'**
+  String get backupPageIncrementalSyncBtn;
+
+  /// No description provided for @backupPageSyncStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting sync...'**
+  String get backupPageSyncStarting;
+
+  /// No description provided for @backupPageSyncDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync completed successfully!'**
+  String get backupPageSyncDone;
+
+  /// No description provided for @backupPageSyncError.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync failed: {error}'**
+  String backupPageSyncError(String error);
+
+  /// No description provided for @backupPageConfigSelectorAddServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Server'**
+  String get backupPageConfigSelectorAddServer;
+
+  /// No description provided for @backupPageConfigSelectorActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get backupPageConfigSelectorActive;
+
+  /// No description provided for @backupPageConfigSelectorAddNewServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add New Server'**
+  String get backupPageConfigSelectorAddNewServer;
+
+  /// No description provided for @backupPageConfigSelectorDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Configuration?'**
+  String get backupPageConfigSelectorDeleteTitle;
+
+  /// No description provided for @backupPageConfigSelectorDeleteContent.
+  ///
+  /// In en, this message translates to:
+  /// **'This action cannot be undone. The server configuration will be permanently removed.'**
+  String get backupPageConfigSelectorDeleteContent;
+
+  /// No description provided for @backupPageConfigSelectorDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get backupPageConfigSelectorDelete;
+
+  /// No description provided for @backupPageConfigName.
+  ///
+  /// In en, this message translates to:
+  /// **'Config Name'**
+  String get backupPageConfigName;
+
   /// No description provided for @chatHistoryPageTitle.
   ///
   /// In en, this message translates to:

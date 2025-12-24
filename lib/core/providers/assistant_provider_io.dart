@@ -374,5 +374,37 @@ Do not interpret or translate—only transcribe and describe what is visually pr
     notifyListeners();
     await _persist();
   }
+
+  // Export all assistants as JSON-compatible list
+  List<Map<String, dynamic>> exportAssistants() {
+    return _assistants.map((a) => a.toJson()).toList();
+  }
+
+  // Import assistants (merge strategy: overwrite if ID exists, else add)
+  Future<void> importAssistants(List<Map<String, dynamic>> data) async {
+    int added = 0;
+    int updated = 0;
+    
+    for (final json in data) {
+      try {
+        final a = Assistant.fromJson(json);
+        final idx = _assistants.indexWhere((existing) => existing.id == a.id);
+        if (idx != -1) {
+          _assistants[idx] = a;
+          updated++;
+        } else {
+          _assistants.add(a);
+          added++;
+        }
+      } catch (e) {
+        print('[AssistantProvider] Import skip invalid item: $e');
+      }
+    }
+    
+    if (added > 0 || updated > 0) {
+      await _persist();
+      notifyListeners();
+    }
+  }
 }
 

@@ -967,6 +967,44 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupPageImportFromCherryStudio => '从 Cherry Studio 导入';
 
   @override
+  String get backupPageIncrementalSyncTitle => '增量同步 (实验性)';
+
+  @override
+  String get backupPageIncrementalSyncBtn => '开始同步';
+
+  @override
+  String get backupPageSyncStarting => '正在开始同步...';
+
+  @override
+  String get backupPageSyncDone => '同步完成！';
+
+  @override
+  String backupPageSyncError(String error) {
+    return '同步失败: $error';
+  }
+
+  @override
+  String get backupPageConfigSelectorAddServer => '添加服务器';
+
+  @override
+  String get backupPageConfigSelectorActive => '当前';
+
+  @override
+  String get backupPageConfigSelectorAddNewServer => '添加新服务器';
+
+  @override
+  String get backupPageConfigSelectorDeleteTitle => '删除配置？';
+
+  @override
+  String get backupPageConfigSelectorDeleteContent => '此操作不可撤销，服务器配置将被永久删除。';
+
+  @override
+  String get backupPageConfigSelectorDelete => '删除';
+
+  @override
+  String get backupPageConfigName => '配置名称';
+
+  @override
   String get chatHistoryPageTitle => '聊天历史';
 
   @override
@@ -4186,6 +4224,44 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get backupPageImportFromCherryStudio => '从 Cherry Studio 导入';
 
   @override
+  String get backupPageIncrementalSyncTitle => '增量同步 (实验性)';
+
+  @override
+  String get backupPageIncrementalSyncBtn => '开始同步';
+
+  @override
+  String get backupPageSyncStarting => '正在开始同步...';
+
+  @override
+  String get backupPageSyncDone => '同步完成！';
+
+  @override
+  String backupPageSyncError(String error) {
+    return '同步失败: $error';
+  }
+
+  @override
+  String get backupPageConfigSelectorAddServer => '添加服务器';
+
+  @override
+  String get backupPageConfigSelectorActive => '当前';
+
+  @override
+  String get backupPageConfigSelectorAddNewServer => '添加新服务器';
+
+  @override
+  String get backupPageConfigSelectorDeleteTitle => '删除配置？';
+
+  @override
+  String get backupPageConfigSelectorDeleteContent => '此操作不可撤销，服务器配置将被永久删除。';
+
+  @override
+  String get backupPageConfigSelectorDelete => '删除';
+
+  @override
+  String get backupPageConfigName => '配置名称';
+
+  @override
   String get chatHistoryPageTitle => '聊天历史';
 
   @override
@@ -6886,6 +6962,44 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get backupPageImportFromCherryStudio => '從 Cherry Studio 匯入';
+
+  @override
+  String get backupPageIncrementalSyncTitle => '增量同步 (實驗性)';
+
+  @override
+  String get backupPageIncrementalSyncBtn => '開始同步';
+
+  @override
+  String get backupPageSyncStarting => '正在開始同步...';
+
+  @override
+  String get backupPageSyncDone => '同步完成！';
+
+  @override
+  String backupPageSyncError(String error) {
+    return '同步失敗: $error';
+  }
+
+  @override
+  String get backupPageConfigSelectorAddServer => '新增伺服器';
+
+  @override
+  String get backupPageConfigSelectorActive => '目前';
+
+  @override
+  String get backupPageConfigSelectorAddNewServer => '新增伺服器';
+
+  @override
+  String get backupPageConfigSelectorDeleteTitle => '刪除配置？';
+
+  @override
+  String get backupPageConfigSelectorDeleteContent => '此操作不可撤銷，伺服器配置將被永久刪除。';
+
+  @override
+  String get backupPageConfigSelectorDelete => '刪除';
+
+  @override
+  String get backupPageConfigName => '配置名稱';
 
   @override
   String get chatHistoryPageTitle => '聊天歷史';

@@ -351,19 +351,25 @@ class TavilyOptions extends SearchServiceOptions {
 class ExaOptions extends SearchServiceOptions {
   final List<ApiKeyConfig> apiKeys;
   final LoadBalanceStrategy strategy;
+  final String? baseUrl;  // Custom base URL for proxy/relay support
   int _currentIndex = 0;  // For round-robin strategy
   static const int _cooldownMinutes = 5;
   static const int _maxFailuresBeforeError = 3;
+  static const String defaultBaseUrl = 'https://api.exa.ai';
 
   ExaOptions({
     required String id,
     required this.apiKeys,
     this.strategy = LoadBalanceStrategy.roundRobin,
+    this.baseUrl,
   }) : super(id: id) {
     if (apiKeys.isEmpty) {
       throw ArgumentError('At least one API key is required');
     }
   }
+
+  /// Get the effective base URL (custom or default)
+  String get effectiveBaseUrl => (baseUrl?.isNotEmpty == true) ? baseUrl! : defaultBaseUrl;
 
   // Backward compatibility: single key constructor
   factory ExaOptions.single({
@@ -460,8 +466,9 @@ class ExaOptions extends SearchServiceOptions {
     'id': id,
     'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
     'strategy': strategy.name,
+    if (baseUrl != null && baseUrl!.isNotEmpty) 'baseUrl': baseUrl,
   };
-  
+
   factory ExaOptions.fromJson(Map<String, dynamic> json) {
     // Backward compatibility: support old single apiKey format
     if (json.containsKey('apiKey') && json['apiKey'] is String) {
@@ -470,7 +477,7 @@ class ExaOptions extends SearchServiceOptions {
         apiKey: json['apiKey'],
       );
     }
-    
+
     return ExaOptions(
       id: json['id'],
       apiKeys: (json['apiKeys'] as List)
@@ -480,6 +487,17 @@ class ExaOptions extends SearchServiceOptions {
         (s) => s.name == json['strategy'],
         orElse: () => LoadBalanceStrategy.roundRobin,
       ),
+      baseUrl: json['baseUrl'] as String?,
+    );
+  }
+
+  /// Create a copy with updated baseUrl
+  ExaOptions copyWithBaseUrl(String? newBaseUrl) {
+    return ExaOptions(
+      id: id,
+      apiKeys: apiKeys,
+      strategy: strategy,
+      baseUrl: newBaseUrl,
     );
   }
 }

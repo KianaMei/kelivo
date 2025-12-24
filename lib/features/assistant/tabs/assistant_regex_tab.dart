@@ -101,7 +101,7 @@ class _AssistantRegexTabState extends State<AssistantRegexTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Lucide.Replace, size: 56, color: cs.primary.withOpacity(0.6)),
+              Icon(Lucide.ArrowLeftRight, size: 56, color: cs.primary.withOpacity(0.6)),
               const SizedBox(height: 16),
               Text(
                 l10n.assistantEditRegexDescription,

@@ -371,6 +371,7 @@ class DataSync {
         '    <d:displayname/>\n'
         '    <d:getlastmodified/>\n'
         '    <d:getcontentlength/>\n'
+        '    <d:resourcetype/>\n'
         '  </d:prop>\n'
         '</d:propfind>';
     
@@ -416,22 +417,26 @@ class DataSync {
       final name = (disp.isNotEmpty && disp.first.trim().isNotEmpty)
           ? disp.first.trim()
           : Uri.parse(href).pathSegments.last;
-      
+
       // Parse file size
       int size = 0;
       if (sizeStr.isNotEmpty) {
         size = int.tryParse(sizeStr.first) ?? 0;
       }
-      
+
       // If mtime is null, try to extract from filename (format: kelivo_backup_<platform>_2025-01-19T12-34-56.123456.zip)
       DateTime? mtime;
       if (mtimeStr.isNotEmpty) {
         try { mtime = DateTime.parse(mtimeStr.first); } catch (_) {}
       }
       mtime ??= tryParseKelivoBackupTimestamp(name);
-      
-      // Skip directories
+
+      // Skip directories - check both trailing slash and resourcetype
       if (abs.endsWith('/')) continue;
+      // Some WebDAV servers (like Koofr) don't add trailing slash to directory hrefs,
+      // but they do include <d:collection/> in resourcetype
+      final isCollection = resp.findAllElements('collection', namespace: '*').isNotEmpty;
+      if (isCollection) continue;
       final fullHref = Uri.parse(abs);
       items.add(BackupFileItem(href: fullHref, displayName: name, size: size, lastModified: mtime));
     }

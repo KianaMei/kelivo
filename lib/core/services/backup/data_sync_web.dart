@@ -680,6 +680,7 @@ class DataSync {
         '    <d:displayname/>\n'
         '    <d:getcontentlength/>\n'
         '    <d:getlastmodified/>\n'
+        '    <d:resourcetype/>\n'
         '  </d:prop>\n'
         '</d:propfind>';
 
@@ -718,6 +719,12 @@ class DataSync {
             response.findElements('href').firstOrNull?.innerText ??
             '';
         if (href.isEmpty || href.endsWith('/')) continue;
+
+        // Skip directories - some WebDAV servers (like Koofr) don't add trailing slash
+        final isCollection = response.findAllElements('d:collection').isNotEmpty ||
+            response.findAllElements('D:collection').isNotEmpty ||
+            response.findAllElements('collection').isNotEmpty;
+        if (isCollection) continue;
 
         final displayName = response.findAllElements('d:displayname').firstOrNull?.innerText ??
             response.findAllElements('D:displayname').firstOrNull?.innerText ??

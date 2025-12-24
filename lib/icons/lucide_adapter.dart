@@ -186,4 +186,10 @@ class Lucide {
   static const IconData ScrollText = lucide.LucideIcons.scrollText;
   static const IconData ArrowUpRight = lucide.LucideIcons.arrowUpRight;
   static const IconData ArrowDownLeft = lucide.LucideIcons.arrowDownLeft;
+  static const IconData ArrowLeftRight = lucide.LucideIcons.arrowLeftRight;
+  // Cloud icons for config selector
+  static const IconData Cloud = lucide.LucideIcons.cloud;
+  static const IconData CloudCheck = lucide.LucideIcons.cloudCheck;
+  static const IconData CloudOff = lucide.LucideIcons.cloudOff;
+  static const IconData Server = lucide.LucideIcons.server;
 }

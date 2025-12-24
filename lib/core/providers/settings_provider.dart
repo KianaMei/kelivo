@@ -92,6 +92,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _stickerSizeKey = 'sticker_size_v1';
   static const String _stickerFrequencyKey = 'sticker_frequency_v1';
   static const String _webDavConfigKey = 'webdav_config_v1';
+  static const String _webDavConfigsKey = 'webdav_configs_v2';  // 多配置列表
+  static const String _webDavActiveConfigIdKey = 'webdav_active_config_id_v1';  // 当前选中的配置ID
   static const String _lastSelectedProviderTabKey = 'last_selected_provider_tab_v1';
   // Desktop UI
   static const String _desktopSidebarWidthKey = 'desktop_sidebar_width_v1';
@@ -506,10 +508,38 @@ class SettingsProvider extends ChangeNotifier {
       _androidBackgroundChatMode = AndroidBackgroundChatMode.off;
     }
 
-    // webdav config
-    final webdavStr = prefs.getString(_webDavConfigKey);
-    if (webdavStr != null && webdavStr.isNotEmpty) {
-      try { _webDavConfig = WebDavConfig.fromJson(jsonDecode(webdavStr) as Map<String, dynamic>); } catch (_) {}
+    // webdav config - 支持多配置
+    // 先尝试加载新版多配置
+    final webdavConfigsStr = prefs.getString(_webDavConfigsKey);
+    if (webdavConfigsStr != null && webdavConfigsStr.isNotEmpty) {
+      try {
+        final list = jsonDecode(webdavConfigsStr) as List<dynamic>;
+        _webDavConfigs = list.map((e) => WebDavConfig.fromJson(e as Map<String, dynamic>)).toList();
+      } catch (_) {}
+    }
+    // 如果多配置为空，尝试迁移旧版单配置
+    if (_webDavConfigs.isEmpty) {
+      final webdavStr = prefs.getString(_webDavConfigKey);
+      if (webdavStr != null && webdavStr.isNotEmpty) {
+        try {
+          final oldConfig = WebDavConfig.fromJson(jsonDecode(webdavStr) as Map<String, dynamic>);
+          if (oldConfig.isNotEmpty) {
+            // 迁移旧配置，生成新ID
+            final migratedConfig = oldConfig.copyWith(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              name: 'Default',
+            );
+            _webDavConfigs = [migratedConfig];
+            _webDavActiveConfigId = migratedConfig.id;
+          }
+        } catch (_) {}
+      }
+    }
+    // 加载当前选中的配置ID
+    _webDavActiveConfigId = prefs.getString(_webDavActiveConfigIdKey) ?? '';
+    // 确保 activeConfigId 有效
+    if (_webDavConfigs.isNotEmpty && !_webDavConfigs.any((c) => c.id == _webDavActiveConfigId)) {
+      _webDavActiveConfigId = _webDavConfigs.first.id;
     }
 
     // Global proxy settings
@@ -806,14 +836,98 @@ class SettingsProvider extends ChangeNotifier {
     }
   }
 
-  // ===== Backup & WebDAV settings =====
-  WebDavConfig _webDavConfig = const WebDavConfig();
-  WebDavConfig get webDavConfig => _webDavConfig;
-  Future<void> setWebDavConfig(WebDavConfig cfg) async {
-    _webDavConfig = cfg;
+  // ===== Backup & WebDAV settings (多配置支持) =====
+  List<WebDavConfig> _webDavConfigs = [];
+  String _webDavActiveConfigId = '';
+
+  /// 所有 WebDAV 配置列表
+  List<WebDavConfig> get webDavConfigs => List.unmodifiable(_webDavConfigs);
+
+  /// 当前选中的配置ID
+  String get webDavActiveConfigId => _webDavActiveConfigId;
+
+  /// 当前选中的配置（兼容旧代码）
+  WebDavConfig get webDavConfig {
+    if (_webDavConfigs.isEmpty) return const WebDavConfig();
+    return _webDavConfigs.firstWhere(
+      (c) => c.id == _webDavActiveConfigId,
+      orElse: () => _webDavConfigs.first,
+    );
+  }
+
+  /// 添加新配置
+  Future<void> addWebDavConfig(WebDavConfig cfg) async {
+    // 确保有ID
+    final config = cfg.id.isEmpty
+        ? cfg.copyWith(id: DateTime.now().millisecondsSinceEpoch.toString())
+        : cfg;
+    _webDavConfigs.add(config);
+    // 如果是第一个配置，自动选中
+    if (_webDavConfigs.length == 1) {
+      _webDavActiveConfigId = config.id;
+    }
+    await _saveWebDavConfigs();
     notifyListeners();
+  }
+
+  /// 更新配置
+  Future<void> updateWebDavConfig(WebDavConfig cfg) async {
+    final index = _webDavConfigs.indexWhere((c) => c.id == cfg.id);
+    if (index >= 0) {
+      _webDavConfigs[index] = cfg;
+      await _saveWebDavConfigs();
+      notifyListeners();
+    }
+  }
+
+  /// 删除配置
+  Future<void> deleteWebDavConfig(String id) async {
+    _webDavConfigs.removeWhere((c) => c.id == id);
+    // 如果删除的是当前选中的，切换到第一个
+    if (_webDavActiveConfigId == id && _webDavConfigs.isNotEmpty) {
+      _webDavActiveConfigId = _webDavConfigs.first.id;
+    } else if (_webDavConfigs.isEmpty) {
+      _webDavActiveConfigId = '';
+    }
+    await _saveWebDavConfigs();
+    notifyListeners();
+  }
+
+  /// 设置当前选中的配置
+  Future<void> setActiveWebDavConfig(String id) async {
+    if (_webDavConfigs.any((c) => c.id == id)) {
+      _webDavActiveConfigId = id;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_webDavActiveConfigIdKey, id);
+      notifyListeners();
+    }
+  }
+
+  /// 兼容旧代码：设置当前配置（如果已存在则更新，否则添加）
+  Future<void> setWebDavConfig(WebDavConfig cfg) async {
+    if (cfg.id.isNotEmpty) {
+      final index = _webDavConfigs.indexWhere((c) => c.id == cfg.id);
+      if (index >= 0) {
+        _webDavConfigs[index] = cfg;
+      } else {
+        _webDavConfigs.add(cfg);
+      }
+      _webDavActiveConfigId = cfg.id;
+    } else {
+      // 没有ID，生成新ID并添加
+      final newConfig = cfg.copyWith(id: DateTime.now().millisecondsSinceEpoch.toString());
+      _webDavConfigs.add(newConfig);
+      _webDavActiveConfigId = newConfig.id;
+    }
+    await _saveWebDavConfigs();
+    notifyListeners();
+  }
+
+  Future<void> _saveWebDavConfigs() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_webDavConfigKey, jsonEncode(cfg.toJson()));
+    final jsonList = _webDavConfigs.map((c) => c.toJson()).toList();
+    await prefs.setString(_webDavConfigsKey, jsonEncode(jsonList));
+    await prefs.setString(_webDavActiveConfigIdKey, _webDavActiveConfigId);
   }
 
   Future<void> _initSearchConnectivityTests() async {
@@ -1796,5 +1910,169 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_globalProxyPasswordKey, _globalProxyPassword);
+  }
+
+  /// Export all settings to a JSON-compatible map for backup
+  Map<String, dynamic> exportSettings() {
+    return {
+      'version': 1,
+      'exportedAt': DateTime.now().toIso8601String(),
+      'themeMode': _themeMode.toString(),
+      'themePaletteId': _themePaletteId,
+      'useDynamicColor': _useDynamicColor,
+      'usePureBackground': _usePureBackground,
+      'chatMessageBackgroundStyle': _chatMessageBackgroundStyle.toString(),
+      'chatMessageBubbleOpacity': _chatMessageBubbleOpacity,
+      'providersOrder': _providersOrder,
+      'providerConfigs': _providerConfigs.map((k, v) => MapEntry(k, v.toJson())),
+      'pinnedModels': _pinnedModels.toList(),
+      'selectedModel': {'provider': _currentModelProvider, 'id': _currentModelId},
+      // Display
+      'appFontFamily': _appFontFamily,
+      'appFontIsGoogle': _appFontIsGoogle,
+      'codeFontFamily': _codeFontFamily,
+      'codeFontIsGoogle': _codeFontIsGoogle,
+      'chatFontScale': _chatFontScale,
+      'showUserAvatar': _showUserAvatar,
+      'showModelIcon': _showModelIcon,
+      'showModelNameTimestamp': _showModelNameTimestamp,
+      'showTokenStats': _showTokenStats,
+      'showUserNameTimestamp': _showUserNameTimestamp,
+      'showUserMessageActions': _showUserMessageActions,
+      'autoCollapseThinking': _autoCollapseThinking,
+      'showMessageNavButtons': _showMessageNavButtons,
+      'newChatOnLaunch': _newChatOnLaunch,
+      'autoScrollIdleSeconds': _autoScrollIdleSeconds,
+      'disableAutoScroll': _disableAutoScroll,
+      'chatBackgroundMaskStrength': _chatBackgroundMaskStrength,
+      'enableDollarLatex': _enableDollarLatex,
+      'enableMathRendering': _enableMathRendering,
+      'enableUserMarkdown': _enableUserMarkdown,
+      'enableReasoningMarkdown': _enableReasoningMarkdown,
+      'showChatListDate': _showChatListDate,
+      // Desktop
+      'desktopSidebarWidth': _desktopSidebarWidth,
+      'desktopSidebarOpen': _desktopSidebarOpen,
+      'desktopRightSidebarWidth': _desktopRightSidebarWidth,
+      'desktopSettingsSidebarWidth': _desktopSettingsSidebarWidth,
+      'desktopGlobalFontScale': _desktopGlobalFontScale,
+      'desktopAutoSwitchTopics': _desktopAutoSwitchTopics,
+      'desktopTopicPosition': _desktopTopicPosition.toString(),
+      'desktopRightSidebarOpen': _desktopRightSidebarOpen,
+      'desktopCloseToTray': _desktopCloseToTray,
+      // Prompts & Models
+      'titleModel': {'provider': _titleModelProvider, 'id': _titleModelId},
+      'titlePrompt': _titlePrompt,
+      'translateModel': {'provider': _translateModelProvider, 'id': _translateModelId},
+      'translatePrompt': _translatePrompt,
+      'summaryModel': {'provider': _summaryModelProvider, 'id': _summaryModelId},
+      'summaryPrompt': _summaryPrompt,
+      'ocrModel': {'provider': _ocrModelProvider, 'id': _ocrModelId},
+      'ocrPrompt': _ocrPrompt,
+      'ocrEnabled': _ocrEnabled,
+      'learningModeEnabled': _learningModeEnabled,
+      'learningModePrompt': _learningModePrompt,
+      'thinkingBudget': _thinkingBudget,
+      // Search
+      'searchServices': _searchServices.map((e) => e.toJson()).toList(),
+      'searchCommonOptions': _searchCommonOptions.toJson(),
+      'searchServiceSelected': _searchServiceSelected,
+      'searchEnabled': _searchEnabled,
+      // Sticker
+      'stickerEnabled': _stickerEnabled,
+      'showStickerToolUI': _showStickerToolUI,
+      'stickerSize': _stickerSize,
+      'stickerFrequency': _stickerFrequency,
+      // Proxy
+      'globalProxyEnabled': _globalProxyEnabled,
+      'globalProxyType': _globalProxyType,
+      'globalProxyHost': _globalProxyHost,
+      'globalProxyPort': _globalProxyPort,
+      'globalProxyUsername': _globalProxyUsername,
+      // 'globalProxyPassword': _globalProxyPassword, // Do not export proxy password for security? Or maybe yes for user convenience? Let's include it for backup.
+      'globalProxyPassword': _globalProxyPassword,
+      // Misc
+      'appLocale': _appLocaleTag,
+      'androidBackgroundChatMode': _androidBackgroundChatMode.toString(),
+      'requestLoggingEnabled': _requestLoggingEnabled,
+    };
+  }
+
+  /// Import settings from backup map (merge/overwrite)
+  Future<void> importSettings(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Helper to safely restore values
+    void restoreString(String key, String? val) {
+      if (val != null) prefs.setString(key, val);
+    }
+    void restoreBool(String key, bool? val) {
+      if (val != null) prefs.setBool(key, val);
+    }
+    void restoreInt(String key, int? val) {
+      if (val != null) prefs.setInt(key, val);
+    }
+    void restoreDouble(String key, double? val) {
+      if (val != null) prefs.setDouble(key, val);
+    }
+
+    try {
+      // 1. Providers
+      if (data['providerConfigs'] != null) {
+        final configs = data['providerConfigs'] as Map;
+        _providerConfigs = configs.map((k, v) => MapEntry(k.toString(), ProviderConfig.fromJson(v as Map<String, dynamic>)));
+        await prefs.setString(_providerConfigsKey, jsonEncode(_providerConfigs.map((k, v) => MapEntry(k, v.toJson()))));
+      }
+      if (data['providersOrder'] != null) {
+        _providersOrder = (data['providersOrder'] as List).cast<String>();
+        await prefs.setStringList(_providersOrderKey, _providersOrder);
+      }
+      if (data['pinnedModels'] != null) {
+        _pinnedModels.clear();
+        _pinnedModels.addAll((data['pinnedModels'] as List).cast<String>());
+        await prefs.setStringList(_pinnedModelsKey, _pinnedModels.toList());
+      }
+
+      // 2. Display Settings
+      restoreString(_themeModeKey, data['themeMode'] == 'ThemeMode.system' ? 'system' : (data['themeMode'] == 'ThemeMode.dark' ? 'dark' : 'light'));
+      restoreString(_themePaletteKey, data['themePaletteId']);
+      restoreBool(_useDynamicColorKey, data['useDynamicColor']);
+      restoreBool(_displayUsePureBackgroundKey, data['usePureBackground']);
+      restoreDouble(_displayChatBubbleOpacityKey, data['chatMessageBubbleOpacity']);
+      restoreString(_displayAppFontFamilyKey, data['appFontFamily']);
+      restoreBool(_displayAppFontIsGoogleKey, data['appFontIsGoogle']);
+      restoreDouble(_displayChatFontScaleKey, data['chatFontScale']);
+      
+      // Toggles
+      restoreBool(_displayShowUserAvatarKey, data['showUserAvatar']);
+      restoreBool(_displayShowModelIconKey, data['showModelIcon']);
+      restoreBool(_displayShowModelNameTimestampKey, data['showModelNameTimestamp']);
+      restoreBool(_displayShowTokenStatsKey, data['showTokenStats']);
+      restoreBool(_displayShowUserNameTimestampKey, data['showUserNameTimestamp']);
+      restoreBool(_displayAutoCollapseThinkingKey, data['autoCollapseThinking']);
+      restoreBool(_displayShowMessageNavKey, data['showMessageNavButtons']);
+      restoreBool(_displayEnableUserMarkdownKey, data['enableUserMarkdown']);
+      restoreBool(_displayEnableReasoningMarkdownKey, data['enableReasoningMarkdown']);
+      
+      // 3. Desktop
+      restoreDouble(_desktopSidebarWidthKey, data['desktopSidebarWidth']);
+      restoreBool(_desktopSidebarOpenKey, data['desktopSidebarOpen']);
+      
+      // 4. Prompts & Models
+      if (data['titleModel'] != null) {
+        final m = data['titleModel'];
+        if (m['provider'] != null && m['id'] != null) {
+          await prefs.setString(_titleModelKey, '${m['provider']}::${m['id']}');
+        }
+      }
+      restoreString(_titlePromptKey, data['titlePrompt']);
+      
+      // Reload state from prefs
+      await _load();
+      notifyListeners();
+    } catch (e) {
+      print('[SettingsProvider] Import failed: $e');
+      rethrow;
+    }
   }
 }

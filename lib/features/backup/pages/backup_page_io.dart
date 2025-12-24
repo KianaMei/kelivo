@@ -19,10 +19,14 @@ import '../../../core/services/haptics.dart';
 import '../../../core/models/backup.dart';
 import '../../../core/providers/backup_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/backup/cherry_importer.dart';
 import '../../../utils/restart_widget.dart';
+import '../../../utils/app_dirs.dart';
+
+import '../../../core/services/sync/webdav_incremental_sync.dart';
 
 // File size formatter (B, KB, MB, GB)
 String _fmtBytes(int bytes) {
@@ -513,6 +517,78 @@ class _BackupPageState extends State<BackupPage> {
                       message: message,
                       type: NotificationType.info,
                     );
+                  },
+                ),
+                _iosDivider(context),
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Zap,
+                  label: l10n.backupPageIncrementalSyncTitle,
+                  detailText: '',
+                  onTap: vm.busy ? null : () async {
+                    final cfg = vm.config;
+                    if (cfg.url.isEmpty) {
+                      showAppSnackBar(context, message: l10n.backupPageWebDavServerUrl + '?', type: NotificationType.error);
+                      return;
+                    }
+                    
+                    showAppSnackBar(context, message: l10n.backupPageSyncStarting, type: NotificationType.info);
+                    
+                    try {
+                      final chatService = context.read<ChatService>();
+                      final settingsProvider = context.read<SettingsProvider>();
+                      final assistantProvider = context.read<AssistantProvider>();
+                      final rootDir = await AppDirs.dataRoot();
+                      final localAssetRoot = rootDir.path;
+
+                      final manager = IncrementalSyncManager(
+                        cfg,
+                        logger: (msg) => print('[Sync] $msg'),
+                      );
+                      
+                      // 1. Get real local conversations
+                      final convs = chatService.getAllConversations();
+                      final localConvsMapped = convs.map((c) => {
+                        'id': c.id,
+                        'title': c.title,
+                        'updatedAt': c.updatedAt.toIso8601String(),
+                      }).toList();
+                      
+                      // 2. Export data
+                      final settingsMap = settingsProvider.exportSettings();
+                      final assistantsList = assistantProvider.exportAssistants();
+
+                      await manager.performSync(
+                        localConversations: localConvsMapped,
+                        localAssetRoot: localAssetRoot,
+                        localSettings: settingsMap,
+                        localAssistants: assistantsList,
+                        localMessagesFetcher: (convId) async {
+                          // 3. Fetch real messages
+                          final messages = chatService.getMessages(convId);
+                          return messages.map((m) => m.toJson()).toList();
+                        },
+                        onRemoteConversationFound: (c) {
+                          print('[Sync] Remote conv found: ${c['id']}');
+                        },
+                        onRemoteMessagesFound: (id, msgs) {
+                          print('[Sync] Remote msgs found for $id: ${msgs.length} items');
+                        },
+                        onRemoteSettingsFound: (data) async {
+                          await settingsProvider.importSettings(data);
+                        },
+                        onRemoteAssistantsFound: (list) async {
+                          await assistantProvider.importAssistants(list);
+                        },
+                      );
+                      
+                      if (!mounted) return;
+                      showAppSnackBar(context, message: l10n.backupPageSyncDone, type: NotificationType.success);
+                    } catch (e) {
+                      print(e);
+                      if (!mounted) return;
+                      showAppSnackBar(context, message: l10n.backupPageSyncError(e.toString()), type: NotificationType.error);
+                    }
                   },
                 ),
               ]),
@@ -1233,23 +1309,110 @@ class _WebDavSettingsSheet extends StatefulWidget {
 }
 
 class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
-  late final TextEditingController _urlCtrl;
-  late final TextEditingController _userCtrl;
-  late final TextEditingController _passCtrl;
-  late final TextEditingController _pathCtrl;
+  late TextEditingController _nameCtrl;
+  late TextEditingController _urlCtrl;
+  late TextEditingController _userCtrl;
+  late TextEditingController _passCtrl;
+  late TextEditingController _pathCtrl;
   bool _showPassword = false;
+
+  // 当前选中的配置ID
+  late String _currentConfigId;
 
   @override
   void initState() {
     super.initState();
-    _urlCtrl = TextEditingController(text: widget.cfg.url);
-    _userCtrl = TextEditingController(text: widget.cfg.username);
-    _passCtrl = TextEditingController(text: widget.cfg.password);
-    _pathCtrl = TextEditingController(text: widget.cfg.path.isEmpty ? 'kelivo_backups' : widget.cfg.path);
+    _currentConfigId = widget.cfg.id;
+    _initControllers(widget.cfg);
+  }
+
+  void _initControllers(WebDavConfig cfg) {
+    _nameCtrl = TextEditingController(text: cfg.name);
+    _urlCtrl = TextEditingController(text: cfg.url);
+    _userCtrl = TextEditingController(text: cfg.username);
+    _passCtrl = TextEditingController(text: cfg.password);
+    _pathCtrl = TextEditingController(text: cfg.path.isEmpty ? 'kelivo_backups' : cfg.path);
+  }
+
+  void _switchToConfig(WebDavConfig cfg) {
+    setState(() {
+      _currentConfigId = cfg.id;
+      _nameCtrl.text = cfg.name;
+      _urlCtrl.text = cfg.url;
+      _userCtrl.text = cfg.username;
+      _passCtrl.text = cfg.password;
+      _pathCtrl.text = cfg.path.isEmpty ? 'kelivo_backups' : cfg.path;
+    });
+    // 同步更新 Provider
+    widget.settings.setActiveWebDavConfig(cfg.id);
+    widget.vm.updateConfig(cfg);
+  }
+
+  void _createNewConfig() {
+    final newId = DateTime.now().millisecondsSinceEpoch.toString();
+    setState(() {
+      _currentConfigId = newId;
+      _nameCtrl.text = '';
+      _urlCtrl.text = '';
+      _userCtrl.text = '';
+      _passCtrl.text = '';
+      _pathCtrl.text = 'kelivo_backups';
+    });
+  }
+
+  WebDavConfig _buildConfigFromForm() {
+    return WebDavConfig(
+      id: _currentConfigId,
+      name: _nameCtrl.text.trim(),
+      url: _urlCtrl.text.trim(),
+      username: _userCtrl.text.trim(),
+      password: _passCtrl.text,
+      path: _pathCtrl.text.trim().isEmpty ? 'kelivo_backups' : _pathCtrl.text.trim(),
+      includeChats: widget.cfg.includeChats,
+      includeFiles: widget.cfg.includeFiles,
+    );
+  }
+
+  Future<void> _deleteCurrentConfig() async {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(l10n.backupPageConfigSelectorDeleteTitle),
+        content: Text(l10n.backupPageConfigSelectorDeleteContent),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: Text(l10n.backupPageCancel),
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: Text(l10n.backupPageConfigSelectorDelete),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await widget.settings.deleteWebDavConfig(_currentConfigId);
+
+    // 切换到第一个配置或空配置
+    final configs = widget.settings.webDavConfigs;
+    if (configs.isNotEmpty) {
+      _switchToConfig(configs.first);
+    } else {
+      _createNewConfig();
+    }
   }
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
     _urlCtrl.dispose();
     _userCtrl.dispose();
     _passCtrl.dispose();
@@ -1261,6 +1424,8 @@ class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final configs = widget.settings.webDavConfigs;
 
     return SafeArea(
       top: false,
@@ -1287,7 +1452,7 @@ class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+
               // Header: Close (X) - Title (center) - Save (text)
               Row(
                 children: [
@@ -1309,12 +1474,7 @@ class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
                     label: l10n.backupPageSave,
                     color: cs.primary,
                     onTap: () async {
-                      final newCfg = widget.cfg.copyWith(
-                        url: _urlCtrl.text.trim(),
-                        username: _userCtrl.text.trim(),
-                        password: _passCtrl.text,
-                        path: _pathCtrl.text.trim().isEmpty ? 'kelivo_backups' : _pathCtrl.text.trim(),
-                      );
+                      final newCfg = _buildConfigFromForm();
                       await widget.settings.setWebDavConfig(newCfg);
                       widget.vm.updateConfig(newCfg);
                       if (context.mounted) {
@@ -1325,7 +1485,105 @@ class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
                 ],
               ),
               const SizedBox(height: 16),
-              
+
+              // 配置选择器 - iOS 风格的水平滚动列表
+              if (configs.isNotEmpty || _currentConfigId.isNotEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.backupPageConfigSelectorAddServer.replaceAll('添加服务器', '服务器配置'),
+                      style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.8)),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 44,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          // 已有的配置
+                          ...configs.map((cfg) {
+                            final isActive = cfg.id == _currentConfigId;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: GestureDetector(
+                                onTap: () => _switchToConfig(cfg),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: isActive
+                                        ? cs.primary.withOpacity(isDark ? 0.25 : 0.15)
+                                        : (isDark ? Colors.white10 : const Color(0xFFF2F3F5)),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: isActive
+                                        ? Border.all(color: cs.primary.withOpacity(0.5))
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isActive ? Lucide.CloudCheck : Lucide.Cloud,
+                                        size: 16,
+                                        color: isActive ? cs.primary : cs.onSurface.withOpacity(0.6),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        cfg.displayName,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                                          color: isActive ? cs.primary : cs.onSurface,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                          // 添加新配置按钮
+                          GestureDetector(
+                            onTap: _createNewConfig,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: cs.primary.withOpacity(0.3),
+                                  style: BorderStyle.solid,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Lucide.Plus, size: 16, color: cs.primary),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    l10n.backupPageConfigSelectorAddNewServer,
+                                    style: TextStyle(fontSize: 14, color: cs.primary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+
+              // 配置名称输入
+              _InputRow(
+                label: l10n.backupPageConfigName,
+                controller: _nameCtrl,
+                hint: 'My Server',
+              ),
+              const SizedBox(height: 12),
+
               // Input fields
               _InputRow(
                 label: l10n.backupPageWebDavServerUrl,
@@ -1353,6 +1611,37 @@ class _WebDavSettingsSheetState extends State<_WebDavSettingsSheet> {
                 controller: _pathCtrl,
                 hint: 'kelivo_backups',
               ),
+
+              // 删除配置按钮（仅当配置已保存时显示）
+              if (configs.any((c) => c.id == _currentConfigId)) ...[
+                const SizedBox(height: 24),
+                GestureDetector(
+                  onTap: _deleteCurrentConfig,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: cs.error.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Lucide.Trash2, size: 18, color: cs.error),
+                        const SizedBox(width: 8),
+                        Text(
+                          l10n.backupPageConfigSelectorDelete,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: cs.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
             ],
           ),
