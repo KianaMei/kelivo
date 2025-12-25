@@ -17,7 +17,12 @@ Future<void> showHtmlPreviewDialog(BuildContext context, String htmlText) {
   );
 }
 
-Future<void> showCodePreviewDialog(BuildContext context, String code, String language) {
+Future<void> showCodePreviewDialog(
+  BuildContext context,
+  {required String code,
+  required String language,
+  required bool canRenderPreview,
+  String? previewHtml}) {
   return showDialog(
     context: context,
     builder: (ctx) => Dialog(

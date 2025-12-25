@@ -6679,6 +6679,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'When both global and provider proxies are enabled, provider-level proxy takes priority.'**
   String get networkProxyPriorityNote;
+
+  /// No description provided for @mcpServerDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Server Details'**
+  String get mcpServerDetails;
+
+  /// No description provided for @mcpInputParameters.
+  ///
+  /// In en, this message translates to:
+  /// **'Input Parameters:'**
+  String get mcpInputParameters;
+
+  /// No description provided for @mcpToolsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools ({count})'**
+  String mcpToolsTitle(int count);
+
+  /// No description provided for @mcpNoToolsAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No tools available'**
+  String get mcpNoToolsAvailable;
+
+  /// No description provided for @mcpToolDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get mcpToolDisabled;
+
+  /// No description provided for @providerCustomAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Avatar'**
+  String get providerCustomAvatar;
+
+  /// No description provided for @providerAvatarSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom avatar set'**
+  String get providerAvatarSet;
+
+  /// No description provided for @providerAvatarDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Using default brand icon'**
+  String get providerAvatarDefault;
+
+  /// No description provided for @providerDeleteAvatarTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete custom avatar'**
+  String get providerDeleteAvatarTooltip;
+
+  /// No description provided for @providerChangeAvatarTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Change avatar'**
+  String get providerChangeAvatarTooltip;
+
+  /// No description provided for @providerUploadAvatarTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload avatar'**
+  String get providerUploadAvatarTooltip;
+
+  /// No description provided for @providerPickLocalImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick local image'**
+  String get providerPickLocalImage;
+
+  /// No description provided for @providerPickEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick emoji'**
+  String get providerPickEmoji;
+
+  /// No description provided for @providerInputUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Input image URL'**
+  String get providerInputUrl;
+
+  /// No description provided for @providerDeleteAvatar.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete custom avatar'**
+  String get providerDeleteAvatar;
+
+  /// No description provided for @providerUnableToReadImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to read image file'**
+  String get providerUnableToReadImage;
+
+  /// No description provided for @providerProcessingImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing image...'**
+  String get providerProcessingImage;
+
+  /// No description provided for @providerAvatarUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Avatar updated'**
+  String get providerAvatarUpdated;
+
+  /// No description provided for @providerProcessImageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to process image: {error}'**
+  String providerProcessImageFailed(String error);
+
+  /// No description provided for @providerSelectEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick Emoji'**
+  String get providerSelectEmoji;
+
+  /// No description provided for @providerCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get providerCancel;
+
+  /// No description provided for @providerConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get providerConfirm;
+
+  /// No description provided for @providerInputUrlDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Input Image URL'**
+  String get providerInputUrlDialogTitle;
+
+  /// No description provided for @providerInputUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/avatar.png'**
+  String get providerInputUrlHint;
+
+  /// No description provided for @providerDownloadingImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading image...'**
+  String get providerDownloadingImage;
+
+  /// No description provided for @providerDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed: HTTP {statusCode}'**
+  String providerDownloadFailed(int statusCode);
+
+  /// No description provided for @providerDownloadImageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to download image: {error}'**
+  String providerDownloadImageFailed(String error);
 }
 
 class _AppLocalizationsDelegate

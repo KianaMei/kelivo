@@ -676,12 +676,9 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     switch (choice) {
       case 'on_notify':
         await sp.setAndroidBackgroundChatMode(AndroidBackgroundChatMode.onNotify);
-        // TODO: Implement Android background service
-        // Currently only saves the setting, actual background functionality needs to be implemented
         break;
       case 'on':
         await sp.setAndroidBackgroundChatMode(AndroidBackgroundChatMode.on);
-        // TODO: Implement Android background service
         break;
       default:
         await sp.setAndroidBackgroundChatMode(AndroidBackgroundChatMode.off);

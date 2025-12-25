@@ -890,7 +890,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         Padding(
           padding: const EdgeInsets.only(left: 14),
           child: Text(
-            '自定义头像',  // TODO: Add to l10n
+            l10n.providerCustomAvatar,
             style: TextStyle(
               fontSize: 12,
               color: cs.onSurface.withOpacity(0.6),
@@ -920,8 +920,8 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               Expanded(
                 child: Text(
                   hasCustomAvatar
-                      ? '已设置自定义头像'
-                      : '使用默认品牌图标',
+                      ? l10n.providerAvatarSet
+                      : l10n.providerAvatarDefault,
                   style: TextStyle(
                     fontSize: 14,
                     color: cs.onSurface.withOpacity(0.7),
@@ -932,14 +932,14 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               if (hasCustomAvatar) ...[
                 IconButton(
                   icon: Icon(Lucide.Trash2, size: 18, color: cs.error),
-                  tooltip: '删除自定义头像',
+                  tooltip: l10n.providerDeleteAvatarTooltip,
                   onPressed: () => _deleteCustomAvatar(),
                 ),
                 const SizedBox(width: 4),
               ],
               IconButton(
                 icon: Icon(Lucide.Upload, size: 18, color: cs.primary),
-                tooltip: hasCustomAvatar ? '更换头像' : '上传头像',
+                tooltip: hasCustomAvatar ? l10n.providerChangeAvatarTooltip : l10n.providerUploadAvatarTooltip,
                 onPressed: () => _showAvatarPicker(),
               ),
             ],
@@ -1013,10 +1013,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    row('选择本地图片', () async => _pickLocalImage()),
-                    row('选择表情', () async => _pickEmoji()),
-                    row('输入图片链接', () async => _inputAvatarUrl()),
-                    row('删除自定义头像', () async => _deleteCustomAvatar()),
+                    row(l10n.providerPickLocalImage, () async => _pickLocalImage()),
+                    row(l10n.providerPickEmoji, () async => _pickEmoji()),
+                    row(l10n.providerInputUrl, () async => _inputAvatarUrl()),
+                    row(l10n.providerDeleteAvatar, () async => _deleteCustomAvatar()),
                     const SizedBox(height: 4),
                   ],
                 ),
@@ -1029,6 +1029,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   }
 
   Future<void> _pickLocalImage() async {
+    final l10n = AppLocalizations.of(context)!;
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
@@ -1040,7 +1041,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
       final file = result.files.first;
       if (file.bytes == null && file.path == null) {
-        showAppSnackBar(context, message: '无法读取图片文件', type: NotificationType.error);
+        showAppSnackBar(context, message: l10n.providerUnableToReadImage, type: NotificationType.error);
         return;
       }
 
@@ -1051,7 +1052,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         final raw = file.path;
         final b = raw != null ? await PlatformUtils.readFileBytes(raw) : null;
         if (b == null) {
-          showAppSnackBar(context, message: 'Unable to read image file', type: NotificationType.error);
+          showAppSnackBar(context, message: l10n.providerUnableToReadImage, type: NotificationType.error);
           return;
         }
         bytes = Uint8List.fromList(b);
@@ -1070,7 +1071,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
-                  Text('处理图片中...'),
+                  Text(l10n.providerProcessingImage),
                 ],
               ),
             ),
@@ -1104,11 +1105,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       try {
         Navigator.of(context).pop();
       } catch (_) {}
-      showAppSnackBar(context, message: '处理图片失败: $e', type: NotificationType.error);
+      showAppSnackBar(context, message: l10n.providerProcessImageFailed(e.toString()), type: NotificationType.error);
     }
   }
 
   Future<void> _pickEmoji() async {
+    final l10n = AppLocalizations.of(context)!;
     final emoji = await showDialog<String>(
       context: context,
       builder: (context) {
@@ -1126,7 +1128,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         ];
 
         return AlertDialog(
-          title: const Text('选择表情'),
+          title: Text(l10n.providerSelectEmoji),
           content: SizedBox(
             width: 300,
             height: 400,
@@ -1154,7 +1156,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
+              child: Text(l10n.providerCancel),
             ),
           ],
         );
@@ -1169,11 +1171,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         widget.keyName,
         cfg.copyWith(customAvatarPath: emoji),
       );
-      showAppSnackBar(context, message: '头像已更新', type: NotificationType.success);
+      showAppSnackBar(context, message: l10n.providerAvatarUpdated, type: NotificationType.success);
     }
   }
 
   Future<void> _inputAvatarUrl() async {
+    final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
@@ -1182,12 +1185,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           backgroundColor: cs.surface,
-          title: const Text('输入图片链接'),
+          title: Text(l10n.providerInputUrlDialogTitle),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'https://example.com/avatar.png',
+            decoration: InputDecoration(
+              hintText: l10n.providerInputUrlHint,
               filled: true,
               border: OutlineInputBorder(),
             ),
@@ -1195,11 +1198,11 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('取消'),
+              child: Text(l10n.providerCancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('确定'),
+              child: Text(l10n.providerConfirm),
             ),
           ],
         );
@@ -1224,7 +1227,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                   children: [
                     CircularProgressIndicator(),
                     SizedBox(height: 16),
-                    Text('下载图片中...'),
+                    Text(l10n.providerDownloadingImage),
                   ],
                 ),
               ),
@@ -1238,7 +1241,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           options: Options(responseType: ResponseType.bytes),
         );
         if (response.statusCode != 200) {
-          throw Exception('下载失败: HTTP ${response.statusCode}');
+          throw Exception(l10n.providerDownloadFailed(response.statusCode ?? 0));
         }
 
         final bytes = Uint8List.fromList(response.data ?? []);
@@ -1261,13 +1264,13 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           cfg.copyWith(customAvatarPath: avatarPath),
         );
 
-        showAppSnackBar(context, message: '头像已更新', type: NotificationType.success);
+        showAppSnackBar(context, message: l10n.providerAvatarUpdated, type: NotificationType.success);
       } catch (e) {
         if (!mounted) return;
         try {
           Navigator.of(context).pop();
         } catch (_) {}
-        showAppSnackBar(context, message: '下载图片失败: $e', type: NotificationType.error);
+        showAppSnackBar(context, message: l10n.providerDownloadImageFailed(e.toString()), type: NotificationType.error);
       }
     }
   }

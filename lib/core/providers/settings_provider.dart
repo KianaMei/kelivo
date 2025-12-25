@@ -5,6 +5,8 @@ import 'dart:async';
 import 'dart:convert';
 import '../services/search/search_service.dart';
 import '../services/network/request_logger.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'dart:io' show Platform;
 import '../utils/http_logger.dart';
 // Re-export ProviderKind from tool_schema_sanitizer for downstream consumers
 export '../utils/tool_schema_sanitizer.dart' show ProviderKind;
@@ -506,6 +508,11 @@ class SettingsProvider extends ChangeNotifier {
       }
     } catch (_) {
       _androidBackgroundChatMode = AndroidBackgroundChatMode.off;
+    }
+
+    // Initialize/Sync background service state (Android only)
+    if (!kIsWeb && Platform.isAndroid && _androidBackgroundChatMode != AndroidBackgroundChatMode.off) {
+      FlutterBackgroundService().startService();
     }
 
     // webdav config - 支持多配置
@@ -1035,7 +1042,21 @@ class SettingsProvider extends ChangeNotifier {
       AndroidBackgroundChatMode.off => 'off',
     };
     await prefs.setString(_androidBackgroundChatModeKey, v);
-    // Web/desktop: no-op. Android background execution should be handled by platform code.
+    await prefs.setString(_androidBackgroundChatModeKey, v);
+    
+    // Manage Android background service state
+    if (!kIsWeb && Platform.isAndroid) {
+      final service = FlutterBackgroundService();
+      if (mode == AndroidBackgroundChatMode.off) {
+        service.invoke("stopService");
+      } else {
+        // 'on' or 'onNotify' -> ensure started
+        final isRunning = await service.isRunning();
+        if (!isRunning) {
+          await service.startService();
+        }
+      }
+    }
   }
 
   Future<void> toggleTheme() => setThemeMode(

@@ -3448,6 +3448,95 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get networkProxyPriorityNote => '当全局代理和供应商代理同时启用时，供应商代理优先。';
+
+  @override
+  String get mcpServerDetails => '服务详情';
+
+  @override
+  String get mcpInputParameters => '输入参数：';
+
+  @override
+  String mcpToolsTitle(int count) {
+    return '工具 ($count)';
+  }
+
+  @override
+  String get mcpNoToolsAvailable => '暂无可用工具';
+
+  @override
+  String get mcpToolDisabled => '已禁用';
+
+  @override
+  String get providerCustomAvatar => '自定义头像';
+
+  @override
+  String get providerAvatarSet => '已设置自定义头像';
+
+  @override
+  String get providerAvatarDefault => '使用默认品牌图标';
+
+  @override
+  String get providerDeleteAvatarTooltip => '删除自定义头像';
+
+  @override
+  String get providerChangeAvatarTooltip => '更换头像';
+
+  @override
+  String get providerUploadAvatarTooltip => '上传头像';
+
+  @override
+  String get providerPickLocalImage => '选择本地图片';
+
+  @override
+  String get providerPickEmoji => '选择表情';
+
+  @override
+  String get providerInputUrl => '输入图片链接';
+
+  @override
+  String get providerDeleteAvatar => '删除自定义头像';
+
+  @override
+  String get providerUnableToReadImage => '无法读取图片文件';
+
+  @override
+  String get providerProcessingImage => '处理图片中...';
+
+  @override
+  String get providerAvatarUpdated => '头像已更新';
+
+  @override
+  String providerProcessImageFailed(String error) {
+    return '处理图片失败: $error';
+  }
+
+  @override
+  String get providerSelectEmoji => '选择表情';
+
+  @override
+  String get providerCancel => '取消';
+
+  @override
+  String get providerConfirm => '确定';
+
+  @override
+  String get providerInputUrlDialogTitle => '输入图片链接';
+
+  @override
+  String get providerInputUrlHint => 'https://example.com/avatar.png';
+
+  @override
+  String get providerDownloadingImage => '下载图片中...';
+
+  @override
+  String providerDownloadFailed(int statusCode) {
+    return '下载失败: HTTP $statusCode';
+  }
+
+  @override
+  String providerDownloadImageFailed(String error) {
+    return '下载图片失败: $error';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).

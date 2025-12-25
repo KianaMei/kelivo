@@ -536,7 +536,7 @@ class _ExpandableServerCardState extends State<_ExpandableServerCard> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Server Details', // TODO: Localize
+                          l10n.mcpServerDetails,
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.7)),
                         ),
                       ),
@@ -559,13 +559,13 @@ class _ExpandableServerCardState extends State<_ExpandableServerCard> {
                   ],
                   const SizedBox(height: 16),
                   Text(
-                    'Tools (${s.tools.length})', // TODO: Localize
+                    l10n.mcpToolsTitle(s.tools.length),
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.7)),
                   ),
                   const SizedBox(height: 8),
                   if (s.tools.isEmpty)
                     Text(
-                      'No tools available', // TODO: Localize
+                      l10n.mcpNoToolsAvailable,
                       style: TextStyle(fontSize: 13, color: cs.onSurface.withOpacity(0.5), fontStyle: FontStyle.italic),
                     )
                   else
@@ -602,6 +602,7 @@ class _ExpandableServerCardState extends State<_ExpandableServerCard> {
 
   Widget _buildToolItem(BuildContext context, McpToolConfig t) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -629,7 +630,7 @@ class _ExpandableServerCardState extends State<_ExpandableServerCard> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    'Disabled', // TODO: Localize
+                    l10n.mcpToolDisabled,
                     style: TextStyle(fontSize: 10, color: cs.onSurface.withOpacity(0.6)),
                   ),
                 ),
@@ -645,7 +646,7 @@ class _ExpandableServerCardState extends State<_ExpandableServerCard> {
           if (t.params.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              'Input Parameters:', // TODO: Localize
+              l10n.mcpInputParameters,
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurface.withOpacity(0.5)),
             ),
             const SizedBox(height: 4),

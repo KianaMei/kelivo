@@ -625,7 +625,7 @@ class IncrementalSyncManager {
     DateTime localLastMod = DateTime(2000);
     if (localMsgs.isNotEmpty) {
       // 假设消息按时间排序，最后一条最新
-      localLastMod = DateTime.tryParse(localMsgs.last['createdAt'] ?? '') ?? DateTime(2000);
+      localLastMod = DateTime.tryParse(localMsgs.last['timestamp'] ?? '') ?? DateTime(2000);
     }
 
     if (remoteInfo == null) {

@@ -3562,4 +3562,93 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get networkProxyPriorityNote =>
       'When both global and provider proxies are enabled, provider-level proxy takes priority.';
+
+  @override
+  String get mcpServerDetails => 'Server Details';
+
+  @override
+  String get mcpInputParameters => 'Input Parameters:';
+
+  @override
+  String mcpToolsTitle(int count) {
+    return 'Tools ($count)';
+  }
+
+  @override
+  String get mcpNoToolsAvailable => 'No tools available';
+
+  @override
+  String get mcpToolDisabled => 'Disabled';
+
+  @override
+  String get providerCustomAvatar => 'Custom Avatar';
+
+  @override
+  String get providerAvatarSet => 'Custom avatar set';
+
+  @override
+  String get providerAvatarDefault => 'Using default brand icon';
+
+  @override
+  String get providerDeleteAvatarTooltip => 'Delete custom avatar';
+
+  @override
+  String get providerChangeAvatarTooltip => 'Change avatar';
+
+  @override
+  String get providerUploadAvatarTooltip => 'Upload avatar';
+
+  @override
+  String get providerPickLocalImage => 'Pick local image';
+
+  @override
+  String get providerPickEmoji => 'Pick emoji';
+
+  @override
+  String get providerInputUrl => 'Input image URL';
+
+  @override
+  String get providerDeleteAvatar => 'Delete custom avatar';
+
+  @override
+  String get providerUnableToReadImage => 'Unable to read image file';
+
+  @override
+  String get providerProcessingImage => 'Processing image...';
+
+  @override
+  String get providerAvatarUpdated => 'Avatar updated';
+
+  @override
+  String providerProcessImageFailed(String error) {
+    return 'Failed to process image: $error';
+  }
+
+  @override
+  String get providerSelectEmoji => 'Pick Emoji';
+
+  @override
+  String get providerCancel => 'Cancel';
+
+  @override
+  String get providerConfirm => 'Confirm';
+
+  @override
+  String get providerInputUrlDialogTitle => 'Input Image URL';
+
+  @override
+  String get providerInputUrlHint => 'https://example.com/avatar.png';
+
+  @override
+  String get providerDownloadingImage => 'Downloading image...';
+
+  @override
+  String providerDownloadFailed(int statusCode) {
+    return 'Download failed: HTTP $statusCode';
+  }
+
+  @override
+  String providerDownloadImageFailed(String error) {
+    return 'Failed to download image: $error';
+  }
 }

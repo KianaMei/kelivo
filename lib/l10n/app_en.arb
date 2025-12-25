@@ -1516,5 +1516,60 @@
     }
   },
   "networkProxyNoUrl": "Please enter a URL",
-  "networkProxyPriorityNote": "When both global and provider proxies are enabled, provider-level proxy takes priority."
+  "networkProxyPriorityNote": "When both global and provider proxies are enabled, provider-level proxy takes priority.",
+  "mcpServerDetails": "Server Details",
+  "mcpInputParameters": "Input Parameters:",
+  "mcpToolsTitle": "Tools ({count})",
+  "@mcpToolsTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mcpNoToolsAvailable": "No tools available",
+  "mcpToolDisabled": "Disabled",
+  "providerCustomAvatar": "Custom Avatar",
+  "providerAvatarSet": "Custom avatar set",
+  "providerAvatarDefault": "Using default brand icon",
+  "providerDeleteAvatarTooltip": "Delete custom avatar",
+  "providerChangeAvatarTooltip": "Change avatar",
+  "providerUploadAvatarTooltip": "Upload avatar",
+  "providerPickLocalImage": "Pick local image",
+  "providerPickEmoji": "Pick emoji",
+  "providerInputUrl": "Input image URL",
+  "providerDeleteAvatar": "Delete custom avatar",
+  "providerUnableToReadImage": "Unable to read image file",
+  "providerProcessingImage": "Processing image...",
+  "providerAvatarUpdated": "Avatar updated",
+  "providerProcessImageFailed": "Failed to process image: {error}",
+  "@providerProcessImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "providerSelectEmoji": "Pick Emoji",
+  "providerCancel": "Cancel",
+  "providerConfirm": "Confirm",
+  "providerInputUrlDialogTitle": "Input Image URL",
+  "providerInputUrlHint": "https://example.com/avatar.png",
+  "providerDownloadingImage": "Downloading image...",
+  "providerDownloadFailed": "Download failed: HTTP {statusCode}",
+  "@providerDownloadFailed": {
+    "placeholders": {
+      "statusCode": {
+        "type": "int"
+      }
+    }
+  },
+  "providerDownloadImageFailed": "Failed to download image: {error}",
+  "@providerDownloadImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }

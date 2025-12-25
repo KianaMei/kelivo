@@ -31,6 +31,7 @@ import 'core/services/http/dio_client.dart';
 import 'bootstrap/platform_bootstrap.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/services/network/request_logger.dart';
+import 'core/services/background_service.dart';
 
 final RouteObserver<ModalRoute<dynamic>> routeObserver = RouteObserver<ModalRoute<dynamic>>();
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -42,6 +43,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize global Dio HTTP client
   initDio();
+  // Initialize Android/iOS background service (skip on desktop/web)
+  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
+    await initializeBackgroundService();
+  }
   // Platform-specific bootstrap (IO: dirs/window/fonts/path fix, Web: minimal)
   await platformBootstrap();
 
