@@ -3303,7 +3303,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storageSpaceCategoryChatData => 'Chat Records';
 
   @override
-  String get storageSpaceCategoryAssistantData => 'Custom Avatars';
+  String get storageSpaceCategoryAssistantData => 'Assistants';
 
   @override
   String get storageSpaceCategoryCache => 'Cache';
@@ -3340,12 +3340,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get storageSpaceSubChatToolEvents => 'Tool events';
 
   @override
-  String get storageSpaceSubProviderAvatars => 'Provider avatars';
-
-  @override
-  String get storageSpaceSubOtherAvatars => 'Other avatars';
-
-  @override
   String get storageSpaceSubAssistantAvatars => 'Avatars';
 
   @override
@@ -3368,24 +3362,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get storageSpaceSubLogsOther => 'Other logs';
-
-  @override
-  String get storageSpaceNoCache => 'No cache files';
-
-  @override
-  String storageSpaceCacheCount(int count) {
-    return '$count cache files';
-  }
-
-  @override
-  String storageSpaceCacheImagesSection(int count) {
-    return 'Image cache ($count)';
-  }
-
-  @override
-  String storageSpaceCacheOtherSection(int count) {
-    return 'Other cache ($count)';
-  }
 
   @override
   String get storageSpaceClearConfirmTitle => 'Confirm clear';
@@ -3450,15 +3426,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get storageSpaceNoChatData => 'No chat data';
+  String get storageSpaceSubProviderAvatars => 'Provider avatars';
 
   @override
-  String get storageSpaceNoLogs => 'No log files';
-
-  @override
-  String storageSpaceLogsCount(int count) {
-    return '$count log files';
-  }
+  String get storageSpaceSubOtherAvatars => 'Other avatars';
 
   @override
   String storageSpaceDeleteLogsConfirmMessage(int count) {
@@ -3471,25 +3442,54 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get storageSpaceNoAvatars => 'No avatar files';
+  String get storageSpaceNoLogs => 'No logs';
 
   @override
-  String storageSpaceAvatarsCount(int count) {
-    return '$count avatar files';
+  String storageSpaceLogsCount(int count) {
+    return '$count logs';
   }
 
   @override
+  String get storageSpaceNoChatData => 'No chat data';
+
+  @override
   String storageSpaceDeleteAvatarsConfirmMessage(int count) {
-    return 'Delete $count avatar files? Assistants using these avatars will show default icons.';
+    return 'Delete $count avatars?';
   }
 
   @override
   String storageSpaceDeletedAvatarsDone(int count) {
-    return 'Deleted $count avatar files';
+    return 'Deleted $count avatars';
   }
 
   @override
-  String get storageSpaceClearAvatarsButton => 'Clear All Avatars';
+  String get storageSpaceNoAvatars => 'No avatars';
+
+  @override
+  String get storageSpaceClearAvatarsButton => 'Clear Avatars';
+
+  @override
+  String storageSpaceAvatarsCount(int count) {
+    return '$count avatars';
+  }
+
+  @override
+  String get storageSpaceNoCache => 'No cache';
+
+  @override
+  String storageSpaceCacheCount(int count) {
+    return '$count cache files';
+  }
+
+  @override
+  String storageSpaceCacheImagesSection(int count) {
+    return 'Images ($count)';
+  }
+
+  @override
+  String storageSpaceCacheOtherSection(int count) {
+    return 'Other ($count)';
+  }
 
   @override
   String get settingsPageNetworkProxy => 'Network Proxy';

@@ -283,7 +283,7 @@ class IncrementalSyncManager {
       : _api = WebDavIncrementalSync(config),
         _log = logger ?? ((_) {});
 
-  /// 执行一次完整的同步
+  /// 执行一次完整的同步（并行优化版本）
   /// [localConversations] 本地对话列表
   /// [localMessagesFetcher] 获取指定对话的所有消息的回调
   /// [localAssetRoot] 本地数据根目录 (AppDirs.dataRoot)
@@ -302,89 +302,104 @@ class IncrementalSyncManager {
     Function(List<Map<String, dynamic>> assistants)? onRemoteAssistantsFound,
     Function(int current, int total, String stage)? onProgress,
   }) async {
-    _log('Starting incremental sync...');
+    _log('Starting incremental sync (parallel mode)...');
 
     // Progress tracking
-    int currentStep = 0;
-    int totalSteps = 0;
-    void reportProgress(String stage) {
-      currentStep++;
-      onProgress?.call(currentStep, totalSteps, stage);
+    int completedSteps = 0;
+    void reportProgress(int total, String stage) {
+      completedSteps++;
+      onProgress?.call(completedSteps, total, stage);
     }
 
     // 1. 确保存储桶存在
     await _api.initRemoteDir();
 
-    // 2. 并行获取云端清单
-    final remoteConvsFuture = _api.listRemoteFiles('conversations');
-    final remoteMsgsFuture = _api.listRemoteFiles('messages');
-
-    // 2.1 同步设置 (Settings)
-    if (localSettings != null) {
-      await _syncSettings(localSettings, onRemoteSettingsFound);
-    }
-
-    // 2.2 同步助手 (Assistants)
-    if (localAssistants != null) {
-      await _syncAssistants(localAssistants, onRemoteAssistantsFound);
-    }
-
-    final remoteConvs = await remoteConvsFuture;
-    final remoteMsgs = await remoteMsgsFuture;
+    // 2. 并行获取所有远程索引（一次网络往返获取全部）
+    final indexFutures = await Future.wait([
+      _api.listRemoteFiles('conversations'),
+      _api.listRemoteFiles('messages'),
+      _api.listRemoteFiles(''),  // 根目录，包含 settings.json, assistants.json
+    ]);
+    final remoteConvs = indexFutures[0];
+    final remoteMsgs = indexFutures[1];
+    final remoteRoot = indexFutures[2];
 
     _log('Remote index fetched. Convs: ${remoteConvs.length}, Msgs: ${remoteMsgs.length}');
 
-    // Calculate total steps for progress
+    // 计算总步骤数用于进度条
     final allConvIds = <String>{
       ...localConversations.map((c) => c['id'] as String),
       ...remoteConvs.keys.map((k) => p.basenameWithoutExtension(k))
     };
-    // Steps: conversations + messages per conv + assets (estimated 3 dirs)
-    totalSteps = localConversations.length + remoteConvs.length + allConvIds.length + 3;
-    onProgress?.call(0, totalSteps, 'Preparing...');
+    // 总步骤 = settings(1) + assistants(1) + conversations(allConvIds.length) + messages(allConvIds.length) + assets(估算3个目录)
+    final totalSteps = 2 + allConvIds.length * 2 + 3;
+    onProgress?.call(0, totalSteps, 'Preparing');
 
-    // 3. 处理 Conversation 同步 (双向)
-    await _syncConversations(localConversations, remoteConvs, onRemoteConversationFound, reportProgress);
+    // 3. 并行同步 Settings 和 Assistants（使用已获取的 remoteRoot 索引）
+    await Future.wait([
+      if (localSettings != null)
+        _syncSettingsWithIndex(localSettings, remoteRoot, onRemoteSettingsFound)
+            .then((_) => reportProgress(totalSteps, 'Settings')),
+      if (localAssistants != null)
+        _syncAssistantsWithIndex(localAssistants, remoteRoot, onRemoteAssistantsFound)
+            .then((_) => reportProgress(totalSteps, 'Assistants')),
+    ]);
+    // 如果上面没有执行，手动补齐进度
+    if (localSettings == null) reportProgress(totalSteps, 'Settings');
+    if (localAssistants == null) reportProgress(totalSteps, 'Assistants');
 
-    // 4. 处理 Messages 同步 (双向)
-    for (final convId in allConvIds) {
-      await _syncMessagesForConversation(convId, localMessagesFetcher, remoteMsgs, onRemoteMessagesFound);
-      reportProgress('Messages: $convId');
-    }
+    // 4. 并行处理 Conversation 同步（批量，限制并发数）
+    await _syncConversationsParallel(
+      localConversations,
+      remoteConvs,
+      onRemoteConversationFound,
+      onEach: () => reportProgress(totalSteps, 'Conversations'),
+    );
 
-    // 5. 同步所有静态资源 (upload, avatars, images)
+    // 5. 并行处理 Messages 同步（批量，限制并发数）
+    await _syncMessagesParallel(
+      allConvIds.toList(),
+      localMessagesFetcher,
+      remoteMsgs,
+      onRemoteMessagesFound,
+      onEach: () => reportProgress(totalSteps, 'Messages'),
+    );
+
+    // 6. 并行同步所有静态资源
     if (localAssetRoot.isNotEmpty) {
-      await _syncAllAssets(localAssetRoot, reportProgress);
+      await _syncAllAssetsParallel(localAssetRoot, onEach: () => reportProgress(totalSteps, 'Assets'));
+    } else {
+      // 补齐 assets 的 3 个步骤
+      for (var i = 0; i < 3; i++) reportProgress(totalSteps, 'Assets');
     }
 
-    onProgress?.call(totalSteps, totalSteps, 'Done');
     _log('Sync completed.');
   }
 
-  Future<void> _syncSettings(
-      Map<String, dynamic> localSettings, Function(Map<String, dynamic>)? onRemoteFound) async {
+  /// 使用预获取的索引同步设置
+  Future<void> _syncSettingsWithIndex(
+    Map<String, dynamic> localSettings,
+    Map<String, RemoteFileInfo> remoteRoot,
+    Function(Map<String, dynamic>)? onRemoteFound,
+  ) async {
     try {
-      // 检查云端 settings.json
-      final remoteFiles = await _api.listRemoteFiles('');
-      final remoteInfo = remoteFiles['settings.json'];
-
-      // 策略：新的覆盖旧的（比较时间戳，2秒容差）
-      final localTime = DateTime.tryParse(localSettings['exportedAt'] ?? '') ?? DateTime(2000);
+      final remoteInfo = remoteRoot['settings.json'];
+      bool upload = true;
 
       if (remoteInfo != null && onRemoteFound != null) {
-        // 云端比本地新 -> 下载覆盖本地
+        final localTime = DateTime.tryParse(localSettings['exportedAt'] ?? '') ?? DateTime.now();
+        // 2秒容差，避免频繁冲突
         if (remoteInfo.lastModified.isAfter(localTime.add(const Duration(seconds: 2)))) {
           _log('Downloading newer settings...');
           final remoteData = await _api.downloadJson('settings.json');
           if (remoteData != null) {
             onRemoteFound(remoteData);
-            return; // 下载了就不上传
+            upload = false;
           }
         }
       }
 
-      // 本地比云端新（或云端不存在）-> 上传本地
-      if (remoteInfo == null || localTime.isAfter(remoteInfo.lastModified.add(const Duration(seconds: 2)))) {
+      if (upload) {
         _log('Uploading settings...');
         await _api.uploadJson('settings.json', localSettings);
       }
@@ -393,19 +408,19 @@ class IncrementalSyncManager {
     }
   }
 
-  Future<void> _syncAssistants(
-      List<Map<String, dynamic>> localAssistants, Function(List<Map<String, dynamic>>)? onRemoteFound) async {
+  /// 使用预获取的索引同步助手
+  Future<void> _syncAssistantsWithIndex(
+    List<Map<String, dynamic>> localAssistants,
+    Map<String, RemoteFileInfo> remoteRoot,
+    Function(List<Map<String, dynamic>>)? onRemoteFound,
+  ) async {
     try {
-      final remoteFiles = await _api.listRemoteFiles('');
-      final remoteInfo = remoteFiles['assistants.json'];
+      final remoteInfo = remoteRoot['assistants.json'];
 
-      // Assistants 同步策略：合并
-      // 1. 总是下载云端助手列表
-      List<Map<String, dynamic>> remoteList = [];
       if (remoteInfo != null) {
         final data = await _api.downloadJson('assistants.json');
         if (data != null && data['items'] is List) {
-          remoteList = (data['items'] as List).cast<Map<String, dynamic>>();
+          final remoteList = (data['items'] as List).cast<Map<String, dynamic>>();
           if (onRemoteFound != null) {
             _log('Merging remote assistants...');
             onRemoteFound(remoteList);
@@ -413,70 +428,160 @@ class IncrementalSyncManager {
         }
       }
 
-      // 2. 将本地列表（可能包含新创建的）合并后上传
       _log('Uploading assistants...');
-      await _api.uploadJson('assistants.json', {'items': localAssistants, 'updatedAt': DateTime.now().toIso8601String()});
+      await _api.uploadJson('assistants.json', {
+        'items': localAssistants,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
     } catch (e) {
       _log('Error syncing assistants: $e');
     }
   }
 
-  Future<void> _syncAllAssets(String dataRoot, Function(String stage) reportProgress) async {
-    // 递归同步以下目录：
-    // - upload/ (聊天附件)
-    // - avatars/ (助手头像)
-    // - images/ (助手背景)
+  /// 并行同步对话（批量处理，限制并发）
+  Future<void> _syncConversationsParallel(
+    List<Map<String, dynamic>> localList,
+    Map<String, RemoteFileInfo> remoteIndex,
+    Function(Map<String, dynamic>) onRemoteNewer, {
+    Function()? onEach,
+  }) async {
+    final localMap = {for (var c in localList) c['id'] as String: c};
+    final allIds = <String>{
+      ...localMap.keys,
+      ...remoteIndex.keys.map((k) => p.basenameWithoutExtension(k)),
+    };
+
+    const batchSize = 8;
+    final idList = allIds.toList();
+
+    for (var i = 0; i < idList.length; i += batchSize) {
+      final batch = idList.skip(i).take(batchSize);
+      await Future.wait(batch.map((id) async {
+        await _syncSingleConversation(id, localMap[id], remoteIndex, onRemoteNewer);
+        onEach?.call();
+      }));
+    }
+  }
+
+  /// 同步单个对话
+  Future<void> _syncSingleConversation(
+    String id,
+    Map<String, dynamic>? local,
+    Map<String, RemoteFileInfo> remoteIndex,
+    Function(Map<String, dynamic>) onRemoteNewer,
+  ) async {
+    final remoteFilename = '$id.json';
+    final remoteInfo = remoteIndex[remoteFilename];
+
+    if (local != null) {
+      final localTime = DateTime.tryParse(local['updatedAt'] ?? '') ?? DateTime(2000);
+
+      if (remoteInfo == null) {
+        // 云端没有 -> 上传
+        _log('Uploading new conversation: $id');
+        await _api.uploadJson('conversations/$remoteFilename', local);
+      } else if (localTime.isAfter(remoteInfo.lastModified.add(const Duration(seconds: 2)))) {
+        // 本地更新 -> 上传
+        _log('Uploading updated conversation: $id');
+        await _api.uploadJson('conversations/$remoteFilename', local);
+      } else if (remoteInfo.lastModified.isAfter(localTime.add(const Duration(seconds: 2)))) {
+        // 云端更新 -> 下载
+        _log('Downloading newer conversation: $id');
+        final data = await _api.downloadJson('conversations/$remoteFilename');
+        if (data != null) onRemoteNewer(data);
+      }
+    } else if (remoteInfo != null) {
+      // 本地没有但云端有 -> 下载
+      _log('Downloading new conversation: $id');
+      final data = await _api.downloadJson('conversations/$remoteFilename');
+      if (data != null) onRemoteNewer(data);
+    }
+  }
+
+  /// 并行同步消息（批量处理，限制并发）
+  Future<void> _syncMessagesParallel(
+    List<String> convIds,
+    Future<List<Map<String, dynamic>>> Function(String) fetchLocalMsgs,
+    Map<String, RemoteFileInfo> remoteIndex,
+    Function(String, List<Map<String, dynamic>>) onRemoteNewer, {
+    Function()? onEach,
+  }) async {
+    const batchSize = 8;
+
+    for (var i = 0; i < convIds.length; i += batchSize) {
+      final batch = convIds.skip(i).take(batchSize);
+      await Future.wait(batch.map((convId) async {
+        await _syncMessagesForConversation(convId, fetchLocalMsgs, remoteIndex, onRemoteNewer);
+        onEach?.call();
+      }));
+    }
+  }
+
+  /// 并行同步所有静态资源
+  Future<void> _syncAllAssetsParallel(String dataRoot, {Function()? onEach}) async {
     final targets = ['upload', 'avatars', 'images'];
 
-    // 为 assets/ 下创建子目录
-    for (var t in targets) {
+    // 并行创建所有子目录
+    await Future.wait(targets.map((t) async {
       try {
         await _api._webdavRequest('MKCOL', 'assets/$t/');
-      } catch (_) {} // 忽略已存在错误
-    }
+      } catch (_) {}
+    }));
 
-    for (var subdir in targets) {
+    // 并行获取所有远程资源索引
+    final remoteIndexes = await Future.wait(
+      targets.map((t) => _api.listRemoteFiles('assets/$t').catchError((_) => <String, RemoteFileInfo>{})),
+    );
+
+    // 并行同步每个目录
+    await Future.wait(List.generate(targets.length, (idx) async {
+      final subdir = targets[idx];
+      final remoteAssets = remoteIndexes[idx];
       final localDir = Directory(p.join(dataRoot, subdir));
+
       if (!await localDir.exists()) {
-        reportProgress('Assets: $subdir');
-        continue;
+        onEach?.call();
+        return;
       }
 
       try {
-        _log('Checking assets/$subdir...');
-        final remoteAssets = await _api.listRemoteFiles('assets/$subdir');
-        final localFiles = localDir.listSync().whereType<File>();
+        _log('Syncing assets/$subdir...');
+        final localFiles = localDir.listSync().whereType<File>().toList();
 
-        for (final file in localFiles) {
-          final name = p.basename(file.path);
-          if (name.startsWith('.')) continue;
+        // 批量上传本目录的文件
+        const uploadBatchSize = 5;
+        for (var i = 0; i < localFiles.length; i += uploadBatchSize) {
+          final batch = localFiles.skip(i).take(uploadBatchSize);
+          await Future.wait(batch.map((file) async {
+            final name = p.basename(file.path);
+            if (name.startsWith('.')) return;
 
-          final remote = remoteAssets[name];
-          bool shouldUpload = false;
+            final remote = remoteAssets[name];
+            bool shouldUpload = false;
 
-          if (remote == null) {
-            shouldUpload = true;
-          } else {
-            final len = await file.length();
-            if (len != remote.size) {
+            if (remote == null) {
               shouldUpload = true;
+            } else {
+              final len = await file.length();
+              if (len != remote.size) shouldUpload = true;
             }
-          }
 
-          if (shouldUpload) {
-            _log('Uploading $subdir/$name');
-            try {
-              await _uploadAssetToSubdir(file, subdir, name);
-            } catch (e) {
-              _log('Failed to upload $name: $e');
+            if (shouldUpload) {
+              _log('Uploading $subdir/$name');
+              try {
+                await _uploadAssetToSubdir(file, subdir, name);
+              } catch (e) {
+                _log('Failed to upload $name: $e');
+              }
             }
-          }
+          }));
         }
       } catch (e) {
         _log('Error syncing $subdir: $e');
       }
-      reportProgress('Assets: $subdir');
-    }
+
+      onEach?.call();
+    }));
   }
 
   Future<void> _uploadAssetToSubdir(File localFile, String subdir, String name) async {
@@ -498,68 +603,6 @@ class IncrementalSyncManager {
 
     if (res.statusCode! >= 300) {
       throw Exception('Asset upload failed: ${res.statusCode}');
-    }
-  }
-
-  /// 同步对话列表元数据
-  Future<void> _syncConversations(
-    List<Map<String, dynamic>> localList,
-    Map<String, RemoteFileInfo> remoteIndex,
-    Function(Map<String, dynamic>) onRemoteNewer,
-    Function(String stage) reportProgress,
-  ) async {
-    final localMap = {for (var c in localList) c['id'] as String: c};
-
-    // A. 遍历本地，决定是否上传
-    for (final local in localList) {
-      final id = local['id'] as String;
-      final remoteFilename = '$id.json';
-      final remoteInfo = remoteIndex[remoteFilename];
-
-      final localTime = DateTime.tryParse(local['updatedAt'] ?? '') ?? DateTime(2000);
-
-      if (remoteInfo == null) {
-        // 云端没有 -> 上传
-        _log('Uploading new conversation: $id');
-        await _api.uploadJson('conversations/$remoteFilename', local);
-      } else {
-        // 云端有 -> 比较时间
-        // 注意：WebDAV 时间精度可能不一致，建议增加 2秒 容差
-        if (localTime.isAfter(remoteInfo.lastModified.add(const Duration(seconds: 2)))) {
-          _log('Uploading updated conversation: $id');
-          await _api.uploadJson('conversations/$remoteFilename', local);
-        }
-      }
-      reportProgress('Conv: $id');
-    }
-
-    // B. 遍历云端，决定是否下载
-    for (final entry in remoteIndex.entries) {
-      final filename = entry.key;
-      final id = p.basenameWithoutExtension(filename);
-      final remoteInfo = entry.value;
-
-      final local = localMap[id];
-      bool shouldDownload = false;
-
-      if (local == null) {
-        // 本地没有 -> 下载
-        shouldDownload = true;
-      } else {
-        final localTime = DateTime.tryParse(local['updatedAt'] ?? '') ?? DateTime(2000);
-        if (remoteInfo.lastModified.isAfter(localTime.add(const Duration(seconds: 2)))) {
-          // 云端比本地新 -> 下载
-          shouldDownload = true;
-        }
-      }
-
-      if (shouldDownload) {
-        _log('Downloading newer conversation: $id');
-        final data = await _api.downloadJson('conversations/$filename');
-        if (data != null) {
-          onRemoteNewer(data);
-        }
-      }
     }
   }
 

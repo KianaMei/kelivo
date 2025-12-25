@@ -51,13 +51,13 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
   // Password visibility toggle (FIX: remote doesn't have this!)
   bool _obscurePassword = true;
 
+  bool _initialized = false;
+
   // Sync progress state
   bool _syncing = false;
   int _syncCurrent = 0;
   int _syncTotal = 0;
   String _syncStage = '';
-
-  bool _initialized = false;
 
   @override
   void didChangeDependencies() {
@@ -926,36 +926,36 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                             );
 
                             if (!mounted) return;
-                            setState(() => _syncing = false);
                             showAppSnackBar(context, message: l10n.backupPageSyncDone, type: NotificationType.success);
                           } catch (e) {
                             print(e);
                             if (!mounted) return;
-                            setState(() => _syncing = false);
                             showAppSnackBar(context, message: l10n.backupPageSyncError(e.toString()), type: NotificationType.error);
+                          } finally {
+                            if (mounted) {
+                              setState(() => _syncing = false);
+                            }
                           }
                         },
                       ),
                     ]),
                   ),
-                  // Progress indicator
+                  // 同步进度条
                   if (_syncing) ...[
-                    const SizedBox(height: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        LinearProgressIndicator(
-                          value: _syncTotal > 0 ? _syncCurrent / _syncTotal : null,
-                          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _syncStage.isNotEmpty ? _syncStage : l10n.backupPageSyncing,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: _syncTotal > 0 ? _syncCurrent / _syncTotal : null,
+                        minHeight: 6,
+                        backgroundColor: cs.surfaceContainerHighest,
+                        valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _syncStage.isNotEmpty ? _syncStage : l10n.backupPageSyncing,
+                      style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
                     ),
                   ],
                 ]),

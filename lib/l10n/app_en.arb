@@ -1344,7 +1344,7 @@
   "storageSpaceCategoryImages": "Images",
   "storageSpaceCategoryFiles": "Files",
   "storageSpaceCategoryChatData": "Chat Records",
-  "storageSpaceCategoryAssistantData": "Custom Avatars",
+  "storageSpaceCategoryAssistantData": "Assistants",
   "storageSpaceCategoryCache": "Cache",
   "storageSpaceCategoryLogs": "Logs",
   "storageSpaceCategoryOther": "App",
@@ -1360,8 +1360,6 @@
   "storageSpaceSubChatMessages": "Messages",
   "storageSpaceSubChatConversations": "Conversations",
   "storageSpaceSubChatToolEvents": "Tool events",
-  "storageSpaceSubProviderAvatars": "Provider avatars",
-  "storageSpaceSubOtherAvatars": "Other avatars",
   "storageSpaceSubAssistantAvatars": "Avatars",
   "storageSpaceSubAssistantImages": "Images",
   "storageSpaceSubCacheAvatars": "Avatar cache",
@@ -1370,25 +1368,6 @@
   "storageSpaceSubLogsFlutter": "Flutter logs",
   "storageSpaceSubLogsRequests": "Network logs",
   "storageSpaceSubLogsOther": "Other logs",
-  "storageSpaceNoCache": "No cache files",
-  "storageSpaceCacheCount": "{count} cache files",
-  "@storageSpaceCacheCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "storageSpaceCacheImagesSection": "Image cache ({count})",
-  "@storageSpaceCacheImagesSection": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "storageSpaceCacheOtherSection": "Other cache ({count})",
-  "@storageSpaceCacheOtherSection": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
   "storageSpaceClearConfirmTitle": "Confirm clear",
   "storageSpaceClearConfirmMessage": "Clear {targetName}?",
   "@storageSpaceClearConfirmMessage": {
@@ -1440,14 +1419,8 @@
       "count": { "type": "int" }
     }
   },
-  "storageSpaceNoChatData": "No chat data",
-  "storageSpaceNoLogs": "No log files",
-  "storageSpaceLogsCount": "{count} log files",
-  "@storageSpaceLogsCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
+  "storageSpaceSubProviderAvatars": "Provider avatars",
+  "storageSpaceSubOtherAvatars": "Other avatars",
   "storageSpaceDeleteLogsConfirmMessage": "Delete {count} log files?",
   "@storageSpaceDeleteLogsConfirmMessage": {
     "placeholders": {
@@ -1460,26 +1433,53 @@
       "count": { "type": "int" }
     }
   },
-  "storageSpaceNoAvatars": "No avatar files",
-  "storageSpaceAvatarsCount": "{count} avatar files",
-  "@storageSpaceAvatarsCount": {
+  "storageSpaceNoLogs": "No logs",
+  "storageSpaceLogsCount": "{count} logs",
+  "@storageSpaceLogsCount": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "storageSpaceDeleteAvatarsConfirmMessage": "Delete {count} avatar files? Assistants using these avatars will show default icons.",
+  "storageSpaceNoChatData": "No chat data",
+  "storageSpaceDeleteAvatarsConfirmMessage": "Delete {count} avatars?",
   "@storageSpaceDeleteAvatarsConfirmMessage": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "storageSpaceDeletedAvatarsDone": "Deleted {count} avatar files",
+  "storageSpaceDeletedAvatarsDone": "Deleted {count} avatars",
   "@storageSpaceDeletedAvatarsDone": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "storageSpaceClearAvatarsButton": "Clear All Avatars",
+  "storageSpaceNoAvatars": "No avatars",
+  "storageSpaceClearAvatarsButton": "Clear Avatars",
+  "storageSpaceAvatarsCount": "{count} avatars",
+  "@storageSpaceAvatarsCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceNoCache": "No cache",
+  "storageSpaceCacheCount": "{count} cache files",
+  "@storageSpaceCacheCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceCacheImagesSection": "Images ({count})",
+  "@storageSpaceCacheImagesSection": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceCacheOtherSection": "Other ({count})",
+  "@storageSpaceCacheOtherSection": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
 
   "assistantEditEmojiDialogTitle": "Choose Emoji",
   "assistantEditEmojiDialogHint": "Type or paste any emoji",

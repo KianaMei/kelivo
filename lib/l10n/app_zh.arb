@@ -1107,7 +1107,7 @@
   "storageSpaceCategoryImages": "图片",
   "storageSpaceCategoryFiles": "文件",
   "storageSpaceCategoryChatData": "聊天记录",
-  "storageSpaceCategoryAssistantData": "自定义头像",
+  "storageSpaceCategoryAssistantData": "助手",
   "storageSpaceCategoryCache": "缓存",
   "storageSpaceCategoryLogs": "日志",
   "storageSpaceCategoryOther": "应用",
@@ -1123,8 +1123,6 @@
   "storageSpaceSubChatMessages": "消息",
   "storageSpaceSubChatConversations": "会话",
   "storageSpaceSubChatToolEvents": "工具事件",
-  "storageSpaceSubProviderAvatars": "供应商头像",
-  "storageSpaceSubOtherAvatars": "其他头像",
   "storageSpaceSubAssistantAvatars": "头像",
   "storageSpaceSubAssistantImages": "图片",
   "storageSpaceSubCacheAvatars": "头像缓存",
@@ -1133,25 +1131,6 @@
   "storageSpaceSubLogsFlutter": "运行日志",
   "storageSpaceSubLogsRequests": "网络日志",
   "storageSpaceSubLogsOther": "其他日志",
-  "storageSpaceNoCache": "暂无缓存文件",
-  "storageSpaceCacheCount": "{count} 个缓存文件",
-  "@storageSpaceCacheCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "storageSpaceCacheImagesSection": "图片缓存 ({count})",
-  "@storageSpaceCacheImagesSection": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
-  "storageSpaceCacheOtherSection": "其他缓存 ({count})",
-  "@storageSpaceCacheOtherSection": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
   "storageSpaceClearConfirmTitle": "确认清理",
   "storageSpaceClearConfirmMessage": "清理{targetName}？",
   "@storageSpaceClearConfirmMessage": {
@@ -1203,14 +1182,8 @@
       "count": { "type": "int" }
     }
   },
-  "storageSpaceNoChatData": "暂无聊天数据",
-  "storageSpaceNoLogs": "暂无日志文件",
-  "storageSpaceLogsCount": "{count} 个日志文件",
-  "@storageSpaceLogsCount": {
-    "placeholders": {
-      "count": { "type": "int" }
-    }
-  },
+  "storageSpaceSubProviderAvatars": "供应商头像",
+  "storageSpaceSubOtherAvatars": "其他头像",
   "storageSpaceDeleteLogsConfirmMessage": "删除 {count} 个日志文件？",
   "@storageSpaceDeleteLogsConfirmMessage": {
     "placeholders": {
@@ -1223,26 +1196,53 @@
       "count": { "type": "int" }
     }
   },
-  "storageSpaceNoAvatars": "暂无头像文件",
-  "storageSpaceAvatarsCount": "{count} 个头像文件",
-  "@storageSpaceAvatarsCount": {
+  "storageSpaceNoLogs": "暂无日志",
+  "storageSpaceLogsCount": "{count} 个日志",
+  "@storageSpaceLogsCount": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "storageSpaceDeleteAvatarsConfirmMessage": "删除 {count} 个头像文件？使用这些头像的助手将显示默认图标。",
+  "storageSpaceNoChatData": "暂无聊天数据",
+  "storageSpaceDeleteAvatarsConfirmMessage": "删除 {count} 个头像？",
   "@storageSpaceDeleteAvatarsConfirmMessage": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "storageSpaceDeletedAvatarsDone": "已删除 {count} 个头像文件",
+  "storageSpaceDeletedAvatarsDone": "已删除 {count} 个头像",
   "@storageSpaceDeletedAvatarsDone": {
     "placeholders": {
       "count": { "type": "int" }
     }
   },
-  "storageSpaceClearAvatarsButton": "清理所有头像",
+  "storageSpaceNoAvatars": "暂无头像",
+  "storageSpaceClearAvatarsButton": "清除头像",
+  "storageSpaceAvatarsCount": "{count} 个头像",
+  "@storageSpaceAvatarsCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceNoCache": "暂无缓存",
+  "storageSpaceCacheCount": "{count} 个缓存文件",
+  "@storageSpaceCacheCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceCacheImagesSection": "图片 ({count})",
+  "@storageSpaceCacheImagesSection": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "storageSpaceCacheOtherSection": "其他 ({count})",
+  "@storageSpaceCacheOtherSection": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
 
   "assistantEditEmojiDialogTitle": "选择表情",
   "assistantEditEmojiDialogHint": "输入或粘贴任意表情",

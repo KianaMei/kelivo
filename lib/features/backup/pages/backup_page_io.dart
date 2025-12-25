@@ -529,8 +529,8 @@ class _BackupPageState extends State<BackupPage> {
                 _iosNavRow(
                   context,
                   icon: Lucide.Zap,
-                  label: l10n.backupPageIncrementalSyncTitle,
-                  detailText: _syncing ? '$_syncCurrent/$_syncTotal' : '',
+                  label: _syncing ? '$_syncCurrent/$_syncTotal' : l10n.backupPageIncrementalSyncTitle,
+                  detailText: _syncing ? _syncStage : '',
                   onTap: (vm.busy || _syncing) ? null : () async {
                     final cfg = vm.config;
                     if (cfg.url.isEmpty) {
@@ -605,39 +605,39 @@ class _BackupPageState extends State<BackupPage> {
                       );
 
                       if (!mounted) return;
-                      setState(() => _syncing = false);
                       showAppSnackBar(context, message: l10n.backupPageSyncDone, type: NotificationType.success);
                     } catch (e) {
                       print(e);
                       if (!mounted) return;
-                      setState(() => _syncing = false);
                       showAppSnackBar(context, message: l10n.backupPageSyncError(e.toString()), type: NotificationType.error);
+                    } finally {
+                      if (mounted) {
+                        setState(() => _syncing = false);
+                      }
                     }
                   },
                 ),
-                // Sync progress indicator
+                // 同步进度条
                 if (_syncing) ...[
-                  const SizedBox(height: 8),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        LinearProgressIndicator(
-                          value: _syncTotal > 0 ? _syncCurrent / _syncTotal : null,
-                          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _syncStage.isNotEmpty ? _syncStage : l10n.backupPageSyncing,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: _syncTotal > 0 ? _syncCurrent / _syncTotal : null,
+                        minHeight: 6,
+                        backgroundColor: cs.surfaceContainerHighest,
+                        valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: Text(
+                      _syncStage.isNotEmpty ? _syncStage : l10n.backupPageSyncing,
+                      style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6)),
+                    ),
+                  ),
                 ],
               ]),
 
