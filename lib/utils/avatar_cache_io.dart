@@ -22,6 +22,19 @@ class AvatarCache {
   static void clearMemoryCache() {
     clearMemory();
   }
+  
+  /// Clears both memory and file cache.
+  static Future<void> clear() async {
+    clearMemory();
+    if (!kIsWeb) {
+      try {
+        final dir = await _cacheDir();
+        if (await dir.exists()) {
+           await dir.delete(recursive: true);
+        }
+      } catch (_) {}
+    }
+  }
 
   static Future<Directory> _cacheDir() async {
     final root = await AppDirs.dataRoot();
@@ -105,4 +118,3 @@ class AvatarCache {
     return 'image/png';
   }
 }
-

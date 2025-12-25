@@ -7,6 +7,7 @@ import '../../../../providers/settings_provider.dart';
 import '../../../../providers/model_provider.dart';
 import '../../../../models/token_usage.dart';
 import '../../helpers/chat_api_helper.dart';
+import '../../helpers/inline_image_saver.dart';
 import '../../models/chat_stream_chunk.dart';
 import '../../../http/streaming_http_client.dart';
 

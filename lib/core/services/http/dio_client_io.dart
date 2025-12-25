@@ -15,6 +15,9 @@ import '../../providers/settings_provider.dart';
 import '../../utils/http_logger.dart';
 import '../network/request_logger.dart';
 
+/// Extra key to mark requests that should only log results (not full request/response)
+const String kLogNetworkResultOnlyExtraKey = 'kelivo_log_network_result_only';
+
 /// 全局 Dio 实例
 late final Dio dio;
 

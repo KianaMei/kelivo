@@ -13,6 +13,8 @@ import '../core/models/provider_config.dart';
 import '../core/models/api_test_config.dart';
 import '../core/utils/inline_think_extractor.dart';
 import '../core/utils/tool_schema_sanitizer.dart' show ProviderKind;
+import '../shared/widgets/markdown_with_highlight.dart';
+import '../shared/widgets/snackbar.dart';
 import 'add_provider_dialog.dart';
 
 /// Desktop API Test Page: Left panel for API config, Right panel for chat testing.
@@ -434,8 +436,8 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
     }
   }
 
-  Future<void> _sendMessage() async {
-    final text = _inputController.text.trim();
+  Future<void> _sendMessage([String? inputText, bool addToMessages = true]) async {
+    final text = inputText ?? _inputController.text.trim();
     if (text.isEmpty || _selectedModel == null || _isGenerating) return;
 
     final apiKey = _apiKeyController.text.trim();
@@ -443,8 +445,10 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
     if (apiKey.isEmpty || baseUrl.isEmpty) return;
 
     setState(() {
-      _messages.add(_TestMessage(role: 'user', content: text));
-      _inputController.clear();
+      if (addToMessages) {
+        _messages.add(_TestMessage(role: 'user', content: text));
+        _inputController.clear();
+      }
       _isGenerating = true;
       _streamingContent = '';
       _streamingReasoning = '';
@@ -838,7 +842,7 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
                           itemCount: _messages.length + ((_streamingContent.isNotEmpty || _streamingReasoning.isNotEmpty) ? 1 : 0),
                           itemBuilder: (context, index) {
                             if (index < _messages.length) {
-                              return _buildMessageBubble(_messages[index], cs, isDark: isDark);
+                              return _buildMessageBubble(_messages[index], cs, isDark: isDark, messageIndex: index);
                             } else {
                               return _buildMessageBubble(
                                 _TestMessage(role: 'assistant', content: _streamingContent, reasoning: _streamingReasoning),
@@ -1264,7 +1268,7 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
     );
   }
 
-  Widget _buildMessageBubble(_TestMessage message, ColorScheme cs, {bool isDark = false, bool isStreaming = false}) {
+  Widget _buildMessageBubble(_TestMessage message, ColorScheme cs, {bool isDark = false, bool isStreaming = false, int? messageIndex}) {
     final isUser = message.role == 'user';
     final isSystem = message.role == 'system';
     final l10n = AppLocalizations.of(context)!;
@@ -1317,89 +1321,72 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
             const SizedBox(width: 12),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? cs.primary.withOpacity(isDark ? 0.25 : 0.12)
-                    : isSystem
-                        ? cs.errorContainer.withOpacity(isDark ? 0.4 : 0.25)
-                        : isDark
-                            ? Colors.white.withOpacity(0.08)
-                            : cs.surfaceVariant.withOpacity(0.5),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(isUser ? 18 : 4),
-                  topRight: Radius.circular(isUser ? 4 : 18),
-                  bottomLeft: const Radius.circular(18),
-                  bottomRight: const Radius.circular(18),
-                ),
-                border: Border.all(
-                  color: isUser
-                      ? cs.primary.withOpacity(0.2)
-                      : isSystem
-                          ? cs.error.withOpacity(0.2)
-                          : isDark
-                              ? Colors.white.withOpacity(0.06)
-                              : cs.outlineVariant.withOpacity(0.2),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.15 : 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+            child: Column(
+              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? cs.primary.withOpacity(isDark ? 0.25 : 0.12)
+                        : isSystem
+                            ? cs.errorContainer.withOpacity(isDark ? 0.4 : 0.25)
+                            : isDark
+                                ? Colors.white.withOpacity(0.08)
+                                : cs.surfaceVariant.withOpacity(0.5),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(isUser ? 18 : 4),
+                      topRight: Radius.circular(isUser ? 4 : 18),
+                      bottomLeft: const Radius.circular(18),
+                      bottomRight: const Radius.circular(18),
+                    ),
+                    border: Border.all(
+                      color: isUser
+                          ? cs.primary.withOpacity(0.2)
+                          : isSystem
+                              ? cs.error.withOpacity(0.2)
+                              : isDark
+                                  ? Colors.white.withOpacity(0.06)
+                                  : cs.outlineVariant.withOpacity(0.2),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.15 : 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (displayReasoning.trim().isNotEmpty && !isSystem) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withOpacity(0.05) : cs.surface.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.25),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isStreaming ? l10n.chatMessageWidgetThinking : l10n.chatMessageWidgetDeepThinking,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurface.withOpacity(0.75),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SelectableText(
-                            displayReasoning.trim(),
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: cs.onSurface.withOpacity(0.9),
-                              height: 1.6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (displayContent.trim().isNotEmpty) const SizedBox(height: 10),
-                  ],
-                  if (displayContent.trim().isNotEmpty || isStreaming)
-                    SelectableText(
-                      (displayContent.trim().isNotEmpty ? displayContent.trimRight() : '') + (isStreaming ? ' ...' : ''),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: cs.onSurface,
-                        height: 1.6,
-                      ),
-                    ),
-                ],
-              ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Reasoning section (collapsible)
+                      if (displayReasoning.trim().isNotEmpty && !isSystem)
+                        _buildReasoningSection(displayReasoning, cs, isDark, l10n, isStreaming, message),
+                      if (displayReasoning.trim().isNotEmpty && displayContent.trim().isNotEmpty && !isSystem)
+                        const SizedBox(height: 10),
+                      // Content with Markdown rendering
+                      if (displayContent.trim().isNotEmpty || isStreaming)
+                        isUser
+                            ? SelectableText(
+                                displayContent.trimRight(),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: cs.onSurface,
+                                  height: 1.6,
+                                ),
+                              )
+                            : MarkdownWithCodeHighlight(
+                                text: displayContent.trimRight() + (isStreaming ? ' ▍' : ''),
+                                isStreaming: isStreaming,
+                              ),
+                    ],
+                  ),
+                ),
+                // Action buttons for assistant messages
+                if (!isUser && !isSystem && !isStreaming && displayContent.trim().isNotEmpty)
+                  _buildMessageActions(message, cs, isDark, l10n, messageIndex),
+              ],
             ),
           ),
           if (isUser) ...[
@@ -1428,6 +1415,168 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
         ],
       ),
     );
+  }
+
+  /// Build collapsible reasoning section
+  Widget _buildReasoningSection(String reasoning, ColorScheme cs, bool isDark, AppLocalizations l10n, bool isStreaming, _TestMessage message) {
+    final isExpanded = message.reasoningExpanded;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.05) : cs.surface.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with toggle
+          InkWell(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+            onTap: () {
+              setState(() {
+                message.reasoningExpanded = !message.reasoningExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    lucide.Lucide.Brain,
+                    size: 14,
+                    color: cs.primary.withOpacity(0.8),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isStreaming ? l10n.chatMessageWidgetThinking : l10n.chatMessageWidgetDeepThinking,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface.withOpacity(0.75),
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded ? lucide.Lucide.ChevronUp : lucide.Lucide.ChevronDown,
+                    size: 16,
+                    color: cs.onSurface.withOpacity(0.5),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Collapsible content
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            firstChild: const SizedBox.shrink(),
+            secondChild: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: MarkdownWithCodeHighlight(
+                text: reasoning.trim(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build action buttons for assistant messages
+  Widget _buildMessageActions(_TestMessage message, ColorScheme cs, bool isDark, AppLocalizations l10n, int? messageIndex) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Copy button
+          _buildActionButton(
+            icon: lucide.Lucide.Copy,
+            tooltip: l10n.codeCardCopy,
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: message.content));
+              showAppSnackBar(context, message: l10n.chatMessageWidgetCopiedToClipboard, type: NotificationType.success);
+            },
+            cs: cs,
+            isDark: isDark,
+          ),
+          const SizedBox(width: 4),
+          // Regenerate button (only show if this is the last assistant message)
+          if (messageIndex != null && messageIndex == _messages.length - 1 && !_isGenerating)
+            _buildActionButton(
+              icon: lucide.Lucide.RefreshCw,
+              tooltip: l10n.chatMessageWidgetRegenerateTooltip,
+              onTap: () => _regenerateLastMessage(),
+              cs: cs,
+              isDark: isDark,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    required ColorScheme cs,
+    required bool isDark,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.05) : cs.surfaceVariant.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              icon,
+              size: 14,
+              color: cs.onSurface.withOpacity(0.6),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Regenerate the last assistant message
+  Future<void> _regenerateLastMessage() async {
+    if (_messages.isEmpty) return;
+
+    // Find the last user message
+    String? lastUserMessage;
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      if (_messages[i].role == 'user') {
+        lastUserMessage = _messages[i].content;
+        break;
+      }
+    }
+
+    if (lastUserMessage == null) return;
+
+    // Remove the last assistant message
+    setState(() {
+      if (_messages.isNotEmpty && _messages.last.role == 'assistant') {
+        _messages.removeLast();
+      }
+    });
+
+    // Regenerate
+    _sendMessage(lastUserMessage, false);
   }
 
   /// Build config selector horizontal scroll list
@@ -1714,8 +1863,9 @@ class _TestMessage {
   final String role;
   final String content;
   final String? reasoning;
+  bool reasoningExpanded;
 
-  _TestMessage({required this.role, required this.content, this.reasoning});
+  _TestMessage({required this.role, required this.content, this.reasoning, this.reasoningExpanded = false});
 }
 
 class _ProviderConfig {

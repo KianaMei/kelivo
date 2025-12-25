@@ -17,11 +17,24 @@ class PlatformUtils {
     return Platform.isAndroid || Platform.isIOS;
   }
 
-  /// 检查是否为Windows平台
-  static bool get isWindows {
-    if (kIsWeb) return false;
-    return Platform.isWindows;
-  }
+  /// Check if running on Android
+  static bool get isAndroid => !kIsWeb && Platform.isAndroid;
+
+  /// Check if running on iOS
+  static bool get isIOS => !kIsWeb && Platform.isIOS;
+
+  /// Check if running on macOS
+  static bool get isMacOS => !kIsWeb && Platform.isMacOS;
+
+  /// Check if running on Linux
+  static bool get isLinux => !kIsWeb && Platform.isLinux;
+
+  /// Check if running on Fuchsia
+  static bool get isFuchsia => !kIsWeb && Platform.isFuchsia;
+
+  /// Check if running on Windows
+  static bool get isWindows => !kIsWeb && Platform.isWindows;
+
 
   /// 安全地检查文件是否存在
   static bool fileExistsSync(String path) {
