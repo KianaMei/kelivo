@@ -10,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import '../icons/lucide_adapter.dart' as lucide;
 import '../core/providers/settings_provider.dart';
 import '../core/models/provider_config.dart';
+import '../core/models/api_test_config.dart';
 import '../core/utils/inline_think_extractor.dart';
 import '../core/utils/tool_schema_sanitizer.dart' show ProviderKind;
 import 'add_provider_dialog.dart';
@@ -73,6 +74,13 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
   static const _prefKeyBaseUrl = 'api_test_base_url';
   static const _prefKeyModels = 'api_test_models';
   static const _prefKeySelectedModel = 'api_test_selected_model';
+  // Multi-config keys
+  static const _prefKeyConfigs = 'api_test_configs';
+  static const _prefKeyActiveConfigId = 'api_test_active_config_id';
+
+  // Multi-config state
+  List<ApiTestConfig> _configs = [];
+  String? _activeConfigId;
 
   @override
   void initState() {
@@ -82,39 +90,192 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
 
   Future<void> _loadSavedConfig() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedProvider = prefs.getString(_prefKeyProvider);
-    final savedApiKey = prefs.getString(_prefKeyApiKey);
-    final savedBaseUrl = prefs.getString(_prefKeyBaseUrl);
-    final savedModels = prefs.getStringList(_prefKeyModels);
-    final savedSelectedModel = prefs.getString(_prefKeySelectedModel);
-    
-    if (savedProvider != null && _providers.containsKey(savedProvider)) {
-      _selectedProvider = savedProvider;
-    }
-    _apiKeyController.text = savedApiKey ?? '';
-    _baseUrlController.text = savedBaseUrl ?? _providers[_selectedProvider]!.defaultUrl;
-    if (savedModels != null && savedModels.isNotEmpty) {
-      _availableModels = savedModels;
-      if (savedSelectedModel != null && savedModels.contains(savedSelectedModel)) {
-        _selectedModel = savedSelectedModel;
+
+    // Load multi-config list
+    final configsJson = prefs.getStringList(_prefKeyConfigs);
+    if (configsJson != null && configsJson.isNotEmpty) {
+      _configs = configsJson.map((s) => ApiTestConfig.fromJsonString(s)).toList();
+      _activeConfigId = prefs.getString(_prefKeyActiveConfigId);
+
+      // Find active config and apply it
+      final active = _configs.firstWhere(
+        (c) => c.id == _activeConfigId,
+        orElse: () => _configs.first,
+      );
+      _activeConfigId = active.id;
+      _selectedProvider = active.provider;
+      _apiKeyController.text = active.apiKey;
+      _baseUrlController.text = active.baseUrl.isNotEmpty
+          ? active.baseUrl
+          : _providers[_selectedProvider]!.defaultUrl;
+      _availableModels = active.models;
+      _selectedModel = active.selectedModel;
+    } else {
+      // Legacy: migrate from single config
+      final savedProvider = prefs.getString(_prefKeyProvider);
+      final savedApiKey = prefs.getString(_prefKeyApiKey);
+      final savedBaseUrl = prefs.getString(_prefKeyBaseUrl);
+      final savedModels = prefs.getStringList(_prefKeyModels);
+      final savedSelectedModel = prefs.getString(_prefKeySelectedModel);
+
+      if (savedProvider != null && _providers.containsKey(savedProvider)) {
+        _selectedProvider = savedProvider;
+      }
+      _apiKeyController.text = savedApiKey ?? '';
+      _baseUrlController.text = savedBaseUrl ?? _providers[_selectedProvider]!.defaultUrl;
+      if (savedModels != null && savedModels.isNotEmpty) {
+        _availableModels = savedModels;
+        if (savedSelectedModel != null && savedModels.contains(savedSelectedModel)) {
+          _selectedModel = savedSelectedModel;
+        }
+      }
+
+      // Create initial config if we have data
+      if (savedApiKey?.isNotEmpty == true || savedBaseUrl?.isNotEmpty == true) {
+        final initial = ApiTestConfig.create(
+          provider: _selectedProvider,
+          apiKey: _apiKeyController.text,
+          baseUrl: _baseUrlController.text,
+          models: _availableModels,
+          selectedModel: _selectedModel,
+        );
+        _configs = [initial];
+        _activeConfigId = initial.id;
+        await _saveConfigs();
       }
     }
     if (mounted) setState(() {});
   }
 
+  /// Save all configs to SharedPreferences
+  Future<void> _saveConfigs() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _prefKeyConfigs,
+      _configs.map((c) => c.toJsonString()).toList(),
+    );
+    if (_activeConfigId != null) {
+      await prefs.setString(_prefKeyActiveConfigId, _activeConfigId!);
+    }
+  }
+
+  /// Update current active config with current UI state
+  void _updateActiveConfig() {
+    if (_activeConfigId == null) return;
+    final idx = _configs.indexWhere((c) => c.id == _activeConfigId);
+    if (idx >= 0) {
+      _configs[idx] = _configs[idx].copyWith(
+        provider: _selectedProvider,
+        apiKey: _apiKeyController.text,
+        baseUrl: _baseUrlController.text,
+        models: _availableModels,
+        selectedModel: _selectedModel,
+      );
+      _saveConfigs();
+    }
+  }
+
+  /// Switch to a different config
+  void _switchConfig(String configId) {
+    final config = _configs.firstWhere((c) => c.id == configId, orElse: () => _configs.first);
+    setState(() {
+      _activeConfigId = config.id;
+      _selectedProvider = config.provider;
+      _apiKeyController.text = config.apiKey;
+      _baseUrlController.text = config.baseUrl.isNotEmpty
+          ? config.baseUrl
+          : _providers[_selectedProvider]!.defaultUrl;
+      _availableModels = config.models;
+      _selectedModel = config.selectedModel;
+      _modelError = null;
+    });
+    _saveConfigs();
+  }
+
+  /// Add a new config
+  void _addNewConfig() {
+    final newConfig = ApiTestConfig.create(
+      provider: 'openai',
+      baseUrl: _providers['openai']!.defaultUrl,
+    );
+    setState(() {
+      _configs.add(newConfig);
+      _activeConfigId = newConfig.id;
+      _selectedProvider = newConfig.provider;
+      _apiKeyController.text = '';
+      _baseUrlController.text = newConfig.baseUrl;
+      _availableModels = [];
+      _selectedModel = null;
+      _modelError = null;
+    });
+    _saveConfigs();
+  }
+
+  /// Delete a config
+  void _deleteConfig(String configId) {
+    if (_configs.length <= 1) return; // Keep at least one config
+    setState(() {
+      _configs.removeWhere((c) => c.id == configId);
+      if (_activeConfigId == configId) {
+        _switchConfig(_configs.first.id);
+      }
+    });
+    _saveConfigs();
+  }
+
+  /// Rename current config
+  Future<void> _renameConfig() async {
+    if (_activeConfigId == null) return;
+    final idx = _configs.indexWhere((c) => c.id == _activeConfigId);
+    if (idx < 0) return;
+
+    final current = _configs[idx];
+    final controller = TextEditingController(text: current.name);
+    final l10n = AppLocalizations.of(context)!;
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.apiTestRenameConfigTitle),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(hintText: current.displayName),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.sideDrawerCancel)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text(l10n.sideDrawerOK),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null) {
+      setState(() {
+        _configs[idx] = current.copyWith(name: newName);
+      });
+      _saveConfigs();
+    }
+  }
+
   Future<void> _saveProvider() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKeyProvider, _selectedProvider);
+    _updateActiveConfig();
   }
 
   Future<void> _saveApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKeyApiKey, _apiKeyController.text);
+    _updateActiveConfig();
   }
 
   Future<void> _saveBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKeyBaseUrl, _baseUrlController.text);
+    _updateActiveConfig();
   }
 
   Future<void> _saveModels() async {
@@ -123,6 +284,7 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
     if (_selectedModel != null) {
       await prefs.setString(_prefKeySelectedModel, _selectedModel!);
     }
+    _updateActiveConfig();
   }
 
   ProviderKind _getProviderKind() {
@@ -562,101 +724,103 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
                     ],
                   ),
                 ),
-                // Scrollable config form
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Provider selector (list)
-                        _buildCompactLabel(l10n.apiTestProviderLabel, cs),
-                        const SizedBox(height: 6),
-                        _buildProviderList(cs, isDark),
-                        const SizedBox(height: 12),
-                        // API Key
-                        _buildCompactLabel(l10n.apiTestApiKeyLabel, cs),
-                        const SizedBox(height: 6),
-                        _buildCompactTextField(
-                          controller: _apiKeyController,
-                          hintText: l10n.apiTestApiKeyHint,
-                          obscureText: false,
-                          cs: cs,
-                          isDark: isDark,
-                          onChanged: (_) => _onApiKeyChanged(),
-                        ),
-                        const SizedBox(height: 12),
-                        // Base URL
-                        _buildCompactLabel(l10n.apiTestBaseUrlLabel, cs),
-                        const SizedBox(height: 6),
-                        _buildCompactTextField(
-                          controller: _baseUrlController,
-                          hintText: l10n.apiTestBaseUrlHint,
-                          cs: cs,
-                          isDark: isDark,
-                          onChanged: (_) => _onBaseUrlChanged(),
-                        ),
-                        const SizedBox(height: 14),
-                        // Fetch models + Convert to provider buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildCompactButton(
-                                onPressed: _loadingModels ? null : _fetchModels,
-                                icon: _loadingModels ? null : lucide.Lucide.RefreshCw,
-                                label: l10n.apiTestFetchModels,
-                                isLoading: _loadingModels,
-                                cs: cs,
-                              ),
+                // Config selector row
+                _buildConfigSelector(cs, isDark, l10n),
+                // Top config form (non-scrollable)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Provider selector (list)
+                      _buildCompactLabel(l10n.apiTestProviderLabel, cs),
+                      const SizedBox(height: 6),
+                      _buildProviderList(cs, isDark),
+                      const SizedBox(height: 12),
+                      // API Key
+                      _buildCompactLabel(l10n.apiTestApiKeyLabel, cs),
+                      const SizedBox(height: 6),
+                      _buildCompactTextField(
+                        controller: _apiKeyController,
+                        hintText: l10n.apiTestApiKeyHint,
+                        obscureText: false,
+                        cs: cs,
+                        isDark: isDark,
+                        onChanged: (_) => _onApiKeyChanged(),
+                      ),
+                      const SizedBox(height: 12),
+                      // Base URL
+                      _buildCompactLabel(l10n.apiTestBaseUrlLabel, cs),
+                      const SizedBox(height: 6),
+                      _buildCompactTextField(
+                        controller: _baseUrlController,
+                        hintText: l10n.apiTestBaseUrlHint,
+                        cs: cs,
+                        isDark: isDark,
+                        onChanged: (_) => _onBaseUrlChanged(),
+                      ),
+                      const SizedBox(height: 14),
+                      // Fetch models + Convert to provider buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildCompactButton(
+                              onPressed: _loadingModels ? null : _fetchModels,
+                              icon: _loadingModels ? null : lucide.Lucide.RefreshCw,
+                              label: l10n.apiTestFetchModels,
+                              isLoading: _loadingModels,
+                              cs: cs,
                             ),
-                            const SizedBox(width: 8),
-                            Tooltip(
-                              message: '转为供应商',
-                              child: Material(
-                                color: cs.primaryContainer.withOpacity(0.5),
+                          ),
+                          const SizedBox(width: 8),
+                          Tooltip(
+                            message: '转为供应商',
+                            child: Material(
+                              color: cs.primaryContainer.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
                                 borderRadius: BorderRadius.circular(8),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(8),
-                                  onTap: _convertToProvider,
-                                  child: Container(
-                                    width: 34,
-                                    height: 34,
-                                    alignment: Alignment.center,
-                                    child: Icon(lucide.Lucide.FolderPlus, size: 16, color: cs.primary),
-                                  ),
+                                onTap: _convertToProvider,
+                                child: Container(
+                                  width: 34,
+                                  height: 34,
+                                  alignment: Alignment.center,
+                                  child: Icon(lucide.Lucide.FolderPlus, size: 16, color: cs.primary),
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                        if (_modelError != null) ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: cs.errorContainer.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(_modelError!, style: TextStyle(fontSize: 11, color: cs.error)),
                           ),
                         ],
-                        const SizedBox(height: 12),
-                        // Model list
-                        _buildModelListCompact(cs, isDark),
-                        if (_availableModels.isNotEmpty && _messages.isNotEmpty) const SizedBox(height: 12),
-                        // Clear chat button
-                        if (_messages.isNotEmpty)
-                          _buildCompactButton(
-                            onPressed: _clearChat,
-                            icon: lucide.Lucide.Trash2,
-                            label: l10n.apiTestClearChat,
-                            cs: cs,
-                            isPrimary: false,
+                      ),
+                      if (_modelError != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: cs.errorContainer.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(6),
                           ),
+                          child: Text(_modelError!, style: TextStyle(fontSize: 11, color: cs.error)),
+                        ),
                       ],
-                    ),
+                    ],
                   ),
                 ),
+                // Model list - fills remaining space
+                if (_availableModels.isNotEmpty)
+                  Expanded(child: _buildModelListExpanded(cs, isDark)),
+                // Clear chat button at bottom
+                if (_messages.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: _buildCompactButton(
+                      onPressed: _clearChat,
+                      icon: lucide.Lucide.Trash2,
+                      label: l10n.apiTestClearChat,
+                      cs: cs,
+                      isPrimary: false,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -904,54 +1068,91 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
               shrinkWrap: true,
               padding: EdgeInsets.zero,
               itemCount: _availableModels.length,
-              itemBuilder: (context, index) {
-                final model = _availableModels[index];
-                final isSelected = model == _selectedModel;
-                return Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      setState(() => _selectedModel = model);
-                      _saveModels();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? cs.primary.withOpacity(isDark ? 0.2 : 0.1)
-                            : Colors.transparent,
-                        border: Border(
-                          left: BorderSide(
-                            color: isSelected ? cs.primary : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              model,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.8),
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (isSelected)
-                            Icon(lucide.Lucide.Check, size: 12, color: cs.primary),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
+              itemBuilder: (context, index) => _buildModelItem(index, cs, isDark),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  /// Expanded model list that fills remaining vertical space
+  Widget _buildModelListExpanded(ColorScheme cs, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildCompactLabel(AppLocalizations.of(context)!.apiTestModelLabel, cs),
+          const SizedBox(height: 6),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withOpacity(0.03)
+                    : cs.surfaceVariant.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDark ? Colors.white.withOpacity(0.05) : cs.outlineVariant.withOpacity(0.2),
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: _availableModels.length,
+                  itemBuilder: (context, index) => _buildModelItem(index, cs, isDark),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModelItem(int index, ColorScheme cs, bool isDark) {
+    final model = _availableModels[index];
+    final isSelected = model == _selectedModel;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() => _selectedModel = model);
+          _saveModels();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? cs.primary.withOpacity(isDark ? 0.2 : 0.1)
+                : Colors.transparent,
+            border: Border(
+              left: BorderSide(
+                color: isSelected ? cs.primary : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  model,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isSelected ? cs.primary : cs.onSurface.withOpacity(0.8),
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (isSelected)
+                Icon(lucide.Lucide.Check, size: 12, color: cs.primary),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1225,6 +1426,285 @@ class _DesktopApiTestPageState extends State<DesktopApiTestPage> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Build config selector horizontal scroll list
+  Widget _buildConfigSelector(ColorScheme cs, bool isDark, AppLocalizations l10n) {
+    if (_configs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? Colors.white.withOpacity(0.06) : cs.outlineVariant.withOpacity(0.2),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Scrollable config list (supports mouse drag on desktop)
+          Expanded(
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.trackpad,
+                },
+              ),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                itemCount: _configs.length,
+                itemBuilder: (context, index) {
+                final config = _configs[index];
+                final isActive = config.id == _activeConfigId;
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: GestureDetector(
+                    onTap: () => _switchConfig(config.id),
+                    onDoubleTap: () {
+                      _switchConfig(config.id);
+                      _renameConfig();
+                    },
+                    onLongPressStart: (details) => _showConfigMenu(config, cs, l10n, details.globalPosition),
+                    onSecondaryTapDown: (details) => _showConfigMenu(config, cs, l10n, details.globalPosition),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? cs.primary.withOpacity(isDark ? 0.25 : 0.15)
+                            : isDark
+                                ? Colors.white.withOpacity(0.05)
+                                : cs.surfaceVariant.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isActive
+                              ? cs.primary.withOpacity(0.4)
+                              : isDark
+                                  ? Colors.white.withOpacity(0.08)
+                                  : cs.outlineVariant.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isActive ? lucide.Lucide.CloudCheck : lucide.Lucide.Cloud,
+                            size: 14,
+                            color: isActive ? cs.primary : cs.onSurface.withOpacity(0.5),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            config.displayName.length > 12
+                                ? '${config.displayName.substring(0, 12)}...'
+                                : config.displayName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                              color: isActive ? cs.primary : cs.onSurface.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            ),
+          ),
+          // Fixed add button on right
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(6),
+                onTap: _addNewConfig,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isDark ? Colors.white.withOpacity(0.1) : cs.outlineVariant.withOpacity(0.3),
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(
+                    lucide.Lucide.Plus,
+                    size: 16,
+                    color: cs.onSurface.withOpacity(0.5),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show context menu for config with modern glass morphism style
+  void _showConfigMenu(ApiTestConfig config, ColorScheme cs, AppLocalizations l10n, Offset position) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenSize = MediaQuery.of(context).size;
+
+    // Calculate menu position, ensuring it stays within screen bounds
+    const menuWidth = 160.0;
+    const menuHeight = 100.0; // approximate height
+
+    double left = position.dx;
+    double top = position.dy;
+
+    // Adjust if menu would overflow right edge
+    if (left + menuWidth > screenSize.width - 16) {
+      left = screenSize.width - menuWidth - 16;
+    }
+
+    // Adjust if menu would overflow bottom edge
+    if (top + menuHeight > screenSize.height - 16) {
+      top = position.dy - menuHeight;
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (ctx) {
+        return Stack(
+          children: [
+            // Tap outside to dismiss
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+            // Menu positioned at click location
+            Positioned(
+              left: left,
+              top: top,
+              child: Material(
+                color: Colors.transparent,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      width: 160,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? cs.surface.withOpacity(0.85)
+                            : cs.surface.withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.1)
+                              : cs.outlineVariant.withOpacity(0.3),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Rename option
+                          _buildMenuOption(
+                            icon: lucide.Lucide.Pencil,
+                            label: l10n.apiTestRenameConfig,
+                            color: cs.onSurface,
+                            isDark: isDark,
+                            cs: cs,
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _switchConfig(config.id);
+                              _renameConfig();
+                            },
+                          ),
+                          // Divider
+                          if (_configs.length > 1)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Divider(
+                                height: 1,
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.08)
+                                    : cs.outlineVariant.withOpacity(0.3),
+                              ),
+                            ),
+                          // Delete option
+                          if (_configs.length > 1)
+                            _buildMenuOption(
+                              icon: lucide.Lucide.Trash2,
+                              label: l10n.apiTestDeleteConfig,
+                              color: cs.error,
+                              isDark: isDark,
+                              cs: cs,
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                _deleteConfig(config.id);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMenuOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool isDark,
+    required ColorScheme cs,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        hoverColor: isDark
+            ? Colors.white.withOpacity(0.08)
+            : cs.primary.withOpacity(0.08),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

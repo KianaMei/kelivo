@@ -3098,6 +3098,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get apiTestStop => '停止';
 
   @override
+  String get apiTestRenameConfig => '重命名';
+
+  @override
+  String get apiTestRenameConfigTitle => '重命名配置';
+
+  @override
+  String get apiTestDeleteConfig => '删除';
+
+  @override
   String get logViewerTitle => '请求日志';
 
   @override

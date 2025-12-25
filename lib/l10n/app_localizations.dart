@@ -6056,6 +6056,24 @@ abstract class AppLocalizations {
   /// **'Stop'**
   String get apiTestStop;
 
+  /// No description provided for @apiTestRenameConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get apiTestRenameConfig;
+
+  /// No description provided for @apiTestRenameConfigTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename Configuration'**
+  String get apiTestRenameConfigTitle;
+
+  /// No description provided for @apiTestDeleteConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get apiTestDeleteConfig;
+
   /// No description provided for @logViewerTitle.
   ///
   /// In en, this message translates to:

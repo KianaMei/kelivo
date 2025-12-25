@@ -17,6 +17,48 @@ Future<void> showHtmlPreviewDialog(BuildContext context, String htmlText) {
   );
 }
 
+Future<void> showCodePreviewDialog(BuildContext context, String code, String language) {
+  return showDialog(
+    context: context,
+    builder: (ctx) => Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800, maxHeight: 600),
+        child: Column(
+          children: [
+            AppBar(
+              title: const Text('代码预览'),
+              automaticallyImplyLeading: false,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+              ],
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: HighlightView(
+                  code,
+                  language: language,
+                  theme: Theme.of(context).brightness == Brightness.dark
+                      ? atomOneDarkReasonableTheme
+                      : githubTheme,
+                  padding: const EdgeInsets.all(12),
+                  textStyle: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _HtmlPreviewWebPage extends StatelessWidget {
   const _HtmlPreviewWebPage({required this.htmlContent});
 

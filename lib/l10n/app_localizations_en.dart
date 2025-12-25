@@ -3207,6 +3207,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get apiTestStop => 'Stop';
 
   @override
+  String get apiTestRenameConfig => 'Rename';
+
+  @override
+  String get apiTestRenameConfigTitle => 'Rename Configuration';
+
+  @override
+  String get apiTestDeleteConfig => 'Delete';
+
+  @override
   String get logViewerTitle => 'Request Logs';
 
   @override

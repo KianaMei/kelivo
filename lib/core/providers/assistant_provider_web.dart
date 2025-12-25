@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/assistant.dart';
+import '../models/assistant_regex.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/avatar_cache.dart';
 
@@ -215,6 +216,60 @@ Do not interpret or translate—only transcribe and describe what is visually pr
     _assistants.insert(to, item);
     notifyListeners();
     await _persist();
+  }
+
+  Future<void> reorderAssistantRegex({
+    required String assistantId,
+    required int oldIndex,
+    required int newIndex,
+  }) async {
+    final idx = _assistants.indexWhere((a) => a.id == assistantId);
+    if (idx == -1) return;
+
+    final rules = List<AssistantRegex>.of(_assistants[idx].regexRules);
+    if (oldIndex < 0 || oldIndex >= rules.length) return;
+    if (newIndex < 0 || newIndex >= rules.length) return;
+
+    final item = rules.removeAt(oldIndex);
+    rules.insert(newIndex, item);
+
+    _assistants[idx] = _assistants[idx].copyWith(regexRules: rules);
+    notifyListeners();
+    await _persist();
+  }
+
+  // Export all assistants as JSON-compatible list
+  List<Map<String, dynamic>> exportAssistants() {
+    return _assistants.map((a) => a.toJson()).toList();
+  }
+
+  // Import assistants (merge strategy: overwrite if ID exists, else add)
+  Future<void> importAssistants(List<Map<String, dynamic>> data) async {
+    int added = 0;
+    int updated = 0;
+    
+    for (final json in data) {
+      try {
+        final a = Assistant.fromJson(json);
+        final idx = _assistants.indexWhere((existing) => existing.id == a.id);
+        if (idx != -1) {
+          _assistants[idx] = a;
+          updated++;
+        } else {
+          _assistants.add(a);
+          added++;
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('[AssistantProvider] Import skip invalid item: $e');
+        }
+      }
+    }
+    
+    if (added > 0 || updated > 0) {
+      await _persist();
+      notifyListeners();
+    }
   }
 }
 
