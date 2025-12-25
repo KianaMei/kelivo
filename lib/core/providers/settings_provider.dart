@@ -5,7 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import '../services/search/search_service.dart';
 import '../services/network/request_logger.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
+// import 'package:flutter_background_service/flutter_background_service.dart'; // TEMP disabled
 import 'dart:io' show Platform;
 import '../utils/http_logger.dart';
 // Re-export ProviderKind from tool_schema_sanitizer for downstream consumers
@@ -1046,18 +1046,19 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setString(_androidBackgroundChatModeKey, v);
     
     // Manage Android background service state
-    if (!kIsWeb && Platform.isAndroid) {
-      final service = FlutterBackgroundService();
-      if (mode == AndroidBackgroundChatMode.off) {
-        service.invoke("stopService");
-      } else {
-        // 'on' or 'onNotify' -> ensure started
-        final isRunning = await service.isRunning();
-        if (!isRunning) {
-          await service.startService();
-        }
-      }
-    }
+    // TEMP: disabled - flutter_background_service causes crash
+    // if (!kIsWeb && Platform.isAndroid) {
+    //   final service = FlutterBackgroundService();
+    //   if (mode == AndroidBackgroundChatMode.off) {
+    //     service.invoke("stopService");
+    //   } else {
+    //     // 'on' or 'onNotify' -> ensure started
+    //     final isRunning = await service.isRunning();
+    //     if (!isRunning) {
+    //       await service.startService();
+    //     }
+    //   }
+    // }
   }
 
   Future<void> toggleTheme() => setThemeMode(
