@@ -44,9 +44,10 @@ Future<void> main() async {
   // Initialize global Dio HTTP client
   initDio();
   // Initialize Android/iOS background service (skip on desktop/web)
-  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
-    await initializeBackgroundService();
-  }
+  // TEMP: Disabled to diagnose crash
+  // if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS)) {
+  //   await initializeBackgroundService();
+  // }
   // Platform-specific bootstrap (IO: dirs/window/fonts/path fix, Web: minimal)
   await platformBootstrap();
 

@@ -511,9 +511,10 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     // Initialize/Sync background service state (Android only)
-    if (!kIsWeb && Platform.isAndroid && _androidBackgroundChatMode != AndroidBackgroundChatMode.off) {
-      FlutterBackgroundService().startService();
-    }
+    // TEMP: Disabled to diagnose crash
+    // if (!kIsWeb && Platform.isAndroid && _androidBackgroundChatMode != AndroidBackgroundChatMode.off) {
+    //   FlutterBackgroundService().startService();
+    // }
 
     // webdav config - 支持多配置
     // 先尝试加载新版多配置
