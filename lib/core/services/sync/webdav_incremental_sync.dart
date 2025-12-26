@@ -378,6 +378,7 @@ class IncrementalSyncManager {
   }
 
   /// 使用预获取的索引同步设置
+  /// 策略：先下载远程数据合并到本地，然后上传合并后的完整数据
   Future<void> _syncSettingsWithIndex(
     Map<String, dynamic> localSettings,
     Map<String, RemoteFileInfo> remoteRoot,
@@ -385,25 +386,20 @@ class IncrementalSyncManager {
   ) async {
     try {
       final remoteInfo = remoteRoot['settings.json'];
-      bool upload = true;
 
+      // 1. 如果远程存在，先下载并合并到本地
       if (remoteInfo != null && onRemoteFound != null) {
-        final localTime = DateTime.tryParse(localSettings['exportedAt'] ?? '') ?? DateTime.now();
-        // 2秒容差，避免频繁冲突
-        if (remoteInfo.lastModified.isAfter(localTime.add(const Duration(seconds: 2)))) {
-          _log('Downloading newer settings...');
-          final remoteData = await _api.downloadJson('settings.json');
-          if (remoteData != null) {
-            onRemoteFound(remoteData);
-            upload = false;
-          }
+        _log('Downloading remote settings for merge...');
+        final remoteData = await _api.downloadJson('settings.json');
+        if (remoteData != null) {
+          // 通知调用方处理远程数据（合并到本地）
+          onRemoteFound(remoteData);
         }
       }
 
-      if (upload) {
-        _log('Uploading settings...');
-        await _api.uploadJson('settings.json', localSettings);
-      }
+      // 2. 上传本地数据（现在包含合并后的内容）
+      _log('Uploading settings...');
+      await _api.uploadJson('settings.json', localSettings);
     } catch (e) {
       _log('Error syncing settings: $e');
     }
@@ -465,6 +461,7 @@ class IncrementalSyncManager {
   }
 
   /// 同步单个对话
+  /// 策略：先下载远程数据合并到本地，然后上传合并后的完整数据
   Future<void> _syncSingleConversation(
     String id,
     Map<String, dynamic>? local,
@@ -474,28 +471,17 @@ class IncrementalSyncManager {
     final remoteFilename = '$id.json';
     final remoteInfo = remoteIndex[remoteFilename];
 
-    if (local != null) {
-      final localTime = DateTime.tryParse(local['updatedAt'] ?? '') ?? DateTime(2000);
-
-      if (remoteInfo == null) {
-        // 云端没有 -> 上传
-        _log('Uploading new conversation: $id');
-        await _api.uploadJson('conversations/$remoteFilename', local);
-      } else if (localTime.isAfter(remoteInfo.lastModified.add(const Duration(seconds: 2)))) {
-        // 本地更新 -> 上传
-        _log('Uploading updated conversation: $id');
-        await _api.uploadJson('conversations/$remoteFilename', local);
-      } else if (remoteInfo.lastModified.isAfter(localTime.add(const Duration(seconds: 2)))) {
-        // 云端更新 -> 下载
-        _log('Downloading newer conversation: $id');
-        final data = await _api.downloadJson('conversations/$remoteFilename');
-        if (data != null) onRemoteNewer(data);
-      }
-    } else if (remoteInfo != null) {
-      // 本地没有但云端有 -> 下载
-      _log('Downloading new conversation: $id');
+    // 1. 如果远程存在，先下载并通知调用方合并
+    if (remoteInfo != null) {
+      _log('Downloading remote conversation for merge: $id');
       final data = await _api.downloadJson('conversations/$remoteFilename');
       if (data != null) onRemoteNewer(data);
+    }
+
+    // 2. 上传本地数据（现在包含合并后的内容）
+    if (local != null) {
+      _log('Uploading conversation: $id');
+      await _api.uploadJson('conversations/$remoteFilename', local);
     }
   }
 
@@ -634,47 +620,28 @@ class IncrementalSyncManager {
       localMsgs = [];
     }
 
-    // 计算本地"修改时间"：取最新一条消息的时间
-    DateTime localLastMod = DateTime(2000);
-    if (localMsgs.isNotEmpty) {
-      // 假设消息按时间排序，最后一条最新
-      localLastMod = DateTime.tryParse(localMsgs.last['timestamp'] ?? '') ?? DateTime(2000);
+    // 策略：先下载远程数据合并到本地，然后上传合并后的完整数据
+    if (remoteInfo != null) {
+      // 1. 下载远程消息并通知调用方合并
+      _log('Downloading remote messages for merge: $convId');
+      final data = await _api.downloadJson('messages/$remoteFilename');
+      if (data != null) {
+        // 传递完整数据（可能包含 toolEvents）
+        onRemoteNewer(convId, data);
+      }
     }
 
-    if (remoteInfo == null) {
-      if (localMsgs.isNotEmpty) {
-        _log('Uploading messages for: $convId (${localMsgs.length} items)');
-        // 使用新格式上传（包含 toolEvents）
-        final uploadData = <String, dynamic>{
-          'messages': localMsgs,
-        };
-        if (localToolEvents != null && localToolEvents.isNotEmpty) {
-          uploadData['toolEvents'] = localToolEvents;
-        }
-        await _api.uploadJson('messages/$remoteFilename', uploadData);
+    // 2. 上传本地数据（现在包含合并后的内容）
+    if (localMsgs.isNotEmpty) {
+      _log('Uploading messages for: $convId (${localMsgs.length} items)');
+      // 使用新格式上传（包含 toolEvents）
+      final uploadData = <String, dynamic>{
+        'messages': localMsgs,
+      };
+      if (localToolEvents != null && localToolEvents.isNotEmpty) {
+        uploadData['toolEvents'] = localToolEvents;
       }
-    } else {
-      // 对比时间
-      // 如果云端文件修改时间 > 本地最新消息时间 + 容差 -> 下载
-      if (remoteInfo.lastModified.isAfter(localLastMod.add(const Duration(seconds: 5)))) {
-        _log('Downloading messages for: $convId');
-        final data = await _api.downloadJson('messages/$remoteFilename');
-        if (data != null) {
-          // 传递完整数据（可能包含 toolEvents）
-          onRemoteNewer(convId, data);
-        }
-      } else if (localLastMod.isAfter(remoteInfo.lastModified.add(const Duration(seconds: 5)))) {
-        // 本地比云端新 -> 上传
-        _log('Uploading newer messages for: $convId');
-        // 使用新格式上传（包含 toolEvents）
-        final uploadData = <String, dynamic>{
-          'messages': localMsgs,
-        };
-        if (localToolEvents != null && localToolEvents.isNotEmpty) {
-          uploadData['toolEvents'] = localToolEvents;
-        }
-        await _api.uploadJson('messages/$remoteFilename', uploadData);
-      }
+      await _api.uploadJson('messages/$remoteFilename', uploadData);
     }
   }
 }
