@@ -572,6 +572,12 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Public reload method to refresh settings from SharedPreferences
+  /// Useful after external settings import (e.g., incremental sync)
+  Future<void> reload() async {
+    await _load();
+  }
+
   // ===== Display: App/Code Font Settings =====
   String? _appFontFamily; // null or empty => use default theme fonts
   bool _appFontIsGoogle = false;

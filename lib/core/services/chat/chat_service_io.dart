@@ -528,12 +528,13 @@ class ChatService extends ChangeNotifier {
     final mergedIds =
         candidateIds.where((id) => _messagesBox.containsKey(id)).toList();
 
-    // For metadata: newer updatedAt wins
+    // For metadata: newer updatedAt wins, but always use remote title if local is placeholder
     final useRemoteMetadata = remoteConv.updatedAt.isAfter(localConv.updatedAt);
+    final isLocalPlaceholder = localConv.title == 'Synced Conversation';
 
     final merged = Conversation(
       id: remoteConv.id,
-      title: useRemoteMetadata ? remoteConv.title : localConv.title,
+      title: isLocalPlaceholder ? remoteConv.title : (useRemoteMetadata ? remoteConv.title : localConv.title),
       createdAt: localConv.createdAt, // Keep original creation time
       updatedAt: useRemoteMetadata ? remoteConv.updatedAt : localConv.updatedAt,
       messageIds: mergedIds,

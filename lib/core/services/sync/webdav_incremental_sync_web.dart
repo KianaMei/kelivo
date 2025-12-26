@@ -239,14 +239,14 @@ class IncrementalSyncManagerWeb {
       : _api = WebDavIncrementalSyncWeb(config),
         _log = logger ?? ((_) {});
 
-  /// 执行完整同步
+  /// 执行完整同步（支持 toolEvents 的新格式）
   Future<void> performSync({
     required List<Map<String, dynamic>> localConversations,
-    required Future<List<Map<String, dynamic>>> Function(String convId) localMessagesFetcher,
+    required Future<dynamic> Function(String convId) localMessagesFetcher,
     Map<String, dynamic>? localSettings,
     List<Map<String, dynamic>>? localAssistants,
     required Function(Map<String, dynamic> conv) onRemoteConversationFound,
-    required Function(String convId, List<Map<String, dynamic>> msgs) onRemoteMessagesFound,
+    required Function(String convId, dynamic data) onRemoteMessagesFound,
     Function(Map<String, dynamic> settings)? onRemoteSettingsFound,
     Function(List<Map<String, dynamic>> assistants)? onRemoteAssistantsFound,
     Function(int current, int total, String stage)? onProgress,
@@ -400,14 +400,27 @@ class IncrementalSyncManagerWeb {
 
   Future<void> _syncMessages(
     String convId,
-    Future<List<Map<String, dynamic>>> Function(String) fetchLocalMsgs,
+    Future<dynamic> Function(String) fetchLocalMsgs,
     Map<String, RemoteFileInfoWeb> remoteIndex,
-    Function(String, List<Map<String, dynamic>>) onRemoteNewer,
+    Function(String, dynamic) onRemoteNewer,
   ) async {
     final remoteFilename = '$convId.json';
     final remoteInfo = remoteIndex[remoteFilename];
 
-    final localMsgs = await fetchLocalMsgs(convId);
+    // 获取本地消息（可能是 List 或 Map 格式）
+    final localData = await fetchLocalMsgs(convId);
+    
+    // 解析本地数据
+    List<Map<String, dynamic>> localMsgs;
+    Map<String, dynamic>? localToolEvents;
+    if (localData is Map) {
+      localMsgs = ((localData['messages'] as List?) ?? []).cast<Map<String, dynamic>>();
+      localToolEvents = localData['toolEvents'] as Map<String, dynamic>?;
+    } else if (localData is List) {
+      localMsgs = localData.cast<Map<String, dynamic>>();
+    } else {
+      localMsgs = [];
+    }
 
     DateTime localLastMod = DateTime(2000);
     if (localMsgs.isNotEmpty) {
@@ -417,19 +430,33 @@ class IncrementalSyncManagerWeb {
     if (remoteInfo == null) {
       if (localMsgs.isNotEmpty) {
         _log('Uploading messages for: $convId (${localMsgs.length} items)');
-        await _api.uploadJson('messages/$remoteFilename', {'messages': localMsgs});
+        // 使用新格式上传（包含 toolEvents）
+        final uploadData = <String, dynamic>{
+          'messages': localMsgs,
+        };
+        if (localToolEvents != null && localToolEvents.isNotEmpty) {
+          uploadData['toolEvents'] = localToolEvents;
+        }
+        await _api.uploadJson('messages/$remoteFilename', uploadData);
       }
     } else {
       if (remoteInfo.lastModified.isAfter(localLastMod.add(const Duration(seconds: 5)))) {
         _log('Downloading messages for: $convId');
         final data = await _api.downloadJson('messages/$remoteFilename');
-        if (data != null && data['messages'] is List) {
-          final msgs = (data['messages'] as List).cast<Map<String, dynamic>>();
-          onRemoteNewer(convId, msgs);
+        if (data != null) {
+          // 传递完整数据（可能包含 toolEvents）
+          onRemoteNewer(convId, data);
         }
       } else if (localLastMod.isAfter(remoteInfo.lastModified.add(const Duration(seconds: 5)))) {
         _log('Uploading newer messages for: $convId');
-        await _api.uploadJson('messages/$remoteFilename', {'messages': localMsgs});
+        // 使用新格式上传（包含 toolEvents）
+        final uploadData = <String, dynamic>{
+          'messages': localMsgs,
+        };
+        if (localToolEvents != null && localToolEvents.isNotEmpty) {
+          uploadData['toolEvents'] = localToolEvents;
+        }
+        await _api.uploadJson('messages/$remoteFilename', uploadData);
       }
     }
   }

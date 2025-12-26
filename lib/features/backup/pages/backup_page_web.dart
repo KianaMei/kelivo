@@ -18,6 +18,7 @@ import '../../../utils/backup_filename.dart';
 import '../../../utils/restart_widget.dart';
 import '../../../core/services/sync/webdav_incremental_sync_web.dart';
 import '../../../core/providers/assistant_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // File size formatter (B, KB, MB, GB)
 String _fmtBytes(int bytes) {
@@ -603,16 +604,19 @@ class _BackupPageState extends State<BackupPage> {
         logger: (msg) => print('[Sync/Web] $msg'),
       );
 
-      // Get local conversations
+      // Get local conversations (full JSON for complete sync)
       final convs = chatService.getAllConversations();
-      final localConvsMapped = convs.map((c) => {
-        'id': c.id,
-        'title': c.title,
-        'updatedAt': c.updatedAt.toIso8601String(),
-      }).toList();
+      final localConvsMapped = convs.map((c) => c.toJson()).toList();
 
-      // Export data
-      final settingsMap = settingsProvider.exportSettings();
+      // Export data - use full SharedPreferences snapshot for complete sync
+      final prefs = await SharedPreferences.getInstance();
+      final allKeys = prefs.getKeys();
+      final settingsMap = <String, dynamic>{
+        'exportedAt': DateTime.now().toIso8601String(),
+      };
+      for (final k in allKeys) {
+        settingsMap[k] = prefs.get(k);
+      }
       final assistantsList = assistantProvider.exportAssistants();
 
       await manager.performSync(
@@ -620,19 +624,61 @@ class _BackupPageState extends State<BackupPage> {
         localSettings: settingsMap,
         localAssistants: assistantsList,
         localMessagesFetcher: (convId) async {
+          // Fetch real messages with tool events
           final messages = chatService.getMessages(convId);
-          return messages.map((m) => m.toJson()).toList();
+          final toolEvents = <String, List<Map<String, dynamic>>>{};
+          for (final m in messages) {
+            if (m.role == 'assistant') {
+              final ev = chatService.getToolEvents(m.id);
+              if (ev.isNotEmpty) toolEvents[m.id] = ev;
+            }
+          }
+          return {
+            'messages': messages.map((m) => m.toJson()).toList(),
+            'toolEvents': toolEvents,
+          };
         },
         onRemoteConversationFound: (c) async {
           print('[Sync/Web] Remote conv found: ${c['id']}');
           await chatService.importConversationFromJson(c);
         },
-        onRemoteMessagesFound: (id, msgs) async {
-          print('[Sync/Web] Remote msgs found for $id: ${msgs.length} items');
+        onRemoteMessagesFound: (id, data) async {
+          // Handle both old format (List) and new format (Map with toolEvents)
+          List<Map<String, dynamic>> msgs;
+          Map<String, List<Map<String, dynamic>>> toolEvents = {};
+          if (data is Map) {
+            msgs = ((data['messages'] as List?) ?? []).cast<Map<String, dynamic>>();
+            toolEvents = ((data['toolEvents'] as Map?) ?? {}).map(
+              (k, v) => MapEntry(k.toString(), (v as List).cast<Map>().map((e) => e.cast<String, dynamic>()).toList()),
+            );
+          } else if (data is List) {
+            msgs = data.cast<Map<String, dynamic>>();
+          } else {
+            return;
+          }
+          print('[Sync/Web] Remote msgs found for $id: ${msgs.length} items, ${toolEvents.length} tool events');
           await chatService.importMessagesFromJson(id, msgs);
+          // Import tool events
+          for (final entry in toolEvents.entries) {
+            try { await chatService.setToolEvents(entry.key, entry.value); } catch (_) {}
+          }
         },
         onRemoteSettingsFound: (data) async {
-          await settingsProvider.importSettings(data);
+          // Use full SharedPreferences restore for complete sync
+          final prefs = await SharedPreferences.getInstance();
+          for (final entry in data.entries) {
+            final k = entry.key;
+            final v = entry.value;
+            if (v is bool) await prefs.setBool(k, v);
+            else if (v is int) await prefs.setInt(k, v);
+            else if (v is double) await prefs.setDouble(k, v);
+            else if (v is String) await prefs.setString(k, v);
+            else if (v is List) {
+              await prefs.setStringList(k, v.whereType<String>().toList());
+            }
+          }
+          // Reload settings provider to pick up changes
+          await settingsProvider.reload();
         },
         onRemoteAssistantsFound: (list) async {
           await assistantProvider.importAssistants(list);

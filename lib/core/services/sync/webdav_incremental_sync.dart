@@ -285,19 +285,19 @@ class IncrementalSyncManager {
 
   /// 执行一次完整的同步（并行优化版本）
   /// [localConversations] 本地对话列表
-  /// [localMessagesFetcher] 获取指定对话的所有消息的回调
+  /// [localMessagesFetcher] 获取指定对话的所有消息的回调（返回 Map 包含 messages 和 toolEvents）
   /// [localAssetRoot] 本地数据根目录 (AppDirs.dataRoot)
   /// [localSettings] 本地全局设置 (可选)
   /// [localAssistants] 本地助手列表 (可选)
   /// [onProgress] 进度回调 (current, total, stage)
   Future<void> performSync({
     required List<Map<String, dynamic>> localConversations,
-    required Future<List<Map<String, dynamic>>> Function(String convId) localMessagesFetcher,
+    required Future<dynamic> Function(String convId) localMessagesFetcher,
     required String localAssetRoot,
     Map<String, dynamic>? localSettings,
     List<Map<String, dynamic>>? localAssistants,
     required Function(Map<String, dynamic> conv) onRemoteConversationFound,
-    required Function(String convId, List<Map<String, dynamic>> msgs) onRemoteMessagesFound,
+    required Function(String convId, dynamic data) onRemoteMessagesFound,
     Function(Map<String, dynamic> settings)? onRemoteSettingsFound,
     Function(List<Map<String, dynamic>> assistants)? onRemoteAssistantsFound,
     Function(int current, int total, String stage)? onProgress,
@@ -502,9 +502,9 @@ class IncrementalSyncManager {
   /// 并行同步消息（批量处理，限制并发）
   Future<void> _syncMessagesParallel(
     List<String> convIds,
-    Future<List<Map<String, dynamic>>> Function(String) fetchLocalMsgs,
+    Future<dynamic> Function(String) fetchLocalMsgs,
     Map<String, RemoteFileInfo> remoteIndex,
-    Function(String, List<Map<String, dynamic>>) onRemoteNewer, {
+    Function(String, dynamic) onRemoteNewer, {
     Function()? onEach,
   }) async {
     const batchSize = 8;
@@ -609,18 +609,30 @@ class IncrementalSyncManager {
 
   /// 同步单个对话的消息记录
   /// 目前策略：文件级覆盖。如果云端新，就下载覆盖本地；如果本地新，就上传覆盖云端。
-  /// 改进空间：实现真正的增量 merge (Set union)
+  /// 支持新格式（包含 toolEvents）和旧格式（仅消息列表）
   Future<void> _syncMessagesForConversation(
     String convId,
-    Future<List<Map<String, dynamic>>> Function(String) fetchLocalMsgs,
+    Future<dynamic> Function(String) fetchLocalMsgs,
     Map<String, RemoteFileInfo> remoteIndex,
-    Function(String, List<Map<String, dynamic>>) onRemoteNewer,
+    Function(String, dynamic) onRemoteNewer,
   ) async {
     final remoteFilename = '$convId.json';
     final remoteInfo = remoteIndex[remoteFilename];
 
-    // 获取本地消息
-    final localMsgs = await fetchLocalMsgs(convId);
+    // 获取本地消息（可能是 List 或 Map 格式）
+    final localData = await fetchLocalMsgs(convId);
+    
+    // 解析本地数据
+    List<Map<String, dynamic>> localMsgs;
+    Map<String, dynamic>? localToolEvents;
+    if (localData is Map) {
+      localMsgs = ((localData['messages'] as List?) ?? []).cast<Map<String, dynamic>>();
+      localToolEvents = localData['toolEvents'] as Map<String, dynamic>?;
+    } else if (localData is List) {
+      localMsgs = localData.cast<Map<String, dynamic>>();
+    } else {
+      localMsgs = [];
+    }
 
     // 计算本地"修改时间"：取最新一条消息的时间
     DateTime localLastMod = DateTime(2000);
@@ -632,7 +644,14 @@ class IncrementalSyncManager {
     if (remoteInfo == null) {
       if (localMsgs.isNotEmpty) {
         _log('Uploading messages for: $convId (${localMsgs.length} items)');
-        await _api.uploadJson('messages/$remoteFilename', {'messages': localMsgs});
+        // 使用新格式上传（包含 toolEvents）
+        final uploadData = <String, dynamic>{
+          'messages': localMsgs,
+        };
+        if (localToolEvents != null && localToolEvents.isNotEmpty) {
+          uploadData['toolEvents'] = localToolEvents;
+        }
+        await _api.uploadJson('messages/$remoteFilename', uploadData);
       }
     } else {
       // 对比时间
@@ -640,14 +659,21 @@ class IncrementalSyncManager {
       if (remoteInfo.lastModified.isAfter(localLastMod.add(const Duration(seconds: 5)))) {
         _log('Downloading messages for: $convId');
         final data = await _api.downloadJson('messages/$remoteFilename');
-        if (data != null && data['messages'] is List) {
-          final msgs = (data['messages'] as List).cast<Map<String, dynamic>>();
-          onRemoteNewer(convId, msgs);
+        if (data != null) {
+          // 传递完整数据（可能包含 toolEvents）
+          onRemoteNewer(convId, data);
         }
       } else if (localLastMod.isAfter(remoteInfo.lastModified.add(const Duration(seconds: 5)))) {
         // 本地比云端新 -> 上传
         _log('Uploading newer messages for: $convId');
-        await _api.uploadJson('messages/$remoteFilename', {'messages': localMsgs});
+        // 使用新格式上传（包含 toolEvents）
+        final uploadData = <String, dynamic>{
+          'messages': localMsgs,
+        };
+        if (localToolEvents != null && localToolEvents.isNotEmpty) {
+          uploadData['toolEvents'] = localToolEvents;
+        }
+        await _api.uploadJson('messages/$remoteFilename', uploadData);
       }
     }
   }
