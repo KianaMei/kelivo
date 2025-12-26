@@ -5337,7 +5337,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   showTokenStats: context.watch<SettingsProvider>().showTokenStats,
                   reasoningText: (message.role == 'assistant') ? (r?.text ?? '') : null,
                   reasoningExpanded: (message.role == 'assistant') ? (r?.expanded ?? false) : false,
-                  reasoningLoading: (message.role == 'assistant') ? (r?.finishedAt == null && (r?.text.isNotEmpty == true)) : false,
+                  reasoningLoading: (message.role == 'assistant') ? (message.isStreaming && r?.finishedAt == null && (r?.text.isNotEmpty == true)) : false,
                   reasoningStartAt: (message.role == 'assistant') ? r?.startAt : null,
                   reasoningFinishedAt: (message.role == 'assistant') ? r?.finishedAt : null,
                   onToggleReasoning: (message.role == 'assistant' && r != null)

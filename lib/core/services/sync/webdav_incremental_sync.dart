@@ -348,21 +348,22 @@ class IncrementalSyncManager {
     if (localSettings == null) reportProgress(totalSteps, 'Settings');
     if (localAssistants == null) reportProgress(totalSteps, 'Assistants');
 
-    // 4. 并行处理 Conversation 同步（批量，限制并发数）
-    await _syncConversationsParallel(
-      localConversations,
-      remoteConvs,
-      onRemoteConversationFound,
-      onEach: () => reportProgress(totalSteps, 'Conversations'),
-    );
 
-    // 5. 并行处理 Messages 同步（批量，限制并发数）
+    // 4. 并行处理 Messages 同步（必须先于 Conversations，确保消息存在后再合并 messageIds）
     await _syncMessagesParallel(
       allConvIds.toList(),
       localMessagesFetcher,
       remoteMsgs,
       onRemoteMessagesFound,
       onEach: () => reportProgress(totalSteps, 'Messages'),
+    );
+
+    // 5. 并行处理 Conversation 同步（在消息同步完成后进行，确保 messageIds 合并时消息已存在）
+    await _syncConversationsParallel(
+      localConversations,
+      remoteConvs,
+      onRemoteConversationFound,
+      onEach: () => reportProgress(totalSteps, 'Conversations'),
     );
 
     // 6. 并行同步所有静态资源

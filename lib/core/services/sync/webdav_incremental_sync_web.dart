@@ -293,17 +293,17 @@ class IncrementalSyncManagerWeb {
       reportProgress(totalSteps, 'Assistants');
     }
 
-    // 5. 同步 Conversations
+    // 5. 同步 Messages（必须先于 Conversations，确保消息存在后再合并 messageIds）
+    for (final convId in allConvIds) {
+      await _syncMessages(convId, localMessagesFetcher, remoteMsgs, onRemoteMessagesFound);
+      reportProgress(totalSteps, 'Messages');
+    }
+
+    // 6. 同步 Conversations（在消息同步完成后进行）
     final localConvMap = {for (var c in localConversations) c['id'] as String: c};
     for (final id in allConvIds) {
       await _syncConversation(id, localConvMap[id], remoteConvs, onRemoteConversationFound);
       reportProgress(totalSteps, 'Conversations');
-    }
-
-    // 6. 同步 Messages
-    for (final convId in allConvIds) {
-      await _syncMessages(convId, localMessagesFetcher, remoteMsgs, onRemoteMessagesFound);
-      reportProgress(totalSteps, 'Messages');
     }
 
     _log('Sync completed.');
