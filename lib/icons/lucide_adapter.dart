@@ -195,4 +195,8 @@ class Lucide {
   // Regex icons
   static const IconData Replace = lucide.LucideIcons.replace;
   static const IconData ReplaceAll = lucide.LucideIcons.replaceAll;
+  // Agent related icons
+  static const IconData FolderOpen = lucide.LucideIcons.folderOpen;
+  static const IconData StopCircle = lucide.LucideIcons.circleStop;
+  static const IconData ShieldQuestion = lucide.LucideIcons.shieldAlert;
 }

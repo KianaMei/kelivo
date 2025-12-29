@@ -34,8 +34,9 @@ class GoogleAdapter {
   /// 从消息内容中提取签名元数据
   static _GeminiSignatureMeta _extractGeminiThoughtMeta(String raw) {
     try {
-      final m = _geminiThoughtSigComment.firstMatch(raw);
-      if (m == null) return _GeminiSignatureMeta(cleanedText: raw);
+      final matches = _geminiThoughtSigComment.allMatches(raw).toList();
+      if (matches.isEmpty) return _GeminiSignatureMeta(cleanedText: raw);
+      final m = matches.last;
       final payloadRaw = (m.group(1) ?? '').trim();
       Map<String, dynamic> data = const <String, dynamic>{};
       try {
@@ -62,7 +63,7 @@ class GoogleAdapter {
           images.add({'k': k, 'v': v});
         }
       }
-      final cleaned = raw.replaceRange(m.start, m.end, '').trimRight();
+      final cleaned = raw.replaceAll(_geminiThoughtSigComment, '').trimRight();
       return _GeminiSignatureMeta(cleanedText: cleaned, textKey: textKey, textValue: textVal, images: images);
     } catch (_) {
       return _GeminiSignatureMeta(cleanedText: raw);
@@ -442,15 +443,11 @@ class GoogleAdapter {
     // Check if Gemini 3 model (uses thinkingLevel directly)
     final isGemini3 = _isGemini3Model(upstreamModelId);
 
-    // For Gemini 2.5 models, convert effort level to actual budget tokens
-    // For Gemini 3 models, we pass thinkingBudget directly to _budgetToThinkingLevel
-    final actualBudget = isGemini3
-        ? thinkingBudget  // Gemini 3: will be converted to thinkingLevel
-        : ChatApiHelper.effortToBudget(thinkingBudget, upstreamModelId);
-
-    // Resolve thinking budget based on model category (for Gemini 2.5)
-    final resolvedBudget = _resolveThinkingBudget(upstreamModelId, actualBudget);
-    final off = resolvedBudget == 0;
+    // Gemini 3 uses effort levels directly (thinkingLevel); do NOT clamp negative effort constants.
+    // Off (0) means: do not request thoughts (`includeThoughts: false`).
+    final budgetForGemini25 = isGemini3 ? null : ChatApiHelper.effortToBudget(thinkingBudget, upstreamModelId);
+    final resolvedBudget = isGemini3 ? null : _resolveThinkingBudget(upstreamModelId, budgetForGemini25);
+    final off = isGemini3 ? (thinkingBudget == 0) : (resolvedBudget == 0);
 
     // Built-in Gemini tools
     final builtIns = ChatApiHelper.builtInTools(config, modelId);

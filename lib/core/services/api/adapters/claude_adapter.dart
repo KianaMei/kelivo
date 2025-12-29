@@ -287,7 +287,8 @@ class ClaudeAdapter {
                 srvArgsStr[id] = '';
               }
             } else if (cb is Map && (cb['type'] == 'web_search_tool_result')) {
-              final toolUseId = (cb['tool_use_id'] ?? '').toString();
+              // Some streams may omit `tool_use_id`; fall back to block id if present so UI can correlate call/result.
+              final toolUseId = (cb['tool_use_id'] ?? cb['id'] ?? '').toString();
               final contentBlock = cb['content'];
               final items = <Map<String, dynamic>>[];
               String? errorCode;

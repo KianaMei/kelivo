@@ -5,6 +5,7 @@ import '../../../core/services/api/models/chat_stream_chunk.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/models/token_usage.dart';
 import '../../../core/models/chat_message.dart';
+import '../../../core/utils/gemini_thought_signatures.dart';
 import '../../chat/widgets/message/message_models.dart';
 import '../state/reasoning_state.dart';
 import 'streaming_content_notifier.dart';
@@ -118,33 +119,84 @@ class StreamResult {
 class ChatStreamHandler {
   /// 去重工具事件列表
   static List<Map<String, dynamic>> dedupeToolEvents(List<Map<String, dynamic>> events) {
-    final seen = <String>{};
-    final result = <Map<String, dynamic>>[];
-    for (final e in events.reversed) {
-      final id = e['id'] as String? ?? '';
-      if (id.isNotEmpty && !seen.contains(id)) {
-        seen.add(id);
-        result.insert(0, e);
-      } else if (id.isEmpty) {
-        result.insert(0, e);
+    // Tool call/result chunks can arrive out-of-order (e.g. builtin web search).
+    // If we keep the "last" one, a later placeholder can overwrite a completed result.
+    // Merge by id, prefer non-empty content, and keep the first occurrence order.
+    final indexById = <String, int>{};
+    final out = <Map<String, dynamic>>[];
+
+    for (final raw in events) {
+      final e = raw.map((k, v) => MapEntry(k.toString(), v));
+      final id = (e['id'] ?? '').toString();
+      if (id.isEmpty) {
+        out.add(e);
+        continue;
       }
+
+      final idx = indexById[id];
+      if (idx == null) {
+        indexById[id] = out.length;
+        out.add(e);
+        continue;
+      }
+
+      final prev = out[idx];
+      final merged = Map<String, dynamic>.from(prev);
+
+      final name = (e['name'] ?? '').toString();
+      if (name.isNotEmpty) merged['name'] = name;
+
+      final args = e['arguments'];
+      if (args is Map && args.isNotEmpty) merged['arguments'] = args;
+
+      final prevContent = (prev['content'] ?? '').toString();
+      final nextContent = (e['content'] ?? '').toString();
+      if (nextContent.isNotEmpty) {
+        merged['content'] = e['content'];
+      } else if (prevContent.isNotEmpty) {
+        merged['content'] = prev['content'];
+      } else {
+        merged['content'] = e['content'] ?? prev['content'];
+      }
+
+      out[idx] = merged;
     }
-    return result;
+
+    return out;
   }
 
   /// 去重 ToolUIPart 列表
   static List<ToolUIPart> dedupeToolPartsList(List<ToolUIPart> parts) {
-    final seen = <String>{};
-    final result = <ToolUIPart>[];
-    for (final p in parts.reversed) {
-      if (p.id.isNotEmpty && !seen.contains(p.id)) {
-        seen.add(p.id);
-        result.insert(0, p);
-      } else if (p.id.isEmpty) {
-        result.insert(0, p);
+    // Same rationale as dedupeToolEvents: merge placeholders + results by id.
+    final indexById = <String, int>{};
+    final out = <ToolUIPart>[];
+
+    for (final p in parts) {
+      if (p.id.isEmpty) {
+        out.add(p);
+        continue;
       }
+
+      final idx = indexById[p.id];
+      if (idx == null) {
+        indexById[p.id] = out.length;
+        out.add(p);
+        continue;
+      }
+
+      final prev = out[idx];
+      final content = (p.content?.isNotEmpty == true) ? p.content : prev.content;
+      final hasContent = (content?.isNotEmpty == true);
+      out[idx] = ToolUIPart(
+        id: prev.id,
+        toolName: prev.toolName.isNotEmpty ? prev.toolName : p.toolName,
+        arguments: p.arguments.isNotEmpty ? p.arguments : prev.arguments,
+        content: content,
+        loading: hasContent ? false : (prev.loading && p.loading),
+      );
     }
-    return result;
+
+    return out;
   }
 
   /// 处理推理块
@@ -332,12 +384,26 @@ class ChatStreamHandler {
   }
 
   /// 处理内容块
-  static void handleContentChunk(StreamContext ctx, String content) {
+  static Future<void> handleContentChunk(StreamContext ctx, String content) async {
     if (content.isEmpty) return;
 
     if (ctx.firstTokenTime == null) {
       ctx.firstTokenTime = DateTime.now();
     }
+
+    // Gemini 3 persists `thoughtSignature` metadata as HTML comments; never show it to users.
+    if (GeminiThoughtSignatures.hasAny(content)) {
+      final sig = GeminiThoughtSignatures.extractLast(content);
+      if (sig != null && sig.isNotEmpty) {
+        await ctx.chatService.setGeminiThoughtSignature(ctx.messageId, sig);
+      }
+      final cleaned = GeminiThoughtSignatures.stripAll(content);
+      // If the chunk only carried metadata + whitespace, drop it entirely.
+      if (cleaned.trim().isEmpty) return;
+      ctx.fullContent += cleaned;
+      return;
+    }
+
     ctx.fullContent += content;
   }
 

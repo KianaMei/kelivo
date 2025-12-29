@@ -70,6 +70,7 @@ class ChatInputBar extends StatefulWidget {
     this.onUploadFiles,
     this.onToggleLearningMode,
     this.onClearContext,
+    this.clearContextLabel,
     this.onLongPressLearning,
     this.learningModeActive = false,
     this.showMoreButton = true,
@@ -119,6 +120,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onClearContext;
+  final String? clearContextLabel;
   final VoidCallback? onLongPressLearning;
   final bool learningModeActive;
   final bool showMoreButton;
@@ -865,7 +867,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                             if (widget.onClearContext != null) ...[
                               const SizedBox(width: 8),
                               _CompactIconButton(
-                                tooltip: AppLocalizations.of(context)!.bottomToolsSheetClearContext,
+                                tooltip: widget.clearContextLabel ?? AppLocalizations.of(context)!.bottomToolsSheetClearContext,
                                 icon: Lucide.Eraser,
                                 onTap: widget.onClearContext,
                               ),

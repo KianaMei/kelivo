@@ -16,11 +16,13 @@ class ChatService extends ChangeNotifier {
   static const String _conversationsBoxName = 'conversations';
   static const String _messagesBoxName = 'messages';
   static const String _toolEventsBoxName = 'tool_events_v1';
+  static const String _geminiThoughtSigsBoxName = 'gemini_thought_sigs_v1';
 
   late Box<Conversation> _conversationsBox;
   late Box<ChatMessage> _messagesBox;
   late Box
   _toolEventsBox; // key: assistantMessageId, value: List<Map<String,dynamic>>
+  late Box<String> _geminiThoughtSigsBox; // key: messageId, value: "<!-- gemini_thought_signatures:... -->"
 
   String? _currentConversationId;
   final Map<String, List<ChatMessage>> _messagesCache = {};
@@ -56,6 +58,7 @@ class ChatService extends ChangeNotifier {
     _conversationsBox = await Hive.openBox<Conversation>(_conversationsBoxName);
     _messagesBox = await Hive.openBox<ChatMessage>(_messagesBoxName);
     _toolEventsBox = await Hive.openBox(_toolEventsBoxName);
+    _geminiThoughtSigsBox = await Hive.openBox<String>(_geminiThoughtSigsBoxName);
 
     // Initialize ApiKeyManager (registers adapter and opens box)
     await ApiKeyManager().init();
@@ -226,6 +229,9 @@ class ChatService extends ChangeNotifier {
           await _toolEventsBox.delete(msg.id);
         } catch (_) {}
       }
+      try {
+        await _geminiThoughtSigsBox.delete(messageId);
+      } catch (_) {}
       await _messagesBox.delete(messageId);
     }
 
@@ -1190,6 +1196,9 @@ class ChatService extends ChangeNotifier {
         await _toolEventsBox.delete(message.id);
       } catch (_) {}
     }
+    try {
+      await _geminiThoughtSigsBox.delete(messageId);
+    } catch (_) {}
 
     // Update cache: clear this conversation so that next getMessages()
     // reloads messages in the updated order from conversation.messageIds.
@@ -1212,6 +1221,7 @@ class ChatService extends ChangeNotifier {
     await _messagesBox.clear();
     await _conversationsBox.clear();
     await _toolEventsBox.clear();
+    await _geminiThoughtSigsBox.clear();
     _messagesCache.clear();
     _draftConversations.clear();
     _currentConversationId = null;
@@ -1224,6 +1234,27 @@ class ChatService extends ChangeNotifier {
       }
     } catch (_) {}
     notifyListeners();
+  }
+
+  String? getGeminiThoughtSignature(String messageId) {
+    if (!_initialized) return null;
+    try {
+      return _geminiThoughtSigsBox.get(messageId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setGeminiThoughtSignature(String messageId, String? signatureComment) async {
+    if (!_initialized) await init();
+    try {
+      final v = (signatureComment ?? '').trim();
+      if (v.isEmpty) {
+        await _geminiThoughtSigsBox.delete(messageId);
+      } else {
+        await _geminiThoughtSigsBox.put(messageId, v);
+      }
+    } catch (_) {}
   }
 
   // Uploads stats: count and total size of files under app documents/upload

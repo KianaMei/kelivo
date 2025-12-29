@@ -168,6 +168,7 @@ class ChatMessageHandler {
 
       final role = m.role == 'assistant' ? 'assistant' : 'user';
       result.add({
+        'id': m.id,
         'role': role,
         'content': m.content,
       });

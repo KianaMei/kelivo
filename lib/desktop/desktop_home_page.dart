@@ -6,6 +6,7 @@ import 'desktop_nav_rail.dart';
 import 'desktop_chat_page.dart';
 import 'desktop_translate_page.dart';
 import 'desktop_api_test_page.dart';
+import 'agent/desktop_agent_page.dart';
 import 'window_title_bar.dart' if (dart.library.html) 'window_title_bar_stub.dart';
 import 'desktop_settings_page.dart';
 import '../core/utils/http_logger.dart';
@@ -21,8 +22,9 @@ class DesktopHomePage extends StatefulWidget {
 }
 
 class _DesktopHomePageState extends State<DesktopHomePage> {
-  int _tabIndex = 0; // 0=Chat, 1=Translate, 2=ApiTest, 3=Storage, 4=Settings
+  int _tabIndex = 0; // 0=Chat, 1=Translate, 2=ApiTest, 3=Storage, 4=Settings, 5=Agent
   bool _storageVisited = false;
+  bool _agentVisited = false;
 
   void _openDevTools() {
     if (!kDebugMode) return;
@@ -75,6 +77,10 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
                   onTapSettings: () {
                     setState(() => _tabIndex = 4);
                   },
+                  onTapAgent: () => setState(() {
+                    _tabIndex = 5;
+                    _agentVisited = true;
+                  }),
                 ),
                 Expanded(
                   // Keep all pages alive so ongoing chat streams are not canceled
@@ -89,11 +95,15 @@ class _DesktopHomePageState extends State<DesktopHomePage> {
                       // API Test page remains mounted
                       const DesktopApiTestPage(key: ValueKey('api_test_page')),
                       // Storage page - lazy loaded
-                      _storageVisited 
-                          ? const StorageSpacePage(key: ValueKey('storage_space_page'), embedded: true) 
+                      _storageVisited
+                          ? const StorageSpacePage(key: ValueKey('storage_space_page'), embedded: true)
                           : const SizedBox.shrink(),
                       // Settings page remains mounted
                       const DesktopSettingsPage(key: ValueKey('settings_page')),
+                      // Agent page - lazy loaded
+                      _agentVisited
+                          ? const DesktopAgentPage(key: ValueKey('agent_page'))
+                          : const SizedBox.shrink(),
                     ],
                   ),
                 ),

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/utils/gemini_thought_signatures.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'message/assistant_message_renderer.dart';
@@ -407,15 +408,19 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     }
     
     if (widget.message.role == 'tool') return _buildToolMessage();
-    
+
+    final safeContent = widget.message.role == 'assistant'
+        ? GeminiThoughtSignatures.stripAll(widget.message.content)
+        : widget.message.content;
+
     final extractedThinking = THINKING_REGEX
-        .allMatches(widget.message.content)
+        .allMatches(safeContent)
         .map((m) => (m.group(1) ?? '').trim())
         .where((s) => s.isNotEmpty)
         .join('\n\n');
     final contentWithoutThink = extractedThinking.isNotEmpty
-        ? widget.message.content.replaceAll(THINKING_REGEX, '').trim()
-        : widget.message.content;
+        ? safeContent.replaceAll(THINKING_REGEX, '').trim()
+        : safeContent;
     final usingInlineThink =
         (widget.reasoningText == null || widget.reasoningText!.isEmpty) &&
         extractedThinking.isNotEmpty;

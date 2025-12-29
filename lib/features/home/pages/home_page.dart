@@ -14,6 +14,7 @@ import '../widgets/mentioned_models_chips.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
 import '../widgets/side_drawer.dart';
+import '../widgets/message_list_view.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -35,6 +36,7 @@ import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
+import '../../../core/utils/gemini_thought_signatures.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../settings/widgets/language_select_sheet.dart';
 import '../../chat/widgets/message_more_sheet.dart';
@@ -141,7 +143,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   final Map<String, StreamSubscription> _conversationStreams = <String, StreamSubscription>{}; // conversationId -> subscription
   final Set<String> _loadingConversationIds = <String>{}; // active generating conversations
   final Map<String, ReasoningData> _reasoning = <String, ReasoningData>{};
-  final Map<String, _TranslationData> _translations = <String, _TranslationData>{};
+  final Map<String, TranslationUiState> _translations = <String, TranslationUiState>{};
   final Map<String, List<ToolUIPart>> _toolParts = <String, List<ToolUIPart>>{}; // assistantMessageId -> parts
   final Map<String, List<ReasoningSegmentData>> _reasoningSegments = <String, List<ReasoningSegmentData>>{}; // assistantMessageId -> reasoning segments
   // Inline <think> tag tracking for mixed rendering support
@@ -452,15 +454,44 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   // Deduplicate raw persisted tool events using same criteria
   List<Map<String, dynamic>> _dedupeToolEvents(List<Map<String, dynamic>> events) {
-    final seen = <String>{};
+    final indexByKey = <String, int>{};
     final out = <Map<String, dynamic>>[];
-    for (final e in events) {
+
+    for (final raw in events) {
+      final e = raw.map((k, v) => MapEntry(k.toString(), v));
       final id = (e['id']?.toString() ?? '').trim();
       final name = (e['name']?.toString() ?? '');
       final args = ((e['arguments'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{});
       final key = id.isNotEmpty ? 'id:$id' : 'name:$name|args:${jsonEncode(args)}';
-      if (seen.add(key)) out.add(e.map((k, v) => MapEntry(k.toString(), v)));
+
+      final idx = indexByKey[key];
+      if (idx == null) {
+        indexByKey[key] = out.length;
+        out.add(e);
+        continue;
+      }
+
+      final prev = out[idx];
+      final merged = Map<String, dynamic>.from(prev);
+
+      // Prefer non-empty content so late placeholders don't hide earlier results.
+      final prevContent = (prev['content']?.toString() ?? '');
+      final nextContent = (e['content']?.toString() ?? '');
+      if (nextContent.isNotEmpty) {
+        merged['content'] = e['content'];
+      } else if (prevContent.isNotEmpty) {
+        merged['content'] = prev['content'];
+      } else {
+        merged['content'] = e['content'] ?? prev['content'];
+      }
+
+      if (id.isNotEmpty) merged['id'] = id;
+      if (name.isNotEmpty) merged['name'] = name;
+      if (args.isNotEmpty) merged['arguments'] = args;
+
+      out[idx] = merged;
     }
+
     return out;
   }
 
@@ -576,19 +607,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   /// 构建推理段落列表
-  List<ReasoningSegment>? _buildReasoningSegments(String messageId) {
-    final segments = _reasoningSegments[messageId];
-    if (segments == null || segments.isEmpty) return null;
-    return segments.map((s) => ReasoningSegment(
-      text: s.text,
-      expanded: s.expanded,
-      loading: s.finishedAt == null && s.text.isNotEmpty,
-      startAt: s.startAt,
-      finishedAt: s.finishedAt,
-      onToggle: () => setState(() => s.expanded = !s.expanded),
-      toolStartIndex: s.toolStartIndex,
-    )).toList();
-  }
+
 
   // Selection mode state for export/share
   bool _selecting = false;
@@ -697,6 +716,56 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   /// 创建统一的 StreamContext
+  /// Prepare Gemini thought signatures for API calls.
+  ///
+  /// - Always strips `<!-- gemini_thought_signatures:... -->` from assistant text so other providers never see it.
+  /// - For Gemini 3, re-attaches the stored signature comment (per messageId) so tool-calling turns remain valid.
+  Future<void> _prepareGeminiThoughtSignaturesForApiMessages({
+    required List<Map<String, dynamic>> apiMessages,
+    required String? providerKey,
+    required String? modelId,
+  }) async {
+    if (apiMessages.isEmpty) return;
+
+    // 1) Strip any embedded signatures (legacy data) and persist them out-of-band.
+    for (final m in apiMessages) {
+      if ((m['role'] ?? '').toString() != 'assistant') continue;
+      final raw = (m['content'] ?? '').toString();
+      if (!GeminiThoughtSignatures.hasAny(raw)) continue;
+
+      final id = (m['id'] ?? '').toString();
+      final sig = GeminiThoughtSignatures.extractLast(raw);
+      if (id.isNotEmpty && sig != null && sig.isNotEmpty) {
+        final existing = _chatService.getGeminiThoughtSignature(id);
+        if (existing != sig) {
+          await _chatService.setGeminiThoughtSignature(id, sig);
+        }
+      }
+
+      m['content'] = GeminiThoughtSignatures.stripAll(raw).trimRight();
+    }
+
+    // 2) Gemini 3: re-attach signature comments for request building.
+    final pk = (providerKey ?? '').toLowerCase();
+    final isGoogleProvider = pk.contains('gemini') || pk.contains('google');
+    final needsPersist = isGoogleProvider && (modelId ?? '').toLowerCase().contains('gemini-3');
+    if (!needsPersist) return;
+
+    for (final m in apiMessages) {
+      if ((m['role'] ?? '').toString() != 'assistant') continue;
+      final id = (m['id'] ?? '').toString();
+      if (id.isEmpty) continue;
+
+      final content = (m['content'] ?? '').toString();
+      if (content.contains(GeminiThoughtSignatures.tag)) continue;
+
+      final sig = _chatService.getGeminiThoughtSignature(id);
+      if (sig == null || sig.isEmpty) continue;
+
+      m['content'] = content.isEmpty ? sig : '$content\n$sig';
+    }
+  }
+
   StreamContext _createStreamContext({
     required ChatMessage assistantMessage,
     required DateTime startTime,
@@ -741,13 +810,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       (ChatStreamChunk chunk) async {
         // 处理 reasoning
         if ((chunk.reasoning ?? '').isNotEmpty) {
-          if (ctx.supportsReasoning || !enableInlineThink) {
-            await ChatStreamHandler.handleReasoningChunk(ctx, chunk.reasoning!);
-          } else {
-            // Buffer reasoning for non-streaming mode
-            ctx.reasoningStartAt ??= DateTime.now();
-            ctx.bufferedReasoning += chunk.reasoning!;
-          }
+          await ChatStreamHandler.handleReasoningChunk(ctx, chunk.reasoning!);
         }
 
         // 处理 tool calls
@@ -770,7 +833,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           await ChatStreamHandler.handleStreamDone(ctx, () async {});
         } else {
           // 处理内容
-          ChatStreamHandler.handleContentChunk(ctx, chunk.content);
+          await ChatStreamHandler.handleContentChunk(ctx, chunk.content);
 
           // 处理 inline think tags (仅限 sendMessage)
           if (enableInlineThink && chunk.content.isNotEmpty) {
@@ -1128,7 +1191,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
       // Restore translation UI state: default collapsed
       if (m.translation != null && m.translation!.isNotEmpty) {
-        final td = _TranslationData();
+        final td = TranslationUiState();
         td.expanded = false;
         _translations[m.id] = td;
       }
@@ -1174,12 +1237,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Future<void> _onClearContext() async {
     final convo = _currentConversation;
     if (convo == null) return;
-    final updated = await _chatService.toggleTruncateAtTail(convo.id, defaultTitle: _titleForLocale(context));
+    // 不传 defaultTitle，清空上下文不应该改标题
+    final updated = await _chatService.toggleTruncateAtTail(convo.id);
     if (!mounted) return;
     if (updated != null) {
       setState(() {
         _currentConversation = updated;
       });
+      _scrollToBottomSoon();
     }
     // No inline panel to close; modal sheet is dismissed before action
   }
@@ -1199,6 +1264,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         return SafeArea(
           top: false,
           child: BottomToolsSheet(
+            clearLabel: _clearContextLabel(),
             onPhotos: () {
               Navigator.of(ctx).maybePop();
               _onPickPhotos();
@@ -1233,7 +1299,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               Navigator.of(ctx).maybePop();
               await showToolLoopSheet(context);
             },
-            clearLabel: _clearContextLabel(),
           ),
         );
       },
@@ -1488,6 +1553,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       learningModeActive: _learningModeEnabled,
       showMoreButton: isMobile,
       onClearContext: isMobile ? null : _onClearContext,
+      clearContextLabel: _clearContextLabel(),
       // @ mention feature callbacks
       onMentionTap: () async {
         // Get current assistant's model for auto-scroll
@@ -1994,8 +2060,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     // 寤惰繜婊氬姩纭繚UI鏇存柊瀹屾垚
     Future.delayed(const Duration(milliseconds: 100), () {
-      final disableAutoScroll = context.read<SettingsProvider>().disableAutoScroll;
-      if (!_isUserScrolling && !disableAutoScroll) _scrollToBottom();
+      _scrollToBottom();
     });
 
     // Create assistant message placeholder
@@ -2402,6 +2467,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       final aOverrides = ChatMessageHandler.buildAssistantOverrides(assistant);
     final aHeaders = aOverrides.headers;
     final aBody = aOverrides.body;
+
+    await _prepareGeminiThoughtSignaturesForApiMessages(
+      apiMessages: apiMessages,
+      providerKey: providerKey,
+      modelId: modelId,
+    );
 
     // Timing tracking (Cherry Studio style)
     final startTime = DateTime.now();
@@ -3062,6 +3133,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       final aHeaders = aOverrides.headers;
       final aBody = aOverrides.body;
 
+      await _prepareGeminiThoughtSignaturesForApiMessages(
+        apiMessages: apiMessages,
+        providerKey: providerKey,
+        modelId: modelId,
+      );
+
       final startTime = DateTime.now();
 
       final stream = ChatApiService.sendMessageStream(
@@ -3534,6 +3611,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       final aOverrides = ChatMessageHandler.buildAssistantOverrides(assistant);
       final aHeaders = aOverrides.headers;
       final aBody = aOverrides.body;
+
+      await _prepareGeminiThoughtSignaturesForApiMessages(
+        apiMessages: apiMessages,
+        providerKey: providerKey,
+        modelId: modelId,
+      );
 
       final startTime = DateTime.now();
 
@@ -4074,6 +4157,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final aOverrides = ChatMessageHandler.buildAssistantOverrides(assistant);
     final aHeaders = aOverrides.headers;
     final aBody = aOverrides.body;
+
+    await _prepareGeminiThoughtSignaturesForApiMessages(
+      apiMessages: apiMessages,
+      providerKey: providerKey,
+      modelId: modelId,
+    );
 
     final stream = ChatApiService.sendMessageStream(
       config: settings.getProviderConfig(providerKey),
@@ -4879,7 +4968,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         _messages[index] = loadingMessage;
       }
       // Initialize translation state with expanded
-      _translations[message.id] = _TranslationData();
+      _translations[message.id] = TranslationUiState();
     });
 
     try {
@@ -5126,267 +5215,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  /// 构建消息列表项（统一移动端和平板端）
-  Widget _buildMessageItem({
-    required BuildContext context,
-    required ChatMessage message,
-    required int index,
-    required List<ChatMessage> messages,
-    required Map<String, List<ChatMessage>> byGroup,
-    required int truncCollapsed,
-  }) {
-    final r = _reasoning[message.id];
-    final t = _translations[message.id];
-    final chatScale = context.watch<SettingsProvider>().chatFontScale;
-    final assistant = context.watch<AssistantProvider>().currentAssistant;
-    final useAssist = assistant?.useAssistantAvatar == true;
-    final l10n = AppLocalizations.of(context)!;
-    final showDivider = truncCollapsed >= 0 && index == truncCollapsed;
-    final cs = Theme.of(context).colorScheme;
-    final label = l10n.homePageClearContext;
-    final divider = Row(
-      children: [
-        Expanded(child: Divider(color: cs.outlineVariant.withOpacity(0.6), height: 1, thickness: 1)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(label, style: TextStyle(fontSize: 12, color: cs.onSurface.withOpacity(0.6))),
-        ),
-        Expanded(child: Divider(color: cs.outlineVariant.withOpacity(0.6), height: 1, thickness: 1)),
-      ],
-    );
-    final gid = (message.groupId ?? message.id);
-    final vers = (byGroup[gid] ?? const <ChatMessage>[]).toList()..sort((a,b)=>a.version.compareTo(b.version));
-    int selectedIdx = _versionSelections[gid] ?? (vers.isNotEmpty ? vers.length - 1 : 0);
-    if (selectedIdx < 0) selectedIdx = 0;
-    if (vers.length > 0 && selectedIdx > vers.length - 1) selectedIdx = vers.length - 1;
-    final total = vers.length;
-    final showMsgNav = context.watch<SettingsProvider>().showMessageNavButtons;
-    final effectiveTotal = showMsgNav ? total : 1;
-    final effectiveIndex = showMsgNav ? selectedIdx : 0;
 
-    return Column(
-      key: _keyForMessage(message.id),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_selecting && (message.role == 'user' || message.role == 'assistant'))
-              Padding(
-                padding: const EdgeInsets.only(left: 10, right: 6),
-                child: IosCheckbox(
-                  value: _selectedItems.contains(message.id),
-                  onChanged: (v) {
-                    setState(() {
-                      if (v) {
-                        _selectedItems.add(message.id);
-                      } else {
-                        _selectedItems.remove(message.id);
-                      }
-                    });
-                  },
-                ),
-              ),
-            Expanded(
-              child: MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaleFactor: MediaQuery.of(context).textScaleFactor * chatScale,
-                ),
-                // 流式消息使用 ValueListenableBuilder 优化性能（只重建流式消息 widget）
-                child: _buildChatMessageWidget(
-                  context: context,
-                  message: message,
-                  messages: messages,
-                  index: index,
-                  effectiveIndex: effectiveIndex,
-                  effectiveTotal: effectiveTotal,
-                  showMsgNav: showMsgNav,
-                  selectedIdx: selectedIdx,
-                  total: total,
-                  gid: gid,
-                  r: r,
-                  t: t,
-                  useAssist: useAssist,
-                  assistant: assistant,
-                ),
-              ),
-            ),
-          ],
-        ),
-        if (showDivider) Padding(padding: const EdgeInsets.only(top: 12, bottom: 4, left: 24, right: 24), child: divider),
-      ],
-    );
-  }
-
-  /// 构建聊天消息 widget（流式消息使用 ValueListenableBuilder 优化）
-  Widget _buildChatMessageWidget({
-    required BuildContext context,
-    required ChatMessage message,
-    required List<ChatMessage> messages,
-    required int index,
-    required int effectiveIndex,
-    required int effectiveTotal,
-    required bool showMsgNav,
-    required int selectedIdx,
-    required int total,
-    required String gid,
-    required ReasoningData? r,
-    required _TranslationData? t,
-    required bool useAssist,
-    required dynamic assistant,
-  }) {
-    // 检查是否是流式消息（需要使用 ValueListenableBuilder 优化）
-    final isStreaming = message.isStreaming &&
-        message.role == 'assistant' &&
-        _streamingNotifier.hasNotifier(message.id);
-
-    if (isStreaming) {
-      // 流式消息: 使用 ValueListenableBuilder 只重建这个 widget
-      return ValueListenableBuilder<StreamingContentData>(
-        valueListenable: _streamingNotifier.getNotifier(message.id),
-        builder: (context, data, child) {
-          // 使用 notifier 中的内容替代 message.content
-          final displayContent = data.content.isNotEmpty ? data.content : message.content;
-          final streamingMessage = message.copyWith(
-            content: displayContent,
-            tokenUsageJson: data.tokenUsageJson,
-          );
-          return _buildChatMessageWidgetCore(
-            context: context,
-            message: streamingMessage,
-            messages: messages,
-            index: index,
-            effectiveIndex: effectiveIndex,
-            effectiveTotal: effectiveTotal,
-            showMsgNav: showMsgNav,
-            selectedIdx: selectedIdx,
-            total: total,
-            gid: gid,
-            r: r,
-            t: t,
-            useAssist: useAssist,
-            assistant: assistant,
-          );
-        },
-      );
-    }
-
-    // 非流式消息: 直接构建
-    return _buildChatMessageWidgetCore(
-      context: context,
-      message: message,
-      messages: messages,
-      index: index,
-      effectiveIndex: effectiveIndex,
-      effectiveTotal: effectiveTotal,
-      showMsgNav: showMsgNav,
-      selectedIdx: selectedIdx,
-      total: total,
-      gid: gid,
-      r: r,
-      t: t,
-      useAssist: useAssist,
-      assistant: assistant,
-    );
-  }
-
-  /// ChatMessageWidget 核心构建逻辑
-  Widget _buildChatMessageWidgetCore({
-    required BuildContext context,
-    required ChatMessage message,
-    required List<ChatMessage> messages,
-    required int index,
-    required int effectiveIndex,
-    required int effectiveTotal,
-    required bool showMsgNav,
-    required int selectedIdx,
-    required int total,
-    required String gid,
-    required ReasoningData? r,
-    required _TranslationData? t,
-    required bool useAssist,
-    required dynamic assistant,
-  }) {
-    return ChatMessageWidget(
-                  message: message,
-                  allMessages: messages,
-                  allToolParts: _toolParts,
-                  toolParts: message.role == 'assistant' ? _toolParts[message.id] : null,
-                  versionIndex: effectiveIndex,
-                  versionCount: effectiveTotal,
-                  onPrevVersion: (showMsgNav && selectedIdx > 0) ? () async {
-                    final next = selectedIdx - 1;
-                    _versionSelections[gid] = next;
-                    await _chatService.setSelectedVersion(_currentConversation!.id, gid, next);
-                    if (mounted) setState(() {});
-                  } : null,
-                  onNextVersion: (showMsgNav && selectedIdx < total - 1) ? () async {
-                    final next = selectedIdx + 1;
-                    _versionSelections[gid] = next;
-                    await _chatService.setSelectedVersion(_currentConversation!.id, gid, next);
-                    if (mounted) setState(() {});
-                  } : null,
-                  modelIcon: (!useAssist && message.role == 'assistant' && message.providerId != null && message.modelId != null)
-                      ? CurrentModelIcon(providerKey: message.providerId, modelId: message.modelId, size: 30)
-                      : null,
-                  showModelIcon: useAssist ? false : context.watch<SettingsProvider>().showModelIcon,
-                  useAssistantAvatar: useAssist && message.role == 'assistant',
-                  assistantName: useAssist ? (assistant?.name ?? 'Assistant') : null,
-                  assistantAvatar: useAssist ? (assistant?.avatar ?? '') : null,
-                  showUserAvatar: context.watch<SettingsProvider>().showUserAvatar,
-                  showTokenStats: context.watch<SettingsProvider>().showTokenStats,
-                  reasoningText: (message.role == 'assistant') ? (r?.text ?? '') : null,
-                  reasoningExpanded: (message.role == 'assistant') ? (r?.expanded ?? false) : false,
-                  reasoningLoading: (message.role == 'assistant') ? (message.isStreaming && r?.finishedAt == null && (r?.text.isNotEmpty == true)) : false,
-                  reasoningStartAt: (message.role == 'assistant') ? r?.startAt : null,
-                  reasoningFinishedAt: (message.role == 'assistant') ? r?.finishedAt : null,
-                  onToggleReasoning: (message.role == 'assistant' && r != null)
-                      ? () {
-                          setState(() {
-                            r.expanded = !r.expanded;
-                          });
-                        }
-                      : null,
-                  translationExpanded: t?.expanded ?? true,
-                  onToggleTranslation: (message.translation != null && message.translation!.isNotEmpty && t != null)
-                      ? () {
-                          setState(() {
-                            t.expanded = !t.expanded;
-                          });
-                        }
-                      : null,
-                  onRegenerate: message.role == 'assistant' ? () { _regenerateAtMessage(message); } : null,
-                  onResend: message.role == 'user' ? () { _regenerateAtMessage(message); } : null,
-                  onMentionReAnswer: message.role == 'assistant' ? () { _reAnswerWithModel(message); } : null,
-                  onTranslate: message.role == 'assistant' ? () { _translateMessage(message); } : null,
-                  onSpeak: message.role == 'assistant'
-                      ? () async {
-                          final tts = context.read<TtsProvider>();
-                          if (!tts.isSpeaking) {
-                            await tts.speak(message.content);
-                          } else {
-                            await tts.stop();
-                          }
-                        }
-                      : null,
-                  onEdit: message.role == 'user' ? () => _editMessage(message) : null,
-                  onDelete: () => _deleteMessage(message),
-                  onMore: () async {
-                    final action = await showMessageMoreSheet(context, message);
-                    if (!mounted) return;
-                    if (action == MessageMoreAction.delete) {
-                      await _deleteMessage(message);
-                    } else if (action == MessageMoreAction.edit) {
-                      await _editMessage(message);
-                    } else if (action == MessageMoreAction.fork) {
-                      await _forkConversationAtMessage(message, messages);
-                    } else if (action == MessageMoreAction.share) {
-                      _enterShareModeUpTo(index, messages);
-                    }
-                  },
-                  reasoningSegments: message.role == 'assistant' ? _buildReasoningSegments(message.id) : null,
-                );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -5569,48 +5398,73 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     builder: (context) {
                       final __content = KeyedSubtree(
                         key: ValueKey<String>(_currentConversation?.id ?? 'none'),
-                        child: (() {
-                      // Stable snapshot for this build (collapse versions)
-                      final messages = _collapseVersions(_messages);
-                      final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
-                      for (final m in _messages) {
-                        final gid = (m.groupId ?? m.id);
-                        byGroup.putIfAbsent(gid, () => <ChatMessage>[]).add(m);
-                      }
-                      // Map persisted truncateIndex (raw message count) to collapsed index
-                      final int truncRaw = _currentConversation?.truncateIndex ?? -1;
-                      int truncCollapsed = -1;
-                      if (truncRaw > 0) {
-                        final seen = <String>{};
-                        final int limit = truncRaw < _messages.length ? truncRaw : _messages.length;
-                        int count = 0;
-                        for (int i = 0; i < limit; i++) {
-                          final gid0 = (_messages[i].groupId ?? _messages[i].id);
-                          if (seen.add(gid0)) count++;
-                        }
-                        truncCollapsed = count - 1;
-                      }
-                      final list = ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.only(bottom: 16, top: 8),
-                        itemCount: messages.length,
-                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                        itemBuilder: (context, index) {
-                          if (index < 0 || index >= messages.length) {
-                            return const SizedBox.shrink();
-                          }
-                          return _buildMessageItem(
-                            context: context,
-                            message: messages[index],
-                            index: index,
-                            messages: messages,
-                            byGroup: byGroup,
-                            truncCollapsed: truncCollapsed,
-                          );
-                        },
-                      );
-                      return list;
-                        })(),
+                        child: MessageListView(
+                          scrollController: _scrollController,
+                          messages: _messages,
+                          versionSelections: _versionSelections,
+                          currentConversation: _currentConversation,
+                          messageKeys: _messageKeys,
+                          reasoning: _reasoning,
+                          translations: _translations,
+                          selecting: _selecting,
+                          selectedItems: _selectedItems,
+                          toolParts: _toolParts,
+                          streamingNotifier: _streamingNotifier,
+                          clearContextLabel: _clearContextLabel(),
+                          onVersionChange: (gid, vers) async {
+                            _versionSelections[gid] = vers;
+                            await _chatService.setSelectedVersion(_currentConversation!.id, gid, vers);
+                            if (mounted) setState(() {});
+                          },
+                          onRegenerateMessage: (msg) {
+                            _regenerateAtMessage(msg);
+                          },
+                          onSend: (text) => _sendMessage(ChatInputData(text: text)),
+                          onResendMessage: (msg) {
+                            _sendMessage(ChatInputData(text: msg.content));
+                          },
+                          onTranslateMessage: (msg) {
+                            _translateMessage(msg);
+                          },
+                          onEditMessage: (msg) {
+                            _editMessage(msg);
+                          },
+                          onDeleteMessage: (msg, byGroup) async {
+                            await _deleteMessage(msg);
+                          },
+                          onForkConversation: (msg) async {
+                            await _forkConversationAtMessage(msg, _messages);
+                          },
+                          onShareMessage: (index, messages) {
+                            _enterShareModeUpTo(index, messages);
+                          },
+                          onSpeakMessage: (msg) async {
+                            await context.read<TtsProvider>().speak(msg.content);
+                          },
+                          onToggleSelection: (id, val) {
+                            setState(() {
+                              if (val) _selectedItems.add(id);
+                              else _selectedItems.remove(id);
+                            });
+                          },
+                          onToggleReasoning: (id) {
+                            setState(() {
+                              _reasoning[id]?.expanded = !(_reasoning[id]?.expanded ?? false);
+                            });
+                          },
+                          onToggleTranslation: (id) {
+                            setState(() {
+                              _translations[id]?.expanded = !(_translations[id]?.expanded ?? true);
+                            });
+                          },
+                          onToggleReasoningSegment: (msgId, entryKey) {
+                            setState(() {
+                               _reasoningSegments[msgId]?[entryKey].expanded = !(_reasoningSegments[msgId]?[entryKey].expanded ?? false);
+                            });
+                          },
+                          onMentionReAnswer: _reAnswerWithModel,
+                          reasoningSegments: _reasoningSegments,
+                        ),
                       );
                       final isAndroid = Theme.of(context).platform == TargetPlatform.android;
                       Widget w = __content;
@@ -5874,49 +5728,76 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           Expanded(
                             child: FadeTransition(
                               opacity: _convoFade,
-                              child: KeyedSubtree(
-                                key: ValueKey<String>(_currentConversation?.id ?? 'none'),
-                                child: (() {
-                                  final messages = _collapseVersions(_messages);
-                                  final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
-                                  for (final m in _messages) {
-                                    final gid = (m.groupId ?? m.id);
-                                    byGroup.putIfAbsent(gid, () => <ChatMessage>[]).add(m);
-                                  }
-                                  // Map persisted truncateIndex (raw) to collapsed index
-                                  final int truncRaw = _currentConversation?.truncateIndex ?? -1;
-                                  int truncCollapsed = -1;
-                                  if (truncRaw > 0) {
-                                    final seen = <String>{};
-                                    final int limit = truncRaw < _messages.length ? truncRaw : _messages.length;
-                                    int count = 0;
-                                    for (int i = 0; i < limit; i++) {
-                                      final gid0 = (_messages[i].groupId ?? _messages[i].id);
-                                      if (seen.add(gid0)) count++;
-                                    }
-                                    truncCollapsed = count - 1;
-                                  }
-                                  return ListView.builder(
-                                    controller: _scrollController,
-                                    padding: const EdgeInsets.only(bottom: 16, top: 8),
-                                    itemCount: messages.length,
-                                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                                    itemBuilder: (context, index) {
-                                      if (index < 0 || index >= messages.length) return const SizedBox.shrink();
-                                      return _buildMessageItem(
-                                        context: context,
-                                        message: messages[index],
-                                        index: index,
-                                        messages: messages,
-                                        byGroup: byGroup,
-                                        truncCollapsed: truncCollapsed,
-                                      );
-                                    },
-                                  );
-                                })(),
+                                child: MessageListView(
+                                  scrollController: _scrollController,
+                                  messages: _messages,
+                                  versionSelections: _versionSelections,
+                                  currentConversation: _currentConversation,
+                                  messageKeys: _messageKeys,
+                                  reasoning: _reasoning,
+                                  translations: _translations,
+                                  selecting: _selecting,
+                                  selectedItems: _selectedItems,
+                                  toolParts: _toolParts,
+                                  streamingNotifier: _streamingNotifier,
+                                  onVersionChange: (gid, vers) async {
+                                    _versionSelections[gid] = vers;
+                                    await _chatService.setSelectedVersion(_currentConversation!.id, gid, vers);
+                                    if (mounted) setState(() {});
+                                  },
+                                  onRegenerateMessage: (msg) {
+                                    _regenerateAtMessage(msg);
+                                  },
+                                  onSend: (text) => _sendMessage(ChatInputData(text: text)),
+                                  onResendMessage: (msg) {
+                                    _sendMessage(ChatInputData(text: msg.content));
+                                  },
+                                  onTranslateMessage: (msg) {
+                                    _translateMessage(msg);
+                                  },
+                                  onEditMessage: (msg) {
+                                    _editMessage(msg);
+                                  },
+                                  onDeleteMessage: (msg, byGroup) async {
+                                    await _deleteMessage(msg);
+                                  },
+                                  onForkConversation: (msg) async {
+                                    await _forkConversationAtMessage(msg, _messages);
+                                  },
+                                  onShareMessage: (index, messages) {
+                                    _enterShareModeUpTo(index, messages);
+                                  },
+                                  onSpeakMessage: (msg) async {
+                                    await context.read<TtsProvider>().speak(msg.content);
+                                  },
+                                  onToggleSelection: (id, val) {
+                                    setState(() {
+                                      if (val) _selectedItems.add(id);
+                                      else _selectedItems.remove(id);
+                                    });
+                                  },
+                                  onToggleReasoning: (id) {
+                                    setState(() {
+                                      _reasoning[id]?.expanded = !(_reasoning[id]?.expanded ?? false);
+                                    });
+                                  },
+                                  onToggleTranslation: (id) {
+                                    setState(() {
+                                      _translations[id]?.expanded = !(_translations[id]?.expanded ?? true);
+                                    });
+                                  },
+                                  onToggleReasoningSegment: (msgId, entryKey) {
+                                    setState(() {
+                                       _reasoningSegments[msgId]?[entryKey].expanded = !(_reasoningSegments[msgId]?[entryKey].expanded ?? false);
+                                    });
+                                  },
+                                  onMentionReAnswer: _reAnswerWithModel,
+                                  reasoningSegments: _reasoningSegments,
+                                  clearContextLabel: _clearContextLabel(),
+                                ),
                               ),
                             ),
-                          ),
+
 
                           // Input bar with max width
                           NotificationListener<SizeChangedLayoutNotification>(
@@ -6089,6 +5970,4 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
 }
 
-class _TranslationData {
-  bool expanded = true; // default to expanded when translation is added
-}
+

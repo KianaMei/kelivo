@@ -243,9 +243,23 @@ class StreamResponseLoggerInterceptor extends Interceptor {
 
 /// 条件 Talker 日志拦截器 - 仅在开关开启时记录完整请求/响应
 class ConditionalTalkerInterceptor extends Interceptor {
+  /// 检查是否应该跳过详细日志（用于备份等大数据请求）
+  bool _shouldSkipDetailedLog(RequestOptions options) {
+    return options.extra[kLogNetworkResultOnlyExtraKey] == true;
+  }
+
+  /// 检查是否是二进制数据
+  bool _isBinaryData(dynamic data) {
+    if (data is Uint8List) return true;
+    if (data is List<int>) return true;
+    // 检查 List 的第一个元素是否是 int（字节数组）
+    if (data is List && data.isNotEmpty && data.first is int) return true;
+    return false;
+  }
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (TalkerLogger.enabled) {
+    if (TalkerLogger.enabled && !_shouldSkipDetailedLog(options)) {
       final sb = StringBuffer();
       sb.writeln('→ ${options.method} ${options.uri}');
 
@@ -261,7 +275,11 @@ class ConditionalTalkerInterceptor extends Interceptor {
       if (options.data != null) {
         sb.writeln('Body:');
         String bodyStr = '';
-        if (options.data is String) {
+        if (_isBinaryData(options.data)) {
+          // 二进制数据只显示摘要
+          final len = options.data is List ? (options.data as List).length : 0;
+          bodyStr = '[Binary data, $len bytes]';
+        } else if (options.data is String) {
           bodyStr = options.data as String;
         } else if (options.data is Map || options.data is List) {
           try {
@@ -283,7 +301,7 @@ class ConditionalTalkerInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    if (TalkerLogger.enabled) {
+    if (TalkerLogger.enabled && !_shouldSkipDetailedLog(response.requestOptions)) {
       final sb = StringBuffer();
       sb.writeln('← ${response.statusCode} ${response.requestOptions.method} ${response.requestOptions.uri}');
 
@@ -299,7 +317,11 @@ class ConditionalTalkerInterceptor extends Interceptor {
       if (response.data != null && response.data is! ResponseBody) {
         sb.writeln('Body:');
         String bodyStr = '';
-        if (response.data is String) {
+        if (_isBinaryData(response.data)) {
+          // 二进制数据只显示摘要
+          final len = response.data is List ? (response.data as List).length : 0;
+          bodyStr = '[Binary data, $len bytes]';
+        } else if (response.data is String) {
           bodyStr = response.data as String;
         } else if (response.data is Map || response.data is List) {
           try {
@@ -332,7 +354,7 @@ class ConditionalTalkerInterceptor extends Interceptor {
       sb.writeln('Message: ${err.message}');
       if (err.response != null) {
         sb.writeln('Status: ${err.response?.statusCode}');
-        if (err.response?.data != null) {
+        if (err.response?.data != null && !_isBinaryData(err.response?.data)) {
           sb.writeln('Response: ${err.response?.data}');
         }
       }

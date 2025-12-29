@@ -596,7 +596,7 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
             IconButton(
               icon: Icon(Lucide.Copy, size: 16),
               onPressed: widget.onCopy ?? () {
-                Clipboard.setData(ClipboardData(text: widget.message.content));
+                Clipboard.setData(ClipboardData(text: widget.contentWithoutThink));
                 showAppSnackBar(context, message: l10n.chatMessageWidgetCopiedToClipboard, type: NotificationType.success);
               },
               visualDensity: VisualDensity.compact,
@@ -623,7 +623,7 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
           IconButton(
             icon: Icon(Lucide.Copy, size: 16),
             onPressed: widget.onCopy ?? () {
-              Clipboard.setData(ClipboardData(text: widget.message.content));
+              Clipboard.setData(ClipboardData(text: widget.contentWithoutThink));
               showAppSnackBar(context, message: l10n.chatMessageWidgetCopiedToClipboard, type: NotificationType.success);
             },
             visualDensity: VisualDensity.compact,
