@@ -337,10 +337,27 @@ class DataSync {
   }
 
   Future<void> backupToWebDav(WebDavConfig cfg) async {
+    print('[WebDAV Backup] Starting backup...');
+    final stopwatch = Stopwatch()..start();
+    
+    print('[WebDAV Backup] Preparing backup file...');
     final file = await prepareBackupFile(cfg);
+    print('[WebDAV Backup] Backup file prepared: ${file.path} (${await file.length()} bytes) in ${stopwatch.elapsedMilliseconds}ms');
+    
+    print('[WebDAV Backup] Ensuring collection exists...');
     await _ensureCollection(cfg);
+    print('[WebDAV Backup] Collection ensured in ${stopwatch.elapsedMilliseconds}ms');
+    
     final target = _fileUri(cfg, p.basename(file.path));
+    print('[WebDAV Backup] Target URL: $target');
+    
+    print('[WebDAV Backup] Reading file bytes...');
     final bytes = await file.readAsBytes();
+    print('[WebDAV Backup] File bytes read: ${bytes.length} bytes');
+    
+    print('[WebDAV Backup] Starting upload...');
+    final uploadStart = stopwatch.elapsedMilliseconds;
+    
     final res = await simpleDio.put(
       target.toString(),
       data: bytes,
@@ -352,14 +369,32 @@ class DataSync {
           'Content-Length': bytes.length.toString(),
           ..._authHeaders(cfg),
         },
-        sendTimeout: const Duration(minutes: 10),  // 大文件上传需要更长时间
-        receiveTimeout: const Duration(minutes: 5),
+        sendTimeout: const Duration(minutes: 30),  // 大文件上传需要更长时间
+        receiveTimeout: const Duration(minutes: 10),
         validateStatus: (status) => true,
       ),
+      onSendProgress: (sent, total) {
+        if (total > 0) {
+          final percent = (sent / total * 100).round();
+          // 只在 5% 的整数倍时打印，减少日志刷屏
+          if (percent % 5 == 0 && sent > 0) {
+            final mb = (sent / 1024 / 1024).toStringAsFixed(1);
+            final totalMb = (total / 1024 / 1024).toStringAsFixed(1);
+            print('[WebDAV Backup] Upload: $mb MB / $totalMb MB ($percent%)');
+          }
+        }
+      },
     );
+    
+    final uploadDuration = stopwatch.elapsedMilliseconds - uploadStart;
+    print('[WebDAV Backup] Upload completed in ${uploadDuration}ms, status: ${res.statusCode}');
+    
     if (res.statusCode == null || res.statusCode! < 200 || res.statusCode! >= 300) {
+      print('[WebDAV Backup] Upload failed! Response: ${res.data}');
       throw Exception('Upload failed: ${res.statusCode}');
     }
+    
+    print('[WebDAV Backup] Backup successful! Total time: ${stopwatch.elapsedMilliseconds}ms');
   }
 
   Future<List<BackupFileItem>> listBackupFiles(WebDavConfig cfg) async {

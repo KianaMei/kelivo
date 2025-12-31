@@ -16,6 +16,11 @@ abstract class BuiltInToolNames {
   static const codeInterpreter = 'code_interpreter';
   static const imageGeneration = 'image_generation';
 
+  // xAI/Grok specific
+  static const xSearch = 'x_search';
+  static const webSearch = 'web_search';
+
+
   /// Normalize a tool name to snake_case format.
   /// Handles legacy camelCase formats for backward compatibility.
   static String normalize(String name) {
@@ -59,6 +64,8 @@ abstract class BuiltInToolNames {
       BuiltInToolNames.youtube,
       BuiltInToolNames.codeInterpreter,
       BuiltInToolNames.imageGeneration,
+      BuiltInToolNames.xSearch,
+      BuiltInToolNames.webSearch,
     ];
     final out = <String>[
       for (final k in preferredOrder)

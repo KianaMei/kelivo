@@ -184,6 +184,17 @@ class ChatApiHelper {
     return false;
   }
 
+  /// Detect if provider is xAI endpoint (for routing to xAI adapter).
+  /// xAI API uses api.x.ai domain.
+  static bool isXAIEndpoint(ProviderConfig cfg) {
+    final host = Uri.tryParse(cfg.baseUrl)?.host.toLowerCase() ?? '';
+    // Match x.ai or any subdomain like api.x.ai
+    return RegExp(r'(^|\.)?x\.ai$').hasMatch(host);
+  }
+
+
+
+
   /// Extract domain name from URL.
   static String extractDomainFromUrl(String url) {
     try {

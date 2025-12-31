@@ -110,13 +110,18 @@ class _SearchSettingsSheet extends StatelessWidget {
     final isClaude = cfg != null && cfg.providerType == ProviderKind.claude;
     final isOpenAIResponses = cfg != null && cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
     final isGrok = cfg != null && modelId != null && _isGrokModel(cfg, modelId);
+    // Detect xAI endpoint (api.x.ai)
+    final isXAIEndpoint = cfg != null && _isXAIEndpoint(cfg);
     // Read current built-in search toggle from modelOverrides
     bool hasBuiltInSearch = false;
-    if ((isOfficialGemini || isClaude || isOpenAIResponses || isGrok) && providerKey != null && (modelId ?? '').isNotEmpty) {
+    bool hasXSearch = false;
+    if ((isOfficialGemini || isClaude || isOpenAIResponses || isGrok || isXAIEndpoint) && providerKey != null && (modelId ?? '').isNotEmpty) {
       final mid = modelId!;
       final ov = cfg!.modelOverrides[mid] as Map?;
       final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
-      hasBuiltInSearch = list.map((e) => e.toString().toLowerCase()).contains('search');
+      final normalizedList = list.map((e) => e.toString().toLowerCase()).toSet();
+      hasBuiltInSearch = normalizedList.contains('search') || normalizedList.contains('web_search');
+      hasXSearch = normalizedList.contains('x_search');
     }
     // Claude supported models per Anthropic docs
     final claudeSupportedModels = <String>{
@@ -167,8 +172,8 @@ class _SearchSettingsSheet extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Built-in search toggle (Gemini official, Claude supported, OpenAI Responses supported, or Grok)
-                if ((isOfficialGemini || isClaudeSupportedModel || isOpenAIResponsesSupportedModel || isGrok) && (providerKey != null) && (modelId ?? '').isNotEmpty) ...[
+                // Built-in search toggle (Gemini official, Claude supported, OpenAI Responses supported, Grok, or xAI endpoint)
+                if ((isOfficialGemini || isClaudeSupportedModel || isOpenAIResponsesSupportedModel || isGrok || isXAIEndpoint) && (providerKey != null) && (modelId ?? '').isNotEmpty) ...[
                   IosCardPress(
                     borderRadius: BorderRadius.circular(14),
                     baseColor: cs.surface,
@@ -233,6 +238,84 @@ class _SearchSettingsSheet extends StatelessWidget {
                             if (v) {
                               await context.read<SettingsProvider>().setSearchEnabled(false);
                             }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                // xAI X Search toggle (only for xAI endpoint)
+                if (isXAIEndpoint && (providerKey != null) && (modelId ?? '').isNotEmpty) ...[
+                  IosCardPress(
+                    borderRadius: BorderRadius.circular(14),
+                    baseColor: cs.surface,
+                    duration: const Duration(milliseconds: 260),
+                    onTap: () async {
+                      if (providerKey == null || (modelId ?? '').isEmpty) return;
+                      Haptics.light();
+                      final bool v = !hasXSearch;
+                      final mid = modelId!;
+                      final overrides = Map<String, dynamic>.from(cfg!.modelOverrides);
+                      final mo = Map<String, dynamic>.from((overrides[mid] as Map?)?.map((k, val) => MapEntry(k.toString(), val)) ?? const <String, dynamic>{});
+                      final list = List<String>.from(((mo['builtInTools'] as List?) ?? const <dynamic>[]).map((e) => e.toString()));
+                      if (v) {
+                        if (!list.map((e) => e.toLowerCase()).contains('x_search')) list.add('x_search');
+                      } else {
+                        list.removeWhere((e) => e.toLowerCase() == 'x_search');
+                      }
+                      mo['builtInTools'] = list;
+                      overrides[mid] = mo;
+                      await context.read<SettingsProvider>().setProviderConfig(providerKey, cfg.copyWith(modelOverrides: overrides));
+                    },
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Row(
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icons/xai.svg',
+                          width: 20,
+                          height: 20,
+                          colorFilter: ColorFilter.mode(cs.primary, BlendMode.srcIn),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'X 搜索',
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                '搜索 X (Twitter) 上的帖子和对话',
+                                style: TextStyle(fontSize: 11, color: cs.onSurface.withOpacity(0.6)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        IosSwitch(
+                          value: hasXSearch,
+                          onChanged: (v) async {
+                            if (providerKey == null || (modelId ?? '').isEmpty) return;
+                            Haptics.light();
+                            final mid = modelId!;
+                            final overrides = Map<String, dynamic>.from(cfg!.modelOverrides);
+                            final mo = Map<String, dynamic>.from((overrides[mid] as Map?)?.map((k, val) => MapEntry(k.toString(), val)) ?? const <String, dynamic>{});
+                            final list = List<String>.from(((mo['builtInTools'] as List?) ?? const <dynamic>[]).map((e) => e.toString()));
+                            if (v) {
+                              if (!list.map((e) => e.toLowerCase()).contains('x_search')) list.add('x_search');
+                            } else {
+                              list.removeWhere((e) => e.toLowerCase() == 'x_search');
+                            }
+                            mo['builtInTools'] = list;
+                            overrides[mid] = mo;
+                            await context.read<SettingsProvider>().setProviderConfig(providerKey, cfg.copyWith(modelOverrides: overrides));
                           },
                         ),
                       ],
@@ -512,4 +595,11 @@ bool _isGrokModel(ProviderConfig cfg, String modelId) {
   }
 
   return false;
+}
+
+// Helper function to detect xAI endpoint
+bool _isXAIEndpoint(ProviderConfig cfg) {
+  final host = Uri.tryParse(cfg.baseUrl)?.host.toLowerCase() ?? '';
+  // Match x.ai or any subdomain like api.x.ai
+  return RegExp(r'(^|\.)?x\.ai$').hasMatch(host);
 }

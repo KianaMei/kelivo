@@ -8,9 +8,11 @@ import '../../services/api_key_manager.dart';
 import 'adapters/openai/openai_adapter.dart';
 import 'adapters/claude_adapter.dart';
 import 'adapters/google_adapter.dart';
+import 'adapters/xai/xai_adapter.dart';
 import 'adapters/prompt_tool_adapter.dart';
 import 'helpers/chat_api_helper.dart';
 import 'models/chat_stream_chunk.dart';
+
 
 class ChatApiService {
   // NOTE: Helper methods moved to helpers/chat_api_helper.dart
@@ -70,7 +72,26 @@ class ChatApiService {
 
     try {
       Stream<ChatStreamChunk> stream;
-      if (kind == ProviderKind.openai) {
+
+      // Check for xAI endpoint first (before ProviderKind routing)
+      if (ChatApiHelper.isXAIEndpoint(config)) {
+        stream = XAIAdapter.sendStream(
+          dio,
+          config,
+          modelId,
+          messages,
+          userImagePaths: userImagePaths,
+          thinkingBudget: thinkingBudget,
+          temperature: temperature,
+          topP: topP,
+          maxTokens: maxTokens,
+          maxToolLoopIterations: maxToolLoopIterations,
+          tools: tools,
+          onToolCall: onToolCall,
+          extraHeaders: extraHeaders,
+          extraBody: extraBody,
+        );
+      } else if (kind == ProviderKind.openai) {
         stream = OpenAIAdapter.sendStream(
           dio,
           config,
