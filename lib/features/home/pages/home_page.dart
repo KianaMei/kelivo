@@ -3842,7 +3842,8 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     // Remove messages after lastKeep (persistently), but preserve:
     // - all versions of groups that already appeared up to lastKeep (e.g., edited user messages), and
     // - all versions of the target assistant group we are regenerating
-    if (lastKeep < _messages.length - 1) {
+    // Skip removal for user message resend to preserve subsequent messages
+    if (lastKeep < _messages.length - 1 && message.role != 'user') {
       // Collect groups that appear at or before lastKeep
       final keepGroups = <String>{};
       for (int i = 0; i <= lastKeep && i < _messages.length; i++) {
