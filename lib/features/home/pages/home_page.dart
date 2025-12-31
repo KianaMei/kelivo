@@ -5421,7 +5421,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           },
                           onSend: (text) => _sendMessage(ChatInputData(text: text)),
                           onResendMessage: (msg) {
-                            _sendMessage(ChatInputData(text: msg.content));
+                            _regenerateAtMessage(msg);
                           },
                           onTranslateMessage: (msg) {
                             _translateMessage(msg);
@@ -5750,7 +5750,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                                   },
                                   onSend: (text) => _sendMessage(ChatInputData(text: text)),
                                   onResendMessage: (msg) {
-                                    _sendMessage(ChatInputData(text: msg.content));
+                                    _regenerateAtMessage(msg);
                                   },
                                   onTranslateMessage: (msg) {
                                     _translateMessage(msg);
