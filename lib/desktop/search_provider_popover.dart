@@ -45,7 +45,18 @@ class _SearchProviderContent extends StatelessWidget {
     final isOpenAIResponses =
         cfg.providerType == ProviderKind.openai && (cfg.useResponseApi == true);
     final isGrok = _isGrokModel(cfg, modelId!);
-    return isOfficialGemini || isClaude || isOpenAIResponses || isGrok;
+    final isXAI = _isXAIEndpoint(cfg);
+    return isOfficialGemini || isClaude || isOpenAIResponses || isGrok || isXAI;
+  }
+
+  // Check if X Search should be shown (Grok models or xAI endpoint)
+  bool _supportsXSearch(SettingsProvider settings, AssistantProvider ap) {
+    final a = ap.currentAssistant;
+    final providerKey = a?.chatModelProvider ?? settings.currentModelProvider;
+    final modelId = a?.chatModelId ?? settings.currentModelId;
+    if (providerKey == null || (modelId ?? '').isEmpty) return false;
+    final cfg = settings.getProviderConfig(providerKey);
+    return _isGrokModel(cfg, modelId!) || _isXAIEndpoint(cfg);
   }
 
   bool _hasBuiltInSearchEnabled(SettingsProvider settings, AssistantProvider ap) {
@@ -56,7 +67,39 @@ class _SearchProviderContent extends StatelessWidget {
     final cfg = settings.getProviderConfig(providerKey);
     final ov = cfg.modelOverrides[modelId!] as Map?;
     final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
-    return list.map((e) => e.toString().toLowerCase()).contains('search');
+    final normalizedList = list.map((e) => e.toString().toLowerCase()).toSet();
+    return normalizedList.contains('search') || normalizedList.contains('web_search');
+  }
+
+  bool _hasXSearchEnabled(SettingsProvider settings, AssistantProvider ap) {
+    final a = ap.currentAssistant;
+    final providerKey = a?.chatModelProvider ?? settings.currentModelProvider;
+    final modelId = a?.chatModelId ?? settings.currentModelId;
+    if (providerKey == null || (modelId ?? '').isEmpty) return false;
+    final cfg = settings.getProviderConfig(providerKey);
+    final ov = cfg.modelOverrides[modelId!] as Map?;
+    final list = (ov?['builtInTools'] as List?) ?? const <dynamic>[];
+    return list.map((e) => e.toString().toLowerCase()).contains('x_search');
+  }
+
+  Future<void> _toggleXSearch(
+      BuildContext context, bool value, String providerKey, String modelId) async {
+    final sp = context.read<SettingsProvider>();
+    final cfg = sp.getProviderConfig(providerKey);
+    final overrides = Map<String, dynamic>.from(cfg.modelOverrides);
+    final mo = Map<String, dynamic>.from((overrides[modelId] as Map?)
+            ?.map((k, v) => MapEntry(k.toString(), v)) ??
+        const <String, dynamic>{});
+    final list = List<String>.from(
+        ((mo['builtInTools'] as List?) ?? const <dynamic>[]).map((e) => e.toString()));
+    if (value) {
+      if (!list.map((e) => e.toLowerCase()).contains('x_search')) list.add('x_search');
+    } else {
+      list.removeWhere((e) => e.toLowerCase() == 'x_search');
+    }
+    mo['builtInTools'] = list;
+    overrides[modelId] = mo;
+    await sp.setProviderConfig(providerKey, cfg.copyWith(modelOverrides: overrides));
   }
 
   Future<void> _toggleBuiltInSearch(
@@ -98,6 +141,8 @@ class _SearchProviderContent extends StatelessWidget {
     final enabled = sp.searchEnabled;
     final supportsBuiltIn = _supportsBuiltInSearch(sp, ap);
     final builtInEnabled = _hasBuiltInSearchEnabled(sp, ap);
+    final supportsXSearch = _supportsXSearch(sp, ap);
+    final xSearchEnabled = _hasXSearchEnabled(sp, ap);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -112,6 +157,18 @@ class _SearchProviderContent extends StatelessWidget {
               label: l10n.searchSettingsSheetBuiltinSearchTitle,
               value: builtInEnabled,
               onChanged: (v) => _toggleBuiltInSearch(context, v, providerKey, modelId),
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          // X Search toggle (for Grok/xAI)
+          if (supportsXSearch && providerKey != null && modelId != null) ...[
+            _SettingRowWithIcon(
+              iconAsset: 'assets/icons/xai.svg',
+              label: 'X 搜索',
+              subtitle: '搜索 X (Twitter) 上的帖子',
+              value: xSearchEnabled,
+              onChanged: (v) => _toggleXSearch(context, v, providerKey, modelId),
             ),
             const SizedBox(height: 8),
           ],
@@ -283,4 +340,99 @@ bool _isGrokModel(ProviderConfig cfg, String modelId) {
   }
 
   return false;
+}
+
+// Helper function to detect xAI endpoint
+bool _isXAIEndpoint(ProviderConfig cfg) {
+  final host = Uri.tryParse(cfg.baseUrl)?.host.toLowerCase() ?? '';
+  return host == 'x.ai' || host.endsWith('.x.ai');
+}
+
+// Setting row with custom icon asset (for X Search)
+class _SettingRowWithIcon extends StatefulWidget {
+  const _SettingRowWithIcon({
+    required this.iconAsset,
+    required this.label,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String iconAsset;
+  final String label;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  State<_SettingRowWithIcon> createState() => _SettingRowWithIconState();
+}
+
+class _SettingRowWithIconState extends State<_SettingRowWithIcon> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = _hovered
+        ? (isDark ? Colors.white : Colors.black).withOpacity(isDark ? 0.08 : 0.05)
+        : Colors.transparent;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: () => widget.onChanged(!widget.value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              SvgPicture.asset(
+                widget.iconAsset,
+                width: 18,
+                height: 18,
+                colorFilter: ColorFilter.mode(cs.primary, BlendMode.srcIn),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    if (widget.subtitle != null)
+                      Text(
+                        widget.subtitle!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: cs.onSurface.withOpacity(0.6),
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              IosSwitch(
+                value: widget.value,
+                onChanged: widget.onChanged,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

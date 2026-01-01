@@ -245,8 +245,8 @@ class _SearchSettingsSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                 ],
-                // xAI X Search toggle (only for xAI endpoint)
-                if (isXAIEndpoint && (providerKey != null) && (modelId ?? '').isNotEmpty) ...[
+                // xAI X Search toggle (for xAI endpoint or Grok models)
+                if ((isXAIEndpoint || isGrok) && (providerKey != null) && (modelId ?? '').isNotEmpty) ...[
                   IosCardPress(
                     borderRadius: BorderRadius.circular(14),
                     baseColor: cs.surface,
@@ -601,5 +601,7 @@ bool _isGrokModel(ProviderConfig cfg, String modelId) {
 bool _isXAIEndpoint(ProviderConfig cfg) {
   final host = Uri.tryParse(cfg.baseUrl)?.host.toLowerCase() ?? '';
   // Match x.ai or any subdomain like api.x.ai
-  return RegExp(r'(^|\.)?x\.ai$').hasMatch(host);
+  final result = host == 'x.ai' || host.endsWith('.x.ai');
+  print('[_isXAIEndpoint] baseUrl: ${cfg.baseUrl}, host: $host, result: $result');
+  return result;
 }
