@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/models/chat_message.dart';
 import '../../../../core/providers/assistant_provider.dart';
 import '../../../../core/providers/model_provider.dart';
@@ -263,8 +264,15 @@ class _AssistantMessageRendererState extends State<AssistantMessageRenderer> {
             builder: (ctx) => _wrapAssistantBubble(ctx, settings, _buildContent(cs, l10n, settings)),
           ),
           if (widget.latestSearchItems.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            SourcesSummaryCard(count: widget.latestSearchItems.length, onTap: widget.onShowCitations ?? () {}),
+            const SizedBox(height: 10),
+            SearchResultCards(
+              items: widget.latestSearchItems,
+              onTap: (url) async {
+                try {
+                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                } catch (_) {}
+              },
+            ),
           ],
           if (!widget.message.isStreaming) _buildActions(cs, l10n),
         ],

@@ -20,6 +20,9 @@ class ApiKeyManager {
   Box<ApiKeyRuntimeState>? _stateBox;
   bool _initialized = false;
 
+  // 内存中维护每个 provider 的轮询指针
+  final Map<String, int> _roundRobinIndexMap = {};
+
   /// Initialize Hive box for runtime state storage
   /// Must be called before using selectForProvider or updateKeyStatus
   Future<void> init() async {
@@ -98,13 +101,16 @@ class ApiKeyManager {
         // Stable ordering by sortIndex
         available.sort((a, b) => a.sortIndex.compareTo(b.sortIndex));
 
-        // Use persisted roundRobinIndex from provider config
-        final cur = provider.keyManagement?.roundRobinIndex ?? 0;
+        // 从内存获取索引，fallback 到配置
+        final cur = _roundRobinIndexMap[provider.id]
+            ?? provider.keyManagement?.roundRobinIndex
+            ?? 0;
+
         final idx = cur % available.length;
         chosen = available[idx];
 
-        // Note: Incrementing roundRobinIndex should be done by caller
-        // after persisting the updated provider config
+        // 递增并保存到内存
+        _roundRobinIndexMap[provider.id] = (idx + 1) % available.length;
         break;
     }
 
@@ -119,8 +125,10 @@ class ApiKeyManager {
     String? error,
     int? maxFailuresBeforeDisable,
   }) async {
-    // Silently return if not initialized (will be initialized when ChatService.init() runs)
-    if (!_initialized) return;
+    // 如果未初始化，先尝试初始化
+    if (!_initialized) {
+      await init();
+    }
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final old = _getOrCreateState(keyId);
@@ -149,6 +157,7 @@ class ApiKeyManager {
   }
 
   /// Get runtime state for a key (for UI display)
+  /// Returns null if not initialized - UI should handle gracefully
   ApiKeyRuntimeState? getKeyState(String keyId) {
     return _stateBox?.get(keyId);
   }
@@ -161,5 +170,10 @@ class ApiKeyManager {
   /// Reset all runtime states (for testing/debugging)
   Future<void> resetAllStates() async {
     await _stateBox?.clear();
+  }
+
+  /// Reset round-robin index for a provider (for testing or UI reset)
+  void resetRoundRobinIndex(String providerId) {
+    _roundRobinIndexMap.remove(providerId);
   }
 }

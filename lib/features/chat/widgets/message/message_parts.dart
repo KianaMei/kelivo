@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'dart:ui';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../icons/lucide_adapter.dart';
@@ -715,5 +716,248 @@ class _TokenUsageDisplayState extends State<TokenUsageDisplay> {
     if (_overlayEntry != null) {
       _removeOverlay();
     }
+  }
+}
+
+/// LobeChat-style horizontal scrolling search result cards.
+class SearchResultCards extends StatefulWidget {
+  const SearchResultCards({
+    super.key,
+    required this.items,
+    this.onTap,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final Function(String url)? onTap;
+
+  @override
+  State<SearchResultCards> createState() => _SearchResultCardsState();
+}
+
+class _SearchResultCardsState extends State<SearchResultCards> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent) {
+      final delta = event.scrollDelta.dy;
+      _scrollController.jumpTo(
+        (_scrollController.offset + delta).clamp(
+          0.0,
+          _scrollController.position.maxScrollExtent,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.items.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 64,
+      child: Listener(
+        onPointerSignal: _handlePointerSignal,
+        child: ShaderMask(
+          shaderCallback: (rect) => const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Colors.transparent,
+              Colors.white,
+              Colors.white,
+              Colors.transparent,
+            ],
+            stops: [0.0, 0.02, 0.96, 1.0],
+          ).createShader(rect),
+          blendMode: BlendMode.dstIn,
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+              },
+            ),
+            child: ListView.separated(
+              controller: _scrollController,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              itemCount: widget.items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final item = widget.items[index];
+                return SearchResultCard(
+                  title: (item['title'] ?? '').toString(),
+                  url: (item['url'] ?? '').toString(),
+                  onTap: widget.onTap,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Single search result card with favicon and domain.
+class SearchResultCard extends StatelessWidget {
+  const SearchResultCard({
+    super.key,
+    required this.title,
+    required this.url,
+    this.onTap,
+  });
+
+  final String title;
+  final String url;
+  final Function(String url)? onTap;
+
+  /// Extract domain from a string that might be a URL or just a domain name
+  static String? _extractDomain(String input) {
+    if (input.isEmpty) return null;
+
+    // If it looks like a domain (e.g., "reddit.com", "www.youtube.com")
+    final domainPattern = RegExp(r'^(?:https?://)?(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]*(?:\.[a-zA-Z0-9][-a-zA-Z0-9]*)+)');
+    final match = domainPattern.firstMatch(input);
+    if (match != null) {
+      return match.group(1);
+    }
+
+    // Try parsing as URL
+    try {
+      final uri = Uri.parse(input.startsWith('http') ? input : 'https://$input');
+      if (uri.host.isNotEmpty) {
+        return uri.host.replaceFirst('www.', '');
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    // Try to extract domain from title first (for proxy URLs like Vertex AI Search)
+    // Title often contains the actual website domain like "reddit.com" or "youtube.com"
+    String? faviconHost = _extractDomain(title);
+    String displayDomain = faviconHost ?? '';
+    String displayTitle = title;
+
+    // If title doesn't look like a domain, try URL
+    if (faviconHost == null || faviconHost.isEmpty) {
+      try {
+        final uri = Uri.parse(url);
+        faviconHost = uri.host;
+        displayDomain = uri.host.replaceFirst('www.', '');
+        if (title.isEmpty || title == url) {
+          displayTitle = uri.host + (uri.path.length > 1 ? uri.path : '');
+        }
+      } catch (_) {
+        displayDomain = url;
+        faviconHost = url;
+      }
+    } else {
+      // Title is a domain, use it but keep original title for display if different
+      if (title.toLowerCase() == faviconHost.toLowerCase() ||
+          title.toLowerCase() == 'www.$faviconHost'.toLowerCase()) {
+        // Title is just the domain, show URL path instead
+        try {
+          final uri = Uri.parse(url);
+          if (uri.path.length > 1) {
+            displayTitle = faviconHost + uri.path;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Ensure faviconHost is valid for URL
+    final validFaviconHost = (faviconHost != null && faviconHost.isNotEmpty && faviconHost.contains('.'))
+        ? faviconHost
+        : null;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onTap?.call(url),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 140,
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: cs.outlineVariant.withOpacity(0.35),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Title - max 2 lines with ellipsis
+              Expanded(
+                child: Text(
+                  displayTitle,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: cs.onSurface,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 3),
+              // Favicon + domain
+              Row(
+                children: [
+                  // Use DuckDuckGo for favicon
+                  if (validFaviconHost != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: Image.network(
+                        'https://icons.duckduckgo.com/ip3/$validFaviconHost.ico',
+                        width: 10,
+                        height: 10,
+                        errorBuilder: (_, __, ___) => Icon(
+                          Icons.language,
+                          size: 10,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.language,
+                      size: 10,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text(
+                      displayDomain,
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: cs.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

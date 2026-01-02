@@ -246,7 +246,8 @@ class SettingsProvider extends ChangeNotifier {
     _requestLoggingEnabled = prefs.getBool(_requestLoggingEnabledKey) ?? false;
     if (_requestLoggingEnabled) {
       await RequestLogger.setEnabled(true);
-      TalkerLogger.setEnabled(true);
+      // [已禁用] Talker 与 RequestLogger 功能重复，暂时注释
+      // TalkerLogger.setEnabled(true);
     }
 
     _providersOrder = prefs.getStringList(_providersOrderKey) ?? [];
@@ -774,7 +775,8 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setRequestLoggingEnabled(bool value) async {
     // 始终同步 RequestLogger 状态，防止内存状态和日志记录器状态不一致
     await RequestLogger.setEnabled(value);
-    TalkerLogger.setEnabled(value);
+    // [已禁用] Talker 与 RequestLogger 功能重复，暂时注释
+    // TalkerLogger.setEnabled(value);
 
     if (_requestLoggingEnabled == value) return;
     _requestLoggingEnabled = value;

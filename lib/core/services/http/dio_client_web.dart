@@ -33,7 +33,8 @@ void initDio() {
 
   // Logger interceptors (stubbed on web or using console/Talker)
   dio.interceptors.add(RequestLoggerInterceptor());
-  dio.interceptors.add(ConditionalTalkerInterceptor());
+  // [已禁用] Talker 与 RequestLogger 功能重复，暂时注释
+  // dio.interceptors.add(ConditionalTalkerInterceptor());
 }
 
 /// 为 Provider 创建 Dio 实例 (Web)
@@ -49,7 +50,8 @@ Dio createDioForProvider(ProviderConfig cfg, {String? baseUrl}) {
   ));
 
   instance.interceptors.add(RequestLoggerInterceptor());
-  instance.interceptors.add(ConditionalTalkerInterceptor());
+  // [已禁用] Talker 与 RequestLogger 功能重复，暂时注释
+  // instance.interceptors.add(ConditionalTalkerInterceptor());
 
   return instance;
 }

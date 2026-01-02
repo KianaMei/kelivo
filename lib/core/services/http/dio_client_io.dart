@@ -30,7 +30,8 @@ void initDio() {
   ));
 
   // 添加条件 Talker 日志拦截器（受开关控制）
-  dio.interceptors.add(ConditionalTalkerInterceptor());
+  // [已禁用] Talker 与 RequestLogger 功能重复，暂时注释
+  // dio.interceptors.add(ConditionalTalkerInterceptor());
 }
 
 /// 为特定 Provider 创建配置好的 Dio 实例
@@ -54,7 +55,8 @@ Dio createDioForProvider(ProviderConfig cfg, {String? baseUrl}) {
   instance.interceptors.add(RequestLoggerInterceptor());
 
   // 添加条件 Talker 日志拦截器（受开关控制）
-  instance.interceptors.add(ConditionalTalkerInterceptor());
+  // [已禁用] Talker 与 RequestLogger 功能重复，暂时注释
+  // instance.interceptors.add(ConditionalTalkerInterceptor());
 
   return instance;
 }
@@ -103,11 +105,18 @@ void _configureAdapter(Dio instance, ProviderConfig cfg) {
 Dio get simpleDio => dio;
 
 /// Request Logger Interceptor - 记录请求/响应到文件
+/// 注意：流式请求 (ResponseType.stream) 由 postJsonStream 处理日志，此拦截器会跳过
 class RequestLoggerInterceptor extends Interceptor {
   final Map<RequestOptions, int> _requestIds = {};
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    // 跳过流式请求，由 postJsonStream 处理日志记录
+    if (options.responseType == ResponseType.stream) {
+      handler.next(options);
+      return;
+    }
+
     if (RequestLogger.enabled) {
       final reqId = RequestLogger.nextRequestId();
       _requestIds[options] = reqId;
@@ -135,6 +144,12 @@ class RequestLoggerInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
+    // 跳过流式请求，由 postJsonStream 处理日志记录
+    if (response.requestOptions.responseType == ResponseType.stream) {
+      handler.next(response);
+      return;
+    }
+
     if (RequestLogger.enabled) {
       final reqId = _requestIds.remove(response.requestOptions) ?? 0;
       final headers = <String, String>{};
@@ -168,6 +183,12 @@ class RequestLoggerInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    // 跳过流式请求，由 postJsonStream 处理日志记录
+    if (err.requestOptions.responseType == ResponseType.stream) {
+      handler.next(err);
+      return;
+    }
+
     if (RequestLogger.enabled) {
       final reqId = _requestIds.remove(err.requestOptions) ?? 0;
       RequestLogger.logError(reqId, err.toString());
@@ -242,10 +263,16 @@ class StreamResponseLoggerInterceptor extends Interceptor {
 }
 
 /// 条件 Talker 日志拦截器 - 仅在开关开启时记录完整请求/响应
+/// 注意：流式请求 (ResponseType.stream) 由 TalkerHttpClient 处理日志
 class ConditionalTalkerInterceptor extends Interceptor {
   /// 检查是否应该跳过详细日志（用于备份等大数据请求）
   bool _shouldSkipDetailedLog(RequestOptions options) {
     return options.extra[kLogNetworkResultOnlyExtraKey] == true;
+  }
+
+  /// 检查是否是流式请求
+  bool _isStreamingRequest(RequestOptions options) {
+    return options.responseType == ResponseType.stream;
   }
 
   /// 检查是否是二进制数据
@@ -259,6 +286,12 @@ class ConditionalTalkerInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    // 跳过流式请求，由 TalkerHttpClient 或其他机制处理
+    if (_isStreamingRequest(options)) {
+      handler.next(options);
+      return;
+    }
+
     if (TalkerLogger.enabled && !_shouldSkipDetailedLog(options)) {
       final sb = StringBuffer();
       sb.writeln('→ ${options.method} ${options.uri}');
@@ -301,6 +334,12 @@ class ConditionalTalkerInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
+    // 跳过流式请求
+    if (_isStreamingRequest(response.requestOptions)) {
+      handler.next(response);
+      return;
+    }
+
     if (TalkerLogger.enabled && !_shouldSkipDetailedLog(response.requestOptions)) {
       final sb = StringBuffer();
       sb.writeln('← ${response.statusCode} ${response.requestOptions.method} ${response.requestOptions.uri}');
@@ -347,6 +386,12 @@ class ConditionalTalkerInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    // 跳过流式请求
+    if (_isStreamingRequest(err.requestOptions)) {
+      handler.next(err);
+      return;
+    }
+
     if (TalkerLogger.enabled) {
       final sb = StringBuffer();
       sb.writeln('✕ ERROR ${err.requestOptions.method} ${err.requestOptions.uri}');

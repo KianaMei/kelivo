@@ -3763,6 +3763,7 @@ class _LogResponseSectionOptimized extends StatelessWidget {
 }
 
 /// Isolate function for parsing log content (runs in background thread)
+/// Supports JSONL format (each line is a JSON object produced by RequestLogger)
 List<_LogEntry> _parseLogFileIsolate(String filePath) {
   String content = '';
   try {
@@ -3770,155 +3771,145 @@ List<_LogEntry> _parseLogFileIsolate(String filePath) {
   } catch (_) {
     return <_LogEntry>[];
   }
-  final entries = <_LogEntry>[];
-  final lines = content.split('\n');
 
-  // 正则表达式 - 支持带毫秒或不带毫秒的时间戳
-  final mainSeparator = RegExp(r'^═{20,}');
-  final headerRegex = RegExp(r'^\[(\d+)\]\s+(\w+)\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)');
-  final responseHeaderRegex = RegExp(r'^◀\s*RESPONSE\s*\[(\d+)\]\s+(\d{2}:\d{2}:\d{2})');
-  final headersSectionRegex = RegExp(r'──\s*Headers\s*─');
-  final bodySectionRegex = RegExp(r'──\s*Body\s*─');
-
-  const stateInitial = 0;
-  const stateRequestHeaders = 1;
-  const stateRequestBody = 2;
-  const stateResponseHeaders = 3;
-  const stateResponseBody = 4;
-
-  int i = 0;
-  while (i < lines.length) {
-    final line = lines[i];
-
-    // 检查主分隔符
-    if (mainSeparator.hasMatch(line) && i + 1 < lines.length) {
-      final headerLine = lines[i + 1];
-      final headerMatch = headerRegex.firstMatch(headerLine);
-
-      if (headerMatch != null) {
-        final reqId = int.parse(headerMatch.group(1)!);
-        final method = headerMatch.group(2)!;
-        final timestampStr = headerMatch.group(3)!;
-        final timestamp = _parseTimestampIsolate(timestampStr);
-
-        i += 2;
-        if (i < lines.length && mainSeparator.hasMatch(lines[i])) i++;
-
-        String url = '';
-        final requestHeaders = <String, String>{};
-        final requestBodyLines = <String>[];
-        int? statusCode;
-        final responseHeaders = <String, String>{};
-        final responseBodyLines = <String>[];
-        int state = stateInitial;
-
-        while (i < lines.length) {
-          final currentLine = lines[i];
-
-          if (mainSeparator.hasMatch(currentLine) && i + 1 < lines.length) {
-            if (headerRegex.hasMatch(lines[i + 1])) break;
-          }
-
-          if (currentLine.trim().startsWith('▶ REQUEST')) {
-            i++;
-            if (i < lines.length) {
-              url = lines[i].trim();
-              i++;
-            }
-            continue;
-          }
-
-          if (headersSectionRegex.hasMatch(currentLine)) {
-            state = (state < stateResponseHeaders) ? stateRequestHeaders : stateResponseHeaders;
-            i++;
-            continue;
-          }
-
-          if (bodySectionRegex.hasMatch(currentLine)) {
-            state = (state < stateResponseHeaders) ? stateRequestBody : stateResponseBody;
-            i++;
-            continue;
-          }
-
-          final respMatch = responseHeaderRegex.firstMatch(currentLine);
-          if (respMatch != null) {
-            statusCode = int.tryParse(respMatch.group(1)!);
-            state = stateResponseHeaders;
-            i++;
-            continue;
-          }
-
-          if (currentLine.trim().startsWith('✓ Done') || currentLine.trim().startsWith('✗ ERROR')) {
-            i++;
-            continue;
-          }
-
-          if (currentLine.startsWith('───')) {
-            i++;
-            continue;
-          }
-
-          if (currentLine.trim().isEmpty) {
-            i++;
-            continue;
-          }
-
-          switch (state) {
-            case stateRequestHeaders:
-              final trimmed = currentLine.trim();
-              final colonIndex = trimmed.indexOf(':');
-              if (colonIndex > 0) {
-                final key = trimmed.substring(0, colonIndex).trim();
-                final value = trimmed.substring(colonIndex + 1).trim();
-                requestHeaders[key] = value;
-              }
-              break;
-            case stateRequestBody:
-              requestBodyLines.add(currentLine.replaceFirst(RegExp(r'^\s{0,2}'), ''));
-              break;
-            case stateResponseHeaders:
-              final trimmed = currentLine.trim();
-              final colonIndex = trimmed.indexOf(':');
-              if (colonIndex > 0) {
-                final key = trimmed.substring(0, colonIndex).trim();
-                final value = trimmed.substring(colonIndex + 1).trim();
-                responseHeaders[key] = value;
-              }
-              break;
-            case stateResponseBody:
-              responseBodyLines.add(currentLine.replaceFirst(RegExp(r'^\s{0,2}'), ''));
-              break;
-          }
-          i++;
-        }
-
-        final requestBody = requestBodyLines.join('\n').trim();
-        final responseBody = responseBodyLines.join('\n').trim();
-
-        entries.add(_LogEntry(
-          requestId: reqId,
-          method: method,
-          url: url,
-          timestamp: timestamp,
-          requestHeaders: requestHeaders,
-          requestBody: requestBody,
-          statusCode: statusCode,
-          responseHeaders: responseHeaders,
-          responseBody: responseBody,
-        ));
-        continue;
-      }
-    }
-    i++;
+  // Helper functions
+  int? toInt(Object? v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v?.toString() ?? '');
   }
 
-  // 按时间戳倒序排列
-  entries.sort((a, b) {
-    final aTime = a.timestamp ?? DateTime(1970);
-    final bTime = b.timestamp ?? DateTime(1970);
-    return bTime.compareTo(aTime);
-  });
+  DateTime? toDateTime(Object? v) {
+    if (v is int) return DateTime.fromMillisecondsSinceEpoch(v);
+    if (v is num) return DateTime.fromMillisecondsSinceEpoch(v.toInt());
+    if (v is String) return DateTime.tryParse(v);
+    return null;
+  }
+
+  Map<String, String> toStringMap(Object? v) {
+    if (v is! Map) return <String, String>{};
+    final out = <String, String>{};
+    v.forEach((k, val) {
+      out[k.toString()] = val.toString();
+    });
+    return out;
+  }
+
+  // Mutable entry accumulator for JSONL parsing
+  final byId = <int, _MutableLogEntryDesktop>{};
+  var parsed = 0;
+
+  final lines = content.split('\n');
+  for (final line in lines) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) continue;
+    if (!trimmed.startsWith('{')) continue;
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(trimmed);
+    } catch (_) {
+      continue;
+    }
+    if (decoded is! Map) continue;
+    final map = decoded.cast<String, dynamic>();
+
+    final type = map['type'];
+    if (type is! String) continue;
+    final id = toInt(map['id']);
+    if (id == null) continue;
+
+    final acc = byId.putIfAbsent(id, () => _MutableLogEntryDesktop(id));
+    final ts = toDateTime(map['ts']);
+
+    switch (type) {
+      case 'request':
+        acc.timestamp ??= ts;
+        final method = map['method'];
+        if (method is String) acc.method = method;
+        final url = map['url'];
+        if (url is String) acc.url = url;
+        acc.requestHeaders = toStringMap(map['headers']);
+        final body = map['body'];
+        if (body is String) acc.requestBody = body;
+        parsed++;
+        break;
+      case 'response_headers':
+        acc.statusCode = toInt(map['status']);
+        acc.responseHeaders = toStringMap(map['headers']);
+        parsed++;
+        break;
+      case 'response_body':
+        final body = map['body'];
+        if (body is String) acc.responseBody = body;
+        parsed++;
+        break;
+      case 'chunk':
+        final chunk = map['chunk'];
+        if (chunk is String) acc.responseChunks.add(chunk);
+        parsed++;
+        break;
+      case 'done':
+        acc.isDone = true;
+        parsed++;
+        break;
+      case 'error':
+        acc.hasError = true;
+        final msg = map['message'];
+        acc.errorMessage = (msg is String) ? msg : msg?.toString();
+        parsed++;
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (parsed == 0) return <_LogEntry>[];
+
+  final entries = byId.values.map((e) => e.toEntry()).toList();
+
+  // 按请求 ID 倒序排列（最新的在前）
+  entries.sort((a, b) => b.requestId.compareTo(a.requestId));
   return entries;
+}
+
+/// Mutable log entry accumulator for JSONL parsing (desktop version)
+class _MutableLogEntryDesktop {
+  _MutableLogEntryDesktop(this.requestId);
+
+  final int requestId;
+  String method = '';
+  String url = '';
+  DateTime? timestamp;
+  Map<String, String> requestHeaders = <String, String>{};
+  String requestBody = '';
+  int? statusCode;
+  Map<String, String> responseHeaders = <String, String>{};
+  String responseBody = '';
+  final List<String> responseChunks = <String>[];
+  bool hasError = false;
+  String? errorMessage;
+  bool isDone = false;
+
+  _LogEntry toEntry() {
+    // Combine response body and chunks
+    String finalResponseBody = responseBody;
+    if (responseChunks.isNotEmpty && responseBody.isEmpty) {
+      finalResponseBody = responseChunks.join('');
+    }
+
+    return _LogEntry(
+      requestId: requestId,
+      method: method,
+      url: url,
+      timestamp: timestamp,
+      requestHeaders: Map<String, String>.unmodifiable(requestHeaders),
+      requestBody: requestBody,
+      statusCode: statusCode,
+      responseHeaders: Map<String, String>.unmodifiable(responseHeaders),
+      responseBody: finalResponseBody,
+    );
+  }
 }
 
 DateTime? _parseTimestampIsolate(String timestamp) {

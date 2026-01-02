@@ -15,6 +15,7 @@ class RequestLogger {
   static bool _writeErrorReported = false;
 
   static int _nextRequestId = 0;
+  static bool _idInitialized = false;
   static int nextRequestId() => ++_nextRequestId;
 
   static Future<void> setEnabled(bool v) async {
@@ -31,6 +32,40 @@ class RequestLogger {
       _sinkDate = null;
     } else {
       _writeErrorReported = false;
+      // 启用时从日志文件读取最大 ID，避免 ID 冲突
+      if (!_idInitialized) {
+        await _initNextRequestId();
+        _idInitialized = true;
+      }
+    }
+  }
+
+  /// 从日志文件读取最大请求 ID，确保新请求 ID 不会与旧记录冲突
+  static Future<void> _initNextRequestId() async {
+    try {
+      final dir = await AppDirs.dataRoot();
+      final logFile = File('${dir.path}/logs/logs.txt');
+      if (!await logFile.exists()) return;
+
+      int maxId = 0;
+      final lines = await logFile.readAsLines();
+      for (final line in lines) {
+        if (line.trim().isEmpty || !line.trim().startsWith('{')) continue;
+        try {
+          final map = jsonDecode(line.trim()) as Map<String, dynamic>;
+          final id = map['id'];
+          if (id is int && id > maxId) {
+            maxId = id;
+          } else if (id is num && id.toInt() > maxId) {
+            maxId = id.toInt();
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+      _nextRequestId = maxId;
+    } catch (_) {
+      // Ignore errors - will start from 0
     }
   }
 
@@ -116,7 +151,8 @@ class RequestLogger {
   static void _writeJsonLine(Map<String, Object?> obj) {
     if (!_enabled) return;
     try {
-      _enqueueWrite('${jsonEncode(obj)}\n');
+      final json = jsonEncode(obj);
+      _enqueueWrite('$json\n');
     } catch (_) {
       // Logging must never crash the app.
     }
