@@ -435,8 +435,10 @@ class OpenAIChatCompletions {
             );
             return;
           }
-        } catch (e) {
-          // Skip malformed JSON
+        } catch (e, st) {
+          // Log malformed JSON for diagnosis (issue: large image base64 responses may fail here)
+          print('[OpenAIChatCompletions] JSON parse error: $e');
+          print('[OpenAIChatCompletions] Data length: ${data.length}, starts: ${data.substring(0, data.length > 200 ? 200 : data.length)}');
         }
       }
     }

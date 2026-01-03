@@ -280,6 +280,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             icon: Lucide.Trash2,
             label: l10n.sideDrawerMenuDelete,
             danger: true,
+            requiresConfirmation: true,
+            confirmLabel: '${l10n.sideDrawerMenuDelete}?',
             onTap: () async {
               final deletingCurrent = chatService.currentConversationId == chat.id;
               // Pre-compute next recent conversation for current assistant
@@ -326,42 +328,45 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final maxH = MediaQuery.of(ctx).size.height * 0.8;
-        Widget row({required IconData icon, required String label, Color? color, required Future<void> Function() action}) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(
-              height: 48,
-              child: IosCardPress(
-                borderRadius: BorderRadius.circular(14),
-                baseColor: cs.surface,
-                duration: const Duration(milliseconds: 260),
-                onTap: () async {
-                  Haptics.light();
-                  Navigator.of(ctx).pop();
-                  await Future<void>.delayed(const Duration(milliseconds: 10));
-                  await action();
-                },
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    Icon(icon, size: 20, color: color ?? cs.onSurface),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: color ?? cs.onSurface),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+        bool showDeleteConfirm = false;
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final cs = Theme.of(ctx).colorScheme;
+            final maxH = MediaQuery.of(ctx).size.height * 0.8;
+            Widget row({required IconData icon, required String label, Color? color, required Future<void> Function() action}) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: SizedBox(
+                  height: 48,
+                  child: IosCardPress(
+                    borderRadius: BorderRadius.circular(14),
+                    baseColor: cs.surface,
+                    duration: const Duration(milliseconds: 260),
+                    onTap: () async {
+                      Haptics.light();
+                      Navigator.of(ctx).pop();
+                      await Future<void>.delayed(const Duration(milliseconds: 10));
+                      await action();
+                    },
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 20, color: color ?? cs.onSurface),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: color ?? cs.onSurface),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          );
-        }
+              );
+            }
         return SafeArea(
           top: false,
           child: ConstrainedBox(
@@ -399,41 +404,77 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       label: l10n.sideDrawerMenuRegenerateTitle,
                       action: () async { await _regenerateTitle(context, chat.id); },
                     ),
-                    row(
-                      icon: Lucide.Trash,
-                      label: l10n.sideDrawerMenuDelete,
-                      color: Colors.redAccent,
-                      action: () async {
-                        final deletingCurrent = chatService.currentConversationId == chat.id;
-                        String? nextId;
-                        try {
-                          final ap = context.read<AssistantProvider>();
-                          final currentAid = ap.currentAssistantId;
-                          if (currentAid != null) {
-                            final all = chatService.getAllConversations();
-                            final candidates = all
-                                .where((c) => c.assistantId == currentAid && c.id != chat.id)
-                                .toList()
-                              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-                            if (candidates.isNotEmpty) nextId = candidates.first.id;
-                          }
-                        } catch (_) {}
-                        await chatService.deleteConversation(chat.id);
-                        showAppSnackBar(
-                          context,
-                          message: l10n.sideDrawerDeleteSnackbar(chat.title),
-                          type: NotificationType.success,
-                          duration: const Duration(seconds: 3),
-                        );
-                        if (deletingCurrent || chatService.currentConversationId == null) {
-                          if (nextId != null) {
-                            widget.onSelectConversation?.call(nextId!);
-                          } else {
-                            widget.onNewConversation?.call();
-                          }
-                        }
-                        Navigator.of(context).maybePop();
-                      },
+                    // Delete row with confirmation
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: SizedBox(
+                        height: 48,
+                        child: showDeleteConfirm
+                            ? _MobileDeleteConfirmRow(
+                                label: '${l10n.sideDrawerMenuDelete}?',
+                                onConfirm: () async {
+                                  Haptics.light();
+                                  Navigator.of(ctx).pop();
+                                  await Future<void>.delayed(const Duration(milliseconds: 10));
+                                  final deletingCurrent = chatService.currentConversationId == chat.id;
+                                  String? nextId;
+                                  try {
+                                    final ap = context.read<AssistantProvider>();
+                                    final currentAid = ap.currentAssistantId;
+                                    if (currentAid != null) {
+                                      final all = chatService.getAllConversations();
+                                      final candidates = all
+                                          .where((c) => c.assistantId == currentAid && c.id != chat.id)
+                                          .toList()
+                                        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+                                      if (candidates.isNotEmpty) nextId = candidates.first.id;
+                                    }
+                                  } catch (_) {}
+                                  await chatService.deleteConversation(chat.id);
+                                  showAppSnackBar(
+                                    context,
+                                    message: l10n.sideDrawerDeleteSnackbar(chat.title),
+                                    type: NotificationType.success,
+                                    duration: const Duration(seconds: 3),
+                                  );
+                                  if (deletingCurrent || chatService.currentConversationId == null) {
+                                    if (nextId != null) {
+                                      widget.onSelectConversation?.call(nextId!);
+                                    } else {
+                                      widget.onNewConversation?.call();
+                                    }
+                                  }
+                                  Navigator.of(context).maybePop();
+                                },
+                                onCancel: () {
+                                  setSheetState(() => showDeleteConfirm = false);
+                                },
+                              )
+                            : IosCardPress(
+                                borderRadius: BorderRadius.circular(14),
+                                baseColor: cs.surface,
+                                duration: const Duration(milliseconds: 260),
+                                onTap: () {
+                                  Haptics.light();
+                                  setSheetState(() => showDeleteConfirm = true);
+                                },
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                child: Row(
+                                  children: [
+                                    Icon(Lucide.Trash, size: 20, color: Colors.redAccent),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        l10n.sideDrawerMenuDelete,
+                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.redAccent),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                      ),
                     ),
                     const SizedBox(height: 4),
                   ],
@@ -441,6 +482,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               ),
             ),
           ),
+        );
+          },
         );
       },
     );
@@ -2249,5 +2292,85 @@ extension on _SideDrawerState {
     );
 
     return Column(children: children);
+  }
+}
+
+/// Mobile confirmation row for delete action
+class _MobileDeleteConfirmRow extends StatelessWidget {
+  const _MobileDeleteConfirmRow({
+    required this.label,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  final String label;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          // Label
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: Colors.redAccent,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Cancel button
+          GestureDetector(
+            onTap: () {
+              Haptics.light();
+              onCancel();
+            },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.close,
+                size: 20,
+                color: cs.onSurface.withOpacity(0.7),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Confirm button
+          GestureDetector(
+            onTap: onConfirm,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.check,
+                size: 20,
+                color: Colors.redAccent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

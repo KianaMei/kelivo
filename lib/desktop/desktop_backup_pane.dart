@@ -3084,6 +3084,46 @@ class _ChatStorageRowState extends State<_ChatStorageRow> {
   }
 }
 
+class _ScrollableSelectableText extends StatefulWidget {
+  const _ScrollableSelectableText({
+    required this.text,
+    required this.style,
+    this.thumbVisibility = true,
+  });
+
+  final String text;
+  final TextStyle style;
+  final bool thumbVisibility;
+
+  @override
+  State<_ScrollableSelectableText> createState() => _ScrollableSelectableTextState();
+}
+
+class _ScrollableSelectableTextState extends State<_ScrollableSelectableText> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      controller: _controller,
+      thumbVisibility: widget.thumbVisibility,
+      child: SingleChildScrollView(
+        controller: _controller,
+        child: SizedBox(
+          width: double.infinity,
+          child: SelectableText(widget.text, style: widget.style),
+        ),
+      ),
+    );
+  }
+}
+
 /// Request section widget for log viewer
 class _LogRequestSection extends StatelessWidget {
   final _LogEntry entry;
@@ -3224,17 +3264,9 @@ class _LogRequestSection extends StatelessWidget {
           Positioned.fill(
             child: Padding(
               padding: const EdgeInsets.all(10),
-              child: Scrollbar(
-                thumbVisibility: true,
-                child: SingleChildScrollView(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: SelectableText(
-                      displayBody,
-                      style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.85), height: 1.5),
-                    ),
-                  ),
-                ),
+              child: _ScrollableSelectableText(
+                text: displayBody,
+                style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.85), height: 1.5),
               ),
             ),
           ),
@@ -3243,10 +3275,12 @@ class _LogRequestSection extends StatelessWidget {
             Positioned(
               top: 4,
               right: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(3)),
-                child: Text('JSON', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.orange.shade700)),
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(3)),
+                  child: Text('JSON', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.orange.shade700)),
+                ),
               ),
             ),
         ],
@@ -3437,17 +3471,9 @@ class _LogResponseSection extends StatelessWidget {
           Positioned.fill(
             child: Padding(
               padding: const EdgeInsets.all(10),
-              child: Scrollbar(
-                thumbVisibility: true,
-                child: SingleChildScrollView(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: SelectableText(
-                      displayBody,
-                      style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.85), height: 1.5),
-                    ),
-                  ),
-                ),
+              child: _ScrollableSelectableText(
+                text: displayBody,
+                style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.85), height: 1.5),
               ),
             ),
           ),
@@ -3456,10 +3482,12 @@ class _LogResponseSection extends StatelessWidget {
             Positioned(
               top: 4,
               right: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(3)),
-                child: Text('JSON', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.orange.shade700)),
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(3)),
+                  child: Text('JSON', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.orange.shade700)),
+                ),
               ),
             ),
         ],
@@ -3602,25 +3630,19 @@ class _LogRequestSectionOptimized extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Scrollbar(
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              child: SizedBox(
-                width: double.infinity,
-                child: SelectableText(
-                  body,
-                  style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.85), height: 1.4),
-                ),
-              ),
-            ),
+          _ScrollableSelectableText(
+            text: body,
+            style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.85), height: 1.4),
           ),
           if (isJson)
             Positioned(
               top: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(3)),
-                child: Text('JSON', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.orange.shade700)),
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(3)),
+                  child: Text('JSON', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.orange.shade700)),
+                ),
               ),
             ),
         ],
@@ -3735,25 +3757,19 @@ class _LogResponseSectionOptimized extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Scrollbar(
-            thumbVisibility: true,
-            child: SingleChildScrollView(
-              child: SizedBox(
-                width: double.infinity,
-                child: SelectableText(
-                  body,
-                  style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.85), height: 1.4),
-                ),
-              ),
-            ),
+          _ScrollableSelectableText(
+            text: body,
+            style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: cs.onSurface.withOpacity(0.85), height: 1.4),
           ),
           if (isJson)
             Positioned(
               top: 0, right: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(3)),
-                child: Text('JSON', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.orange.shade700)),
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), borderRadius: BorderRadius.circular(3)),
+                  child: Text('JSON', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.orange.shade700)),
+                ),
               ),
             ),
         ],

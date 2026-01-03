@@ -357,11 +357,18 @@ class _LogContentPageState extends State<_LogContentPage> {
   String _rawContent = '';
   bool _loading = true;
   bool _showParsed = true; // Toggle between parsed view and raw view
+  final ScrollController _rawScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _loadContent();
+  }
+
+  @override
+  void dispose() {
+    _rawScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadContent() async {
@@ -858,15 +865,19 @@ class _LogContentPageState extends State<_LogContentPage> {
   }
 
   Widget _buildRawView(ColorScheme cs) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: SelectableText(
-        _rawContent,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 11,
-          color: cs.onSurface.withValues(alpha: 0.85),
-          height: 1.4,
+    return Scrollbar(
+      controller: _rawScrollController,
+      child: SingleChildScrollView(
+        controller: _rawScrollController,
+        padding: const EdgeInsets.all(16),
+        child: SelectableText(
+          _rawContent,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 11,
+            color: cs.onSurface.withValues(alpha: 0.85),
+            height: 1.4,
+          ),
         ),
       ),
     );
@@ -1499,6 +1510,13 @@ class _JsonBody extends StatefulWidget {
 
 class _JsonBodyState extends State<_JsonBody> {
   bool _showRendered = true; // 默认显示渲染后的内容
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   /// 检测内容是否是 JSON
   bool _isJson() {
@@ -1652,6 +1670,7 @@ class _JsonBodyState extends State<_JsonBody> {
           // 原始 JSON 显示
           Container(
             margin: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+            constraints: const BoxConstraints(maxHeight: 400),
             decoration: BoxDecoration(
               color: widget.isDark ? Colors.black26 : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(8),
@@ -1662,15 +1681,22 @@ class _JsonBodyState extends State<_JsonBody> {
             ),
             child: Stack(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: SelectableText(
-                    _formatContent(),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      color: cs.onSurface.withValues(alpha: 0.9),
-                      height: 1.5,
+                Scrollbar(
+                  controller: _scrollController,
+                  thumbVisibility: true,
+                  thickness: 8,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    physics: const ClampingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(10, 10, 20, 10),
+                    child: SelectableText(
+                      _formatContent(),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        color: cs.onSurface.withValues(alpha: 0.9),
+                        height: 1.5,
+                      ),
                     ),
                   ),
                 ),
@@ -1678,18 +1704,20 @@ class _JsonBodyState extends State<_JsonBody> {
                   Positioned(
                     top: 4,
                     right: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: cs.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'JSON',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: cs.primary,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: cs.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'JSON',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: cs.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -1834,35 +1862,55 @@ class _RenderedContentCard extends StatelessWidget {
 }
 
 /// Streaming chunks 显示
-class _ChunksView extends StatelessWidget {
+class _ChunksView extends StatefulWidget {
   final List<String> chunks;
   final bool isDark;
 
   const _ChunksView({required this.chunks, required this.isDark});
 
   @override
+  State<_ChunksView> createState() => _ChunksViewState();
+}
+
+class _ChunksViewState extends State<_ChunksView> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    
+
     // 合并所有 chunks 并尝试解析 SSE 格式
     final combinedContent = _parseSSEChunks();
-    
+
     return Container(
       margin: const EdgeInsets.fromLTRB(8, 0, 8, 4),
       constraints: const BoxConstraints(maxHeight: 300),
       decoration: BoxDecoration(
-        color: isDark ? Colors.black26 : Colors.grey.shade100,
+        color: widget.isDark ? Colors.black26 : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(10),
-        child: SelectableText(
-          combinedContent,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            fontSize: 10,
-            color: cs.onSurface.withValues(alpha: 0.85),
-            height: 1.4,
+      child: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        thickness: 8,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(10, 10, 20, 10),
+          child: SelectableText(
+            combinedContent,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 10,
+              color: cs.onSurface.withValues(alpha: 0.85),
+              height: 1.4,
+            ),
           ),
         ),
       ),
@@ -1872,7 +1920,7 @@ class _ChunksView extends StatelessWidget {
   /// 解析 SSE 格式的 chunks，提取有效内容
   String _parseSSEChunks() {
     final sb = StringBuffer();
-    for (final chunk in chunks) {
+    for (final chunk in widget.chunks) {
       // 处理转义字符
       var processed = chunk
           .replaceAll(r'\n', '\n')

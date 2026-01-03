@@ -44,20 +44,27 @@ class MarkdownMediaSanitizer {
       }
       final payload = dataUrl.substring(b64Index + 7);
 
-      // Decode in a background isolate (pure Dart decode)
-      final normalized = payload.replaceAll('\n', '');
-      final bytes = await compute(_decodeBase64, normalized);
+      try {
+        // Decode in a background isolate (pure Dart decode)
+        final normalized = payload.replaceAll('\n', '');
+        final bytes = await compute(_decodeBase64, normalized);
 
-      // Deterministic filename by content hash to prevent duplicates
-      final digest = _uuid.v5(Namespace.url.value, normalized);
-      final file = File('${dir.path}/img_$digest.$ext');
-      if (!await file.exists()) {
-        await file.writeAsBytes(bytes, flush: true);
+        // Deterministic filename by content hash to prevent duplicates
+        final digest = _uuid.v5(Namespace.url.value, normalized);
+        final file = File('${dir.path}/img_$digest.$ext');
+        if (!await file.exists()) {
+          await file.writeAsBytes(bytes, flush: true);
+        }
+
+        // Replace only the URL part inside the parentheses
+        final replaced = markdown.substring(m.start, m.end).replaceFirst(dataUrl, file.path);
+        sb.write(replaced);
+      } catch (e) {
+        // If decoding fails (e.g., large base64 or malformed data), keep original
+        print('[MarkdownMediaSanitizer] Failed to process base64 image: $e');
+        print('[MarkdownMediaSanitizer] Payload length: ${payload.length}');
+        sb.write(markdown.substring(m.start, m.end));
       }
-
-      // Replace only the URL part inside the parentheses
-      final replaced = markdown.substring(m.start, m.end).replaceFirst(dataUrl, file.path);
-      sb.write(replaced);
       last = m.end;
     }
     sb.write(markdown.substring(last));

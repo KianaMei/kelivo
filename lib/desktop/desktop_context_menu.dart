@@ -12,6 +12,10 @@ class DesktopContextMenuItem {
   final String label;
   final VoidCallback? onTap;
   final bool danger;
+  /// If true, first click shows confirmation state, second click executes onTap
+  final bool requiresConfirmation;
+  /// Label to show when in confirmation state (defaults to label if not provided)
+  final String? confirmLabel;
 
   const DesktopContextMenuItem({
     this.icon,
@@ -19,6 +23,8 @@ class DesktopContextMenuItem {
     required this.label,
     this.onTap,
     this.danger = false,
+    this.requiresConfirmation = false,
+    this.confirmLabel,
   });
 }
 
@@ -63,52 +69,47 @@ Future<void> showDesktopContextMenuAt(
     barrierDismissible: true,
     barrierColor: Colors.black.withOpacity(0.06),
     pageBuilder: (ctx, _, __) {
-      return Material(
-        type: MaterialType.transparency,
-        child: Stack(children: [
-          Positioned(
-            left: x,
-            top: y,
-            child: _AnimatedFade(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: menuWidth, maxWidth: menuWidth),
-                child: IntrinsicWidth(
-                  child: DecoratedBox(
-                    decoration: ShapeDecoration(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.2),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: BackdropFilter(
-                        filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1C1C1E).withOpacity(0.66) : Colors.white.withOpacity(0.66),
+      return StatefulBuilder(
+        builder: (ctx, setMenuState) {
+          // Track which item index is awaiting confirmation (-1 = none)
+          int confirmingIndex = -1;
+          return Material(
+            type: MaterialType.transparency,
+            child: Stack(children: [
+              Positioned(
+                left: x,
+                top: y,
+                child: _AnimatedFade(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: menuWidth, maxWidth: menuWidth),
+                    child: IntrinsicWidth(
+                      child: DecoratedBox(
+                        decoration: ShapeDecoration(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isDark ? Colors.white.withOpacity(0.08) : cs.outlineVariant.withOpacity(0.2),
+                              width: 1,
+                            ),
                           ),
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(maxHeight: menuMaxHeight),
-                            child: SingleChildScrollView(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  for (final it in items)
-                                    _GlassMenuItem(
-                                      icon: it.icon,
-                                      svgAsset: it.svgAsset,
-                                      label: it.label,
-                                      danger: it.danger,
-                                      onTap: () {
-                                        Navigator.of(ctx).pop();
-                                        it.onTap?.call();
-                                      },
-                                    ),
-                                ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: BackdropFilter(
+                            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1C1C1E).withOpacity(0.66) : Colors.white.withOpacity(0.66),
+                              ),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(maxHeight: menuMaxHeight),
+                                child: SingleChildScrollView(
+                                  child: _ConfirmableMenuContent(
+                                    items: items,
+                                    isDark: isDark,
+                                    onClose: () => Navigator.of(ctx).pop(),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -118,9 +119,9 @@ Future<void> showDesktopContextMenuAt(
                   ),
                 ),
               ),
-            ),
-          ),
-        ]),
+            ]),
+          );
+        },
       );
     },
   );
@@ -263,6 +264,174 @@ class _GlassMenuItemState extends State<_GlassMenuItem> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Stateful menu content that handles confirmation state
+class _ConfirmableMenuContent extends StatefulWidget {
+  const _ConfirmableMenuContent({
+    required this.items,
+    required this.isDark,
+    required this.onClose,
+  });
+
+  final List<DesktopContextMenuItem> items;
+  final bool isDark;
+  final VoidCallback onClose;
+
+  @override
+  State<_ConfirmableMenuContent> createState() => _ConfirmableMenuContentState();
+}
+
+class _ConfirmableMenuContentState extends State<_ConfirmableMenuContent> {
+  int _confirmingIndex = -1;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < widget.items.length; i++)
+          _buildMenuItem(i, widget.items[i]),
+      ],
+    );
+  }
+
+  Widget _buildMenuItem(int index, DesktopContextMenuItem item) {
+    final isConfirming = _confirmingIndex == index;
+
+    if (isConfirming) {
+      // Show confirmation state with confirm/cancel buttons
+      return _ConfirmationMenuItem(
+        label: item.confirmLabel ?? item.label,
+        onConfirm: () {
+          widget.onClose();
+          item.onTap?.call();
+        },
+        onCancel: () {
+          setState(() => _confirmingIndex = -1);
+        },
+      );
+    }
+
+    return _GlassMenuItem(
+      icon: item.icon,
+      svgAsset: item.svgAsset,
+      label: item.label,
+      danger: item.danger,
+      onTap: () {
+        if (item.requiresConfirmation) {
+          setState(() => _confirmingIndex = index);
+        } else {
+          widget.onClose();
+          item.onTap?.call();
+        }
+      },
+    );
+  }
+}
+
+/// Confirmation state menu item with confirm/cancel actions
+class _ConfirmationMenuItem extends StatefulWidget {
+  const _ConfirmationMenuItem({
+    required this.label,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  final String label;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  @override
+  State<_ConfirmationMenuItem> createState() => _ConfirmationMenuItemState();
+}
+
+class _ConfirmationMenuItemState extends State<_ConfirmationMenuItem> {
+  bool _hoverConfirm = false;
+  bool _hoverCancel = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          // Label
+          Expanded(
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 14.5,
+                color: Colors.red.shade600,
+                decoration: TextDecoration.none,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Cancel button
+          MouseRegion(
+            onEnter: (_) => setState(() => _hoverCancel = true),
+            onExit: (_) => setState(() => _hoverCancel = false),
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () {
+                try { Haptics.light(); } catch (_) {}
+                widget.onCancel();
+              },
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _hoverCancel
+                      ? (isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05))
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.close,
+                  size: 18,
+                  color: cs.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // Confirm button
+          MouseRegion(
+            onEnter: (_) => setState(() => _hoverConfirm = true),
+            onExit: (_) => setState(() => _hoverConfirm = false),
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () {
+                try { Haptics.light(); } catch (_) {}
+                widget.onConfirm();
+              },
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _hoverConfirm
+                      ? Colors.red.shade600.withOpacity(0.2)
+                      : Colors.red.shade600.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.check,
+                  size: 18,
+                  color: Colors.red.shade600,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

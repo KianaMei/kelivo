@@ -147,8 +147,6 @@ class XAIResponsesApi {
       if (maxTokens != null && maxTokens > 0) 'max_output_tokens': maxTokens,
       if (toolList.isNotEmpty) 'tools': toolList,
       if (toolList.isNotEmpty) 'tool_choice': 'auto',
-      // xAI-specific parameters
-      'include': ['verbose_streaming', 'inline_citations'],
       if (maxTurns != null) 'max_turns': maxTurns,
       if (isReasoning && effort != 'off')
         'reasoning': {
@@ -501,7 +499,6 @@ class XAIResponsesApi {
         'input': conversation,
         'stream': true,
         if (systemInstructions.isNotEmpty) 'instructions': systemInstructions,
-        'include': ['verbose_streaming', 'inline_citations'],
         if (maxTurns != null) 'max_turns': maxTurns,
         if (temperature != null) 'temperature': temperature,
         if (topP != null) 'top_p': topP,
